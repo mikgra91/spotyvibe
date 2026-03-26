@@ -25,6 +25,14 @@ GPT_HISTORY_LIMIT = 200
 # skip them entirely and look for new artists instead.
 EXHAUSTED_ARTIST_THRESHOLD = 4
 
+# How many consecutive batches may return an entirely-filtered result before
+# the loop is broken and the playlist is created with whatever was found.
+MAX_CONSECUTIVE_EMPTY_BATCHES = 3
+
+# Default minimum percentage of suggestions that must come from artists not
+# yet present in suggested_artists history (1–100).
+DEFAULT_NEW_ARTIST_PERCENTAGE = 30
+
 # Default OpenAI model used when none is configured
 DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
 
@@ -36,7 +44,7 @@ PROFILE_HISTORY_FILE = _APP_DIR / "personalized_music_profile.history.json"
 DEBUG_LOG_FILE = _APP_DIR / "debug.log"
 
 # Keys the user configures via the Settings UI
-USER_KEYS = ["OPENAI_API_KEY", "OPENAI_MODEL", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET", "DEBUG_MODE", "PLAYLIST_SIZE"]
+USER_KEYS = ["OPENAI_API_KEY", "OPENAI_MODEL", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE"]
 
 # Old file name used before the rename
 _OLD_ENV_FILE = _APP_DIR / ".env"
@@ -96,12 +104,23 @@ def get_playlist_size():
         return DEFAULT_PLAYLIST_SIZE
 
 
+def get_new_artist_percentage():
+    """Return the configured new-artist percentage (1–100), falling back to the default."""
+    raw = os.getenv("NEW_ARTIST_PERCENTAGE", "")
+    try:
+        val = int(raw)
+        return max(1, min(100, val))  # clamp to valid range
+    except (ValueError, TypeError):
+        return DEFAULT_NEW_ARTIST_PERCENTAGE
+
+
 def get_settings():
     """Return non-secret settings for the Settings UI."""
     return {
         "model": get_model(),
         "debug_mode": get_debug_mode(),
         "playlist_size": get_playlist_size(),
+        "new_artist_percentage": get_new_artist_percentage(),
     }
 
 

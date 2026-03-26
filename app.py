@@ -1,13 +1,15 @@
 import os
 import sys
 import json
+import threading
+import uuid
 
 # Ensure the spotyvibe package directory is on sys.path so all
 # imports resolve correctly regardless of the working directory.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, Response, render_template, jsonify, request, redirect, stream_with_context
-from config import load_config, get_credentials, save_credentials, CREDENTIALS_FILE, BATCH_SIZE, BASE_DIR, get_model, get_settings, get_debug_mode, get_playlist_size, DEBUG_LOG_FILE
+from config import load_config, get_credentials, save_credentials, CREDENTIALS_FILE, BATCH_SIZE, BASE_DIR, get_model, get_settings, get_debug_mode, get_playlist_size, DEBUG_LOG_FILE, MAX_CONSECUTIVE_EMPTY_BATCHES, get_new_artist_percentage
 import markdown
 
 load_config()
@@ -34,6 +36,9 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(24)
 
 # Clear debug log on startup so it only contains data from the current session
 clear_debug_log()
+
+# Active generation runs: run_id → {"cancel": Event, "finalize_on_cancel": bool, "verified_tracks": []}
+_runs: dict = {}
 
 
 @app.route("/")
@@ -62,8 +67,15 @@ def run_pipeline():
     """Generate suggestions via OpenAI in batches of BATCH_SIZE, verify on
     Spotify, and repeat until the configured playlist_size is reached.
 
+    Accepts an optional JSON body with a ``run_id`` field so the client can
+    cancel the run via ``POST /api/cancel``.
+
     Returns an SSE stream so the UI can show real-time progress.
     """
+    body = request.get_json(force=True, silent=True) or {}
+    run_id = body.get("run_id") or str(uuid.uuid4())
+    cancel_event = threading.Event()
+    _runs[run_id] = {"cancel": cancel_event, "finalize_on_cancel": False, "verified_tracks": []}
 
     def generate():
         try:
@@ -83,6 +95,7 @@ def run_pipeline():
                 clear_debug_log()
 
             playlist_size = get_playlist_size()
+            new_artist_percentage = get_new_artist_percentage()
 
             yield _sse("progress", message="Loading profile…")
             profile = load_profile()
@@ -92,8 +105,20 @@ def run_pipeline():
             verified_uris = set()  # fast URI dedup across attempts
             all_not_found = []
             batch_num = 0
+            was_cancelled = False
+            gpt_exhausted = False
+
+            # Retry tracking: how many consecutive batches returned entirely
+            # filtered results, and which tracks were in the last such batch.
+            consecutive_empty_batches = 0
+            last_filtered_tracks = []  # filtered tracks from most recent empty batch
 
             while len(verified_tracks) < playlist_size:
+                # ── Check for cancellation before each expensive GPT call ──
+                if cancel_event.is_set():
+                    was_cancelled = True
+                    break
+
                 batch_num += 1
                 remaining = playlist_size - len(verified_tracks)
                 # Request either a full batch or just the remaining count
@@ -106,21 +131,57 @@ def run_pipeline():
                             f"(have {len(verified_tracks)}/{playlist_size})",
                 )
 
-                # 1 — Ask GPT for suggestions
+                # 1 — Ask GPT for suggestions.
+                # On retries after all-filtered batches, pass the filtered tracks
+                # explicitly so GPT cannot claim it didn't know about them.
                 accepted = verified_tracks if batch_num > 1 else None
-                messages = build_messages(profile, accepted_tracks=accepted, batch_size=request_count)
+                messages = build_messages(
+                    profile,
+                    accepted_tracks=accepted,
+                    batch_size=request_count,
+                    recently_filtered_tracks=last_filtered_tracks if last_filtered_tracks else None,
+                    consecutive_empty=consecutive_empty_batches,
+                    new_artist_percentage=new_artist_percentage,
+                )
                 result = call_gpt(messages)
 
-                # 2 — Code-side duplicate / disliked filter
+                # ── Check again after the blocking GPT call ──
+                if cancel_event.is_set():
+                    was_cancelled = True
+                    break
+
+                # 2 — Code-side duplicate / disliked filter.
+                # Extracts _filtered_out so we can pass it back to GPT on retry.
                 result = filter_duplicate_suggestions(profile, result)
+                filtered_out = result.pop("_filtered_out", [])
+
                 if not result["playlist"]:
+                    consecutive_empty_batches += 1
+                    last_filtered_tracks = filtered_out  # used in next build_messages call
+
+                    if consecutive_empty_batches >= MAX_CONSECUTIVE_EMPTY_BATCHES:
+                        gpt_exhausted = True
+                        yield _sse(
+                            "progress",
+                            message=f"Batch {batch_num}: GPT suggested only already-known tracks "
+                                    f"for {consecutive_empty_batches} consecutive batches. "
+                                    f"Stopping with {len(verified_tracks)} verified track(s).",
+                        )
+                        break
+
                     yield _sse(
                         "progress",
-                        message=f"Batch {batch_num}: No new suggestions after filtering. Retrying…",
+                        message=f"Batch {batch_num}: All {len(filtered_out)} suggestion(s) already known "
+                                f"(retry {consecutive_empty_batches}/{MAX_CONSECUTIVE_EMPTY_BATCHES}). "
+                                f"Sending explicit reminder to GPT…",
                     )
                     profile = update_profile(profile, result)
                     save_profile(profile)
                     continue
+
+                # Success — reset consecutive-empty counter
+                consecutive_empty_batches = 0
+                last_filtered_tracks = []
 
                 # 3 — Verify each track exists on Spotify
                 batch_count = len(result["playlist"])
@@ -136,6 +197,9 @@ def run_pipeline():
                         verified_tracks.append(t)
                         verified_uris.add(t["uri"])
 
+                # Keep run state updated so the cancel endpoint can report progress
+                _runs[run_id]["verified_tracks"] = list(verified_tracks)
+
                 # 4 — Update history
                 profile = update_profile(profile, result)
                 save_profile(profile)
@@ -145,6 +209,40 @@ def run_pipeline():
                     message=f"Batch {batch_num}: {len(found)} found on Spotify, "
                             f"{len(verified_tracks)}/{playlist_size} total verified",
                 )
+                # Inform the UI how many tracks we have so far (drives the
+                # "Use X tracks now" button label)
+                yield _sse("batch_verified", count=len(verified_tracks), total=playlist_size)
+
+            # ── Handle cancellation ────────────────────────────────────────
+            if was_cancelled:
+                finalize = _runs.get(run_id, {}).get("finalize_on_cancel", False)
+                if not finalize or not verified_tracks:
+                    msg = (
+                        "Generation cancelled. No tracks were found yet."
+                        if not verified_tracks
+                        else f"Generation cancelled. {len(verified_tracks)} track(s) found but not added to playlist."
+                    )
+                    yield _sse("cancelled", message=msg, count=len(verified_tracks))
+                    return
+                # finalize=True → fall through to playlist creation below
+
+            # ── Handle GPT exhaustion ──────────────────────────────────────
+            if gpt_exhausted and not verified_tracks:
+                yield _sse(
+                    "error",
+                    message=(
+                        "GPT kept suggesting already-known tracks and could not produce "
+                        "any new ones. Try updating your taste profile with new preferences, "
+                        "or reduce the playlist size."
+                    ),
+                )
+                return
+            # gpt_exhausted with some verified_tracks → fall through to create
+            # playlist with what was found (same as "Use X tracks now")
+
+            if not verified_tracks:
+                yield _sse("error", message="No tracks could be verified on Spotify.")
+                return
 
             # Cap at target count
             verified_tracks = verified_tracks[:playlist_size]
@@ -165,16 +263,40 @@ def run_pipeline():
                 playlist_url=playlist_info.get("url"),
                 added=playlist_info.get("added", 0),
                 not_found=all_not_found,
+                was_cancelled=was_cancelled or gpt_exhausted,
             )
 
         except Exception as e:
             yield _sse("error", message=str(e))
+        finally:
+            _runs.pop(run_id, None)
 
     return Response(
         stream_with_context(generate()),
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.route("/api/cancel", methods=["POST"])
+def cancel_run():
+    """Signal an active generation run to stop.
+
+    Request body (JSON):
+      run_id  – the run to cancel
+      finalize – if true, create the Spotify playlist with however many
+                 tracks have been verified so far instead of discarding them.
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    run_id = data.get("run_id")
+    finalize = bool(data.get("finalize", False))
+
+    if run_id and run_id in _runs:
+        _runs[run_id]["finalize_on_cancel"] = finalize
+        _runs[run_id]["cancel"].set()
+        return jsonify({"status": "ok"})
+    # Run may have already finished — that is fine
+    return jsonify({"status": "not_found"})
 
 
 @app.route("/api/feedback", methods=["POST"])
@@ -276,6 +398,8 @@ def write_settings():
         payload["DEBUG_MODE"] = "true" if data["debug_mode"] else ""
     if "playlist_size" in data:
         payload["PLAYLIST_SIZE"] = str(int(data["playlist_size"]))
+    if "new_artist_percentage" in data:
+        payload["NEW_ARTIST_PERCENTAGE"] = str(max(1, min(100, int(data["new_artist_percentage"]))))
     save_credentials(payload)
     return jsonify({"status": "ok"})
 

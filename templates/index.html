@@ -88,6 +88,26 @@
         .btn-run:active { transform: translateY(0); }
         .btn-run:disabled { background: var(--bg-elevated); color: var(--text-muted); cursor: not-allowed; transform: none; box-shadow: none; }
 
+        .btn-run-cancel {
+            background: var(--error); color: #fff; border: none;
+            padding: 14px 28px; font-size: 15px; font-weight: 700; font-family: inherit;
+            border-radius: var(--radius-pill); cursor: pointer;
+            transition: all var(--transition);
+            box-shadow: 0 4px 16px rgba(239,68,68,.2);
+        }
+        .btn-run-cancel:hover { background: #DC2626; transform: translateY(-2px); box-shadow: 0 6px 24px rgba(239,68,68,.3); }
+        .btn-run-cancel:active { transform: translateY(0); }
+
+        .btn-use-tracks {
+            background: transparent; color: var(--primary);
+            border: 1.5px solid var(--primary);
+            padding: 9px 22px; font-size: 13px; font-weight: 600; font-family: inherit;
+            border-radius: var(--radius-pill); cursor: pointer;
+            transition: all var(--transition);
+        }
+        .btn-use-tracks:hover { background: rgba(29,185,84,.1); transform: translateY(-1px); }
+        .btn-use-tracks:active { transform: translateY(0); }
+
         /* --- Run section --- */
         .generate-section {
             background: var(--bg-card); border-radius: var(--radius-lg); padding: 20px;
@@ -430,6 +450,8 @@
     <div class="generate-section">
         <div class="run-section">
             <button class="btn-run" id="runBtn" onclick="runPipeline()">▶ Generate &amp; Create Playlist</button>
+            <button class="btn-run-cancel hidden" id="cancelBtn" onclick="cancelGeneration()">⛔ Cancel</button>
+            <button class="btn-use-tracks hidden" id="useTracksBtn" onclick="useCurrentTracks()">▶ Use 0 tracks now</button>
         </div>
         <div id="runWarn" class="hidden"></div>
     </div>
@@ -497,8 +519,16 @@
                 Playlist Size
                 <span class="tooltip-trigger" data-tooltip="Tracks are fetched in blocks of 10 per GPT request. Large values will cause many requests and therefore higher token usage / cost.">?</span>
             </label>
-            <input id="settings-playlist-size" type="number" min="10" step="10" value="10" style="width:100%;">
+            <input id="settings-playlist-size" type="number" min="10" step="10" style="width:100%;">
             <div class="cred-status" id="status-settings-playlist-size"></div>
+        </div>
+        <div class="form-row">
+            <label for="settings-new-artist-pct" style="display:flex;align-items:center;gap:6px;">
+                New Artist %
+                <span class="tooltip-trigger" data-tooltip="Minimum percentage of suggestions that must come from artists not yet in your history. Higher values push GPT to explore new territory; lower values let it revisit familiar artists more often.">?</span>
+            </label>
+            <input id="settings-new-artist-pct" type="number" min="1" max="100" step="1" style="width:100%;">
+            <div class="cred-status" id="status-settings-new-artist-pct"></div>
         </div>
         <div class="form-row">
             <label>Debug Mode</label>
@@ -729,6 +759,46 @@
     /* ------------------------------------------------------------------ */
     /*  Run pipeline (SSE streaming)                                       */
     /* ------------------------------------------------------------------ */
+    let currentRunId = null;
+    let currentAbortController = null;
+    let isGenerating = false;
+    let partialTrackCount = 0;
+
+    function generateUUID() {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+        // Fallback for older environments
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+            const r = Math.random() * 16 | 0;
+            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
+    }
+
+    function setGenerating(generating) {
+        isGenerating = generating;
+        const runBtn    = document.getElementById('runBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const useBtn    = document.getElementById('useTracksBtn');
+
+        runBtn.disabled  = generating;
+        runBtn.textContent = generating ? '⏳ Generating…' : '▶ Generate & Create Playlist';
+
+        cancelBtn.classList.toggle('hidden', !generating);
+
+        // "Use X tracks" only visible during generation once we have some tracks
+        useBtn.classList.toggle('hidden', !generating || partialTrackCount === 0);
+    }
+
+    function updateUseTracksButton(count) {
+        partialTrackCount = count;
+        const useBtn = document.getElementById('useTracksBtn');
+        if (isGenerating && count > 0) {
+            useBtn.textContent = `▶ Use ${count} track${count !== 1 ? 's' : ''} now`;
+            useBtn.classList.remove('hidden');
+        } else {
+            useBtn.classList.add('hidden');
+        }
+    }
+
     async function runPipeline() {
         // Re-check auth before starting
         await Promise.all([checkCredentialStatus(), checkSpotifyAuth()]);
@@ -747,14 +817,21 @@
             showStatus('⚠️ Please train your taste profile first before generating suggestions.', 'error');
             return;
         }
-        const btn  = document.getElementById('runBtn');
-        btn.disabled = true;
-        btn.textContent = '⏳ Generating…';
+
+        partialTrackCount = 0;
+        currentRunId = generateUUID();
+        currentAbortController = new AbortController();
+        setGenerating(true);
         showStatus('Starting pipeline…', 'info');
         hidePlaylistLink();
 
         try {
-            const response = await fetch('/api/run', { method: 'POST' });
+            const response = await fetch('/api/run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ run_id: currentRunId }),
+                signal: currentAbortController.signal,
+            });
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
@@ -793,11 +870,56 @@
             }
 
         } catch (e) {
-            showStatus('❌ Network error: ' + e.message, 'error');
+            if (e.name !== 'AbortError') {
+                showStatus('❌ Network error: ' + e.message, 'error');
+            }
+            // AbortError is expected when cancelGeneration() is called — status already set
         } finally {
-            btn.disabled = false;
-            btn.textContent = '▶ Generate & Create Playlist';
+            setGenerating(false);
         }
+    }
+
+    /** Cancel generation without creating any playlist. */
+    async function cancelGeneration() {
+        if (!isGenerating || !currentRunId) return;
+
+        showStatus('⛔ Cancelling…', 'info');
+
+        // Abort the SSE reader immediately so the UI unlocks
+        if (currentAbortController) currentAbortController.abort();
+
+        // Signal the server to stop making new GPT calls (fire and forget)
+        try {
+            await fetch('/api/cancel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ run_id: currentRunId, finalize: false }),
+            });
+        } catch (e) { /* ignore */ }
+
+        showStatus('⛔ Generation cancelled.', 'info');
+    }
+
+    /** Cancel generation and create the playlist with the tracks found so far. */
+    async function useCurrentTracks() {
+        if (!isGenerating || !currentRunId || partialTrackCount === 0) return;
+
+        const useBtn = document.getElementById('useTracksBtn');
+        useBtn.disabled = true;
+        useBtn.textContent = '⏳ Finalising…';
+
+        showStatus(`⏳ Creating playlist with ${partialTrackCount} track(s)…`, 'info');
+
+        // Signal the server to stop and finalize — keep the SSE reader alive
+        // so we receive the 'result' event the server will emit.
+        try {
+            await fetch('/api/cancel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ run_id: currentRunId, finalize: true }),
+            });
+        } catch (e) { /* ignore */ }
+        // The SSE reader continues and handleStreamEvent('result') will fire
     }
 
     function handleStreamEvent(event) {
@@ -805,16 +927,26 @@
             case 'progress':
                 showStatus('⏳ ' + event.message, 'info');
                 break;
+            case 'batch_verified':
+                updateUseTracksButton(event.count);
+                break;
+            case 'cancelled':
+                showStatus('⛔ ' + event.message, 'info');
+                break;
             case 'result':
                 suggestions = event.playlist || [];
                 renderTracks();
                 if (event.playlist_url) showPlaylistLink(event.playlist_url);
 
-                const parts = [`✅ ${suggestions.length} suggestions generated.`];
+                const parts = [
+                    event.was_cancelled
+                        ? `⛔ Generation stopped early. Playlist created with ${suggestions.length} track(s).`
+                        : `✅ ${suggestions.length} suggestions generated.`
+                ];
                 if (event.added)     parts.push(`${event.added} new track(s) added to playlist.`);
                 if (event.not_found && event.not_found.length)
                     parts.push(`${event.not_found.length} track(s) not found on Spotify.`);
-                showStatus(parts.join(' '), 'success');
+                showStatus(parts.join(' '), event.was_cancelled ? 'info' : 'success');
                 break;
             case 'error':
                 showStatus('❌ ' + event.message, 'error');
@@ -1158,6 +1290,21 @@
             const modelStatus = document.getElementById('status-settings-model');
             modelStatus.textContent = '✓ Using: ' + (data.model || 'gpt-4.1-mini');
             modelStatus.className = 'cred-status set';
+
+            // Playlist size
+            const playlistSize = data.playlist_size || 10;
+            document.getElementById('settings-playlist-size').value = playlistSize;
+            const sizeStatus = document.getElementById('status-settings-playlist-size');
+            sizeStatus.textContent = '✓ Current: ' + playlistSize + ' tracks';
+            sizeStatus.className = 'cred-status set';
+
+            // New artist percentage
+            const pct = data.new_artist_percentage || 30;
+            document.getElementById('settings-new-artist-pct').value = pct;
+            const pctStatus = document.getElementById('status-settings-new-artist-pct');
+            pctStatus.textContent = '✓ At least ' + pct + '% of tracks from new artists';
+            pctStatus.className = 'cred-status set';
+
         } catch (e) { /* ignore */ }
 
         // Fetch available models and populate dropdown
@@ -1202,6 +1349,11 @@
         const sizeVal = parseInt(document.getElementById('settings-playlist-size').value, 10);
         if (!isNaN(sizeVal) && sizeVal >= 10) {
             payload.playlist_size = sizeVal;
+        }
+
+        const pctVal = parseInt(document.getElementById('settings-new-artist-pct').value, 10);
+        if (!isNaN(pctVal) && pctVal >= 1 && pctVal <= 100) {
+            payload.new_artist_percentage = pctVal;
         }
 
         try {

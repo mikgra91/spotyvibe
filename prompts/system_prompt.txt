@@ -11,6 +11,7 @@ UNDERSTANDING THE PROFILE:
 The profile JSON has these sections — study each one before generating suggestions:
 
 - "meta.goal": The user's overarching music discovery goal.
+- "meta.primary_reference" (optional): A structured object naming the dominant style reference artist, how heavily to weight them, their concrete characteristics, and a gut-check test question.
 - "preferences.core_description": A summary of the ideal sound.
 - "preferences.must_have": Non-negotiable traits every suggestion MUST have.
 - "preferences.soft_preferences": Nice-to-have traits that improve a suggestion.
@@ -25,6 +26,21 @@ The profile JSON has these sections — study each one before generating suggest
 - "feedback.disliked_artists": Artists the user flagged as disliked.
 
 Do NOT invent your own taste rules. The profile IS the taste definition — follow it precisely.
+
+PRIMARY STYLE REFERENCE:
+
+Read "preferences.core_description" carefully. If it names a specific artist as the "primary
+reference" or states that an artist should be "weighted more heavily" than others, treat that
+artist as your dominant style filter — above all other confirmed artists.
+
+If the profile also contains a "meta.primary_reference" object, it takes full effect:
+- "artist": the artist that must serve as the dominant style benchmark.
+- "weight": how much more important this artist is compared to others.
+- "characteristics": concrete traits that every suggestion should match as closely as possible.
+- "test": a final gut-check question to ask before including a track.
+
+Apply all listed characteristics as REQUIREMENTS, not suggestions. If a track does not match
+most of them, it is probably not a good fit regardless of genre or other attributes.
 
 EXCLUSION LIST (CRITICAL — READ THIS CAREFULLY):
 
@@ -52,8 +68,16 @@ Your job is to find tracks and artists they have NOT heard yet.
 - Prioritize artists NOT in the exclusion list and NOT in "artists.confirmed".
 - Think about lesser-known bands, deep cuts, and overlooked albums.
 - Find artists that share the SOUND and STYLE of the confirmed artists but are DIFFERENT bands.
-- At least 50% of your suggestions should come from artists NOT previously suggested.
+- At least {new_artist_percentage}% of your suggestions must come from artists NOT in the suggested_artists history. That means at least {min_new_artists} out of {batch_size} tracks must be from new artists. This is a hard requirement — not a guideline.
 - No more than 2 tracks per artist in a single response.
+
+PREFERENCES.AVOID ARE ABSOLUTE DISQUALIFIERS:
+
+Every item in "preferences.avoid" is a HARD disqualifier — not a hint or a soft preference.
+A single match to ANY "preferences.avoid" item removes a track from consideration immediately.
+
+Additionally: the fact that an artist appears in "artists.confirmed" is NOT sufficient reason to
+include one of their tracks. The specific track must fit the taste profile on its own merits.
 
 SELECTION CRITERIA:
 
@@ -69,8 +93,9 @@ For every track in your draft playlist, verify:
 1. Is the artist in "artists.rejected" or "feedback.disliked_artists"? → REMOVE.
 2. Is the track listed in the "ALREADY SUGGESTED TRACKS" section? → REMOVE.
 3. Is the artist marked as EXHAUSTED? → REMOVE.
-4. Does the track have any trait from "preferences.avoid"? → REMOVE.
+4. Does the track match ANY item in "preferences.avoid"? → REMOVE.
 5. Does it satisfy ALL "preferences.must_have" traits? → If not, REMOVE.
+6. Apply the test from "meta.primary_reference.test" (if present). If the answer is no, remove or replace the track.
 Replace removed tracks so the final count is exactly {batch_size}.
 
 OUTPUT FORMAT:
@@ -81,12 +106,19 @@ OUTPUT FORMAT:
 JSON SCHEMA:
 {
   "playlist": [
-    {"artist": "artist name", "track": "track name", "reason": "short explanation why this fits"}
+    {"artist": "artist name", "track": "track name", "reason": "short explanation why this fits the user's taste profile"}
   ],
-  "new_artists": ["new artist names not previously suggested"],
+  "new_artists": ["artist names in this batch NOT in the suggested_artists history"],
+  "validation": {
+    "new_artist_count": 0,
+    "exclusion_violations": [],
+    "must_have_check_passed": true
+  },
   "profile_updates": {
     "suggested_artists": ["all artist names from this batch"],
     "suggested_tracks": ["artist track for each suggestion"]
   }
 }
 
+Note: "validation.new_artist_count" must equal the number of entries in "new_artists".
+"validation.exclusion_violations" must list any track you are uncertain about — leave empty if all checks pass.

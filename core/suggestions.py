@@ -1,4 +1,5 @@
 import json
+import math
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -118,7 +119,9 @@ def _build_exclusion_block(profile):
     return "\n".join(lines)
 
 
-def build_messages(profile, accepted_tracks=None, batch_size=None):
+def build_messages(profile, accepted_tracks=None, batch_size=None,
+                   recently_filtered_tracks=None, consecutive_empty=0,
+                   new_artist_percentage=30):
     """Build the system + user message pair for the OpenAI API.
 
     accepted_tracks: optional list of {"artist": ..., "track": ...} dicts
@@ -127,13 +130,25 @@ def build_messages(profile, accepted_tracks=None, batch_size=None):
         which ones are already accepted (so it can skip them).
     batch_size: how many tracks to request from GPT in this call.
         Defaults to BATCH_SIZE from config.
+    recently_filtered_tracks: optional list of {"artist": ..., "track": ...}
+        dicts that were suggested in the previous batch but were ALL filtered
+        out because they are already in history.  Used to give GPT an explicit
+        per-retry warning so it cannot plausibly miss the exclusions.
+    consecutive_empty: how many consecutive all-filtered batches have occurred
+        so far (used to scale the warning severity).
+    new_artist_percentage: minimum percentage (1–100) of suggestions that must
+        come from artists not present in suggested_artists history.
     """
     if batch_size is None:
         batch_size = BATCH_SIZE
 
+    min_new_artists = math.ceil(batch_size * new_artist_percentage / 100)
+
     system_prompt = load_text_file(SYSTEM_PROMPT_FILE)
-    # Replace the placeholder count in the system prompt
+    # Replace all per-run placeholders in the system prompt
     system_prompt = system_prompt.replace("{batch_size}", str(batch_size))
+    system_prompt = system_prompt.replace("{new_artist_percentage}", str(new_artist_percentage))
+    system_prompt = system_prompt.replace("{min_new_artists}", str(min_new_artists))
 
     user_template = load_text_file(PROMPT_FILE)
 
@@ -171,6 +186,30 @@ def build_messages(profile, accepted_tracks=None, batch_size=None):
             f" {remaining} entries in \"playlist\"."
         )
 
+    if recently_filtered_tracks:
+        # Cap at 30 entries so the prompt stays manageable
+        capped = recently_filtered_tracks[:30]
+        filtered_listing = "\n".join(
+            f"  - {t['artist']} - {t['track']}" for t in capped
+        )
+        attempt_label = f"attempt {consecutive_empty + 1}" if consecutive_empty > 0 else "attempt 1"
+        user_message += (
+            f"\n\n{'=' * 60}\n"
+            f"⚠️  RETRY WARNING ({attempt_label}) — YOUR PREVIOUS BATCH WAS ENTIRELY FILTERED\n"
+            f"{'=' * 60}\n"
+            f"Every single track you suggested in the last batch was already\n"
+            f"present in the exclusion list above. You are NOT following the\n"
+            f"\"ALREADY SUGGESTED TRACKS\" section. This is the {attempt_label}.\n\n"
+            f"The {len(capped)} specific tracks from your last batch that were\n"
+            f"ALL rejected (already in history — do NOT suggest these again):\n"
+            f"{filtered_listing}\n\n"
+            f"STRICT REQUIREMENT: You MUST suggest {batch_size} tracks that\n"
+            f"appear neither in the exclusion list NOR in the list above.\n"
+            f"Explore different artists, sub-genres, or time periods you have\n"
+            f"not yet touched.\n"
+            f"{'=' * 60}\n"
+        )
+
     return [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_message},
@@ -178,7 +217,12 @@ def build_messages(profile, accepted_tracks=None, batch_size=None):
 
 
 def normalize_response(result):
-    """Force-lowercase all artist and track names in the GPT response."""
+    """Force-lowercase all artist and track names in the GPT response.
+    Also strips the 'validation' key which is only for GPT's self-check."""
+    # 'validation' is an internal self-check block — discard it so it never
+    # pollutes profile_updates or the UI.
+    result.pop("validation", None)
+
     for entry in result.get("playlist", []):
         entry["artist"] = entry.get("artist", "").lower().strip()
         entry["track"] = entry.get("track", "").lower().strip()
@@ -271,6 +315,7 @@ def filter_duplicate_suggestions(profile, result):
 
     seen_in_batch = set()
     filtered = []
+    filtered_out = []  # tracks removed because they are already known / disliked
 
     for item in result.get("playlist", []):
         artist = item.get("artist", "").lower().strip()
@@ -279,9 +324,11 @@ def filter_duplicate_suggestions(profile, result):
 
         if key in exclude_keys:
             print(f"Filtered (already suggested / disliked): {artist} - {track}")
+            filtered_out.append(item)
             continue
         if key in seen_in_batch:
             print(f"Filtered (duplicate in batch): {artist} - {track}")
+            filtered_out.append(item)
             continue
 
         seen_in_batch.add(key)
@@ -289,6 +336,9 @@ def filter_duplicate_suggestions(profile, result):
 
     # Rebuild profile_updates to match the filtered playlist
     result["playlist"] = filtered
+    # Expose the tracks that were removed so callers can feed them back to GPT
+    # as an explicit retry warning (internal key, stripped before returning to UI).
+    result["_filtered_out"] = filtered_out
     filtered_artists = {item["artist"].lower().strip() for item in filtered}
     result["profile_updates"]["suggested_artists"] = list(filtered_artists)
     result["profile_updates"]["suggested_tracks"] = [

@@ -84,6 +84,13 @@ You can switch to a different model at any time. More capable models (e.g., `gpt
 
 > **⚠️ Cost warning:** Different models have very different prices — for example, `gpt-4.1` can cost 10× more per request than `gpt-4.1-mini`. Check [OpenAI Pricing](https://platform.openai.com/docs/pricing) to understand the costs before switching models.
 
+**Playlist Size** — controls how many tracks are generated per run (minimum 10, default 10).
+
+**New Artist %** — sets the minimum percentage of suggestions per batch that must come from artists *not yet in your history* (range: 1–100, default: 30). For example, with 30% and a batch size of 10, GPT is required to include at least 3 tracks from artists it has never suggested before.
+
+- **Higher values** (e.g., 60–80%) push GPT to explore new territory aggressively. Useful early on when your history is small.
+- **Lower values** (e.g., 10–20%) let GPT revisit artists it knows you like more often. Useful once you have a rich history and want deeper cuts from proven artists.
+
 ### 3. Connect Your Spotify Account
 
 After saving your credentials, a banner will appear asking you to **Connect to Spotify**. Click the link — a small popup window will open where you log in to Spotify and grant permission. Once authorised, the popup closes automatically and the banner disappears.
@@ -124,6 +131,30 @@ Once your profile is trained and Spotify is connected, go to the **Step 2 — Ge
    - If some tracks aren't found, it automatically retries with new suggestions.
 3. When finished, the suggested tracks appear in a list — each shown with its **album cover artwork** — and are added to a private Spotify playlist called **"SpotyVibe Playlist"**.
 4. A link to the playlist is shown — click it to open it in Spotify.
+
+---
+
+## Stopping a Generation Early
+
+Sometimes GPT gets stuck suggesting the same songs over and over, or you simply have enough tracks and don't want to wait for the full playlist. Two buttons appear during generation to help with this:
+
+### ⛔ Cancel
+
+Click **⛔ Cancel** at any time to immediately stop the generation. No playlist changes are made — any tracks verified so far are discarded and the Spotify playlist is left unchanged.
+
+Use this when you want to start over with fresh settings or a refined profile.
+
+### ▶ Use X tracks now
+
+As each batch of tracks is verified, a **▶ Use X tracks now** button appears next to the Cancel button (where X is the current count of verified tracks). Clicking this button:
+
+1. Stops the generation immediately.
+2. Creates the Spotify playlist with however many tracks have been verified so far — even if the number is less than your configured playlist size.
+3. Displays the tracks in the list and shows a link to the finished playlist.
+
+Use this when the AI has found some good tracks but has started repeating suggestions — you can grab what's already good and skip waiting for the rest.
+
+> **Tip:** If you configured a playlist size of 30 but GPT starts looping after 12 tracks, click **▶ Use 12 tracks now** to instantly create a playlist with those 12 tracks.
 
 ---
 
@@ -173,6 +204,8 @@ Your taste may evolve over time. You can update your profile at any point:
 3. Click **Send to AI**.
 
 The AI merges your new input with the existing profile — nothing is lost. Your feedback history and past suggestions are always preserved.
+
+> **Tip — Profile consistency matters:** If you explicitly reject an artist (via 👎 Dislike), make sure the same artist is not still listed as a confirmed favourite. Contradictions in the profile confuse the AI and cause bad suggestions. If you notice the AI keeps repeating things you've rejected, open the Train Taste Profile section and add a clear sentence like *"I strongly dislike [Artist] — never suggest them."*
 
 ---
 
@@ -247,6 +280,8 @@ python -m core.feedback dislike "Artist Name" --reason "why"
 | **Spotify auth fails with "INVALID_CLIENT"** | Double-check your Client ID and Secret. Make sure `http://127.0.0.1:5000/callback` is listed as a Redirect URI in your Spotify Developer Dashboard. |
 | **"403 Forbidden" during generation** | Your Spotify session has expired or permissions were revoked. The app disconnects automatically — click **Connect to Spotify** in the warning banner to reconnect. You can also manually disconnect via ⚙️ → 🔌 Disconnect Spotify. |
 | **"OpenAI API key is not configured"** | Open ⚙️ → Credentials and enter your OpenAI API Key. |
+| **GPT kept suggesting the same songs and stopped early** | This is the automatic loop-protection kicking in. After 3 consecutive batches where every suggestion was already in your history, the app stops and creates the playlist with whatever tracks were found. Click **▶ Use X tracks now** before that point, or update your taste profile with new preferences and re-run. |
+| **"GPT could not generate any new tracks"** | Your history is very large and GPT can no longer find tracks outside it. Try describing new styles or genres in the Train Taste Profile section to expand the suggestion space. |
 | **Most tracks "not found on Spotify"** | This can happen if the AI suggests very obscure tracks. Run the generation again — each attempt produces different results. |
 | **"python-dotenv could not parse statement"** | Your credentials file is corrupted. Open ⚙️ → Credentials and re-save your keys. The app now prevents this from recurring. |
 | **App won't start** | Make sure you ran `pip install -r requirements.txt` and are using Python 3.10+. |

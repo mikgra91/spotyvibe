@@ -22,6 +22,11 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 - **AI-powered suggestions** with configurable OpenAI model selection.
 - **Album artwork** displayed alongside each suggested track.
 - **Spotify integration** — auto-creates and manages a private playlist.
+- **Cancel generation** — stop an in-progress playlist generation at any time with the ⛔ Cancel button.
+- **Use tracks now** — if GPT gets stuck repeating songs, use the "▶ Use X tracks now" button to create the playlist immediately with however many tracks have already been verified.
+- **Automatic loop protection** — if GPT ignores the exclusion list for 3 consecutive batches, the loop stops automatically and creates the playlist with whatever was found. Each retry sends an explicit warning listing the exact tracks GPT suggested that were already known.
+- **New Artist % setting** — configurable percentage (1–100, default 30%) of each batch that must come from artists not yet in your history, pushing GPT to explore new territory.
+- **Hardened GPT prompt** — Bear Ghost is set as the explicit primary style reference; a "Hard Negative Rules" section disqualifies generic or predictable tracks; GPT emits a self-validation block to force it to check its own output before finalising.
 - **Debug mode** — logs all GPT communication to a file for prompt analysis and tuning.
 
 ## Quick Start
