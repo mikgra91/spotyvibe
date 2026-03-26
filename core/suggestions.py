@@ -3,8 +3,7 @@ import math
 import re
 from collections import defaultdict
 from pathlib import Path
-from config import BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD, load_config, get_model
-from core.profile import load_profile, save_profile
+from config import BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD, get_model
 from core.utils import get_openai_client, strip_code_fences, debug_log
 
 # Paths resolved from the package root — no os.chdir() dependency
@@ -351,21 +350,3 @@ def filter_duplicate_suggestions(profile, result):
     ]
 
     return result
-
-
-def main():
-    load_config()
-    profile = load_profile()
-    normalize_history(profile)
-    messages = build_messages(profile)
-    result = call_gpt(messages)
-    result = filter_duplicate_suggestions(profile, result)
-    updated_profile = update_profile(profile, result)
-    save_profile(updated_profile)
-
-    # Print only valid JSON for createPlaylist.py
-    print(json.dumps(result))
-
-
-if __name__ == "__main__":
-    main()

@@ -1,0 +1,339 @@
+"""Tests for core/playlist.py — Spotify OAuth, search, and playlist management."""
+
+import os
+from unittest.mock import patch, MagicMock
+
+from core.playlist import (
+    find_existing_playlist,
+    get_existing_track_uris,
+    remove_from_playlist,
+    search_tracks,
+    add_to_playlist,
+    get_spotify_auth_status,
+    get_spotify_auth_url,
+    disconnect_spotify,
+    handle_spotify_callback,
+    PLAYLIST_NAME,
+)
+
+
+class TestGetSpotifyAuthStatus:
+    @patch.dict(os.environ, {"SPOTIPY_CLIENT_ID": "", "SPOTIPY_CLIENT_SECRET": ""})
+    def test_not_configured_when_no_creds(self):
+        assert get_spotify_auth_status() == "not_configured"
+
+    @patch("core.playlist.get_spotify_oauth")
+    @patch.dict(os.environ, {"SPOTIPY_CLIENT_ID": "id", "SPOTIPY_CLIENT_SECRET": "secret"})
+    def test_not_authenticated_when_no_token(self, mock_oauth):
+        mock_oauth.return_value.get_cached_token.return_value = None
+        assert get_spotify_auth_status() == "not_authenticated"
+
+    @patch("core.playlist.spotipy.Spotify")
+    @patch("core.playlist.get_spotify_oauth")
+    @patch.dict(os.environ, {"SPOTIPY_CLIENT_ID": "id", "SPOTIPY_CLIENT_SECRET": "secret"})
+    def test_authenticated_when_valid_token(self, mock_oauth, mock_sp_cls):
+        mock_oauth.return_value.get_cached_token.return_value = {"access_token": "tok"}
+        mock_sp_cls.return_value.current_user.return_value = {"id": "user1"}
+        assert get_spotify_auth_status() == "authenticated"
+
+    @patch("core.playlist.spotipy.Spotify")
+    @patch("core.playlist.get_spotify_oauth")
+    @patch.dict(os.environ, {"SPOTIPY_CLIENT_ID": "id", "SPOTIPY_CLIENT_SECRET": "secret"})
+    def test_not_authenticated_when_token_invalid(self, mock_oauth, mock_sp_cls):
+        mock_oauth.return_value.get_cached_token.return_value = {"access_token": "expired"}
+        mock_sp_cls.return_value.current_user.side_effect = Exception("token expired")
+        assert get_spotify_auth_status() == "not_authenticated"
+
+
+class TestDisconnectSpotify:
+    def test_removes_cache_file(self, tmp_path):
+        cache = tmp_path / ".spotify-cache"
+        cache.write_text('{"token": "data"}')
+        with patch("core.playlist.CACHE_FILE", cache):
+            result = disconnect_spotify()
+        assert result is True
+        assert not cache.exists()
+
+    def test_returns_true_when_no_cache(self, tmp_path):
+        cache = tmp_path / ".spotify-cache"
+        with patch("core.playlist.CACHE_FILE", cache):
+            result = disconnect_spotify()
+        assert result is True
+
+
+class TestGetSpotifyAuthUrl:
+    @patch("core.playlist.get_spotify_oauth")
+    def test_returns_url(self, mock_oauth):
+        mock_oauth.return_value.get_authorize_url.return_value = "https://accounts.spotify.com/authorize?..."
+        url = get_spotify_auth_url()
+        assert url.startswith("https://")
+
+
+class TestHandleSpotifyCallback:
+    @patch("core.playlist.get_spotify_oauth")
+    def test_success(self, mock_oauth):
+        mock_oauth.return_value.get_access_token.return_value = "tok"
+        assert handle_spotify_callback("auth_code") is True
+
+    @patch("core.playlist.get_spotify_oauth")
+    def test_failure(self, mock_oauth):
+        mock_oauth.return_value.get_access_token.side_effect = Exception("fail")
+        assert handle_spotify_callback("bad_code") is False
+
+
+class TestFindExistingPlaylist:
+    def test_finds_matching_playlist(self):
+        sp = MagicMock()
+        sp.current_user_playlists.return_value = {
+            "items": [
+                {"name": "Other Playlist"},
+                {"name": PLAYLIST_NAME, "id": "pl123"},
+            ],
+            "next": None,
+        }
+        result = find_existing_playlist(sp)
+        assert result["id"] == "pl123"
+
+    def test_returns_none_when_not_found(self):
+        sp = MagicMock()
+        sp.current_user_playlists.return_value = {
+            "items": [{"name": "Random"}],
+            "next": None,
+        }
+        assert find_existing_playlist(sp) is None
+
+    def test_paginates(self):
+        sp = MagicMock()
+        sp.current_user_playlists.side_effect = [
+            {"items": [{"name": "A"}], "next": "url"},
+            {"items": [{"name": PLAYLIST_NAME, "id": "found"}], "next": None},
+        ]
+        result = find_existing_playlist(sp)
+        assert result["id"] == "found"
+
+
+class TestGetExistingTrackUris:
+    def test_collects_all_uris(self):
+        sp = MagicMock()
+        sp.playlist_tracks.return_value = {
+            "items": [
+                {"track": {"uri": "spotify:track:1"}},
+                {"track": {"uri": "spotify:track:2"}},
+            ],
+            "next": None,
+        }
+        uris = get_existing_track_uris(sp, "pl123")
+        assert uris == {"spotify:track:1", "spotify:track:2"}
+
+    def test_paginates(self):
+        sp = MagicMock()
+        sp.playlist_tracks.return_value = {
+            "items": [{"track": {"uri": "spotify:track:1"}}],
+            "next": "more",
+        }
+        sp.next.return_value = {
+            "items": [{"track": {"uri": "spotify:track:2"}}],
+            "next": None,
+        }
+        uris = get_existing_track_uris(sp, "pl123")
+        assert len(uris) == 2
+
+    def test_skips_entries_without_uri(self):
+        sp = MagicMock()
+        sp.playlist_tracks.return_value = {
+            "items": [
+                {"track": {"uri": "spotify:track:1"}},
+                {"track": None},
+                {"track": {"uri": None}},
+            ],
+            "next": None,
+        }
+        uris = get_existing_track_uris(sp, "pl123")
+        assert uris == {"spotify:track:1"}
+
+
+class TestRemoveFromPlaylist:
+    @patch("core.playlist.get_existing_track_uris")
+    @patch("core.playlist.find_existing_playlist")
+    @patch("core.playlist.get_spotify_client")
+    def test_removes_track_successfully(self, mock_client_fn, mock_find, mock_uris):
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        mock_find.return_value = {"id": "pl123"}
+        sp.search.return_value = {
+            "tracks": {"items": [{"uri": "spotify:track:abc"}]}
+        }
+        mock_uris.return_value = {"spotify:track:abc"}
+
+        result = remove_from_playlist("artist", "song")
+        assert result["removed"] is True
+        sp.playlist_remove_all_occurrences_of_items.assert_called_once()
+
+    @patch("core.playlist.find_existing_playlist")
+    @patch("core.playlist.get_spotify_client")
+    def test_returns_false_when_no_playlist(self, mock_client_fn, mock_find):
+        mock_client_fn.return_value = MagicMock()
+        mock_find.return_value = None
+        result = remove_from_playlist("artist", "song")
+        assert result["removed"] is False
+        assert "not found" in result["reason"].lower()
+
+    @patch("core.playlist.find_existing_playlist")
+    @patch("core.playlist.get_spotify_client")
+    def test_returns_false_when_track_not_on_spotify(self, mock_client_fn, mock_find):
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        mock_find.return_value = {"id": "pl123"}
+        sp.search.return_value = {"tracks": {"items": []}}
+        result = remove_from_playlist("artist", "song")
+        assert result["removed"] is False
+
+    @patch("core.playlist.get_existing_track_uris")
+    @patch("core.playlist.find_existing_playlist")
+    @patch("core.playlist.get_spotify_client")
+    def test_returns_false_when_track_not_in_playlist(self, mock_client_fn, mock_find, mock_uris):
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        mock_find.return_value = {"id": "pl123"}
+        sp.search.return_value = {
+            "tracks": {"items": [{"uri": "spotify:track:xyz"}]}
+        }
+        mock_uris.return_value = {"spotify:track:other"}
+        result = remove_from_playlist("artist", "song")
+        assert result["removed"] is False
+        assert "not in playlist" in result["reason"].lower()
+
+
+class TestSearchTracks:
+    @patch("core.playlist.get_spotify_client")
+    def test_finds_tracks(self, mock_client_fn):
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        sp.search.return_value = {
+            "tracks": {
+                "items": [{
+                    "uri": "spotify:track:1",
+                    "album": {"images": [{"url": "big"}, {"url": "small"}]},
+                }]
+            }
+        }
+        tracks = [{"artist": "a", "track": "b"}]
+        found, not_found = search_tracks(tracks)
+        assert len(found) == 1
+        assert found[0]["uri"] == "spotify:track:1"
+        assert found[0]["cover_url"] == "small"
+        assert not_found == []
+
+    @patch("core.playlist.get_spotify_client")
+    def test_reports_not_found(self, mock_client_fn):
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        sp.search.return_value = {"tracks": {"items": []}}
+        tracks = [{"artist": "unknown", "track": "song"}]
+        found, not_found = search_tracks(tracks)
+        assert found == []
+        assert len(not_found) == 1
+
+    @patch("core.playlist.get_spotify_client")
+    def test_deduplicates_input(self, mock_client_fn):
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        sp.search.return_value = {
+            "tracks": {"items": [{"uri": "spotify:track:1", "album": {"images": []}}]}
+        }
+        tracks = [
+            {"artist": "a", "track": "b"},
+            {"artist": "a", "track": "b"},  # duplicate
+        ]
+        found, not_found = search_tracks(tracks)
+        # Only one search should be performed
+        assert sp.search.call_count == 1
+
+    @patch("core.playlist.get_spotify_client")
+    def test_calls_progress_callback(self, mock_client_fn):
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        sp.search.return_value = {
+            "tracks": {"items": [{"uri": "spotify:track:1", "album": {"images": []}}]}
+        }
+        progress_calls = []
+        search_tracks(
+            [{"artist": "a", "track": "b"}],
+            on_progress=lambda done, total: progress_calls.append((done, total)),
+        )
+        assert len(progress_calls) == 1
+        assert progress_calls[0] == (1, 1)
+
+
+class TestAddToPlaylist:
+    @patch("core.playlist.get_existing_track_uris")
+    @patch("core.playlist.find_existing_playlist")
+    @patch("core.playlist.get_spotify_client")
+    def test_adds_to_existing_playlist(self, mock_client_fn, mock_find, mock_uris):
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        mock_find.return_value = {
+            "id": "pl123",
+            "name": PLAYLIST_NAME,
+            "external_urls": {"spotify": "https://open.spotify.com/playlist/pl123"},
+        }
+        mock_uris.return_value = set()
+
+        tracks = [{"artist": "a", "track": "b", "uri": "spotify:track:1"}]
+        result = add_to_playlist(tracks)
+        assert result["added"] == 1
+        assert "url" in result
+        sp.playlist_add_items.assert_called_once()
+
+    @patch("core.playlist.find_existing_playlist")
+    @patch("core.playlist.get_spotify_client")
+    def test_creates_new_playlist(self, mock_client_fn, mock_find):
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        mock_find.return_value = None
+        sp.current_user_playlist_create.return_value = {
+            "id": "new_pl",
+            "external_urls": {"spotify": "https://open.spotify.com/playlist/new_pl"},
+        }
+        tracks = [{"artist": "a", "track": "b", "uri": "spotify:track:1"}]
+        result = add_to_playlist(tracks)
+        assert result["added"] == 1
+        sp.current_user_playlist_create.assert_called_once_with(PLAYLIST_NAME, public=False)
+
+    @patch("core.playlist.get_existing_track_uris")
+    @patch("core.playlist.find_existing_playlist")
+    @patch("core.playlist.get_spotify_client")
+    def test_skips_already_in_playlist(self, mock_client_fn, mock_find, mock_uris):
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        mock_find.return_value = {
+            "id": "pl123",
+            "name": PLAYLIST_NAME,
+            "external_urls": {"spotify": "https://open.spotify.com/playlist/pl123"},
+        }
+        mock_uris.return_value = {"spotify:track:1"}
+
+        tracks = [{"artist": "a", "track": "b", "uri": "spotify:track:1"}]
+        result = add_to_playlist(tracks)
+        assert result["added"] == 0
+        sp.playlist_add_items.assert_not_called()
+
+    @patch("core.playlist.disconnect_spotify")
+    @patch("core.playlist.find_existing_playlist")
+    @patch("core.playlist.get_spotify_client")
+    def test_handles_403_forbidden(self, mock_client_fn, mock_find, mock_disconnect):
+        from spotipy.exceptions import SpotifyException
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        mock_find.return_value = None
+        sp.current_user_playlist_create.side_effect = SpotifyException(
+            http_status=403, code=-1, msg="Forbidden"
+        )
+        try:
+            add_to_playlist([{"artist": "a", "track": "b", "uri": "spotify:track:1"}])
+            assert False, "Expected RuntimeError"
+        except RuntimeError as e:
+            assert "403" in str(e)
+            mock_disconnect.assert_called_once()
+
+

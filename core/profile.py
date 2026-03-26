@@ -40,7 +40,6 @@ def load_profile():
 
 def save_profile(profile):
     """Save the profile to AppData, keeping one history backup."""
-    ensure_profile()
     # Back up the current file before overwriting
     if PROFILE_FILE.exists():
         shutil.copy2(str(PROFILE_FILE), str(PROFILE_HISTORY_FILE))
@@ -64,10 +63,42 @@ def get_profile_status():
     }
 
 
+# ── Manual save ──────────────────────────────────────────────────────
+
+def save_profile_sections(sections):
+    """Update the profile preferences directly from user input (no AI).
+
+    *sections* is a dict with keys: core_description, must_have,
+    soft_preferences, avoid — each a string (lines separated by newlines).
+
+    Returns the updated profile dict.
+    """
+    profile = load_profile()
+
+    profile["preferences"]["core_description"] = sections["core_description"]
+    profile["preferences"]["must_have"] = [
+        line.strip() for line in sections.get("must_have", "").splitlines() if line.strip()
+    ]
+    profile["preferences"]["soft_preferences"] = [
+        line.strip() for line in sections.get("soft_preferences", "").splitlines() if line.strip()
+    ]
+    profile["preferences"]["avoid"] = [
+        line.strip() for line in sections.get("avoid", "").splitlines() if line.strip()
+    ]
+
+    profile["last_updated"] = datetime.now(timezone.utc).isoformat()
+
+    save_profile(profile)
+    return profile
+
+
 # ── Training ─────────────────────────────────────────────────────────
 
-def train_profile(user_text):
-    """Send the user's taste description to GPT and update the profile.
+def train_profile(sections):
+    """Send the user's structured taste input to GPT and update the profile.
+
+    *sections* is a dict with keys: core_description, must_have,
+    soft_preferences, avoid — each a string (lines separated by newlines).
 
     Returns the updated profile dict.
     """
@@ -76,15 +107,43 @@ def train_profile(user_text):
     with open(TRAINING_PROMPT_FILE, "r", encoding="utf-8") as f:
         system_prompt = f.read()
 
-    user_message = (
+    # Build a structured user message so GPT knows what each section means
+    parts = [
         "Here is my current music taste profile:\n\n"
         f"{json.dumps(profile, indent=2)}\n\n"
-        "Here is what I want to tell you about my music taste:\n\n"
-        f"{user_text}\n\n"
-        "Update the profile based on my input.  Merge with existing data — "
+        "Here is my updated taste input, broken into sections:\n"
+    ]
+
+    parts.append(
+        f"\n## CORE DESCRIPTION (required — the foundation of my sound):\n"
+        f"{sections['core_description']}\n"
+    )
+
+    if sections.get("must_have"):
+        parts.append(
+            f"\n## MUST HAVE (non-negotiable hard requirements — every suggestion must satisfy ALL of these):\n"
+            f"{sections['must_have']}\n"
+        )
+
+    if sections.get("soft_preferences"):
+        parts.append(
+            f"\n## SOFT PREFERENCES (nice-to-have traits, not required):\n"
+            f"{sections['soft_preferences']}\n"
+        )
+
+    if sections.get("avoid"):
+        parts.append(
+            f"\n## AVOID (absolute disqualifiers — any match removes a track immediately):\n"
+            f"{sections['avoid']}\n"
+        )
+
+    parts.append(
+        "\nUpdate the profile based on my input. Merge with existing data — "
         "do not remove anything from the \"history\" or \"feedback\" sections.\n"
         "Return ONLY the updated JSON object."
     )
+
+    user_message = "".join(parts)
 
     client = get_openai_client()
     train_messages = [

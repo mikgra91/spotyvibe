@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import spotipy
 from spotipy.exceptions import SpotifyException
 from spotipy.oauth2 import SpotifyOAuth
-from config import CACHE_FILE, load_config
+from config import CACHE_FILE
 
 
 PLAYLIST_NAME = "SpotyVibe Playlist"
@@ -135,7 +135,7 @@ def remove_from_playlist(artist, track):
     query = f'track:"{track}" artist:"{artist}"'
     res = sp.search(q=query, type="track", limit=1)
 
-    if not res["tracks"]["items"]:
+    if not res or not res["tracks"]["items"]:
         return {"removed": False, "reason": "Track not found on Spotify"}
 
     uri = res["tracks"]["items"][0]["uri"]
@@ -177,7 +177,7 @@ def search_tracks(tracks, on_progress=None):
         thread_sp = get_spotify_client()
         query = f'track:"{t["track"]}" artist:"{t["artist"]}"'
         res = thread_sp.search(q=query, type="track", limit=1)
-        if res["tracks"]["items"]:
+        if res and res["tracks"]["items"]:
             item = res["tracks"]["items"][0]
             uri = item["uri"]
             # Extract the smallest album cover (typically 64×64)
@@ -190,12 +190,18 @@ def search_tracks(tracks, on_progress=None):
         futures = {executor.submit(search_one, t): t for t in unique_tracks}
         completed = 0
         for future in as_completed(futures):
-            result_type, result_data = future.result()
-            if result_type == "found":
-                found.append(result_data)
-            else:
-                print(f"Not found on Spotify: {result_data}")
-                not_found.append(result_data)
+            try:
+                result_type, result_data = future.result()
+                if result_type == "found":
+                    found.append(result_data)
+                else:
+                    print(f"Not found on Spotify: {result_data}")
+                    not_found.append(result_data)
+            except Exception as e:
+                t = futures[future]
+                label = f"{t['artist']} - {t['track']}"
+                print(f"Spotify search error for {label}: {e}")
+                not_found.append(label)
             completed += 1
             if on_progress:
                 on_progress(completed, len(unique_tracks))
@@ -210,7 +216,6 @@ def add_to_playlist(verified_tracks):
     """
     sp = get_spotify_client()
     playlist = None
-    uris = []
 
     try:
         playlist = find_existing_playlist(sp)
@@ -229,7 +234,7 @@ def add_to_playlist(verified_tracks):
             else:
                 uris.append(t["uri"])
 
-        if uris:
+        if uris and playlist:
             sp.playlist_add_items(playlist["id"], uris)
             print(f"Added {len(uris)} new track(s).")
         else:
@@ -247,41 +252,7 @@ def add_to_playlist(verified_tracks):
             ) from e
         raise
 
-    playlist_url = playlist["external_urls"]["spotify"]
+    playlist_url = playlist["external_urls"]["spotify"] if playlist else ""
     print("Playlist:", playlist_url)
 
     return {"url": playlist_url, "added": len(uris)}
-
-
-def create_playlist(tracks):
-    """Search tracks on Spotify and add found ones to the SpotyVibe Playlist.
-
-    Convenience wrapper combining search_tracks + add_to_playlist.
-    Used by the CLI flow.
-    """
-    found, not_found = search_tracks(tracks)
-    result = add_to_playlist(found)
-    result["not_found"] = not_found
-    return result
-
-
-def main():
-    load_config()
-
-    from core.suggestions import normalize_history, build_messages, call_gpt
-    from core.suggestions import filter_duplicate_suggestions, update_profile
-    from core.profile import load_profile, save_profile
-
-    profile = load_profile()
-    normalize_history(profile)
-    messages = build_messages(profile)
-    result = call_gpt(messages)
-    result = filter_duplicate_suggestions(profile, result)
-    updated_profile = update_profile(profile, result)
-    save_profile(updated_profile)
-
-    create_playlist(result["playlist"])
-
-
-if __name__ == "__main__":
-    main()

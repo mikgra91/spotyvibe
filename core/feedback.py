@@ -1,5 +1,3 @@
-import json
-import argparse
 from core.profile import load_profile, save_profile
 
 
@@ -51,22 +49,4 @@ def dislike_track(artist, track=None, reason=None):
     else:
         print(f"👎 Excluded artist: {artist} ({reason})")
 
-
-def main():
-    parser = argparse.ArgumentParser(description="Record feedback for music suggestions.")
-    parser.add_argument("action", choices=["like", "dislike"], help="Type of feedback.")
-    parser.add_argument("artist", help="Artist name.")
-    parser.add_argument("--track", "-t", default=None, help="Track name. If omitted, the feedback applies to the artist only.")
-    parser.add_argument("--reason", "-r", default=None, help="Reason for the feedback (e.g. 'music too slow').")
-
-    args = parser.parse_args()
-
-    if args.action == "like":
-        like_track(args.artist, args.track, args.reason)
-    else:
-        dislike_track(args.artist, args.track, args.reason)
-
-
-if __name__ == "__main__":
-    main()
 

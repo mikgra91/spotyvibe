@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import threading
+import time
 import uuid
 
 # Ensure the spotyvibe package directory is on sys.path so all
@@ -16,7 +17,7 @@ load_config()
 
 from core.profile import (
     load_profile, save_profile, is_profile_trained,
-    get_profile_status, train_profile,
+    get_profile_status, train_profile, save_profile_sections,
 )
 from core.suggestions import (
     normalize_history,
@@ -37,8 +38,17 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(24)
 # Clear debug log on startup so it only contains data from the current session
 clear_debug_log()
 
-# Active generation runs: run_id → {"cancel": Event, "finalize_on_cancel": bool, "verified_tracks": []}
+# Active generation runs: run_id → {"cancel": Event, "finalize_on_cancel": bool, "verified_tracks": [], "created_at": float}
 _runs: dict = {}
+_STALE_RUN_SECONDS = 600  # 10 minutes
+
+
+def _sweep_stale_runs():
+    """Remove _runs entries older than _STALE_RUN_SECONDS to prevent leaks."""
+    now = time.monotonic()
+    stale = [rid for rid, r in _runs.items() if now - r.get("created_at", now) > _STALE_RUN_SECONDS]
+    for rid in stale:
+        _runs.pop(rid, None)
 
 
 @app.route("/")
@@ -75,7 +85,8 @@ def run_pipeline():
     body = request.get_json(force=True, silent=True) or {}
     run_id = body.get("run_id") or str(uuid.uuid4())
     cancel_event = threading.Event()
-    _runs[run_id] = {"cancel": cancel_event, "finalize_on_cancel": False, "verified_tracks": []}
+    _sweep_stale_runs()
+    _runs[run_id] = {"cancel": cancel_event, "finalize_on_cancel": False, "verified_tracks": [], "created_at": time.monotonic()}
 
     def generate():
         try:
@@ -408,8 +419,7 @@ def write_settings():
 def clear_debug_log_endpoint():
     """Clear the debug log file."""
     try:
-        if DEBUG_LOG_FILE.exists():
-            DEBUG_LOG_FILE.unlink()
+        clear_debug_log()
         return jsonify({"status": "ok"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -423,17 +433,57 @@ def profile_status():
     return jsonify(get_profile_status())
 
 
+@app.route("/api/profile/data")
+def profile_data():
+    """Return the current profile preferences for pre-filling the UI."""
+    profile = load_profile()
+    return jsonify(profile)
+
+
 @app.route("/api/train-profile", methods=["POST"])
 def train_profile_endpoint():
-    """Send the user's taste description to GPT and update the profile."""
+    """Send the user's structured taste description to GPT and update the profile."""
     data = request.get_json(force=True)
-    user_text = (data.get("text") or "").strip()
 
-    if not user_text:
-        return jsonify({"error": "Please describe your music taste."}), 400
+    core_description = (data.get("core_description") or "").strip()
+    if not core_description:
+        return jsonify({"error": "Core description is required."}), 400
+
+    sections = {
+        "core_description": core_description,
+        "must_have": (data.get("must_have") or "").strip(),
+        "soft_preferences": (data.get("soft_preferences") or "").strip(),
+        "avoid": (data.get("avoid") or "").strip(),
+    }
 
     try:
-        updated = train_profile(user_text)
+        updated = train_profile(sections)
+        return jsonify({
+            "status": "ok",
+            "last_updated": updated.get("last_updated"),
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/save-profile", methods=["POST"])
+def save_profile_endpoint():
+    """Save the user's profile preferences directly without AI processing."""
+    data = request.get_json(force=True)
+
+    core_description = (data.get("core_description") or "").strip()
+    if not core_description:
+        return jsonify({"error": "Core description is required."}), 400
+
+    sections = {
+        "core_description": core_description,
+        "must_have": (data.get("must_have") or "").strip(),
+        "soft_preferences": (data.get("soft_preferences") or "").strip(),
+        "avoid": (data.get("avoid") or "").strip(),
+    }
+
+    try:
+        updated = save_profile_sections(sections)
         return jsonify({
             "status": "ok",
             "last_updated": updated.get("last_updated"),
