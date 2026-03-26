@@ -62,6 +62,9 @@ spotyvibe/
 │   └── feedback.py         # Like/dislike recording
 ├── prompts/                # AI prompt templates (editable without code changes)
 ├── data/                   # Template data (empty profile seed)
+├── static/                 # Static assets served by Flask
+│   └── css/
+│       └── styles.css      # Main stylesheet
 ├── templates/              # Flask templates (index.html — single-page UI)
 └── tests/                  # pytest unit tests
 ```
@@ -69,6 +72,13 @@ spotyvibe/
 ---
 
 ## Rules
+
+### Task Planning
+
+- **If a task is big, always plan first.** Do not start implementing a large change without a plan.
+- If you assess a task as big (e.g. multiple files, new features, cross-cutting concerns), **inform the user** that the task is large and that you will create a plan before writing any code.
+- Present the plan to the user — including the list of files to change, the order of changes, and a summary of each step — and **wait for the user to confirm** before proceeding with implementation.
+- **Big tasks should be broken down and executed in sub-agents.** Each sub-agent handles one well-scoped piece of the plan (e.g. one module, one test file, one documentation update). This keeps changes focused, reviewable, and easier to roll back.
 
 ### Spotify API
 
@@ -91,6 +101,7 @@ spotyvibe/
 - Follow existing project conventions — do not rename things for external consistency.
 - Check for duplicate logic before adding new code; extract shared logic into helpers.
 - Only remove an import after verifying no usages remain in the entire file.
+- after new features always create/update the existing unit tests
 
 ### Credentials & Security
 

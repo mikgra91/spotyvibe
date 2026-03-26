@@ -8,11 +8,13 @@ An AI-powered music discovery tool that creates personalised Spotify playlists b
 
 SpotyVibe uses **artificial intelligence** to learn what kind of music you enjoy and then generates a playlist of 30 tracks tailored to your preferences. The tracks are automatically added to a private Spotify playlist that you can listen to right away.
 
+The interface features a premium dark aurora-wave aesthetic — a near-black cinematic background with a subtle vignette, layered teal/green and blue/purple glowing sound-ribbon waves, frosted dark-glass panels, and luminous green accents — designed for an immersive, high-end music discovery experience.
+
 The more you use it, the smarter it gets — every time you like or dislike a suggestion, the AI refines its understanding of your taste and delivers better recommendations next time.
 
 ## How It Works
 
-1. **Describe your taste** — Tell the AI what kind of music you like in plain language (e.g., *"I love high-energy rock with big melodies, think Queen meets Muse"*).
+1. **Describe your taste** — Fill in structured sections (core description, must-haves, soft preferences, things to avoid) so the AI understands exactly what you want.
 2. **Generate a playlist** — The AI creates 30 personalised track suggestions, each shown with its Spotify album cover, and adds them to your Spotify playlist.
 3. **Give feedback** — Like tracks you enjoy, dislike ones you don't. The AI learns from every interaction.
 4. **Repeat** — Each run produces fresh recommendations that get more accurate over time.
@@ -20,6 +22,7 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 ## Features
 
 - **AI-powered suggestions** with configurable OpenAI model selection.
+- **Structured taste profile** — accordion-style editor with separate sections for core description, must-haves, soft preferences, and things to avoid. Existing profile data is pre-filled for easy editing. Save changes directly or use **AI Profile Update** to let GPT refine your input.
 - **Album artwork** displayed alongside each suggested track.
 - **Spotify integration** — auto-creates and manages a private playlist.
 - **Cancel generation** — stop an in-progress playlist generation at any time with the ⛔ Cancel button.

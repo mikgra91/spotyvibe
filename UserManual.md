@@ -54,7 +54,9 @@ python app.py
 
 Then open your browser and go to: **http://127.0.0.1:5000**
 
-You should see the SpotyVibe interface.
+You should see the SpotyVibe interface — a premium dark cinematic layout with a vignette-edged stage, layered teal/green and blue/purple aurora sound-ribbon waves, floating frosted dark-glass panels, and luminous green accents.
+
+> **Accessibility note:** If you have reduced-motion preferences enabled in your operating system, all animations and transitions are automatically disabled.
 
 ---
 
@@ -101,22 +103,32 @@ If your Spotify session expires or you need to re-authenticate, open the **⚙�
 
 > **Tip:** If you see a `403 Forbidden` error during playlist generation, the app will automatically disconnect for you. Simply click **Connect to Spotify** in the warning banner to reconnect.
 
-### 4. Train Your Taste Profile
+### 4. Set Up Your Music Profile
 
 Before generating suggestions, you need to tell the AI what kind of music you like. The UI is divided into two clearly labelled sections:
 
 - **Step 1 — Taste Profile:** Teach the AI your preferences.
 - **Step 2 — Generate Playlist:** Create a Spotify playlist from your profile.
 
-To train your profile:
+To set up your profile:
 
 1. In the **Step 1** section, click **Edit profile**.
-2. Write a description of your music taste in your own words. For example:
-   - *"I love high-energy rock with big melodies, think Queen meets Muse. I hate slow ballads and anything too electronic."*
-   - *"I'm into indie folk with acoustic guitars, warm vocals, and storytelling lyrics. Nothing too loud or aggressive."*
-3. Click **Send to AI**.
+2. The editor opens with four collapsible accordion sections. Fill in the ones relevant to you:
 
-The AI will analyse your description and build a structured taste profile. You can update it anytime — each update merges with what the AI already knows.
+   - **🎵 Core Description** *(required)* — Describe your ideal sound in your own words: genre, mood, energy, reference artists. This is the foundation of your profile and must be provided.
+   - **✅ Must Have** — Non-negotiable traits every suggestion must have (one per line). These are hard requirements — a track missing any one is rejected. Example: *"strong melodies"*, *"vocals/singing"*.
+   - **💡 Soft Preferences** — Nice-to-have traits that improve a suggestion but aren't required (one per line). Example: *"slight prog influence"*.
+   - **🚫 Avoid** — Traits that immediately disqualify a track (one per line). Example: *"electronic/synth-heavy production"*, *"slow or mid-tempo songs"*.
+
+3. Choose how to save your changes:
+   - Click **Save** to store your preferences directly as-is.
+   - Click **AI Profile Update** to send your input to GPT, which will analyse and refine it into a structured taste profile.
+
+If you already have a profile, the fields are **pre-filled** with your existing preferences so you can see and edit what the AI currently knows.
+
+> **Note:** The Core Description field is required. If you clear it and try to submit, the app will highlight the field and ask you to fill it in.
+
+The AI Profile Update merges with what the AI already knows — your feedback history and past suggestions are always preserved. The direct Save option is useful when you just want to make a quick edit without waiting for AI processing.
 
 ---
 
@@ -195,17 +207,19 @@ The more feedback you give, the better the suggestions become.
 
 ---
 
-## Updating Your Taste Profile
+## Updating Your Music Profile
 
 Your taste may evolve over time. You can update your profile at any point:
 
-1. Click **Edit profile** in the Train Taste Profile section.
-2. Write what has changed (e.g., *"I'm getting more into prog rock lately"* or *"Stop suggesting anything with screaming vocals"*).
-3. Click **Send to AI**.
+1. Click **Edit profile** in the Music Profile section.
+2. The accordion sections open pre-filled with your current profile data. Edit any section — for example, add new items to **Must Have**, remove entries from **Avoid**, or rewrite the **Core Description**.
+3. Choose how to save:
+   - Click **Save** to store your edits directly.
+   - Click **AI Profile Update** to have GPT analyse and merge your changes.
 
-The AI merges your new input with the existing profile — nothing is lost. Your feedback history and past suggestions are always preserved.
+Both options preserve your feedback history and past suggestions — nothing is lost.
 
-> **Tip — Profile consistency matters:** If you explicitly reject an artist (via 👎 Dislike), make sure the same artist is not still listed as a confirmed favourite. Contradictions in the profile confuse the AI and cause bad suggestions. If you notice the AI keeps repeating things you've rejected, open the Train Taste Profile section and add a clear sentence like *"I strongly dislike [Artist] — never suggest them."*
+> **Tip — Profile consistency matters:** If you explicitly reject an artist (via 👎 Dislike), make sure the same artist is not still listed as a confirmed favourite. Contradictions in the profile confuse the AI and cause bad suggestions. If you notice the AI keeps repeating things you've rejected, open the Music Profile section and add a clear sentence like *"I strongly dislike [Artist] — never suggest them."*
 
 ---
 

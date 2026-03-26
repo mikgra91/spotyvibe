@@ -23,7 +23,8 @@ SpotyVibe is a Python web application built with **Flask** that connects two ext
 │                        Flask App (app.py)                          │
 │                                                                    │
 │  /api/train-profile   /api/run              /api/feedback          │
-│  /api/profile/status  /api/spotify/status   /api/remove            │
+│  /api/save-profile    /api/spotify/status   /api/remove            │
+│  /api/profile/status                                               │
 │  /api/spotify/auth    /api/spotify/disconnect  /api/cancel          │
 │  /callback            /api/settings/*       /api/help              │
 │  /api/settings        /api/settings/debug-log                      │
@@ -36,6 +37,8 @@ SpotyVibe is a Python web application built with **Flask** that connects two ext
 │ - load/save  │   │              │   │ - search_tracks (parallel) │
 │ - train via  │   │ - build_msgs │   │ - add_to_playlist          │
 │   OpenAI     │   │ - call_gpt   │   │ - remove_from_playlist     │
+│ - save_profile│  │ - dedup      │   │ - OAuth flow               │
+│   _sections  │   │              │   │                            │
 │              │   │ - dedup      │   │ - OAuth flow               │
 └──────┬───────┘   └──────┬───────┘   └──────┬─────────────────────┘
        │                  │                  │
@@ -76,8 +79,12 @@ spotyvibe/
 ├── data/                   # Template data
 │   └── music_profile.json  # Empty profile template (seeded on first run)
 │
+├── static/                 # Static assets served by Flask
+│   └── css/
+│       └── styles.css      # Main stylesheet — aurora-wave dark glass design system
+│
 ├── templates/              # Flask templates
-│   └── index.html          # Single-page web UI (HTML + CSS + JS)
+│   └── index.html          # Single-page web UI (HTML + JS)
 │
 └── tests/                  # Automated tests
     ├── conftest.py         # Pytest configuration
@@ -141,8 +148,10 @@ Handles loading, saving, and training the user's music taste profile.
 **Profile lifecycle:**
 
 1. On first run, the empty template from `data/music_profile.json` is copied to AppData.
-2. The user describes their taste in the UI → `train_profile()` sends the description + current profile to GPT.
-3. GPT returns an updated profile JSON. History and feedback sections are preserved server-side (GPT's version is discarded for these sections).
+2. The user fills in structured accordion sections (core description, must-have, soft preferences, avoid) in the UI. Existing profile data is pre-filled via `GET /api/profile/data`.
+3. The user can save changes in two ways:
+   - **Direct save** (`POST /api/save-profile`): `save_profile_sections()` writes the user's input directly to the profile preferences without AI processing. Multi-line fields (must-have, soft preferences, avoid) are split into arrays by newline.
+   - **AI Profile Update** (`POST /api/train-profile`): `train_profile()` receives a `sections` dict and builds a labelled GPT message with `## CORE DESCRIPTION`, `## MUST HAVE`, `## SOFT PREFERENCES`, and `## AVOID` headers so GPT understands the purpose and priority of each section. GPT returns an updated profile JSON. History and feedback sections are preserved server-side (GPT's version is discarded for these sections).
 4. The profile is saved with a `last_updated` timestamp.
 
 **History backup:** Every save creates a `.history.json` backup of the previous version, allowing one-step revert.
@@ -244,7 +253,8 @@ Exposes all functionality via HTTP endpoints.
 | POST | `/api/feedback` | Records a like or dislike. Dislikes also remove the track from Spotify. |
 | POST | `/api/remove` | Removes a track from Spotify without recording feedback. |
 | GET | `/api/profile/status` | Returns whether the profile is trained and when. |
-| POST | `/api/train-profile` | Sends a taste description to GPT and updates the profile. |
+| GET | `/api/profile/data` | Returns the full profile JSON for pre-filling the training form. |
+| POST | `/api/train-profile` | Sends structured taste sections (`core_description`, `must_have`, `soft_preferences`, `avoid`) to GPT and updates the profile. `core_description` is required. |
 | GET | `/api/spotify/status` | Returns Spotify auth status (`not_configured`, `not_authenticated`, `authenticated`). Validates the token with a live API call. |
 | GET | `/api/spotify/auth` | Redirects to Spotify's authorisation page. |
 | POST | `/api/spotify/disconnect` | Clears the cached Spotify token to force re-authentication. |
@@ -285,7 +295,7 @@ A self-contained single-page application (HTML + CSS + vanilla JavaScript, no fr
 Both sections are wrapped in styled cards (`.train-section` and `.generate-section`) for visual consistency.
 
 **Key UI components:**
-- **Train Taste Profile** — text area for describing music taste. Shows an inline warning and disables inputs if the OpenAI API key is missing.
+- **Train Taste Profile** — accordion-style editor with four collapsible sections: Core Description (required, open by default), Must Have, Soft Preferences, and Avoid. Existing profile data is pre-filled via `GET /api/profile/data` when the form is opened. Core Description is validated client-side — submission is blocked with an error highlight if empty. Shows an inline warning and disables inputs if the OpenAI API key is missing.
 - **Generate button** — triggers the pipeline with live progress updates. Shows an inline warning and disables the button if OpenAI key or Spotify credentials/authentication are missing.
 - **⛔ Cancel button** — visible only during generation. Calls `POST /api/cancel` with `finalize: false` and aborts the SSE reader via `AbortController`. Stops the generation without creating or modifying any playlist.
 - **▶ Use X tracks now button** — visible during generation once at least one track has been verified. Calls `POST /api/cancel` with `finalize: true` (does NOT abort the SSE reader). The server stops the loop and emits a `result` event with the partial playlist. Label updates in real time via `batch_verified` SSE events.
@@ -301,6 +311,36 @@ Both sections are wrapped in styled cards (`.train-section` and `.generate-secti
 
 ---
 
+### `static/css/styles.css` — Visual Design System
+
+The stylesheet implements a premium aurora-wave dark glass design with the following architecture:
+
+**Color palette:**
+- Base: near-black `#050608`
+- Primary green: `#1ed760`
+- Aurora accents: teal `#19d3c5`, cyan `#4ca8ff`, purple `#8c3dff`, violet `#b14dff`, pink `#ff4db8`
+
+**Background:** Layered stage-like composition with a radial green glow near the top and a purple glow near the bottom, creating a cinematic atmosphere. A `body::after` pseudo-element provides a subtle vignette (inset box-shadow) around the viewport edges for a premium stage-lit feel.
+
+**Wave system:** 6-layer aurora ribbon system with luminous, organic sound-ribbon shapes:
+- **Top wave** (3 layers): teal/green/mint ribbon + glow + ambient haze, animated at 20s cycle with 4-keyframe motion.
+- **Bottom wave** (3 layers): blue/purple/violet ribbon + glow + ambient haze, animated at 26s cycle with 4-keyframe motion.
+- Ribbons are thicker and more visible than before (opacity 0.52–0.58) with stronger blur values (90–100px haze, 55–65px glow, 32–38px core ribbon).
+
+**Glass panels:** All cards, modals, dropdowns, and panels use semi-transparent gradient backgrounds (85–90% opacity) with `backdrop-filter: blur(16px)` for a frosted dark glass effect. Deep multi-layer box-shadows and an inset `0 1px 0 rgba(255,255,255,0.05)` inner highlight give each panel a floating, premium feel.
+
+**Typography:** Inter font (weights 400–800). Title set at 2.8rem / 800 weight with a dual-layer green `text-shadow` glow (60px + 120px). Section labels use pink/magenta `#ff4db8` uppercase text with 2px letter-spacing.
+
+**Buttons:** Primary CTA uses a bright gradient green background (`#24e86d` → `#18cf58`) with inset highlight and triple-layer glow shadow (10px + 60px); pill-shaped with 18px 40px padding. On hover, scales to 1.02× with intensified glow. Secondary buttons use dark glass styling with subtle borders.
+
+**Border radius:** 12px (small elements / inputs), 18px (medium panels), 24px (cards / modals), 999px (pill buttons).
+
+**Inputs:** Darker input background (`#0f1318`) with 3px focus rings and additional glow halo for enhanced accessibility and premium feel.
+
+**Accessibility:** A `prefers-reduced-motion` media query disables all CSS animations and transitions for users who have requested reduced motion in their OS settings.
+
+---
+
 ### Prompt Files
 
 The AI's behaviour is controlled by text files in the `prompts/` directory. These can be edited without touching any Python code.
@@ -309,7 +349,7 @@ The AI's behaviour is controlled by text files in the `prompts/` directory. Thes
 |---|---|---|
 | `system_prompt.txt` | `suggestions.py` | Defines all rules for music recommendation. Contains: profile section guide, **Bear Ghost primary-reference section**, exclusion rules, discovery rules, **hard negative disqualification rules**, selection criteria, self-verification checklist, and the output JSON schema (including the `validation` block). |
 | `prompt_template.txt` | `suggestions.py` | Template for the user message. Embeds the profile JSON via `{profile_json}` and the exclusion block via `{exclusion_block}`. |
-| `profile_training_prompt.txt` | `profile.py` | System message for the taste profile training. Defines which fields to fill and which to preserve. |
+| `profile_training_prompt.txt` | `profile.py` | System message for the taste profile training. Explains the structured input format (CORE DESCRIPTION, MUST HAVE, SOFT PREFERENCES, AVOID), how each section maps to profile JSON fields, and which sections to preserve. |
 
 **Bear Ghost primary reference:** The system prompt contains an explicit "BEAR GHOST IS YOUR PRIMARY STYLE REFERENCE" section that lists concrete Bear Ghost characteristics (theatrical structure, extreme dynamic range, non-obvious hooks, controlled chaos) and instructs GPT to use these as the primary filter — weighted more heavily than The Beatles or Queen.
 
