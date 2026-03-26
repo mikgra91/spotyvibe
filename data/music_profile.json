@@ -1,0 +1,31 @@
+{
+  "last_updated": null,
+  "meta": {
+    "goal": ""
+  },
+  "preferences": {
+    "core_description": "",
+    "must_have": [],
+    "soft_preferences": [],
+    "avoid": []
+  },
+  "artists": {
+    "confirmed": [],
+    "moderate": [],
+    "rejected": []
+  },
+  "history": {
+    "suggested_artists": [],
+    "suggested_tracks": []
+  },
+  "feedback": {
+    "liked_tracks": [],
+    "disliked_tracks": [],
+    "liked_artists": [],
+    "disliked_artists": []
+  },
+  "taste_rules": {
+    "primary_driver": "",
+    "dealbreaker_priority": []
+  }
+}

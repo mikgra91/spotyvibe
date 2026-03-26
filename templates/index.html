@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpotyVibe</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- Design tokens --- */
+        :root {
+            --primary: #1DB954;
+            --primary-hover: #1ED760;
+            --primary-dark: #169C46;
+            --bg-main: #0F1115;
+            --bg-card: #171A21;
+            --bg-elevated: #1F232B;
+            --bg-input: #1A1E27;
+            --border: #2A2F3A;
+            --text-primary: #FFFFFF;
+            --text-secondary: #A0A7B3;
+            --text-muted: #6B7280;
+            --success: #22C55E;
+            --error: #EF4444;
+            --warning: #F59E0B;
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-pill: 999px;
+            --shadow-card: 0 2px 8px rgba(0,0,0,.25);
+            --shadow-elevated: 0 8px 32px rgba(0,0,0,.4);
+            --transition: 200ms ease;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg-main);
+            color: var(--text-primary);
+            min-height: 100vh;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+
+        .container { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+        h1 { color: var(--primary); font-size: 1.85rem; font-weight: 700; margin-bottom: 0.2rem; }
+        .subtitle { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 2rem; }
+
+        /* --- Section headers --- */
+        .section-label {
+            font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 1.2px; color: var(--text-muted); margin-bottom: 0.6rem;
+        }
+        .section-desc {
+            font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.8rem;
+        }
+        .section-divider { margin-top: 2rem; }
+
+        /* --- Buttons --- */
+        .btn {
+            border: none; padding: 8px 18px; border-radius: var(--radius-pill);
+            cursor: pointer; font-size: 13px; font-weight: 600; font-family: inherit;
+            transition: all var(--transition); display: inline-flex; align-items: center; gap: 4px;
+        }
+        .btn:hover { filter: brightness(1.12); transform: translateY(-1px); }
+        .btn:active { transform: translateY(0); }
+        .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; filter: none; }
+
+        .btn-like { background: var(--primary); color: #fff; }
+        .btn-dislike { background: var(--error); color: #fff; }
+        .btn-remove { background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border); }
+        .btn-submit-like { background: var(--primary); color: #fff; }
+        .btn-submit-dislike { background: var(--error); color: #fff; }
+        .btn-cancel { background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border); }
+        .btn-save { background: var(--primary); color: #fff; }
+
+        .btn-run {
+            background: var(--primary); color: #fff; border: none;
+            padding: 14px 36px; font-size: 15px; font-weight: 700; font-family: inherit;
+            border-radius: var(--radius-pill); cursor: pointer;
+            transition: all var(--transition);
+            box-shadow: 0 4px 16px rgba(29,185,84,.25);
+        }
+        .btn-run:hover { background: var(--primary-hover); transform: translateY(-2px); box-shadow: 0 6px 24px rgba(29,185,84,.35); }
+        .btn-run:active { transform: translateY(0); }
+        .btn-run:disabled { background: var(--bg-elevated); color: var(--text-muted); cursor: not-allowed; transform: none; box-shadow: none; }
+
+        /* --- Run section --- */
+        .generate-section {
+            background: var(--bg-card); border-radius: var(--radius-lg); padding: 20px;
+            margin-bottom: 1.5rem; border: 1px solid var(--border);
+            transition: border-color var(--transition);
+        }
+        .generate-section:hover { border-color: #3A3F4A; }
+        .run-section { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+
+        /* --- Status --- */
+        .status {
+            padding: 14px 18px; background: var(--bg-card); border-radius: var(--radius-md);
+            margin-bottom: 1rem; font-size: 0.88rem; line-height: 1.5;
+            border: 1px solid var(--border);
+        }
+        .status.error { border-left: 4px solid var(--error); }
+        .status.success { border-left: 4px solid var(--success); }
+        .status.info { border-left: 4px solid #3B82F6; }
+
+        .playlist-link-box {
+            padding: 14px 18px; background: var(--bg-card); border-radius: var(--radius-md);
+            margin-bottom: 1.5rem; font-size: 0.9rem; border: 1px solid var(--border);
+        }
+        .playlist-link-box a { color: var(--primary); text-decoration: none; font-weight: 500; }
+        .playlist-link-box a:hover { text-decoration: underline; }
+
+        /* --- Track list --- */
+        .track-list { list-style: none; }
+
+        .track-item {
+            background: var(--bg-card); border-radius: var(--radius-lg); padding: 16px 20px;
+            margin-bottom: 8px; transition: all var(--transition);
+            border: 1px solid transparent;
+        }
+        .track-item:hover { background: var(--bg-elevated); border-color: var(--border); transform: translateY(-1px); box-shadow: var(--shadow-card); }
+
+        .track-header { display: flex; align-items: flex-start; gap: 12px; }
+
+        .track-cover {
+            width: 48px; height: 48px; border-radius: 6px;
+            object-fit: cover; flex-shrink: 0;
+            background: var(--bg-elevated);
+        }
+
+        .track-info { flex: 1; min-width: 0; }
+        .track-name { font-size: 0.95rem; font-weight: 600; }
+        .track-reason { color: var(--text-muted); font-size: 0.82rem; margin-top: 3px; line-height: 1.4; }
+
+        .track-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+        /* --- Feedback form --- */
+        .feedback-form {
+            margin-top: 14px; padding-top: 14px;
+            border-top: 1px solid var(--border); display: none;
+        }
+        .feedback-form.open { display: block; }
+
+        .form-row { margin-bottom: 10px; }
+        .form-row label {
+            display: block; font-size: 0.72rem; color: var(--text-muted);
+            margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.6px;
+            font-weight: 600;
+        }
+        .form-row input {
+            width: 100%; background: var(--bg-input); border: 1px solid var(--border);
+            color: var(--text-primary); padding: 10px 12px; border-radius: var(--radius-sm);
+            font-size: 0.9rem; font-family: inherit; transition: border-color var(--transition);
+        }
+        .form-row input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(29,185,84,.15); }
+
+        .form-hint { font-size: 0.72rem; color: var(--text-muted); margin-top: 3px; }
+        .form-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+        .hidden { display: none; }
+
+        .empty-state {
+            text-align: center; color: var(--text-muted); padding: 3.5rem 1rem;
+            font-size: 0.95rem;
+        }
+
+        /* --- Settings gear --- */
+        .settings-wrapper { position: absolute; top: 1.5rem; right: 1.5rem; }
+        .settings-btn {
+            background: none; border: none; color: var(--text-secondary);
+            font-size: 1.5rem; cursor: pointer; padding: 6px 10px;
+            border-radius: var(--radius-sm); transition: all var(--transition);
+        }
+        .settings-btn:hover { color: #fff; background: var(--bg-elevated); }
+
+        .settings-dropdown {
+            display: none; position: absolute; right: 0; top: 110%;
+            background: var(--bg-elevated); border-radius: var(--radius-md); min-width: 190px;
+            box-shadow: var(--shadow-elevated); overflow: hidden; z-index: 100;
+            border: 1px solid var(--border);
+        }
+        .settings-dropdown.open { display: block; }
+        .settings-dropdown button {
+            display: block; width: 100%; text-align: left;
+            background: none; border: none; color: var(--text-primary);
+            padding: 12px 18px; font-size: 0.88rem; cursor: pointer;
+            font-family: inherit; transition: background var(--transition);
+        }
+        .settings-dropdown button:hover { background: rgba(255,255,255,.06); }
+
+        /* --- Modal overlay --- */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,.75); z-index: 200;
+            justify-content: center; align-items: center;
+            backdrop-filter: blur(4px);
+        }
+        .modal-overlay.open { display: flex; }
+
+        .modal {
+            background: var(--bg-card); border-radius: var(--radius-lg); padding: 2rem;
+            width: 90%; max-width: 500px; max-height: 85vh; overflow-y: auto;
+            border: 1px solid var(--border); box-shadow: var(--shadow-elevated);
+        }
+        .modal h2 { color: var(--primary); margin-bottom: 1.4rem; font-size: 1.2rem; font-weight: 700; }
+
+        .modal .form-row { margin-bottom: 16px; }
+        .modal .form-row label {
+            display: block; font-size: 0.72rem; color: var(--text-muted);
+            margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.6px;
+            font-weight: 600;
+        }
+        .modal .form-row input {
+            width: 100%; background: var(--bg-input); border: 1px solid var(--border);
+            color: var(--text-primary); padding: 10px 12px; border-radius: var(--radius-sm);
+            font-size: 0.9rem; font-family: inherit; transition: border-color var(--transition);
+        }
+        .modal .form-row input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(29,185,84,.15); }
+
+        .cred-status {
+            font-size: 0.75rem; margin-top: 3px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            max-width: 100%;
+        }
+        .cred-status.set { color: var(--success); }
+        .cred-status.unset { color: var(--error); }
+
+        .cred-input-wrap { position: relative; display: flex; align-items: center; }
+        .cred-input-wrap input { flex: 1; padding-right: 32px; }
+        .btn-clear {
+            position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+            background: none; border: none; color: var(--text-muted);
+            font-size: 1rem; cursor: pointer; padding: 2px 4px;
+            line-height: 1; transition: color var(--transition);
+        }
+        .btn-clear:hover { color: var(--error); }
+
+        .modal-actions { display: flex; gap: 8px; margin-top: 1.5rem; }
+
+        .help-section { margin-bottom: 1rem; }
+        .help-section h3 { font-size: 0.95rem; margin-bottom: 0.3rem; }
+        .help-section p, .help-section li { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; }
+        .help-section a { color: var(--primary); text-decoration: none; }
+        .help-section a:hover { text-decoration: underline; }
+        .help-section ul { margin-left: 1.2rem; margin-top: 0.3rem; }
+
+        /* --- Inline component warnings --- */
+        .component-warn {
+            padding: 12px 16px; border-radius: var(--radius-sm); margin-top: 10px;
+            font-size: 0.82rem; line-height: 1.5;
+            background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.25); color: #FBBF24;
+        }
+        .component-warn a { color: var(--primary); text-decoration: none; cursor: pointer; font-weight: 500; }
+        .component-warn a:hover { text-decoration: underline; }
+
+        /* --- Train taste profile --- */
+        .train-section {
+            background: var(--bg-card); border-radius: var(--radius-lg); padding: 20px;
+            margin-bottom: 1.5rem; border: 1px solid var(--border);
+            transition: border-color var(--transition);
+        }
+        .train-section:hover { border-color: #3A3F4A; }
+        .train-header { display: flex; align-items: center; justify-content: space-between; }
+        .train-header h2 { font-size: 1rem; color: var(--text-primary); font-weight: 600; }
+        .train-status { font-size: 0.8rem; color: var(--text-secondary); }
+
+        .btn-train {
+            background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border);
+            padding: 8px 22px; font-size: 13px; font-weight: 600; font-family: inherit;
+            border-radius: var(--radius-pill); cursor: pointer; transition: all var(--transition);
+        }
+        .btn-train:hover { background: #2A2F3A; border-color: #444; transform: translateY(-1px); }
+        .btn-train:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+        .train-body { margin-top: 14px; }
+        .train-body textarea {
+            width: 100%; min-height: 110px; background: var(--bg-input);
+            border: 1px solid var(--border); color: var(--text-primary); padding: 12px 14px;
+            border-radius: var(--radius-sm); font-family: inherit; font-size: 0.9rem;
+            resize: vertical; transition: border-color var(--transition);
+        }
+        .train-body textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(29,185,84,.15); }
+        .train-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+        .train-success {
+            color: var(--success); font-size: 1.3rem; margin-top: 10px;
+            animation: fadeOut 5s forwards;
+        }
+        @keyframes fadeOut {
+            0%, 70% { opacity: 1; }
+            100%    { opacity: 0; }
+        }
+
+        /* --- Toast notification --- */
+        .toast {
+            position: fixed; bottom: 2rem; left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: var(--bg-elevated); color: var(--text-primary);
+            padding: 14px 28px; border-radius: var(--radius-md);
+            font-size: 0.88rem; z-index: 300;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            box-shadow: var(--shadow-elevated);
+            border: 1px solid var(--border);
+            opacity: 0; pointer-events: none;
+            max-width: 90%; text-align: center; font-weight: 500;
+        }
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1; pointer-events: auto;
+        }
+        .toast.toast-success { border-left: 4px solid var(--success); }
+        .toast.toast-error   { border-left: 4px solid var(--error); }
+        .toast.toast-info    { border-left: 4px solid #3B82F6; }
+
+        /* --- Help modal rendered markdown --- */
+        #helpContent h1 { color: var(--primary); font-size: 1.3rem; margin: 0 0 1rem; font-weight: 700; }
+        #helpContent h2 { color: var(--primary); font-size: 1.05rem; margin: 1.5rem 0 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; font-weight: 600; }
+        #helpContent h3 { color: var(--text-primary); font-size: 0.95rem; margin: 1rem 0 0.3rem; font-weight: 600; }
+        #helpContent p { color: var(--text-secondary); margin: 0.4rem 0; }
+        #helpContent ul, #helpContent ol { color: var(--text-secondary); margin: 0.4rem 0 0.4rem 1.4rem; }
+        #helpContent li { margin: 0.2rem 0; }
+        #helpContent a { color: var(--primary); text-decoration: none; }
+        #helpContent a:hover { text-decoration: underline; }
+        #helpContent code { background: var(--bg-elevated); padding: 2px 6px; border-radius: 4px; font-size: 0.85em; color: #e0e0e0; }
+        #helpContent pre { background: var(--bg-elevated); padding: 14px; border-radius: var(--radius-sm); overflow-x: auto; margin: 0.5rem 0; border: 1px solid var(--border); }
+        #helpContent pre code { padding: 0; background: none; }
+        #helpContent table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; font-size: 0.85rem; }
+        #helpContent th { text-align: left; color: var(--text-primary); padding: 8px 10px; border-bottom: 2px solid var(--border); font-weight: 600; }
+        #helpContent td { color: var(--text-secondary); padding: 8px 10px; border-bottom: 1px solid var(--border); }
+        #helpContent blockquote { border-left: 3px solid var(--primary); margin: 0.5rem 0; padding: 0.3rem 0 0.3rem 1rem; color: var(--text-muted); }
+        #helpContent strong { color: var(--text-primary); }
+        #helpContent em { color: var(--text-secondary); }
+        #helpContent hr { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+
+        /* --- Focus ring for accessibility --- */
+        :focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+        }
+
+        /* --- Select styling --- */
+        .modal select {
+            width: 100%; background: var(--bg-input); border: 1px solid var(--border);
+            color: var(--text-primary); padding: 10px 12px; border-radius: var(--radius-sm);
+            font-size: 0.9rem; font-family: inherit; transition: border-color var(--transition);
+            cursor: pointer;
+        }
+        .modal select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(29,185,84,.15); }
+
+        /* --- Tooltip "?" trigger --- */
+        .tooltip-trigger {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 16px; height: 16px; border-radius: 50%;
+            background: var(--bg-elevated); border: 1px solid var(--border);
+            color: var(--text-muted); font-size: 0.65rem; font-weight: 700;
+            cursor: help; position: relative; text-transform: none; letter-spacing: 0;
+        }
+        .tooltip-trigger:hover::after {
+            content: attr(data-tooltip);
+            position: absolute; left: 50%; bottom: calc(100% + 8px);
+            transform: translateX(-50%);
+            background: var(--bg-elevated); color: var(--text-secondary);
+            font-size: 0.75rem; font-weight: 400; line-height: 1.4;
+            padding: 8px 12px; border-radius: var(--radius-sm);
+            border: 1px solid var(--border); box-shadow: var(--shadow-elevated);
+            white-space: normal; width: 250px; z-index: 10;
+            pointer-events: none;
+        }
+        .tooltip-trigger:hover::before {
+            content: ''; position: absolute;
+            left: 50%; bottom: calc(100% + 2px);
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: var(--border);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+<div class="container" style="position: relative;">
+
+    <!-- Settings gear -->
+    <div class="settings-wrapper">
+        <button class="settings-btn" onclick="toggleSettingsMenu()" title="Settings">⚙️</button>
+        <div class="settings-dropdown" id="settingsDropdown">
+            <button onclick="openCredentials()">🔑 Credentials</button>
+            <button onclick="openSettings()">⚙️ Settings</button>
+            <button id="spotifyDisconnectBtn" class="hidden" onclick="disconnectSpotify()">🔌 Disconnect Spotify</button>
+            <button onclick="openHelp()">❓ Help</button>
+        </div>
+    </div>
+
+    <h1>🎵 SpotyVibe</h1>
+    <p class="subtitle">AI-powered music discovery — generate suggestions, build your playlist, refine your taste.</p>
+
+    <!-- ── Section 1: Train ── -->
+    <p class="section-label">Step 1 — Taste Profile</p>
+    <p class="section-desc">Teach the AI what you like (and dislike) so it can tailor suggestions to your taste.</p>
+
+    <!-- Train taste profile -->
+    <div class="train-section" id="trainSection">
+        <div class="train-header">
+            <div>
+                <h2>🎯 Train Taste Profile</h2>
+                <span class="train-status" id="trainStatus"></span>
+            </div>
+            <button class="btn-train" id="trainToggleBtn" onclick="toggleTrainBody()">Edit profile</button>
+        </div>
+        <div id="trainWarn" class="hidden"></div>
+        <div class="train-body hidden" id="trainBody">
+            <textarea id="trainText" placeholder="Describe your music taste in your own words… e.g. &quot;I love high-energy rock with big melodies, think Queen meets Muse. I hate slow ballads and anything too electronic.&quot;"></textarea>
+            <div class="train-actions">
+                <button class="btn btn-save" id="trainSendBtn" onclick="sendTrainProfile()">Send to AI</button>
+                <button class="btn btn-cancel" onclick="toggleTrainBody()">Cancel</button>
+            </div>
+        </div>
+        <div id="trainSuccessIcon" class="hidden"></div>
+    </div>
+
+    <!-- ── Section 2: Generate ── -->
+    <div class="section-divider">
+        <p class="section-label">Step 2 — Generate Playlist</p>
+        <p class="section-desc">Create a Spotify playlist based on your trained taste profile.</p>
+    </div>
+
+    <div class="generate-section">
+        <div class="run-section">
+            <button class="btn-run" id="runBtn" onclick="runPipeline()">▶ Generate &amp; Create Playlist</button>
+        </div>
+        <div id="runWarn" class="hidden"></div>
+    </div>
+
+    <div id="statusBox" class="hidden"></div>
+    <div id="playlistLinkBox" class="playlist-link-box hidden"></div>
+
+    <ul id="trackList" class="track-list">
+        <li class="empty-state">Click <strong>Generate &amp; Create Playlist</strong> to get started.</li>
+    </ul>
+</div>
+
+<!-- Toast notification -->
+<div class="toast" id="toast"></div>
+
+<!-- Credentials modal -->
+<div class="modal-overlay" id="credentialsModal" onclick="if(event.target===this)closeModal('credentialsModal')">
+    <div class="modal">
+        <h2>🔑 Credentials</h2>
+        <div class="form-row">
+            <label for="cred-OPENAI_API_KEY">OpenAI API Key</label>
+            <div class="cred-input-wrap">
+                <input id="cred-OPENAI_API_KEY" type="password" placeholder="Enter key…">
+                <button class="btn-clear hidden" id="clear-OPENAI_API_KEY" onclick="clearCredential('OPENAI_API_KEY')" title="Clear">✕</button>
+            </div>
+            <div class="cred-status" id="status-OPENAI_API_KEY"></div>
+        </div>
+        <div class="form-row">
+            <label for="cred-SPOTIPY_CLIENT_ID">Spotify Client ID</label>
+            <div class="cred-input-wrap">
+                <input id="cred-SPOTIPY_CLIENT_ID" type="text" placeholder="Enter client ID…">
+                <button class="btn-clear hidden" id="clear-SPOTIPY_CLIENT_ID" onclick="clearCredential('SPOTIPY_CLIENT_ID')" title="Clear">✕</button>
+            </div>
+            <div class="cred-status" id="status-SPOTIPY_CLIENT_ID"></div>
+        </div>
+        <div class="form-row">
+            <label for="cred-SPOTIPY_CLIENT_SECRET">Spotify Client Secret</label>
+            <div class="cred-input-wrap">
+                <input id="cred-SPOTIPY_CLIENT_SECRET" type="password" placeholder="Enter client secret…">
+                <button class="btn-clear hidden" id="clear-SPOTIPY_CLIENT_SECRET" onclick="clearCredential('SPOTIPY_CLIENT_SECRET')" title="Clear">✕</button>
+            </div>
+            <div class="cred-status" id="status-SPOTIPY_CLIENT_SECRET"></div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-save" onclick="saveCredentials()">Save</button>
+            <button class="btn btn-cancel" onclick="closeModal('credentialsModal')">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-overlay" id="settingsModal" onclick="if(event.target===this)closeModal('settingsModal')">
+    <div class="modal">
+        <h2>⚙️ Settings</h2>
+        <div class="form-row">
+            <label for="settings-model">Used Model</label>
+            <select id="settings-model">
+                <option value="">Loading models…</option>
+            </select>
+            <div class="cred-status" id="status-settings-model"></div>
+            <div style="font-size:0.72rem;color:var(--warning);margin-top:5px;">⚠️ Different models have different costs. Check <a href="https://platform.openai.com/docs/pricing" target="_blank" rel="noopener" style="color:var(--primary);">OpenAI Pricing</a> before switching.</div>
+        </div>
+        <div class="form-row">
+            <label for="settings-playlist-size" style="display:flex;align-items:center;gap:6px;">
+                Playlist Size
+                <span class="tooltip-trigger" data-tooltip="Tracks are fetched in blocks of 10 per GPT request. Large values will cause many requests and therefore higher token usage / cost.">?</span>
+            </label>
+            <input id="settings-playlist-size" type="number" min="10" step="10" value="10" style="width:100%;">
+            <div class="cred-status" id="status-settings-playlist-size"></div>
+        </div>
+        <div class="form-row">
+            <label>Debug Mode</label>
+            <div style="display:flex;align-items:center;gap:10px;">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:0.88rem;color:var(--text-secondary);font-weight:400;">
+                    <input type="checkbox" id="settings-debug" style="width:auto;accent-color:var(--primary);cursor:pointer;">
+                    Log GPT requests &amp; responses to debug file
+                </label>
+            </div>
+            <div class="cred-status" id="status-settings-debug" style="margin-top:4px;"></div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-save" onclick="saveSettings()">Save</button>
+            <button class="btn btn-cancel" onclick="closeModal('settingsModal')">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Help modal -->
+<div class="modal-overlay" id="helpModal" onclick="if(event.target===this)closeModal('helpModal')">
+    <div class="modal" style="max-width:680px; max-height:85vh; overflow-y:auto;">
+        <div id="helpContent" style="font-size:0.9rem; line-height:1.6;">
+            <p style="color:#b3b3b3;">Loading…</p>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-cancel" onclick="closeModal('helpModal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* ------------------------------------------------------------------ */
+    /*  State                                                              */
+    /* ------------------------------------------------------------------ */
+    let suggestions = [];
+    let openFormIndex = null;   // which item currently has its form expanded
+    let openFormAction = null;  // "like" or "dislike"
+    let spotifyAuthStatus = 'unknown';
+    let openaiKeySet = false;
+
+    /* ------------------------------------------------------------------ */
+    /*  Credential & auth checks                                           */
+    /* ------------------------------------------------------------------ */
+    async function checkCredentialStatus() {
+        try {
+            const resp = await fetch('/api/settings/credentials');
+            const data = await resp.json();
+            openaiKeySet = !!(data.OPENAI_API_KEY && data.OPENAI_API_KEY.is_set);
+        } catch (e) {
+            openaiKeySet = false;
+        }
+    }
+
+    async function checkSpotifyAuth() {
+        try {
+            const resp = await fetch('/api/spotify/status');
+            const data = await resp.json();
+            spotifyAuthStatus = data.status;
+        } catch (e) {
+            spotifyAuthStatus = 'unknown';
+        }
+    }
+
+    function connectSpotify() {
+        const w = 500, h = 700;
+        const left = screen.width / 2 - w / 2;
+        const top = screen.height / 2 - h / 2;
+        window.open(
+            '/api/spotify/auth',
+            'spotify-auth',
+            `width=${w},height=${h},left=${left},top=${top}`
+        );
+    }
+
+    // Listen for the callback popup closing after successful auth
+    window.addEventListener('message', async (e) => {
+        if (e.data === 'spotify-auth-complete') {
+            await checkSpotifyAuth();
+            renderComponentWarnings();
+        }
+    });
+
+    async function disconnectSpotify() {
+        document.getElementById('settingsDropdown').classList.remove('open');
+        try {
+            await fetch('/api/spotify/disconnect', { method: 'POST' });
+            showToast('Spotify disconnected. Please re-connect.', 'info');
+            await checkSpotifyAuth();
+            renderComponentWarnings();
+        } catch (e) {
+            alert('Network error: ' + e.message);
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Per-component inline warnings                                      */
+    /* ------------------------------------------------------------------ */
+    function renderComponentWarnings() {
+        // --- Train section: only needs OpenAI key ---
+        const trainWarn = document.getElementById('trainWarn');
+        const trainBtn = document.getElementById('trainSendBtn');
+        const trainToggle = document.getElementById('trainToggleBtn');
+
+        if (!openaiKeySet) {
+            trainWarn.className = 'component-warn';
+            trainWarn.innerHTML = '⚠️ OpenAI API key is missing. Open <a onclick="openCredentials()">⚙️ Settings</a> to enter it.';
+            trainBtn.disabled = true;
+            trainToggle.disabled = true;
+        } else {
+            trainWarn.className = 'hidden';
+            trainBtn.disabled = false;
+            trainToggle.disabled = false;
+        }
+
+        // --- Generate section: needs OpenAI key + Spotify auth ---
+        const runWarn = document.getElementById('runWarn');
+        const runBtn = document.getElementById('runBtn');
+        const warnings = [];
+
+        if (!openaiKeySet) {
+            warnings.push('OpenAI API key is missing — open <a onclick="openCredentials()">⚙️ Settings</a>.');
+        }
+        if (spotifyAuthStatus === 'not_configured') {
+            warnings.push('Spotify credentials are missing — open <a onclick="openCredentials()">⚙️ Settings</a>.');
+        } else if (spotifyAuthStatus === 'not_authenticated') {
+            warnings.push('Spotify login required — <a onclick="connectSpotify()">Connect to Spotify</a>.');
+        }
+
+        if (warnings.length > 0) {
+            runWarn.className = 'component-warn';
+            runWarn.innerHTML = '⚠️ ' + warnings.join('<br>⚠️ ');
+            runBtn.disabled = true;
+        } else {
+            runWarn.className = 'hidden';
+            runBtn.disabled = false;
+        }
+
+        // --- Show/hide "Disconnect Spotify" in settings menu ---
+        const disconnectBtn = document.getElementById('spotifyDisconnectBtn');
+        if (spotifyAuthStatus === 'authenticated') {
+            disconnectBtn.classList.remove('hidden');
+        } else {
+            disconnectBtn.classList.add('hidden');
+        }
+    }
+
+    // Initial checks on page load
+    (async function init() {
+        await Promise.all([checkCredentialStatus(), checkSpotifyAuth()]);
+        renderComponentWarnings();
+    })();
+
+    /* ------------------------------------------------------------------ */
+    /*  Taste profile training                                             */
+    /* ------------------------------------------------------------------ */
+    let profileTrained = false;
+
+    async function checkProfileStatus() {
+        try {
+            const resp = await fetch('/api/profile/status');
+            const data = await resp.json();
+            profileTrained = data.trained;
+            const el = document.getElementById('trainStatus');
+            if (data.trained) {
+                const d = new Date(data.last_updated);
+                el.textContent = '✓ Last trained: ' + d.toLocaleString();
+            } else {
+                el.textContent = '⚠ Not yet trained — describe your taste below.';
+                // Auto-open the textarea if the profile hasn't been trained
+                document.getElementById('trainBody').classList.remove('hidden');
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    function toggleTrainBody() {
+        document.getElementById('trainBody').classList.toggle('hidden');
+    }
+
+    async function sendTrainProfile() {
+        if (!openaiKeySet) {
+            showToast('OpenAI API key is required. Open ⚙️ Settings.', 'error');
+            return;
+        }
+        const text = document.getElementById('trainText').value.trim();
+        if (!text) { alert('Please describe your music taste.'); return; }
+
+        const btn = document.getElementById('trainSendBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Training…';
+
+        try {
+            const resp = await fetch('/api/train-profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text }),
+            });
+            const data = await resp.json();
+
+            if (!resp.ok || data.error) {
+                alert('Error: ' + (data.error || 'unknown'));
+                return;
+            }
+
+            // Hide the form and show green checkmark
+            document.getElementById('trainBody').classList.add('hidden');
+            document.getElementById('trainText').value = '';
+
+            const icon = document.getElementById('trainSuccessIcon');
+            icon.className = 'train-success';
+            icon.textContent = '✅ Profile updated!';
+            icon.classList.remove('hidden');
+            setTimeout(() => { icon.classList.add('hidden'); }, 5000);
+
+            // Refresh status
+            await checkProfileStatus();
+
+        } catch (e) {
+            alert('Network error: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Send to AI';
+        }
+    }
+
+    // Check profile status on page load
+    checkProfileStatus();
+
+    /* ------------------------------------------------------------------ */
+    /*  Run pipeline (SSE streaming)                                       */
+    /* ------------------------------------------------------------------ */
+    async function runPipeline() {
+        // Re-check auth before starting
+        await Promise.all([checkCredentialStatus(), checkSpotifyAuth()]);
+        renderComponentWarnings();
+
+        if (!openaiKeySet) {
+            showStatus('⚠️ OpenAI API key is missing. Open ⚙️ Settings.', 'error');
+            return;
+        }
+        if (spotifyAuthStatus !== 'authenticated') {
+            showStatus('⚠️ Spotify is not connected. Check the warning below the Generate button.', 'error');
+            return;
+        }
+
+        if (!profileTrained) {
+            showStatus('⚠️ Please train your taste profile first before generating suggestions.', 'error');
+            return;
+        }
+        const btn  = document.getElementById('runBtn');
+        btn.disabled = true;
+        btn.textContent = '⏳ Generating…';
+        showStatus('Starting pipeline…', 'info');
+        hidePlaylistLink();
+
+        try {
+            const response = await fetch('/api/run', { method: 'POST' });
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+
+                // Process complete SSE messages (delimited by double newline)
+                let boundary;
+                while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+                    const chunk = buffer.substring(0, boundary);
+                    buffer = buffer.substring(boundary + 2);
+
+                    for (const line of chunk.split('\n')) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                handleStreamEvent(JSON.parse(line.substring(6)));
+                            } catch (e) { /* skip malformed */ }
+                        }
+                    }
+                }
+            }
+
+            // Process any remaining buffer
+            if (buffer.trim()) {
+                for (const line of buffer.split('\n')) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            handleStreamEvent(JSON.parse(line.substring(6)));
+                        } catch (e) { /* skip malformed */ }
+                    }
+                }
+            }
+
+        } catch (e) {
+            showStatus('❌ Network error: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '▶ Generate & Create Playlist';
+        }
+    }
+
+    function handleStreamEvent(event) {
+        switch (event.type) {
+            case 'progress':
+                showStatus('⏳ ' + event.message, 'info');
+                break;
+            case 'result':
+                suggestions = event.playlist || [];
+                renderTracks();
+                if (event.playlist_url) showPlaylistLink(event.playlist_url);
+
+                const parts = [`✅ ${suggestions.length} suggestions generated.`];
+                if (event.added)     parts.push(`${event.added} new track(s) added to playlist.`);
+                if (event.not_found && event.not_found.length)
+                    parts.push(`${event.not_found.length} track(s) not found on Spotify.`);
+                showStatus(parts.join(' '), 'success');
+                break;
+            case 'error':
+                showStatus('❌ ' + event.message, 'error');
+                break;
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Render track list                                                  */
+    /* ------------------------------------------------------------------ */
+    function renderTracks() {
+        const list = document.getElementById('trackList');
+        list.innerHTML = '';
+        openFormIndex = null;
+        openFormAction = null;
+
+        if (suggestions.length === 0) {
+            list.innerHTML = '<li class="empty-state">No suggestions yet.</li>';
+            return;
+        }
+
+        suggestions.forEach((track, idx) => {
+            const li = document.createElement('li');
+            li.className = 'track-item';
+            li.id = `track-${idx}`;
+            li.innerHTML = `
+                <div class="track-header">
+                    ${track.cover_url ? `<img class="track-cover" src="${attr(track.cover_url)}" alt="Album cover">` : ''}
+                    <div class="track-info">
+                        <div class="track-name">${esc(track.artist)} — ${esc(track.track)}</div>
+                        ${track.reason ? `<div class="track-reason">${esc(track.reason)}</div>` : ''}
+                    </div>
+                    <div class="track-actions">
+                        <button class="btn btn-like"    onclick="toggleFeedback(${idx},'like')">👍 Like</button>
+                        <button class="btn btn-dislike" onclick="toggleFeedback(${idx},'dislike')">👎 Dislike</button>
+                        <button class="btn btn-remove"  onclick="removeTrack(${idx})">✕</button>
+                    </div>
+                </div>
+                <div class="feedback-form" id="form-${idx}">
+                    <div class="form-row">
+                        <label for="artist-${idx}">Artist</label>
+                        <input id="artist-${idx}" type="text" value="${attr(track.artist)}">
+                    </div>
+                    <div class="form-row">
+                        <label for="title-${idx}">Track</label>
+                        <input id="title-${idx}" type="text" value="${attr(track.track)}">
+                        <div class="form-hint">Leave empty to apply feedback to the artist in general.</div>
+                    </div>
+                    <div class="form-row">
+                        <label for="reason-${idx}">Reason (optional)</label>
+                        <input id="reason-${idx}" type="text" placeholder="e.g. perfect energy, boring melody…">
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn" id="submitBtn-${idx}" onclick="submitFeedback(${idx})">Submit</button>
+                        <button class="btn btn-cancel" onclick="closeFeedback(${idx})">Cancel</button>
+                    </div>
+                </div>`;
+            list.appendChild(li);
+        });
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Feedback form toggle                                               */
+    /* ------------------------------------------------------------------ */
+    function toggleFeedback(idx, action) {
+        // Close any other open form
+        if (openFormIndex !== null && openFormIndex !== idx) {
+            closeFeedback(openFormIndex);
+        }
+
+        const form = document.getElementById(`form-${idx}`);
+        const isOpen = form.classList.contains('open');
+
+        if (isOpen && openFormAction === action) {
+            // Same button clicked again — close
+            closeFeedback(idx);
+            return;
+        }
+
+        // Open (or switch action)
+        form.classList.add('open');
+        openFormIndex = idx;
+        openFormAction = action;
+
+        const submitBtn = document.getElementById(`submitBtn-${idx}`);
+        if (action === 'like') {
+            submitBtn.textContent = '👍 Submit Like';
+            submitBtn.className = 'btn btn-submit-like';
+        } else {
+            submitBtn.textContent = '👎 Submit Dislike';
+            submitBtn.className = 'btn btn-submit-dislike';
+        }
+    }
+
+    function closeFeedback(idx) {
+        const form = document.getElementById(`form-${idx}`);
+        if (form) form.classList.remove('open');
+        if (openFormIndex === idx) {
+            openFormIndex = null;
+            openFormAction = null;
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Submit feedback                                                    */
+    /* ------------------------------------------------------------------ */
+    async function submitFeedback(idx) {
+        const artist = document.getElementById(`artist-${idx}`).value.trim();
+        const track  = document.getElementById(`title-${idx}`).value.trim();
+        const reason = document.getElementById(`reason-${idx}`).value.trim();
+
+        if (!artist) { alert('Artist is required.'); return; }
+
+        const submitBtn = document.getElementById(`submitBtn-${idx}`);
+        submitBtn.disabled = true;
+        submitBtn.textContent = '…';
+
+        try {
+            const resp = await fetch('/api/feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: openFormAction,
+                    artist,
+                    track:  track  || null,
+                    reason: reason || null,
+                }),
+            });
+
+            if (!resp.ok) {
+                const data = await resp.json();
+                alert('Error: ' + (data.error || 'unknown'));
+                return;
+            }
+
+            const label = openFormAction === 'like' ? '👍 Liked' : '👎 Disliked';
+            showToast(`${label}: ${artist}` + (track ? ` — ${track}` : ''));
+            animateRemove(idx);
+        } catch (e) {
+            alert('Network error: ' + e.message);
+        } finally {
+            submitBtn.disabled = false;
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Remove (no feedback — removes from Spotify playlist)               */
+    /* ------------------------------------------------------------------ */
+    async function removeTrack(idx) {
+        const track = suggestions[idx];
+        if (!track) { animateRemove(idx); return; }
+
+        try {
+            await fetch('/api/remove', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ artist: track.artist, track: track.track }),
+            });
+            showToast(`Removed: ${track.artist} — ${track.track}`);
+        } catch (e) {
+            /* Network error — still remove from UI */
+        }
+
+        animateRemove(idx);
+    }
+
+    function animateRemove(idx) {
+        const el = document.getElementById(`track-${idx}`);
+        if (!el) return;
+        el.style.opacity = '0';
+        el.style.transform = 'translateX(40px)';
+        setTimeout(() => el.remove(), 300);
+
+        if (openFormIndex === idx) {
+            openFormIndex = null;
+            openFormAction = null;
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Status / playlist link helpers                                     */
+    /* ------------------------------------------------------------------ */
+    function showStatus(msg, type) {
+        const box = document.getElementById('statusBox');
+        box.className = `status ${type}`;
+        box.textContent = msg;
+        box.classList.remove('hidden');
+    }
+
+    function showPlaylistLink(url) {
+        const box = document.getElementById('playlistLinkBox');
+        box.innerHTML = `🎶 <strong>Playlist:</strong> <a href="${attr(url)}" target="_blank" rel="noopener">${esc(url)}</a>`;
+        box.classList.remove('hidden');
+    }
+
+    function hidePlaylistLink() {
+        document.getElementById('playlistLinkBox').classList.add('hidden');
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Escaping helpers                                                   */
+    /* ------------------------------------------------------------------ */
+    function esc(s) {
+        const d = document.createElement('div');
+        d.textContent = s || '';
+        return d.innerHTML;
+    }
+    function attr(s) {
+        return (s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Settings menu                                                      */
+    /* ------------------------------------------------------------------ */
+    function toggleSettingsMenu() {
+        const dd = document.getElementById('settingsDropdown');
+        dd.classList.toggle('open');
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        const wrapper = document.querySelector('.settings-wrapper');
+        if (wrapper && !wrapper.contains(e.target)) {
+            document.getElementById('settingsDropdown').classList.remove('open');
+        }
+    });
+
+    /* ------------------------------------------------------------------ */
+    /*  Credentials modal                                                  */
+    /* ------------------------------------------------------------------ */
+    const CRED_KEYS = ['OPENAI_API_KEY', 'SPOTIPY_CLIENT_ID', 'SPOTIPY_CLIENT_SECRET'];
+
+    async function clearCredential(key) {
+        if (!confirm('Remove ' + key + '?')) return;
+
+        try {
+            const resp = await fetch('/api/settings/credentials', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ [key]: '' }),
+            });
+            if (resp.ok) {
+                // Update the status inline
+                const el = document.getElementById('status-' + key);
+                el.textContent = '✗ Not set';
+                el.className = 'cred-status unset';
+                document.getElementById('clear-' + key).classList.add('hidden');
+                document.getElementById('cred-' + key).value = '';
+
+                // Refresh global state so warnings update
+                await Promise.all([checkCredentialStatus(), checkSpotifyAuth()]);
+                renderComponentWarnings();
+
+                showToast(key + ' cleared.', 'info');
+            }
+        } catch (e) {
+            alert('Network error: ' + e.message);
+        }
+    }
+
+    async function openCredentials() {
+        document.getElementById('settingsDropdown').classList.remove('open');
+
+        // Clear text inputs
+        CRED_KEYS.forEach(k => { document.getElementById('cred-' + k).value = ''; });
+
+        // Fetch current status
+        try {
+            const resp = await fetch('/api/settings/credentials');
+            const data = await resp.json();
+            CRED_KEYS.forEach(k => {
+                const el = document.getElementById('status-' + k);
+                const clearBtn = document.getElementById('clear-' + k);
+                const info = data[k];
+                if (info && info.is_set) {
+                    el.textContent = '✓ Set (' + info.masked + ')';
+                    el.className = 'cred-status set';
+                    clearBtn.classList.remove('hidden');
+                } else {
+                    el.textContent = '✗ Not set';
+                    el.className = 'cred-status unset';
+                    clearBtn.classList.add('hidden');
+                }
+            });
+        } catch (e) { /* ignore — status will just be empty */ }
+
+        document.getElementById('credentialsModal').classList.add('open');
+    }
+
+    async function saveCredentials() {
+        const payload = {};
+        CRED_KEYS.forEach(k => {
+            const val = document.getElementById('cred-' + k).value.trim();
+            if (val) payload[k] = val;
+        });
+
+        if (Object.keys(payload).length === 0) {
+            closeModal('credentialsModal');
+            return;
+        }
+
+        try {
+            const resp = await fetch('/api/settings/credentials', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (resp.ok) {
+                closeModal('credentialsModal');
+                showStatus('✅ Credentials saved.', 'success');
+                // Refresh all statuses so warnings update immediately
+                await Promise.all([checkCredentialStatus(), checkSpotifyAuth()]);
+                renderComponentWarnings();
+            } else {
+                const d = await resp.json();
+                alert('Error: ' + (d.error || 'unknown'));
+            }
+        } catch (e) {
+            alert('Network error: ' + e.message);
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Settings modal                                                     */
+    /* ------------------------------------------------------------------ */
+    async function openSettings() {
+        document.getElementById('settingsDropdown').classList.remove('open');
+
+        // Load current settings
+        try {
+            const resp = await fetch('/api/settings');
+            const data = await resp.json();
+
+            // Debug mode checkbox
+            document.getElementById('settings-debug').checked = !!data.debug_mode;
+            const debugStatus = document.getElementById('status-settings-debug');
+            debugStatus.textContent = data.debug_mode ? '✓ Enabled — log: %LOCALAPPDATA%\\spotyvibe\\debug.log' : 'Disabled';
+            debugStatus.className = 'cred-status ' + (data.debug_mode ? 'set' : 'unset');
+
+            // Model status
+            const modelStatus = document.getElementById('status-settings-model');
+            modelStatus.textContent = '✓ Using: ' + (data.model || 'gpt-4.1-mini');
+            modelStatus.className = 'cred-status set';
+        } catch (e) { /* ignore */ }
+
+        // Fetch available models and populate dropdown
+        const select = document.getElementById('settings-model');
+        select.innerHTML = '<option value="">Loading models…</option>';
+
+        try {
+            const resp = await fetch('/api/settings/models');
+            const data = await resp.json();
+            const models = data.models || [];
+            const selected = data.selected || '';
+
+            if (models.length > 0) {
+                select.innerHTML = '';
+                models.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m;
+                    opt.textContent = m;
+                    if (m === selected) opt.selected = true;
+                    select.appendChild(opt);
+                });
+            } else {
+                select.innerHTML = '<option value="">' + (data.error ? 'Enter API key first' : 'No models available') + '</option>';
+            }
+        } catch (e) {
+            select.innerHTML = '<option value="">Could not load models</option>';
+        }
+
+        document.getElementById('settingsModal').classList.add('open');
+    }
+
+    async function saveSettings() {
+        const payload = {};
+
+        const modelSelect = document.getElementById('settings-model');
+        if (modelSelect.value) {
+            payload.model = modelSelect.value;
+        }
+
+        payload.debug_mode = document.getElementById('settings-debug').checked;
+
+        const sizeVal = parseInt(document.getElementById('settings-playlist-size').value, 10);
+        if (!isNaN(sizeVal) && sizeVal >= 10) {
+            payload.playlist_size = sizeVal;
+        }
+
+        try {
+            const resp = await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (resp.ok) {
+                closeModal('settingsModal');
+                showStatus('✅ Settings saved.', 'success');
+            } else {
+                const d = await resp.json();
+                alert('Error: ' + (d.error || 'unknown'));
+            }
+        } catch (e) {
+            alert('Network error: ' + e.message);
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Help modal                                                         */
+    /* ------------------------------------------------------------------ */
+    let helpLoaded = false;
+
+    async function openHelp() {
+        document.getElementById('settingsDropdown').classList.remove('open');
+        document.getElementById('helpModal').classList.add('open');
+
+        if (helpLoaded) return;
+
+        try {
+            const resp = await fetch('/api/help');
+            const data = await resp.json();
+            if (data.html) {
+                document.getElementById('helpContent').innerHTML = data.html;
+                helpLoaded = true;
+            } else {
+                document.getElementById('helpContent').innerHTML =
+                    '<p style="color:#e74c3c;">Could not load help content.</p>';
+            }
+        } catch (e) {
+            document.getElementById('helpContent').innerHTML =
+                '<p style="color:#e74c3c;">Failed to load help: ' + esc(e.message) + '</p>';
+        }
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).classList.remove('open');
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Toast notifications                                                */
+    /* ------------------------------------------------------------------ */
+    let toastTimer = null;
+    function showToast(message, type = 'success', duration = 3000) {
+        const toast = document.getElementById('toast');
+        if (toastTimer) clearTimeout(toastTimer);
+        toast.textContent = message;
+        toast.className = `toast toast-${type} show`;
+        toastTimer = setTimeout(() => {
+            toast.classList.remove('show');
+            toastTimer = null;
+        }, duration);
+    }
+</script>
+</body>
+</html>
+
+
+

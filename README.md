@@ -1,0 +1,47 @@
+# SpotyVibe 🎵
+
+An AI-powered music discovery tool that creates personalised Spotify playlists based on your taste.
+
+---
+
+## What Is This?
+
+SpotyVibe uses **artificial intelligence** to learn what kind of music you enjoy and then generates a playlist of 30 tracks tailored to your preferences. The tracks are automatically added to a private Spotify playlist that you can listen to right away.
+
+The more you use it, the smarter it gets — every time you like or dislike a suggestion, the AI refines its understanding of your taste and delivers better recommendations next time.
+
+## How It Works
+
+1. **Describe your taste** — Tell the AI what kind of music you like in plain language (e.g., *"I love high-energy rock with big melodies, think Queen meets Muse"*).
+2. **Generate a playlist** — The AI creates 30 personalised track suggestions, each shown with its Spotify album cover, and adds them to your Spotify playlist.
+3. **Give feedback** — Like tracks you enjoy, dislike ones you don't. The AI learns from every interaction.
+4. **Repeat** — Each run produces fresh recommendations that get more accurate over time.
+
+## Features
+
+- **AI-powered suggestions** with configurable OpenAI model selection.
+- **Album artwork** displayed alongside each suggested track.
+- **Spotify integration** — auto-creates and manages a private playlist.
+- **Debug mode** — logs all GPT communication to a file for prompt analysis and tuning.
+
+## Quick Start
+
+1. Install Python 3.10+ and run `pip install -r requirements.txt`.
+2. Start the app with `python app.py` and open <http://127.0.0.1:5000>.
+3. Enter your API keys (OpenAI + Spotify) via **⚙️ → Credentials**.
+4. Connect your Spotify account and start generating playlists!
+
+---
+
+## Documentation
+
+| Document | Description |
+|---|---|
+| **[User Manual](UserManual.md)** | Step-by-step setup guide and usage instructions for end users. |
+| **[Technical Manual](TechnicalManual.md)** | Architecture overview, component interactions, and developer reference. |
+
+---
+
+## License
+
+This project is for personal use and educational purposes.
