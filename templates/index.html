@@ -6,401 +6,18 @@
     <title>SpotyVibe</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        /* --- Design tokens --- */
-        :root {
-            --primary: #1DB954;
-            --primary-hover: #1ED760;
-            --primary-dark: #169C46;
-            --bg-main: #0F1115;
-            --bg-card: #171A21;
-            --bg-elevated: #1F232B;
-            --bg-input: #1A1E27;
-            --border: #2A2F3A;
-            --text-primary: #FFFFFF;
-            --text-secondary: #A0A7B3;
-            --text-muted: #6B7280;
-            --success: #22C55E;
-            --error: #EF4444;
-            --warning: #F59E0B;
-            --radius-sm: 8px;
-            --radius-md: 12px;
-            --radius-lg: 16px;
-            --radius-pill: 999px;
-            --shadow-card: 0 2px 8px rgba(0,0,0,.25);
-            --shadow-elevated: 0 8px 32px rgba(0,0,0,.4);
-            --transition: 200ms ease;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-            background: var(--bg-main);
-            color: var(--text-primary);
-            min-height: 100vh;
-            font-size: 15px;
-            line-height: 1.5;
-        }
-
-        .container { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
-
-        h1 { color: var(--primary); font-size: 1.85rem; font-weight: 700; margin-bottom: 0.2rem; }
-        .subtitle { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 2rem; }
-
-        /* --- Section headers --- */
-        .section-label {
-            font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
-            letter-spacing: 1.2px; color: var(--text-muted); margin-bottom: 0.6rem;
-        }
-        .section-desc {
-            font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.8rem;
-        }
-        .section-divider { margin-top: 2rem; }
-
-        /* --- Buttons --- */
-        .btn {
-            border: none; padding: 8px 18px; border-radius: var(--radius-pill);
-            cursor: pointer; font-size: 13px; font-weight: 600; font-family: inherit;
-            transition: all var(--transition); display: inline-flex; align-items: center; gap: 4px;
-        }
-        .btn:hover { filter: brightness(1.12); transform: translateY(-1px); }
-        .btn:active { transform: translateY(0); }
-        .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; filter: none; }
-
-        .btn-like { background: var(--primary); color: #fff; }
-        .btn-dislike { background: var(--error); color: #fff; }
-        .btn-remove { background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border); }
-        .btn-submit-like { background: var(--primary); color: #fff; }
-        .btn-submit-dislike { background: var(--error); color: #fff; }
-        .btn-cancel { background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border); }
-        .btn-save { background: var(--primary); color: #fff; }
-
-        .btn-run {
-            background: var(--primary); color: #fff; border: none;
-            padding: 14px 36px; font-size: 15px; font-weight: 700; font-family: inherit;
-            border-radius: var(--radius-pill); cursor: pointer;
-            transition: all var(--transition);
-            box-shadow: 0 4px 16px rgba(29,185,84,.25);
-        }
-        .btn-run:hover { background: var(--primary-hover); transform: translateY(-2px); box-shadow: 0 6px 24px rgba(29,185,84,.35); }
-        .btn-run:active { transform: translateY(0); }
-        .btn-run:disabled { background: var(--bg-elevated); color: var(--text-muted); cursor: not-allowed; transform: none; box-shadow: none; }
-
-        .btn-run-cancel {
-            background: var(--error); color: #fff; border: none;
-            padding: 14px 28px; font-size: 15px; font-weight: 700; font-family: inherit;
-            border-radius: var(--radius-pill); cursor: pointer;
-            transition: all var(--transition);
-            box-shadow: 0 4px 16px rgba(239,68,68,.2);
-        }
-        .btn-run-cancel:hover { background: #DC2626; transform: translateY(-2px); box-shadow: 0 6px 24px rgba(239,68,68,.3); }
-        .btn-run-cancel:active { transform: translateY(0); }
-
-        .btn-use-tracks {
-            background: transparent; color: var(--primary);
-            border: 1.5px solid var(--primary);
-            padding: 9px 22px; font-size: 13px; font-weight: 600; font-family: inherit;
-            border-radius: var(--radius-pill); cursor: pointer;
-            transition: all var(--transition);
-        }
-        .btn-use-tracks:hover { background: rgba(29,185,84,.1); transform: translateY(-1px); }
-        .btn-use-tracks:active { transform: translateY(0); }
-
-        /* --- Run section --- */
-        .generate-section {
-            background: var(--bg-card); border-radius: var(--radius-lg); padding: 20px;
-            margin-bottom: 1.5rem; border: 1px solid var(--border);
-            transition: border-color var(--transition);
-        }
-        .generate-section:hover { border-color: #3A3F4A; }
-        .run-section { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
-
-        /* --- Status --- */
-        .status {
-            padding: 14px 18px; background: var(--bg-card); border-radius: var(--radius-md);
-            margin-bottom: 1rem; font-size: 0.88rem; line-height: 1.5;
-            border: 1px solid var(--border);
-        }
-        .status.error { border-left: 4px solid var(--error); }
-        .status.success { border-left: 4px solid var(--success); }
-        .status.info { border-left: 4px solid #3B82F6; }
-
-        .playlist-link-box {
-            padding: 14px 18px; background: var(--bg-card); border-radius: var(--radius-md);
-            margin-bottom: 1.5rem; font-size: 0.9rem; border: 1px solid var(--border);
-        }
-        .playlist-link-box a { color: var(--primary); text-decoration: none; font-weight: 500; }
-        .playlist-link-box a:hover { text-decoration: underline; }
-
-        /* --- Track list --- */
-        .track-list { list-style: none; }
-
-        .track-item {
-            background: var(--bg-card); border-radius: var(--radius-lg); padding: 16px 20px;
-            margin-bottom: 8px; transition: all var(--transition);
-            border: 1px solid transparent;
-        }
-        .track-item:hover { background: var(--bg-elevated); border-color: var(--border); transform: translateY(-1px); box-shadow: var(--shadow-card); }
-
-        .track-header { display: flex; align-items: flex-start; gap: 12px; }
-
-        .track-cover {
-            width: 48px; height: 48px; border-radius: 6px;
-            object-fit: cover; flex-shrink: 0;
-            background: var(--bg-elevated);
-        }
-
-        .track-info { flex: 1; min-width: 0; }
-        .track-name { font-size: 0.95rem; font-weight: 600; }
-        .track-reason { color: var(--text-muted); font-size: 0.82rem; margin-top: 3px; line-height: 1.4; }
-
-        .track-actions { display: flex; gap: 6px; flex-shrink: 0; }
-
-        /* --- Feedback form --- */
-        .feedback-form {
-            margin-top: 14px; padding-top: 14px;
-            border-top: 1px solid var(--border); display: none;
-        }
-        .feedback-form.open { display: block; }
-
-        .form-row { margin-bottom: 10px; }
-        .form-row label {
-            display: block; font-size: 0.72rem; color: var(--text-muted);
-            margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.6px;
-            font-weight: 600;
-        }
-        .form-row input {
-            width: 100%; background: var(--bg-input); border: 1px solid var(--border);
-            color: var(--text-primary); padding: 10px 12px; border-radius: var(--radius-sm);
-            font-size: 0.9rem; font-family: inherit; transition: border-color var(--transition);
-        }
-        .form-row input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(29,185,84,.15); }
-
-        .form-hint { font-size: 0.72rem; color: var(--text-muted); margin-top: 3px; }
-        .form-actions { display: flex; gap: 8px; margin-top: 12px; }
-
-        .hidden { display: none; }
-
-        .empty-state {
-            text-align: center; color: var(--text-muted); padding: 3.5rem 1rem;
-            font-size: 0.95rem;
-        }
-
-        /* --- Settings gear --- */
-        .settings-wrapper { position: absolute; top: 1.5rem; right: 1.5rem; }
-        .settings-btn {
-            background: none; border: none; color: var(--text-secondary);
-            font-size: 1.5rem; cursor: pointer; padding: 6px 10px;
-            border-radius: var(--radius-sm); transition: all var(--transition);
-        }
-        .settings-btn:hover { color: #fff; background: var(--bg-elevated); }
-
-        .settings-dropdown {
-            display: none; position: absolute; right: 0; top: 110%;
-            background: var(--bg-elevated); border-radius: var(--radius-md); min-width: 190px;
-            box-shadow: var(--shadow-elevated); overflow: hidden; z-index: 100;
-            border: 1px solid var(--border);
-        }
-        .settings-dropdown.open { display: block; }
-        .settings-dropdown button {
-            display: block; width: 100%; text-align: left;
-            background: none; border: none; color: var(--text-primary);
-            padding: 12px 18px; font-size: 0.88rem; cursor: pointer;
-            font-family: inherit; transition: background var(--transition);
-        }
-        .settings-dropdown button:hover { background: rgba(255,255,255,.06); }
-
-        /* --- Modal overlay --- */
-        .modal-overlay {
-            display: none; position: fixed; inset: 0;
-            background: rgba(0,0,0,.75); z-index: 200;
-            justify-content: center; align-items: center;
-            backdrop-filter: blur(4px);
-        }
-        .modal-overlay.open { display: flex; }
-
-        .modal {
-            background: var(--bg-card); border-radius: var(--radius-lg); padding: 2rem;
-            width: 90%; max-width: 500px; max-height: 85vh; overflow-y: auto;
-            border: 1px solid var(--border); box-shadow: var(--shadow-elevated);
-        }
-        .modal h2 { color: var(--primary); margin-bottom: 1.4rem; font-size: 1.2rem; font-weight: 700; }
-
-        .modal .form-row { margin-bottom: 16px; }
-        .modal .form-row label {
-            display: block; font-size: 0.72rem; color: var(--text-muted);
-            margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.6px;
-            font-weight: 600;
-        }
-        .modal .form-row input {
-            width: 100%; background: var(--bg-input); border: 1px solid var(--border);
-            color: var(--text-primary); padding: 10px 12px; border-radius: var(--radius-sm);
-            font-size: 0.9rem; font-family: inherit; transition: border-color var(--transition);
-        }
-        .modal .form-row input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(29,185,84,.15); }
-
-        .cred-status {
-            font-size: 0.75rem; margin-top: 3px;
-            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-            max-width: 100%;
-        }
-        .cred-status.set { color: var(--success); }
-        .cred-status.unset { color: var(--error); }
-
-        .cred-input-wrap { position: relative; display: flex; align-items: center; }
-        .cred-input-wrap input { flex: 1; padding-right: 32px; }
-        .btn-clear {
-            position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-            background: none; border: none; color: var(--text-muted);
-            font-size: 1rem; cursor: pointer; padding: 2px 4px;
-            line-height: 1; transition: color var(--transition);
-        }
-        .btn-clear:hover { color: var(--error); }
-
-        .modal-actions { display: flex; gap: 8px; margin-top: 1.5rem; }
-
-        .help-section { margin-bottom: 1rem; }
-        .help-section h3 { font-size: 0.95rem; margin-bottom: 0.3rem; }
-        .help-section p, .help-section li { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; }
-        .help-section a { color: var(--primary); text-decoration: none; }
-        .help-section a:hover { text-decoration: underline; }
-        .help-section ul { margin-left: 1.2rem; margin-top: 0.3rem; }
-
-        /* --- Inline component warnings --- */
-        .component-warn {
-            padding: 12px 16px; border-radius: var(--radius-sm); margin-top: 10px;
-            font-size: 0.82rem; line-height: 1.5;
-            background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.25); color: #FBBF24;
-        }
-        .component-warn a { color: var(--primary); text-decoration: none; cursor: pointer; font-weight: 500; }
-        .component-warn a:hover { text-decoration: underline; }
-
-        /* --- Train taste profile --- */
-        .train-section {
-            background: var(--bg-card); border-radius: var(--radius-lg); padding: 20px;
-            margin-bottom: 1.5rem; border: 1px solid var(--border);
-            transition: border-color var(--transition);
-        }
-        .train-section:hover { border-color: #3A3F4A; }
-        .train-header { display: flex; align-items: center; justify-content: space-between; }
-        .train-header h2 { font-size: 1rem; color: var(--text-primary); font-weight: 600; }
-        .train-status { font-size: 0.8rem; color: var(--text-secondary); }
-
-        .btn-train {
-            background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border);
-            padding: 8px 22px; font-size: 13px; font-weight: 600; font-family: inherit;
-            border-radius: var(--radius-pill); cursor: pointer; transition: all var(--transition);
-        }
-        .btn-train:hover { background: #2A2F3A; border-color: #444; transform: translateY(-1px); }
-        .btn-train:disabled { opacity: .4; cursor: not-allowed; transform: none; }
-
-        .train-body { margin-top: 14px; }
-        .train-body textarea {
-            width: 100%; min-height: 110px; background: var(--bg-input);
-            border: 1px solid var(--border); color: var(--text-primary); padding: 12px 14px;
-            border-radius: var(--radius-sm); font-family: inherit; font-size: 0.9rem;
-            resize: vertical; transition: border-color var(--transition);
-        }
-        .train-body textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(29,185,84,.15); }
-        .train-actions { display: flex; gap: 8px; margin-top: 12px; }
-
-        .train-success {
-            color: var(--success); font-size: 1.3rem; margin-top: 10px;
-            animation: fadeOut 5s forwards;
-        }
-        @keyframes fadeOut {
-            0%, 70% { opacity: 1; }
-            100%    { opacity: 0; }
-        }
-
-        /* --- Toast notification --- */
-        .toast {
-            position: fixed; bottom: 2rem; left: 50%;
-            transform: translateX(-50%) translateY(80px);
-            background: var(--bg-elevated); color: var(--text-primary);
-            padding: 14px 28px; border-radius: var(--radius-md);
-            font-size: 0.88rem; z-index: 300;
-            transition: transform 0.3s ease, opacity 0.3s ease;
-            box-shadow: var(--shadow-elevated);
-            border: 1px solid var(--border);
-            opacity: 0; pointer-events: none;
-            max-width: 90%; text-align: center; font-weight: 500;
-        }
-        .toast.show {
-            transform: translateX(-50%) translateY(0);
-            opacity: 1; pointer-events: auto;
-        }
-        .toast.toast-success { border-left: 4px solid var(--success); }
-        .toast.toast-error   { border-left: 4px solid var(--error); }
-        .toast.toast-info    { border-left: 4px solid #3B82F6; }
-
-        /* --- Help modal rendered markdown --- */
-        #helpContent h1 { color: var(--primary); font-size: 1.3rem; margin: 0 0 1rem; font-weight: 700; }
-        #helpContent h2 { color: var(--primary); font-size: 1.05rem; margin: 1.5rem 0 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; font-weight: 600; }
-        #helpContent h3 { color: var(--text-primary); font-size: 0.95rem; margin: 1rem 0 0.3rem; font-weight: 600; }
-        #helpContent p { color: var(--text-secondary); margin: 0.4rem 0; }
-        #helpContent ul, #helpContent ol { color: var(--text-secondary); margin: 0.4rem 0 0.4rem 1.4rem; }
-        #helpContent li { margin: 0.2rem 0; }
-        #helpContent a { color: var(--primary); text-decoration: none; }
-        #helpContent a:hover { text-decoration: underline; }
-        #helpContent code { background: var(--bg-elevated); padding: 2px 6px; border-radius: 4px; font-size: 0.85em; color: #e0e0e0; }
-        #helpContent pre { background: var(--bg-elevated); padding: 14px; border-radius: var(--radius-sm); overflow-x: auto; margin: 0.5rem 0; border: 1px solid var(--border); }
-        #helpContent pre code { padding: 0; background: none; }
-        #helpContent table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; font-size: 0.85rem; }
-        #helpContent th { text-align: left; color: var(--text-primary); padding: 8px 10px; border-bottom: 2px solid var(--border); font-weight: 600; }
-        #helpContent td { color: var(--text-secondary); padding: 8px 10px; border-bottom: 1px solid var(--border); }
-        #helpContent blockquote { border-left: 3px solid var(--primary); margin: 0.5rem 0; padding: 0.3rem 0 0.3rem 1rem; color: var(--text-muted); }
-        #helpContent strong { color: var(--text-primary); }
-        #helpContent em { color: var(--text-secondary); }
-        #helpContent hr { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
-
-        /* --- Focus ring for accessibility --- */
-        :focus-visible {
-            outline: 2px solid var(--primary);
-            outline-offset: 2px;
-        }
-
-        /* --- Select styling --- */
-        .modal select {
-            width: 100%; background: var(--bg-input); border: 1px solid var(--border);
-            color: var(--text-primary); padding: 10px 12px; border-radius: var(--radius-sm);
-            font-size: 0.9rem; font-family: inherit; transition: border-color var(--transition);
-            cursor: pointer;
-        }
-        .modal select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(29,185,84,.15); }
-
-        /* --- Tooltip "?" trigger --- */
-        .tooltip-trigger {
-            display: inline-flex; align-items: center; justify-content: center;
-            width: 16px; height: 16px; border-radius: 50%;
-            background: var(--bg-elevated); border: 1px solid var(--border);
-            color: var(--text-muted); font-size: 0.65rem; font-weight: 700;
-            cursor: help; position: relative; text-transform: none; letter-spacing: 0;
-        }
-        .tooltip-trigger:hover::after {
-            content: attr(data-tooltip);
-            position: absolute; left: 50%; bottom: calc(100% + 8px);
-            transform: translateX(-50%);
-            background: var(--bg-elevated); color: var(--text-secondary);
-            font-size: 0.75rem; font-weight: 400; line-height: 1.4;
-            padding: 8px 12px; border-radius: var(--radius-sm);
-            border: 1px solid var(--border); box-shadow: var(--shadow-elevated);
-            white-space: normal; width: 250px; z-index: 10;
-            pointer-events: none;
-        }
-        .tooltip-trigger:hover::before {
-            content: ''; position: absolute;
-            left: 50%; bottom: calc(100% + 2px);
-            transform: translateX(-50%);
-            border: 6px solid transparent;
-            border-top-color: var(--border);
-            z-index: 10;
-        }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body>
+<div class="background">
+    <div class="wave wave-top-haze"></div>
+    <div class="wave wave-top-glow"></div>
+    <div class="wave wave-top-ribbon"></div>
+    <div class="wave wave-bottom-haze"></div>
+    <div class="wave wave-bottom-glow"></div>
+    <div class="wave wave-bottom-ribbon"></div>
+</div>
 <div class="container" style="position: relative;">
 
     <!-- Settings gear -->
@@ -409,13 +26,13 @@
         <div class="settings-dropdown" id="settingsDropdown">
             <button onclick="openCredentials()">🔑 Credentials</button>
             <button onclick="openSettings()">⚙️ Settings</button>
-            <button id="spotifyDisconnectBtn" class="hidden" onclick="disconnectSpotify()">🔌 Disconnect Spotify</button>
+            <button id="spotifyToggleBtn" onclick="toggleSpotifyConnection()">🔌 Connect Spotify</button>
             <button onclick="openHelp()">❓ Help</button>
         </div>
     </div>
 
-    <h1>🎵 SpotyVibe</h1>
-    <p class="subtitle">AI-powered music discovery — generate suggestions, build your playlist, refine your taste.</p>
+    <h1>SpotyVibe</h1>
+    <p class="subtitle">AI-powered music discovery & playlist generation — discover, curate, refine.</p>
 
     <!-- ── Section 1: Train ── -->
     <p class="section-label">Step 1 — Taste Profile</p>
@@ -425,17 +42,77 @@
     <div class="train-section" id="trainSection">
         <div class="train-header">
             <div>
-                <h2>🎯 Train Taste Profile</h2>
+                <h2>🎯 Music Profile</h2>
                 <span class="train-status" id="trainStatus"></span>
             </div>
             <button class="btn-train" id="trainToggleBtn" onclick="toggleTrainBody()">Edit profile</button>
         </div>
         <div id="trainWarn" class="hidden"></div>
         <div class="train-body hidden" id="trainBody">
-            <textarea id="trainText" placeholder="Describe your music taste in your own words… e.g. &quot;I love high-energy rock with big melodies, think Queen meets Muse. I hate slow ballads and anything too electronic.&quot;"></textarea>
+
+            <!-- Core Description (required) -->
+            <div class="accordion-panel open" id="accCoreDesc">
+                <div class="accordion-header" onclick="toggleAccordion('accCoreDesc')">
+                    <h3>🎵 Core Description <span class="acc-required">required</span></h3>
+                    <span class="accordion-chevron">▼</span>
+                </div>
+                <div class="accordion-body">
+                    <div class="accordion-body-inner">
+                        <p class="acc-hint">Describe your ideal sound in your own words — genre, mood, energy, reference artists. This is the foundation of your profile.</p>
+                        <textarea id="trainCoreDesc" placeholder='e.g. "Upbeat, theatrical rock with strong melodic hooks, rich harmonies, and constant momentum. Think Queen meets Bear Ghost."'></textarea>
+                        <div class="acc-error-msg" id="errCoreDesc">Core description is required.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Must Have -->
+            <div class="accordion-panel" id="accMustHave">
+                <div class="accordion-header" onclick="toggleAccordion('accMustHave')">
+                    <h3>✅ Must Have</h3>
+                    <span class="accordion-chevron">▼</span>
+                </div>
+                <div class="accordion-body">
+                    <div class="accordion-body-inner">
+                        <p class="acc-hint">Non-negotiable traits every suggestion <strong>must</strong> have. One per line. These are hard requirements — a track missing any one is rejected.</p>
+                        <textarea id="trainMustHave" placeholder='e.g.&#10;high energy&#10;strong memorable melodies&#10;vocals / singing (no instrumentals)'></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Soft Preferences -->
+            <div class="accordion-panel" id="accSoftPrefs">
+                <div class="accordion-header" onclick="toggleAccordion('accSoftPrefs')">
+                    <h3>💡 Soft Preferences</h3>
+                    <span class="accordion-chevron">▼</span>
+                </div>
+                <div class="accordion-body">
+                    <div class="accordion-body-inner">
+                        <p class="acc-hint">Nice-to-have traits that improve a suggestion but aren't required. One per line.</p>
+                        <textarea id="trainSoftPrefs" placeholder='e.g.&#10;slight prog influence&#10;playful and clever composition'></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Avoid -->
+            <div class="accordion-panel" id="accAvoid">
+                <div class="accordion-header" onclick="toggleAccordion('accAvoid')">
+                    <h3>🚫 Avoid</h3>
+                    <span class="accordion-chevron">▼</span>
+                </div>
+                <div class="accordion-body">
+                    <div class="accordion-body-inner">
+                        <p class="acc-hint">Traits that immediately disqualify a track. One per line. These are absolute dealbreakers.</p>
+                        <textarea id="trainAvoid" placeholder='e.g.&#10;electronic/synth-heavy production&#10;slow or mid-tempo songs&#10;80s production aesthetic'></textarea>
+                    </div>
+                </div>
+            </div>
+
             <div class="train-actions">
-                <button class="btn btn-save" id="trainSendBtn" onclick="sendTrainProfile()">Send to AI</button>
-                <button class="btn btn-cancel" onclick="toggleTrainBody()">Cancel</button>
+                <button class="btn btn-save" id="trainSendBtn" onclick="sendTrainProfile()">AI Profile Update</button>
+                <div class="train-actions-right">
+                    <button class="btn btn-save" id="trainSaveBtn" onclick="saveProfileDirect()">Save</button>
+                    <button class="btn btn-cancel" onclick="toggleTrainBody()">Cancel</button>
+                </div>
             </div>
         </div>
         <div id="trainSuccessIcon" class="hidden"></div>
@@ -504,7 +181,10 @@
 
 <!-- Settings modal -->
 <div class="modal-overlay" id="settingsModal" onclick="if(event.target===this)closeModal('settingsModal')">
-    <div class="modal">
+    <div class="modal" style="position:relative;">
+        <div class="modal-loading" id="settingsLoading">
+            <div class="spinner"></div>
+        </div>
         <h2>⚙️ Settings</h2>
         <div class="form-row">
             <label for="settings-model">Used Model</label>
@@ -611,15 +291,19 @@
         }
     });
 
-    async function disconnectSpotify() {
+    async function toggleSpotifyConnection() {
         document.getElementById('settingsDropdown').classList.remove('open');
-        try {
-            await fetch('/api/spotify/disconnect', { method: 'POST' });
-            showToast('Spotify disconnected. Please re-connect.', 'info');
-            await checkSpotifyAuth();
-            renderComponentWarnings();
-        } catch (e) {
-            alert('Network error: ' + e.message);
+        if (spotifyAuthStatus === 'authenticated') {
+            try {
+                await fetch('/api/spotify/disconnect', { method: 'POST' });
+                showToast('Spotify disconnected.', 'info');
+                await checkSpotifyAuth();
+                renderComponentWarnings();
+            } catch (e) {
+                alert('Network error: ' + e.message);
+            }
+        } else {
+            connectSpotify();
         }
     }
 
@@ -666,12 +350,12 @@
             runBtn.disabled = false;
         }
 
-        // --- Show/hide "Disconnect Spotify" in settings menu ---
-        const disconnectBtn = document.getElementById('spotifyDisconnectBtn');
+        // --- Update Spotify toggle button in settings menu ---
+        const spotifyBtn = document.getElementById('spotifyToggleBtn');
         if (spotifyAuthStatus === 'authenticated') {
-            disconnectBtn.classList.remove('hidden');
+            spotifyBtn.textContent = '🔌 Disconnect Spotify';
         } else {
-            disconnectBtn.classList.add('hidden');
+            spotifyBtn.textContent = '🔌 Connect Spotify';
         }
     }
 
@@ -686,6 +370,10 @@
     /* ------------------------------------------------------------------ */
     let profileTrained = false;
 
+    function toggleAccordion(id) {
+        document.getElementById(id).classList.toggle('open');
+    }
+
     async function checkProfileStatus() {
         try {
             const resp = await fetch('/api/profile/status');
@@ -697,33 +385,71 @@
                 el.textContent = '✓ Last trained: ' + d.toLocaleString();
             } else {
                 el.textContent = '⚠ Not yet trained — describe your taste below.';
-                // Auto-open the textarea if the profile hasn't been trained
+                // Auto-open the form if the profile hasn't been trained
                 document.getElementById('trainBody').classList.remove('hidden');
             }
         } catch (e) { /* ignore */ }
     }
 
-    function toggleTrainBody() {
-        document.getElementById('trainBody').classList.toggle('hidden');
+    async function prefillTrainFields() {
+        try {
+            const resp = await fetch('/api/profile/data');
+            const profile = await resp.json();
+            const prefs = profile.preferences || {};
+
+            document.getElementById('trainCoreDesc').value = prefs.core_description || '';
+            document.getElementById('trainMustHave').value = (prefs.must_have || []).join('\n');
+            document.getElementById('trainSoftPrefs').value = (prefs.soft_preferences || []).join('\n');
+            document.getElementById('trainAvoid').value = (prefs.avoid || []).join('\n');
+        } catch (e) { /* ignore — fields stay empty */ }
     }
 
-    async function sendTrainProfile() {
-        if (!openaiKeySet) {
+    function toggleTrainBody() {
+        const body = document.getElementById('trainBody');
+        const isOpening = body.classList.contains('hidden');
+        body.classList.toggle('hidden');
+        if (isOpening) prefillTrainFields();
+    }
+
+    async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, successMsg, requireOpenAI) {
+        if (requireOpenAI && !openaiKeySet) {
             showToast('OpenAI API key is required. Open ⚙️ Settings.', 'error');
             return;
         }
-        const text = document.getElementById('trainText').value.trim();
-        if (!text) { alert('Please describe your music taste.'); return; }
 
-        const btn = document.getElementById('trainSendBtn');
+        // Validate core description
+        const coreDesc = document.getElementById('trainCoreDesc').value.trim();
+        const coreInput = document.getElementById('trainCoreDesc');
+        const errMsg = document.getElementById('errCoreDesc');
+
+        if (!coreDesc) {
+            coreInput.classList.add('input-error');
+            errMsg.style.display = 'block';
+            document.getElementById('accCoreDesc').classList.add('open');
+            coreInput.focus();
+            return;
+        }
+        coreInput.classList.remove('input-error');
+        errMsg.style.display = 'none';
+
+        const mustHave = document.getElementById('trainMustHave').value.trim();
+        const softPrefs = document.getElementById('trainSoftPrefs').value.trim();
+        const avoid = document.getElementById('trainAvoid').value.trim();
+
+        const btn = document.getElementById(btnId);
         btn.disabled = true;
-        btn.textContent = '⏳ Training…';
+        btn.textContent = loadingLabel;
 
         try {
-            const resp = await fetch('/api/train-profile', {
+            const resp = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text }),
+                body: JSON.stringify({
+                    core_description: coreDesc,
+                    must_have: mustHave,
+                    soft_preferences: softPrefs,
+                    avoid: avoid,
+                }),
             });
             const data = await resp.json();
 
@@ -732,25 +458,30 @@
                 return;
             }
 
-            // Hide the form and show green checkmark
             document.getElementById('trainBody').classList.add('hidden');
-            document.getElementById('trainText').value = '';
 
             const icon = document.getElementById('trainSuccessIcon');
             icon.className = 'train-success';
-            icon.textContent = '✅ Profile updated!';
+            icon.textContent = successMsg;
             icon.classList.remove('hidden');
             setTimeout(() => { icon.classList.add('hidden'); }, 5000);
 
-            // Refresh status
             await checkProfileStatus();
 
         } catch (e) {
             alert('Network error: ' + e.message);
         } finally {
             btn.disabled = false;
-            btn.textContent = 'Send to AI';
+            btn.textContent = btnLabel;
         }
+    }
+
+    function sendTrainProfile() {
+        return submitProfile('/api/train-profile', 'trainSendBtn', 'AI Profile Update', '⏳ Training…', '✅ Profile updated!', true);
+    }
+
+    function saveProfileDirect() {
+        return submitProfile('/api/save-profile', 'trainSaveBtn', 'Save', '⏳ Saving…', '✅ Profile saved!', false);
     }
 
     // Check profile status on page load
@@ -1274,6 +1005,8 @@
     /* ------------------------------------------------------------------ */
     async function openSettings() {
         document.getElementById('settingsDropdown').classList.remove('open');
+        document.getElementById('settingsModal').classList.add('open');
+        document.getElementById('settingsLoading').classList.add('active');
 
         // Load current settings
         try {
@@ -1281,10 +1014,16 @@
             const data = await resp.json();
 
             // Debug mode checkbox
-            document.getElementById('settings-debug').checked = !!data.debug_mode;
+            const debugCheckbox = document.getElementById('settings-debug');
+            debugCheckbox.checked = !!data.debug_mode;
             const debugStatus = document.getElementById('status-settings-debug');
-            debugStatus.textContent = data.debug_mode ? '✓ Enabled — log: %LOCALAPPDATA%\\spotyvibe\\debug.log' : 'Disabled';
-            debugStatus.className = 'cred-status ' + (data.debug_mode ? 'set' : 'unset');
+            function updateDebugStatus() {
+                const on = debugCheckbox.checked;
+                debugStatus.textContent = on ? '✓ Enabled — log: %LOCALAPPDATA%\\spotyvibe\\debug.log' : 'Disabled';
+                debugStatus.className = 'cred-status ' + (on ? 'set' : 'unset');
+            }
+            updateDebugStatus();
+            debugCheckbox.onchange = updateDebugStatus;
 
             // Model status
             const modelStatus = document.getElementById('status-settings-model');
@@ -1333,7 +1072,7 @@
             select.innerHTML = '<option value="">Could not load models</option>';
         }
 
-        document.getElementById('settingsModal').classList.add('open');
+        document.getElementById('settingsLoading').classList.remove('active');
     }
 
     async function saveSettings() {
