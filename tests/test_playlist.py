@@ -92,6 +92,7 @@ class TestFindExistingPlaylist:
             "next": None,
         }
         result = find_existing_playlist(sp)
+        assert result is not None
         assert result["id"] == "pl123"
 
     def test_returns_none_when_not_found(self):
@@ -109,6 +110,7 @@ class TestFindExistingPlaylist:
             {"items": [{"name": PLAYLIST_NAME, "id": "found"}], "next": None},
         ]
         result = find_existing_playlist(sp)
+        assert result is not None
         assert result["id"] == "found"
 
 
@@ -176,7 +178,7 @@ class TestRemoveFromPlaylist:
         mock_find.return_value = None
         result = remove_from_playlist("artist", "song")
         assert result["removed"] is False
-        assert "not found" in result["reason"].lower()
+        assert "not found" in str(result["reason"]).lower()
 
     @patch("core.playlist.find_existing_playlist")
     @patch("core.playlist.get_spotify_client")
@@ -201,7 +203,7 @@ class TestRemoveFromPlaylist:
         mock_uris.return_value = {"spotify:track:other"}
         result = remove_from_playlist("artist", "song")
         assert result["removed"] is False
-        assert "not in playlist" in result["reason"].lower()
+        assert "not in playlist" in str(result["reason"]).lower()
 
 
 class TestSearchTracks:

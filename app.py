@@ -339,7 +339,7 @@ def submit_feedback():
             else:
                 removal = {"removed": False, "reason": "No track specified"}
 
-        response = {"status": "ok"}
+        response: dict = {"status": "ok"}
         if removal is not None:
             response["removal"] = removal
         return jsonify(response)
