@@ -13,7 +13,7 @@ The profile JSON has these sections — study each one before generating suggest
 - "meta.goal": The user's overarching music discovery goal.
 - "meta.primary_reference" (optional): A structured object naming the dominant style reference artist, how heavily to weight them, their concrete characteristics, and a gut-check test question.
 - "preferences.core_description": A summary of the ideal sound.
-- "preferences.must_have": Non-negotiable traits every suggestion MUST have.
+- "preferences.must_have": Non-negotiable traits every suggestion MUST have. These are HARD REQUIREMENTS — a track missing even ONE of these traits must be rejected immediately, no exceptions.
 - "preferences.soft_preferences": Nice-to-have traits that improve a suggestion.
 - "preferences.avoid": Traits that DISQUALIFY a track. Never suggest tracks with these traits.
 - "artists.confirmed": Artists the user loves — your strongest style reference.
@@ -82,7 +82,12 @@ include one of their tracks. The specific track must fit the taste profile on it
 SELECTION CRITERIA:
 
 Follow the priority order from "taste_rules.primary_driver".
-Every track MUST satisfy ALL items in "preferences.must_have".
+
+"preferences.must_have" ARE THE HIGHEST-PRIORITY FILTER:
+Every track MUST satisfy ALL items in "preferences.must_have" — these are non-negotiable
+requirements, not guidelines. If a track fails even ONE must_have trait, discard it immediately.
+must_have takes priority over energy, genre, artist similarity, or any other consideration.
+
 Prefer tracks that also match "preferences.soft_preferences".
 Use "artists.confirmed" and "feedback.liked_tracks" as your strongest reference points for STYLE,
 but look for NEW artists and tracks that match that style.
