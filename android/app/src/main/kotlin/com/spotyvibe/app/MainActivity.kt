@@ -81,16 +81,9 @@ class MainActivity : AppCompatActivity() {
             Python.start(AndroidPlatform(this))
         }
 
-        // Set the environment variable via Python so config.py can resolve
-        // the Android-appropriate storage directory via os.environ.
         val py = Python.getInstance()
-        py.getModule("os").callAttr("environ").callAttr(
-            "__setitem__", "SPOTYVIBE_FILES_DIR", filesDir.absolutePath
-        )
 
         // Guard: skip if Flask was already started in this process.
-        // Uses a companion-object flag instead of a network call because
-        // onCreate() runs on the main thread where Android forbids network I/O.
         if (flaskStarted) {
             Log.i(TAG, "Flask already started, skipping server start")
             showWebView()
@@ -102,17 +95,7 @@ class MainActivity : AppCompatActivity() {
         flaskThread = Thread({
             try {
                 Log.i(TAG, "Starting Flask server...")
-                val appModule = py.getModule("app")
-                val flaskApp = appModule["app"]
-                flaskApp?.callAttr(
-                    "run",
-                    *arrayOf<Any>(),
-                    // Keyword arguments via Chaquopy's Kwarg helper
-                    com.chaquo.python.Kwarg("host", "127.0.0.1"),
-                    com.chaquo.python.Kwarg("port", 5000),
-                    com.chaquo.python.Kwarg("debug", false),
-                    com.chaquo.python.Kwarg("use_reloader", false)
-                )
+                py.getModule("bootstrap").callAttr("start", filesDir.absolutePath)
             } catch (e: Exception) {
                 Log.e(TAG, "Flask server error", e)
             }
