@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpotyVibe</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body class="onboarding-body">
+<div class="onboarding-container">
+    <div class="onboarding-card">
+        <div class="onboarding-logo">🎵</div>
+        <h1 class="onboarding-title">SpotyVibe</h1>
+        <p class="onboarding-subtitle">AI-Powered Music Discovery</p>
+
+        <div class="onboarding-features">
+            <div class="onboarding-feature">
+                <span class="onboarding-feature-icon">🎯</span>
+                <div>
+                    <strong>Personalised Playlists</strong>
+                    <p>AI learns your taste and discovers tracks you'll love.</p>
+                </div>
+            </div>
+            <div class="onboarding-feature">
+                <span class="onboarding-feature-icon">🎧</span>
+                <div>
+                    <strong>Spotify Integration</strong>
+                    <p>Playlists created directly in your Spotify account.</p>
+                </div>
+            </div>
+            <div class="onboarding-feature">
+                <span class="onboarding-feature-icon">👍</span>
+                <div>
+                    <strong>Refine with Feedback</strong>
+                    <p>Like or dislike tracks to improve future suggestions.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="onboarding-setup-hint">
+            <p>To get started, you'll need:</p>
+            <ul>
+                <li>An <strong>OpenAI API key</strong></li>
+                <li>A <strong>Spotify account</strong> (free or premium)</li>
+            </ul>
+            <p>Set these up in <strong>Settings</strong> once inside the app.</p>
+        </div>
+
+        <button class="onboarding-continue-btn" onclick="window.location.href='/'">
+            Continue to SpotyVibe
+        </button>
+    </div>
+</div>
+</body>
+</html>

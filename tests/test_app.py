@@ -32,6 +32,23 @@ class TestIndex:
             assert f'data-theme="{removed}"' not in html
 
 
+class TestOnboarding:
+    def test_returns_html(self, client):
+        resp = client.get("/onboarding")
+        assert resp.status_code == 200
+
+    def test_contains_continue_button(self, client):
+        resp = client.get("/onboarding")
+        html = resp.data.decode()
+        assert "Continue to SpotyVibe" in html
+
+    def test_contains_setup_hints(self, client):
+        resp = client.get("/onboarding")
+        html = resp.data.decode()
+        assert "OpenAI API key" in html
+        assert "Spotify account" in html
+
+
 class TestHelpContent:
     @patch("app.BASE_DIR")
     def test_returns_html_from_manual(self, mock_base_dir, client, tmp_path):

@@ -56,6 +56,11 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/onboarding")
+def onboarding():
+    return render_template("onboarding.html")
+
+
 @app.route("/api/help")
 def help_content():
     """Return the User Manual rendered as HTML."""

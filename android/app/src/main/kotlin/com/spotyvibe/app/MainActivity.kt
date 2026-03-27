@@ -22,6 +22,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "SpotyVibe"
         private const val FLASK_URL = "http://127.0.0.1:5000"
+        private const val ONBOARDING_URL = "$FLASK_URL/onboarding"
         private const val MAX_RETRIES = 60          // up to 30 seconds
         private const val RETRY_DELAY_MS = 500L
         @Volatile private var flaskStarted = false  // survives Activity re-creation
@@ -29,6 +30,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private lateinit var splashView: View
+    private lateinit var errorView: View
     private var flaskThread: Thread? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,6 +39,12 @@ class MainActivity : AppCompatActivity() {
 
         splashView = findViewById(R.id.splashView)
         webView = findViewById(R.id.webView)
+        errorView = findViewById(R.id.errorView)
+
+        // Retry button in the error view
+        findViewById<View>(R.id.retryButton).setOnClickListener {
+            retryFlaskServer()
+        }
 
         configureWebView()
         registerBackPress()
@@ -53,8 +61,17 @@ class MainActivity : AppCompatActivity() {
     private fun showWebView() {
         runOnUiThread {
             splashView.visibility = View.GONE
+            errorView.visibility = View.GONE
             webView.visibility = View.VISIBLE
-            webView.loadUrl(FLASK_URL)
+            webView.loadUrl(ONBOARDING_URL)
+        }
+    }
+
+    private fun showError() {
+        runOnUiThread {
+            splashView.visibility = View.GONE
+            webView.visibility = View.GONE
+            errorView.visibility = View.VISIBLE
         }
     }
 
@@ -104,17 +121,20 @@ class MainActivity : AppCompatActivity() {
             start()
         }
 
-        // Wait for Flask to be ready, then show the WebView
+        // Wait for Flask to be ready, then show the WebView (or error)
         Thread({
-            waitForFlask()
-            showWebView()
+            if (waitForFlask()) {
+                showWebView()
+            } else {
+                showError()
+            }
         }, "flask-waiter").apply {
             isDaemon = true
             start()
         }
     }
 
-    private fun waitForFlask() {
+    private fun waitForFlask(): Boolean {
         for (i in 1..MAX_RETRIES) {
             try {
                 val conn = URL(FLASK_URL).openConnection() as HttpURLConnection
@@ -125,7 +145,7 @@ class MainActivity : AppCompatActivity() {
                 conn.disconnect()
                 if (code == 200) {
                     Log.i(TAG, "Flask ready after ${i * RETRY_DELAY_MS}ms")
-                    return
+                    return true
                 }
             } catch (_: Exception) {
                 // Server not ready yet
@@ -133,9 +153,20 @@ class MainActivity : AppCompatActivity() {
             Thread.sleep(RETRY_DELAY_MS)
         }
         Log.e(TAG, "Flask did not start within ${MAX_RETRIES * RETRY_DELAY_MS}ms")
+        return false
     }
 
     // ── WebView ─────────────────────────────────────────────────────
+
+    private fun retryFlaskServer() {
+        // Show splash again and re-attempt starting Flask
+        runOnUiThread {
+            errorView.visibility = View.GONE
+            splashView.visibility = View.VISIBLE
+        }
+        flaskStarted = false
+        startFlaskServer()
+    }
 
     private fun configureWebView() {
         webView.settings.apply {
