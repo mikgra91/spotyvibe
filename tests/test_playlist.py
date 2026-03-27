@@ -1,6 +1,7 @@
 """Tests for core/playlist.py — Spotify OAuth, search, and playlist management."""
 
 import os
+import sys
 from unittest.mock import patch, MagicMock
 
 from core.playlist import (
@@ -14,6 +15,7 @@ from core.playlist import (
     disconnect_spotify,
     handle_spotify_callback,
     PLAYLIST_NAME,
+    REDIRECT_URI,
 )
 
 
@@ -337,5 +339,24 @@ class TestAddToPlaylist:
         except RuntimeError as e:
             assert "403" in str(e)
             mock_disconnect.assert_called_once()
+
+
+class TestRedirectUri:
+    """The REDIRECT_URI constant must be platform-aware."""
+
+    def test_desktop_redirect_uri(self):
+        """On regular desktop Python, REDIRECT_URI is the localhost callback."""
+        assert not hasattr(sys, "getandroidapilevel")
+        assert REDIRECT_URI == "http://127.0.0.1:5000/callback"
+
+    def test_redirect_uri_used_in_oauth(self):
+        """get_spotify_oauth() must use the module-level REDIRECT_URI."""
+        with patch.dict(os.environ, {
+            "SPOTIPY_CLIENT_ID": "test_id",
+            "SPOTIPY_CLIENT_SECRET": "test_secret",
+        }):
+            from core.playlist import get_spotify_oauth
+            oauth = get_spotify_oauth()
+            assert oauth.redirect_uri == REDIRECT_URI
 
 
