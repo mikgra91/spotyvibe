@@ -86,13 +86,13 @@ spotyvibe/
 ├── templates/              # Flask templates
 │   └── index.html          # Single-page web UI (HTML + JS)
 │├── android/                # Android APK build scaffolding (Chaquopy + Gradle)
-│   ├── build.gradle        # Root Gradle config with Chaquopy plugin
+│   ├── build.gradle        # Root Gradle config with pinned AGP 8.2.2, Kotlin 1.9.22, Chaquopy 15.0.1
 │   ├── build_apk.sh        # One-command build script (copies sources + runs Gradle)
 │   ├── settings.gradle     # Gradle project settings
 │   ├── gradle.properties   # JVM and Android build properties
 │   ├── gradle/wrapper/     # Gradle wrapper config
 │   └── app/                # Android application module
-│       ├── build.gradle    # App-level Gradle: Chaquopy Python 3.10, pip deps, arm64-v8a
+│       ├── build.gradle    # App-level Gradle: Chaquopy Python 3.10, pinned pip deps, arm64-v8a/x86_64
 │       └── src/main/
 │           ├── AndroidManifest.xml   # INTERNET + ACCESS_NETWORK_STATE permissions
 │           ├── kotlin/.../MainActivity.kt  # Flask thread, splash, WebView, OAuth popups
@@ -121,6 +121,28 @@ The application supports two visual background themes, switchable at runtime via
 4. Preference is persisted in `localStorage` under key `spotyvibe-theme` and restored on page load
 
 All canvas renderers are registered in the `THEME_RENDERERS` object in `index.html`.
+
+---
+
+## Android Build Versions
+
+The Android packaging layer uses fixed versions so APK builds are reproducible:
+
+| Component | Version |
+|---|---|
+| Android Gradle Plugin | 8.2.2 |
+| Kotlin Gradle plugin | 1.9.22 |
+| Chaquopy Gradle plugin | 15.0.1 |
+| Android compile SDK | 34 |
+| Android target SDK | 34 |
+| Android min SDK | 26 |
+| Java/Kotlin bytecode target | 17 |
+| Python runtime | 3.10 |
+| AndroidX core-ktx | 1.12.0 |
+| AndroidX appcompat | 1.6.1 |
+| AndroidX webkit | 1.10.0 |
+
+The app module also pins its Python dependencies in `android/app/build.gradle`, so the APK build uses the same dependency set every time.
 
 ---
 

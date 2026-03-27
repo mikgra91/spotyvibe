@@ -271,9 +271,11 @@ SpotyVibe can be packaged as a standalone Android app. The `android/` directory 
 
 **Prerequisites:**
 
-- **Android Studio** (latest stable) with Android SDK API 34 installed
+- **Android Studio** with Android SDK API 34 installed
 - **JDK 17** (bundled with Android Studio or installed separately)
 - **Android SDK** — install via Android Studio's SDK Manager
+
+The Android project pins Android Gradle Plugin 8.2.2, Kotlin 1.9.22, and Chaquopy 15.0.1, so use a current Android Studio release that supports those versions.
 
 **Building:**
 
@@ -284,7 +286,7 @@ cd android
 
 The build script copies the Python sources into the Android project and runs a Gradle build. The resulting APK bundles the complete SpotyVibe app — Flask server, Python runtime, and all pip dependencies — so no external Python installation is needed on the device.
 
-The APK targets `arm64-v8a` devices by default. For **emulator testing**, the build also includes `x86_64` support — remove it from `android/app/build.gradle` before creating a release build to reduce APK size.
+The APK targets `arm64-v8a` devices by default. For **emulator testing**, the build also includes `x86_64` support — remove it from `android/app/build.gradle` before creating a release build to reduce APK size. The app module pins Python 3.10, Flask 3.x, OpenAI 1.x, Spotipy 2.x, python-dotenv 1.x, and Markdown 3.x so APK builds stay consistent.
 
 After installing, the app starts Flask in the background and loads the UI in a WebView. All features work identically to the desktop version, with one difference: Spotify authentication uses direct navigation instead of a popup window (see the note in [Connect Your Spotify Account](#4-connect-your-spotify-account) above).
 

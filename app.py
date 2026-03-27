@@ -1,3 +1,4 @@
+import html
 import os
 import sys
 import json
@@ -40,6 +41,7 @@ clear_debug_log()
 
 # Active generation runs: run_id → {"cancel": Event, "finalize_on_cancel": bool, "verified_tracks": [], "created_at": float}
 _runs: dict = {}
+_runs_lock = threading.Lock()
 _STALE_RUN_SECONDS = 600  # 10 minutes
 
 
@@ -90,8 +92,9 @@ def run_pipeline():
     body = request.get_json(force=True, silent=True) or {}
     run_id = body.get("run_id") or str(uuid.uuid4())
     cancel_event = threading.Event()
-    _sweep_stale_runs()
-    _runs[run_id] = {"cancel": cancel_event, "finalize_on_cancel": False, "verified_tracks": [], "created_at": time.monotonic()}
+    with _runs_lock:
+        _sweep_stale_runs()
+        _runs[run_id] = {"cancel": cancel_event, "finalize_on_cancel": False, "verified_tracks": [], "created_at": time.monotonic()}
 
     def generate():
         try:
@@ -214,7 +217,9 @@ def run_pipeline():
                         verified_uris.add(t["uri"])
 
                 # Keep run state updated so the cancel endpoint can report progress
-                _runs[run_id]["verified_tracks"] = list(verified_tracks)
+                with _runs_lock:
+                    if run_id in _runs:
+                        _runs[run_id]["verified_tracks"] = list(verified_tracks)
 
                 # 4 — Update history
                 profile = update_profile(profile, result)
@@ -285,7 +290,8 @@ def run_pipeline():
         except Exception as e:
             yield _sse("error", message=str(e))
         finally:
-            _runs.pop(run_id, None)
+            with _runs_lock:
+                _runs.pop(run_id, None)
 
     return Response(
         stream_with_context(generate()),
@@ -307,10 +313,11 @@ def cancel_run():
     run_id = data.get("run_id")
     finalize = bool(data.get("finalize", False))
 
-    if run_id and run_id in _runs:
-        _runs[run_id]["finalize_on_cancel"] = finalize
-        _runs[run_id]["cancel"].set()
-        return jsonify({"status": "ok"})
+    with _runs_lock:
+        if run_id and run_id in _runs:
+            _runs[run_id]["finalize_on_cancel"] = finalize
+            _runs[run_id]["cancel"].set()
+            return jsonify({"status": "ok"})
     # Run may have already finished — that is fine
     return jsonify({"status": "not_found"})
 
@@ -413,9 +420,15 @@ def write_settings():
     if "debug_mode" in data:
         payload["DEBUG_MODE"] = "true" if data["debug_mode"] else ""
     if "playlist_size" in data:
-        payload["PLAYLIST_SIZE"] = str(int(data["playlist_size"]))
+        try:
+            payload["PLAYLIST_SIZE"] = str(int(data["playlist_size"]))
+        except (ValueError, TypeError):
+            return jsonify({"error": "playlist_size must be a valid integer."}), 400
     if "new_artist_percentage" in data:
-        payload["NEW_ARTIST_PERCENTAGE"] = str(max(1, min(100, int(data["new_artist_percentage"]))))
+        try:
+            payload["NEW_ARTIST_PERCENTAGE"] = str(max(1, min(100, int(data["new_artist_percentage"]))))
+        except (ValueError, TypeError):
+            return jsonify({"error": "new_artist_percentage must be a valid integer."}), 400
     save_credentials(payload)
     return jsonify({"status": "ok"})
 
@@ -549,6 +562,8 @@ def spotify_callback():
 
     if error:
         desc = request.args.get("error_description", "")
+        safe_error = html.escape(error)
+        safe_desc = html.escape(desc)
         hint = (
             "<p style='margin-top:1.5rem;font-size:.85rem'>"
             "<strong>Common fix:</strong> make sure "
@@ -562,8 +577,8 @@ def spotify_callback():
         )
         return page.format(
             colour="#e74c3c", icon="❌", title="Authentication Failed",
-            message=f"<p>{error}</p>"
-                    + (f"<p>{desc}</p>" if desc else "")
+            message=f"<p>{safe_error}</p>"
+                    + (f"<p>{safe_desc}</p>" if safe_desc else "")
                     + hint,
             script="",
         )

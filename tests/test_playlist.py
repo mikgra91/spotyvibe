@@ -37,6 +37,8 @@ class TestGetSpotifyAuthStatus:
         mock_oauth.return_value.get_cached_token.return_value = {"access_token": "tok"}
         mock_sp_cls.return_value.current_user.return_value = {"id": "user1"}
         assert get_spotify_auth_status() == "authenticated"
+        # Verify auth_manager is used (enables auto-refresh) rather than bare auth=
+        mock_sp_cls.assert_called_once_with(auth_manager=mock_oauth.return_value)
 
     @patch("core.playlist.spotipy.Spotify")
     @patch("core.playlist.get_spotify_oauth")

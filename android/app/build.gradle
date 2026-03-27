@@ -20,7 +20,8 @@ android {
 
             pip {
                 install "flask>=3.0,<4.0"
-                install "openai>=1.0,<3.0"
+                install "pydantic>=1.9.0,<2.0"
+                install "openai>=1.0,<1.35"
                 install "spotipy>=2.23,<3.0"
                 install "python-dotenv>=1.0,<2.0"
                 install "markdown>=3.4,<4.0"

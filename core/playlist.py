@@ -106,8 +106,8 @@ def get_spotify_auth_status():
         if not token:
             return "not_authenticated"
 
-        # Validate the token actually works by hitting a cheap endpoint
-        sp = spotipy.Spotify(auth=token["access_token"])
+        # Validate via auth_manager so expired tokens are auto-refreshed
+        sp = spotipy.Spotify(auth_manager=oauth)
         sp.current_user()
         return "authenticated"
     except Exception:

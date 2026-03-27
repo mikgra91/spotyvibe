@@ -151,6 +151,32 @@ class TestWriteSettings:
         call_args = mock_save.call_args[0][0]
         assert call_args["NEW_ARTIST_PERCENTAGE"] == "100"
 
+    def test_rejects_non_numeric_playlist_size(self, client):
+        resp = client.post(
+            "/api/settings",
+            data=json.dumps({"playlist_size": "not_a_number"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "playlist_size" in resp.get_json()["error"]
+
+    def test_rejects_non_numeric_new_artist_percentage(self, client):
+        resp = client.post(
+            "/api/settings",
+            data=json.dumps({"new_artist_percentage": "abc"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "new_artist_percentage" in resp.get_json()["error"]
+
+    def test_rejects_none_playlist_size(self, client):
+        resp = client.post(
+            "/api/settings",
+            data=json.dumps({"playlist_size": None}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
 
 class TestClearDebugLog:
     def test_clears_log(self, client, tmp_path):
@@ -423,3 +449,33 @@ class TestRunPipeline:
         data = resp.data.decode()
         assert "result" in data
         assert "open.spotify.com" in data
+
+
+class TestSpotifyCallback:
+    def test_xss_in_error_param_is_escaped(self, client):
+        xss_payload = '<script>alert("xss")</script>'
+        resp = client.get(f"/callback?error={xss_payload}")
+        html = resp.data.decode()
+        # The raw script tag must NOT appear — it should be HTML-escaped
+        assert "<script>" not in html
+        assert "&lt;script&gt;" in html
+
+    def test_xss_in_error_description_is_escaped(self, client):
+        xss_payload = '<img src=x onerror=alert(1)>'
+        resp = client.get(f"/callback?error=access_denied&error_description={xss_payload}")
+        html = resp.data.decode()
+        # The raw tag must be escaped — check that no unescaped <img is present
+        assert "<img " not in html
+        assert "&lt;img" in html
+
+    @patch("app.handle_spotify_callback", return_value=True)
+    def test_successful_callback(self, mock_handle, client):
+        resp = client.get("/callback?code=valid_code")
+        html = resp.data.decode()
+        assert "Spotify Connected" in html
+
+    @patch("app.handle_spotify_callback", return_value=False)
+    def test_failed_code_exchange(self, mock_handle, client):
+        resp = client.get("/callback?code=bad_code")
+        html = resp.data.decode()
+        assert "Authentication Failed" in html

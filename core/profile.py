@@ -214,7 +214,18 @@ def train_profile(sections):
 
     content = strip_code_fences(raw_content)
 
-    updated_profile = json.loads(content)
+    try:
+        gpt_profile = json.loads(content)
+    except json.JSONDecodeError:
+        raise ValueError(
+            "AI returned an invalid response while training the profile. "
+            "Please try again."
+        )
+
+    # Start from the template to guarantee all required keys survive,
+    # then layer the GPT output on top.
+    updated_profile = _load_template()
+    updated_profile.update(gpt_profile)
 
     # Safety: preserve history + feedback from the original (GPT might mangle them)
     for key in ("history", "feedback"):

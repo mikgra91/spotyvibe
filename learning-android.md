@@ -10,13 +10,15 @@ The SpotyVibe Android app uses a **hybrid local-server architecture**. Instead o
 2. **Local Backend (Chaquopy + Python):** The app spins up a background thread that runs the Flask server locally on `127.0.0.1:5000`.
 3. **Frontend (WebView):** The main UI is an Android `WebView` that navigates to the local Flask server, rendering the existing HTML/CSS/JS exactly as a desktop browser would.
 
+The Android build is intentionally pinned for reproducibility: Android Gradle Plugin 8.2.2, Kotlin 1.9.22, Chaquopy 15.0.1, compile/target SDK 34, min SDK 26, Java 17, and Python 3.10.
+
 ---
 
 ## 2. Key Technologies
 
 ### 2.1 Chaquopy (Embedded Python)
 [Chaquopy](https://chaquo.com/chaquopy/) is a Gradle plugin that seamlessly embeds CPython into an Android app.
-- **How it works:** It bundles the Python interpreter and specifies pip dependencies in the `build.gradle` file. At runtime, the Kotlin/Java code can start the interpreter and execute Python scripts.
+- **How it works:** It bundles the Python interpreter and specifies pinned pip dependencies in `android/app/build.gradle`. At runtime, the Kotlin/Java code can start the interpreter and execute Python scripts.
 - **Why it was used:** It allowed the SpotyVibe backend (which relies heavily on Python packages like `openai`, `spotipy`, and `flask`) to run unmodified directly on the user's phone, avoiding cloud hosting costs and keeping API keys secure on the device.
 
 ### 2.2 Android WebView

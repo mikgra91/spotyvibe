@@ -195,7 +195,7 @@ This is the most complex module and the heart of the application.
 
 ### OpenAI Python SDK (v1.x)
 
-The project uses `openai>=1.0,<3.0` — the modern, class-based SDK.
+The project uses the modern, class-based OpenAI Python SDK. The desktop requirements pin it to `openai>=1.0,<3.0`, while the Android build narrows the APK dependency set further in `android/app/build.gradle`.
 
 **Key features used:**
 - `OpenAI(api_key=...)` — Resource-based client (replaced the old `openai.api_key` global).
@@ -208,7 +208,7 @@ The project uses `openai>=1.0,<3.0` — the modern, class-based SDK.
 
 ### Spotipy & Spotify Web API
 
-The project uses `spotipy>=2.23,<3.0`.
+The project uses `spotipy>=2.23,<3.0`, and the Android APK build pins the same library family in its Gradle-managed pip list.
 
 **Key methods used:**
 | Method | Spotify API Endpoint | Purpose |

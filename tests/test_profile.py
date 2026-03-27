@@ -175,6 +175,90 @@ class TestTrainProfile:
         # save_profile should have been called
         mock_save.assert_called_once()
 
+    @patch("core.profile.save_profile")
+    @patch("core.profile.debug_log")
+    @patch("core.profile.get_model", return_value="gpt-4o")
+    @patch("core.profile.get_openai_client")
+    @patch("core.profile.load_profile")
+    def test_raises_on_invalid_json(
+        self, mock_load, mock_client_fn, mock_model, mock_debug, mock_save
+    ):
+        mock_load.return_value = {
+            "last_updated": None,
+            "meta": {"goal": ""},
+            "preferences": {"core_description": "", "must_have": [], "soft_preferences": [], "avoid": []},
+            "artists": {"confirmed": [], "moderate": [], "rejected": []},
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {"liked_tracks": [], "disliked_tracks": []},
+            "taste_rules": {"primary_driver": "", "dealbreaker_priority": []},
+        }
+
+        mock_client = MagicMock()
+        mock_client_fn.return_value = mock_client
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "NOT VALID JSON {{{{"
+        mock_client.chat.completions.create.return_value = mock_response
+
+        import pytest
+        with pytest.raises(ValueError, match="invalid response"):
+            train_profile({
+                "core_description": "rock",
+                "must_have": "",
+                "soft_preferences": "",
+                "avoid": "",
+            })
+        mock_save.assert_not_called()
+
+    @patch("core.profile.save_profile")
+    @patch("core.profile.debug_log")
+    @patch("core.profile.get_model", return_value="gpt-4o")
+    @patch("core.profile.get_openai_client")
+    @patch("core.profile.load_profile")
+    def test_preserves_schema_when_gpt_drops_keys(
+        self, mock_load, mock_client_fn, mock_model, mock_debug, mock_save
+    ):
+        original_profile = {
+            "last_updated": None,
+            "meta": {"goal": "discover new music"},
+            "preferences": {"core_description": "rock", "must_have": [], "soft_preferences": [], "avoid": []},
+            "artists": {"confirmed": ["metallica"], "moderate": [], "rejected": []},
+            "history": {"suggested_artists": ["old"], "suggested_tracks": ["old track"]},
+            "feedback": {"liked_tracks": [], "disliked_tracks": []},
+            "taste_rules": {"primary_driver": "energy", "dealbreaker_priority": []},
+        }
+        mock_load.return_value = original_profile
+
+        # GPT output that drops "artists", "meta", and "taste_rules" keys
+        gpt_output = {
+            "preferences": {"core_description": "heavy rock", "must_have": ["guitar"], "soft_preferences": [], "avoid": []},
+        }
+
+        mock_client = MagicMock()
+        mock_client_fn.return_value = mock_client
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = json.dumps(gpt_output)
+        mock_client.chat.completions.create.return_value = mock_response
+
+        result = train_profile({
+            "core_description": "heavy rock",
+            "must_have": "guitar",
+            "soft_preferences": "",
+            "avoid": "",
+        })
+
+        # All template keys must be present even though GPT dropped them
+        assert "artists" in result
+        assert "meta" in result
+        assert "taste_rules" in result
+        assert "preferences" in result
+        # GPT's preference updates should still apply
+        assert result["preferences"]["core_description"] == "heavy rock"
+        # history and feedback preserved from original
+        assert result["history"] == original_profile["history"]
+        assert result["feedback"] == original_profile["feedback"]
+
 
 class TestSaveProfileSections:
     @patch("core.profile.save_profile")
