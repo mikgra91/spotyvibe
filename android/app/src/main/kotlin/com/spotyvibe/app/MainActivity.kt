@@ -10,6 +10,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
@@ -23,6 +24,7 @@ class MainActivity : AppCompatActivity() {
         private const val FLASK_URL = "http://127.0.0.1:5000"
         private const val MAX_RETRIES = 60          // up to 30 seconds
         private const val RETRY_DELAY_MS = 500L
+        @Volatile private var flaskStarted = false  // survives Activity re-creation
     }
 
     private lateinit var webView: WebView
@@ -37,10 +39,24 @@ class MainActivity : AppCompatActivity() {
         webView = findViewById(R.id.webView)
 
         configureWebView()
+        registerBackPress()
         startFlaskServer()
+
+        // Handle spotyvibe://callback intent on cold start.
+        // If Android killed the process while the user was in Chrome doing
+        // OAuth, the deep-link arrives via onCreate() instead of onNewIntent().
+        handleOAuthIntent(intent)
     }
 
     // ── Flask server ────────────────────────────────────────────────
+
+    private fun showWebView() {
+        runOnUiThread {
+            splashView.visibility = View.GONE
+            webView.visibility = View.VISIBLE
+            webView.loadUrl(FLASK_URL)
+        }
+    }
 
     private fun startFlaskServer() {
         // Start Python if not already started
@@ -54,6 +70,17 @@ class MainActivity : AppCompatActivity() {
         py.getModule("os").callAttr("environ").callAttr(
             "__setitem__", "SPOTYVIBE_FILES_DIR", filesDir.absolutePath
         )
+
+        // Guard: skip if Flask was already started in this process.
+        // Uses a companion-object flag instead of a network call because
+        // onCreate() runs on the main thread where Android forbids network I/O.
+        if (flaskStarted) {
+            Log.i(TAG, "Flask already started, skipping server start")
+            showWebView()
+            return
+        }
+
+        flaskStarted = true
 
         flaskThread = Thread({
             try {
@@ -80,11 +107,7 @@ class MainActivity : AppCompatActivity() {
         // Wait for Flask to be ready, then show the WebView
         Thread({
             waitForFlask()
-            runOnUiThread {
-                splashView.visibility = View.GONE
-                webView.visibility = View.VISIBLE
-                webView.loadUrl(FLASK_URL)
-            }
+            showWebView()
         }, "flask-waiter").apply {
             isDaemon = true
             start()
@@ -205,24 +228,62 @@ class MainActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        // Handle the Spotify OAuth callback deep-link coming back from the
-        // system browser.  When the browser navigates to the redirect URI
-        // (http://127.0.0.1:5000/callback?code=...) and the WebView picks
-        // it up, reload the main page so the UI refreshes auth status.
-        intent?.data?.toString()?.let { url ->
-            if (url.startsWith(FLASK_URL)) {
-                webView.loadUrl(url)
+        handleOAuthIntent(intent)
+    }
+
+    /**
+     * Handle the Spotify OAuth callback via our custom URI scheme.
+     * Called from both onNewIntent() (warm resume) and onCreate() (cold start
+     * after process death).  Uses Uri.Builder for proper URL encoding.
+     */
+    private fun handleOAuthIntent(intent: Intent?) {
+        intent?.data?.let { uri ->
+            if (uri.scheme == "spotyvibe" && uri.host == "callback") {
+                val code = uri.getQueryParameter("code")
+                if (code != null) {
+                    val flaskCallback = Uri.Builder()
+                        .scheme("http")
+                        .authority("127.0.0.1:5000")
+                        .path("/callback")
+                        .appendQueryParameter("code", code)
+                        .apply {
+                            uri.getQueryParameter("state")?.let {
+                                appendQueryParameter("state", it)
+                            }
+                        }
+                        .build().toString()
+                    Log.i(TAG, "OAuth callback received, forwarding to Flask")
+                    webView.loadUrl(flaskCallback)
+                } else {
+                    // Error case — forward error params to Flask too
+                    val error = uri.getQueryParameter("error") ?: "unknown_error"
+                    val flaskError = Uri.Builder()
+                        .scheme("http")
+                        .authority("127.0.0.1:5000")
+                        .path("/callback")
+                        .appendQueryParameter("error", error)
+                        .apply {
+                            uri.getQueryParameter("error_description")?.let {
+                                appendQueryParameter("error_description", it)
+                            }
+                        }
+                        .build().toString()
+                    webView.loadUrl(flaskError)
+                }
             }
         }
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack()
-        } else {
-            @Suppress("DEPRECATION")
-            super.onBackPressed()
-        }
+    private fun registerBackPress() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (webView.canGoBack()) {
+                    webView.goBack()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
     }
 }

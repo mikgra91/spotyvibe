@@ -21,8 +21,9 @@ mkdir -p "$PYTHON_DEST"
 # 2. Copy Python files (preserving directory structure, excluding __pycache__)
 for item in app.py config.py core prompts data static templates; do
     if [ -d "$PROJECT_ROOT/$item" ]; then
-        # Directory: use find + cpio to skip __pycache__
-        (cd "$PROJECT_ROOT" && find "$item" -not -path '*/__pycache__/*' -not -name '__pycache__' | cpio -pdm "$PYTHON_DEST" 2>/dev/null)
+        # Directory: copy recursively and then remove __pycache__ dirs
+        cp -r "$PROJECT_ROOT/$item" "$PYTHON_DEST/"
+        find "$PYTHON_DEST/$item" -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
     else
         cp "$PROJECT_ROOT/$item" "$PYTHON_DEST/"
     fi
