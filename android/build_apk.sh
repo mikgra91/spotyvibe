@@ -18,17 +18,15 @@ echo "Copying Python sources..."
 rm -rf "$PYTHON_DEST"
 mkdir -p "$PYTHON_DEST"
 
-# 2. Copy Python files (preserving directory structure)
-cp "$PROJECT_ROOT/app.py" "$PYTHON_DEST/"
-cp "$PROJECT_ROOT/config.py" "$PYTHON_DEST/"
-cp -r "$PROJECT_ROOT/core" "$PYTHON_DEST/"
-cp -r "$PROJECT_ROOT/prompts" "$PYTHON_DEST/"
-cp -r "$PROJECT_ROOT/data" "$PYTHON_DEST/"
-cp -r "$PROJECT_ROOT/static" "$PYTHON_DEST/"
-cp -r "$PROJECT_ROOT/templates" "$PYTHON_DEST/"
-
-# Remove __pycache__ directories
-find "$PYTHON_DEST" -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+# 2. Copy Python files (preserving directory structure, excluding __pycache__)
+for item in app.py config.py core prompts data static templates; do
+    if [ -d "$PROJECT_ROOT/$item" ]; then
+        # Directory: use find + cpio to skip __pycache__
+        (cd "$PROJECT_ROOT" && find "$item" -not -path '*/__pycache__/*' -not -name '__pycache__' | cpio -pdm "$PYTHON_DEST" 2>/dev/null)
+    else
+        cp "$PROJECT_ROOT/$item" "$PYTHON_DEST/"
+    fi
+done
 
 echo "Python sources copied to $PYTHON_DEST"
 

@@ -275,6 +275,14 @@
     }
 
     function connectSpotify() {
+        // On Android WebView, popups don't work reliably for OAuth
+        // because external URLs get routed to the system browser which
+        // cannot reach the localhost callback.  Use direct navigation
+        // instead — the callback page will redirect back to home.
+        if (/; wv\)/.test(navigator.userAgent)) {
+            window.location.href = '/api/spotify/auth';
+            return;
+        }
         const w = 500, h = 700;
         const left = screen.width / 2 - w / 2;
         const top = screen.height / 2 - h / 2;
@@ -1019,9 +1027,10 @@
             const debugCheckbox = document.getElementById('settings-debug');
             debugCheckbox.checked = !!data.debug_mode;
             const debugStatus = document.getElementById('status-settings-debug');
+            const debugLogPath = data.debug_log_path || 'debug.log';
             function updateDebugStatus() {
                 const on = debugCheckbox.checked;
-                debugStatus.textContent = on ? '✓ Enabled — log: %LOCALAPPDATA%\\spotyvibe\\debug.log' : 'Disabled';
+                debugStatus.textContent = on ? '✓ Enabled — log: ' + debugLogPath : 'Disabled';
                 debugStatus.className = 'cred-status ' + (on ? 'set' : 'unset');
             }
             updateDebugStatus();

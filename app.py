@@ -536,6 +536,8 @@ def spotify_callback():
         'if(window.opener){'
         'window.opener.postMessage("spotify-auth-complete","*");'
         'setTimeout(()=>window.close(),1500);'
+        '}else{'
+        'setTimeout(()=>window.location.href="/",1500);'
         '}'
         '</script>'
     )

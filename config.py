@@ -143,6 +143,7 @@ def get_settings():
         "debug_mode": get_debug_mode(),
         "playlist_size": get_playlist_size(),
         "new_artist_percentage": get_new_artist_percentage(),
+        "debug_log_path": str(DEBUG_LOG_FILE),
     }
 
 

@@ -28,7 +28,9 @@ android {
         }
 
         ndk {
-            abiFilters "arm64-v8a"
+            // arm64-v8a for physical devices; x86_64 for Android Studio emulators.
+            // Remove x86_64 from release builds to reduce APK size.
+            abiFilters "arm64-v8a", "x86_64"
         }
     }
 

@@ -108,6 +108,8 @@ Click any theme button to switch instantly. Your choice is saved in the browser 
 
 After saving your credentials, a banner will appear asking you to **Connect to Spotify**. Click the link — a small popup window will open where you log in to Spotify and grant permission. Once authorised, the popup closes automatically and the banner disappears.
 
+> **Android note:** On the Android APK, the Spotify login opens as a direct page navigation instead of a popup (Android WebView does not support popups to external URLs). After you grant permission in the system browser, the app returns to the home page automatically.
+
 #### Disconnecting / Reconnecting
 
 If your Spotify session expires or you need to re-authenticate, open the **⚙️ gear menu** and click **🔌 Disconnect Spotify**. This clears the cached token and the "Connect to Spotify" banner will reappear so you can log in again.
@@ -242,7 +244,7 @@ If the AI's suggestions don't seem to match your preferences, you can enable **D
 2. Check **"Log GPT requests & responses to debug file"**.
 3. Click **Save**.
 
-Now every GPT interaction (profile training and playlist generation) is logged to `%LOCALAPPDATA%\spotyvibe\debug.log`. Each entry includes a timestamp, the full messages sent to GPT, and the raw response.
+Now every GPT interaction (profile training and playlist generation) is logged to a `debug.log` file. The exact path is shown in the Settings panel (it varies by platform — `%LOCALAPPDATA%\spotyvibe\debug.log` on Windows, internal app storage on Android). Each log entry includes a timestamp, the full messages sent to GPT, and the raw response.
 
 You can open this file with any text editor to review and optimise the prompts in the `prompts/` directory.
 
@@ -282,7 +284,9 @@ cd android
 
 The build script copies the Python sources into the Android project and runs a Gradle build. The resulting APK bundles the complete SpotyVibe app — Flask server, Python runtime, and all pip dependencies — so no external Python installation is needed on the device.
 
-The APK targets `arm64-v8a` devices. After installing, the app starts Flask in the background and loads the UI in a WebView. All features work identically to the desktop version.
+The APK targets `arm64-v8a` devices by default. For **emulator testing**, the build also includes `x86_64` support — remove it from `android/app/build.gradle` before creating a release build to reduce APK size.
+
+After installing, the app starts Flask in the background and loads the UI in a WebView. All features work identically to the desktop version, with one difference: Spotify authentication uses direct navigation instead of a popup window (see the note in [Connect Your Spotify Account](#4-connect-your-spotify-account) above).
 
 ---
 

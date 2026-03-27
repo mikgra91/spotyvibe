@@ -1,5 +1,6 @@
 # Android build artifacts
 .gradle/
+build/
 app/build/
 app/src/main/python/
 local.properties
@@ -9,3 +10,7 @@ local.properties
 # IDE
 .idea/
 *.iml
+
+# OS
+.DS_Store
+Thumbs.db

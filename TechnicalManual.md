@@ -155,7 +155,7 @@ Manages all application settings and credentials.
 - **`get_debug_mode()`** — Returns `True` if the `DEBUG_MODE` setting is enabled.
 - **`get_playlist_size()`** — Returns the configured playlist size (minimum `BATCH_SIZE`).
 - **`get_new_artist_percentage()`** — Returns the configured new-artist percentage, clamped to 1–100, falling back to `DEFAULT_NEW_ARTIST_PERCENTAGE`.
-- **`get_settings()`** — Returns a dict of non-secret settings (model name, debug mode flag, playlist size, new artist percentage) for the Settings UI.
+- **`get_settings()`** — Returns `{"model": str, "debug_mode": bool, "playlist_size": int, "new_artist_percentage": int, "debug_log_path": str(DEBUG_LOG_FILE)}` for the Settings UI. The `debug_log_path` field lets the frontend display the platform-correct log path instead of hardcoding a Windows-specific path.
 
 **Credential storage:** Credentials and settings (including the selected model) are stored in `%LOCALAPPDATA%\spotyvibe\.credentials` as a dotenv file, outside the project directory. The `load_config()` function loads them into `os.environ`. The `save_credentials()` function ensures the file always ends with a newline before appending new keys, preventing `python-dotenv` parse errors from concatenated lines.
 
@@ -396,11 +396,11 @@ The `android/` directory contains a complete Android project that packages Spoty
 **Chaquopy bundling:** The app-level `build.gradle` configures:
 - Python 3.10 interpreter
 - pip dependencies from `requirements.txt`
-- ABI filter: `arm64-v8a` only (covers modern Android devices)
+- ABI filters: `arm64-v8a` (production devices) + `x86_64` (emulator testing — remove for release builds)
 - Python source directory pointing to the copied project files
 
 **Build script (`build_apk.sh`):** A one-command script that:
-1. Copies `app.py`, `config.py`, `core/`, `prompts/`, `data/`, `templates/`, `static/` into `android/app/src/main/python/`
+1. Copies `app.py`, `config.py`, `core/`, `prompts/`, `data/`, `templates/`, `static/` into `android/app/src/main/python/` using `find` + `cpio`, skipping `__pycache__` directories during the copy itself (avoids copying then cleaning)
 2. Copies `requirements.txt` for Chaquopy's pip integration
 3. Runs `./gradlew assembleDebug` to produce the APK
 
@@ -411,8 +411,17 @@ The `android/` directory contains a complete Android project that packages Spoty
 4. Polls `http://127.0.0.1:5000` until the server responds (with exponential backoff).
 5. Hides the splash screen and loads the URL in a **WebView** with JavaScript enabled.
 6. `app.py` sets `use_reloader=False` on Android because Flask's reloader forks a child process, which crashes under Chaquopy's embedded runtime.
+7. **`onDestroy()`** interrupts the Flask daemon thread and calls `WebView.destroy()` to release resources when the activity is finishing.
+8. **`onNewIntent()`** handles OAuth callback deep-links from the system browser, loading the callback URL in the WebView so the token exchange completes inside the app process.
 
-**OAuth popup handling:** `MainActivity.kt` overrides `onCreateWindow()` in the WebView's `WebChromeClient` to open Spotify's OAuth popup in a secondary WebView. When the popup completes, it is automatically dismissed — matching the desktop browser behaviour.
+**OAuth flow on Android:** Desktop browsers handle Spotify OAuth via a `window.open()` popup. On Android WebView this fails because popup URLs that leave `127.0.0.1` (e.g. `accounts.spotify.com`) are routed to the system browser, which cannot reach the localhost `/callback` endpoint since Flask runs only inside the app process.
+
+The fix uses a two-part detection and fallback:
+1. **Frontend detection:** `index.html` checks the user-agent for `/; wv\)/` (the Android WebView signature). When detected, `window.location.href = '/api/spotify/auth'` replaces the popup with a same-window redirect.
+2. **Backend fallback:** The `/callback` handler's success page checks for `window.opener`. When it is `null` (the direct-navigation case on Android), the page issues a delayed redirect to the home page with `setTimeout(()=>window.location.href="/",1500)` instead of attempting `window.opener.postMessage()`. The 1.5 s delay matches the popup path and lets the user see the success message.
+3. **Deep-link return:** `onNewIntent()` in `MainActivity.kt` intercepts the OAuth callback URL from the system browser and loads it in the WebView, completing the token exchange inside the app.
+
+Desktop behaviour is completely unaffected — the popup flow is used whenever WebView is not detected.
 
 **Permissions:** `AndroidManifest.xml` declares `INTERNET` and `ACCESS_NETWORK_STATE` — required for OpenAI API calls, Spotify API calls, and localhost Flask communication.
 
@@ -420,13 +429,13 @@ The `android/` directory contains a complete Android project that packages Spoty
 
 | File | Purpose |
 |---|---|
-| `build.gradle` (root) | Gradle plugins: Android + Chaquopy |
-| `app/build.gradle` | App config: Python version, pip deps, ABI filter, min/target SDK |
+| `build.gradle` (root) | Gradle plugins: Android + Chaquopy. Uses modern Gradle 8.x convention (repositories declared in `settings.gradle` via `dependencyResolutionManagement`, no `allprojects` block). |
+| `app/build.gradle` | App config: Python version, pip deps, ABI filters (`arm64-v8a` + `x86_64`), min/target SDK |
 | `AndroidManifest.xml` | Permissions and activity declaration |
 | `MainActivity.kt` | Flask thread, splash screen, WebView, OAuth popups |
 | `activity_main.xml` | FrameLayout: splash ImageView + WebView |
 | `build_apk.sh` | Copies Python sources and runs Gradle build |
-| `settings.gradle` | Gradle project structure |
+| `settings.gradle` | Gradle project structure and centralised `dependencyResolutionManagement` repository declarations |
 | `gradle.properties` | JVM args and Android build properties |
 
 ---

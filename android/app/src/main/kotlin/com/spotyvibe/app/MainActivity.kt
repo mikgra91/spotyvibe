@@ -43,24 +43,13 @@ class MainActivity : AppCompatActivity() {
     // ── Flask server ────────────────────────────────────────────────
 
     private fun startFlaskServer() {
-        // Pass the app-internal files directory so config.py can find it
-        System.setProperty("SPOTYVIBE_FILES_DIR", filesDir.absolutePath)
-        // Also set as env var for os.environ access in Python
-        try {
-            val env = System.getenv()
-            // Android doesn't allow setenv, so pass via system property
-            // The Python side reads SPOTYVIBE_FILES_DIR from os.environ
-            // which Chaquopy bridges from system properties
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not set env var, using system property fallback", e)
-        }
-
         // Start Python if not already started
         if (!Python.isStarted()) {
             Python.start(AndroidPlatform(this))
         }
 
-        // Set the environment variable via Python before Flask starts
+        // Set the environment variable via Python so config.py can resolve
+        // the Android-appropriate storage directory via os.environ.
         val py = Python.getInstance()
         py.getModule("os").callAttr("environ").callAttr(
             "__setitem__", "SPOTYVIBE_FILES_DIR", filesDir.absolutePath
@@ -160,17 +149,18 @@ class MainActivity : AppCompatActivity() {
             }
 
             // Handle window.open() popups (e.g. Spotify OAuth)
+            // Instead of creating a temporary WebView, intercept the first
+            // navigation from the popup and route it appropriately.
             override fun onCreateWindow(
                 view: WebView?,
                 isDialog: Boolean,
                 isUserGesture: Boolean,
                 resultMsg: android.os.Message?
             ): Boolean {
-                // Extract the URL from the result message and open in browser
-                val transport = resultMsg?.obj as? WebView.WebViewTransport
-                if (transport != null) {
-                    val tempWebView = WebView(this@MainActivity)
-                    tempWebView.webViewClient = object : WebViewClient() {
+                val transport = resultMsg?.obj as? WebView.WebViewTransport ?: return false
+
+                val popupWebView = WebView(this@MainActivity).apply {
+                    webViewClient = object : WebViewClient() {
                         override fun shouldOverrideUrlLoading(
                             view: WebView,
                             request: WebResourceRequest
@@ -180,18 +170,18 @@ class MainActivity : AppCompatActivity() {
                                 // Callback URL — load in the main WebView
                                 webView.loadUrl(url)
                             } else {
-                                // External URL — open in system browser
+                                // External URL (Spotify auth page) → system browser
                                 startActivity(Intent(Intent.ACTION_VIEW, request.url))
                             }
-                            tempWebView.destroy()
+                            // Clean up immediately after intercepting the URL
+                            view.destroy()
                             return true
                         }
                     }
-                    transport.webView = tempWebView
-                    resultMsg.sendToTarget()
-                    return true
                 }
-                return false
+                transport.webView = popupWebView
+                resultMsg.sendToTarget()
+                return true
             }
         }
 
@@ -201,6 +191,30 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ── Lifecycle ───────────────────────────────────────────────────
+
+    override fun onDestroy() {
+        // Stop the Flask server thread to free resources when the Activity
+        // is destroyed.  The thread is a daemon so it will die with the
+        // process, but an explicit interrupt avoids lingering sockets while
+        // the process is still alive in the background.
+        flaskThread?.interrupt()
+        flaskThread = null
+        webView.destroy()
+        super.onDestroy()
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        // Handle the Spotify OAuth callback deep-link coming back from the
+        // system browser.  When the browser navigates to the redirect URI
+        // (http://127.0.0.1:5000/callback?code=...) and the WebView picks
+        // it up, reload the main page so the UI refreshes auth status.
+        intent?.data?.toString()?.let { url ->
+            if (url.startsWith(FLASK_URL)) {
+                webView.loadUrl(url)
+            }
+        }
+    }
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
