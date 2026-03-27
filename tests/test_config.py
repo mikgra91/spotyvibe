@@ -1,6 +1,8 @@
 """Tests for config.py — credential management and settings getters."""
 
 import os
+import sys
+from pathlib import Path
 from unittest.mock import patch, mock_open, MagicMock
 
 import config
@@ -240,3 +242,56 @@ class TestEnsureEnv:
         assert not old_env.exists()
         content = cred_file.read_text()
         assert "OPENAI_API_KEY=sk-old" in content
+
+    def test_skips_migration_on_android(self, tmp_path):
+        """On Android the old .env migration must be skipped."""
+        old_env = tmp_path / ".env"
+        old_env.write_text("OPENAI_API_KEY=sk-old\n")
+        cred_file = tmp_path / ".credentials"
+        app_dir = tmp_path
+
+        with patch.object(config, "_APP_DIR", app_dir), \
+             patch.object(config, "CREDENTIALS_FILE", cred_file), \
+             patch.object(config, "_OLD_ENV_FILE", old_env), \
+             patch.object(config, "IS_ANDROID", True):
+            config.ensure_env()
+
+        # .env should NOT have been migrated
+        assert old_env.exists()
+        # A fresh credentials file should have been created instead
+        assert cred_file.exists()
+
+
+class TestGetAppDir:
+    def test_desktop_uses_localappdata(self):
+        with patch.object(config, "IS_ANDROID", False), \
+             patch.dict(os.environ, {"LOCALAPPDATA": "C:\\Users\\test\\AppData\\Local"}):
+            result = config._get_app_dir()
+            assert result == Path("C:\\Users\\test\\AppData\\Local") / "spotyvibe"
+
+    def test_desktop_falls_back_to_home(self):
+        env = os.environ.copy()
+        env.pop("LOCALAPPDATA", None)
+        with patch.object(config, "IS_ANDROID", False), \
+             patch.dict(os.environ, env, clear=True):
+            result = config._get_app_dir()
+            assert result == Path(os.path.expanduser("~")) / "spotyvibe"
+
+    def test_android_uses_files_dir_env(self):
+        with patch.object(config, "IS_ANDROID", True), \
+             patch.dict(os.environ, {"SPOTYVIBE_FILES_DIR": "/data/data/com.spotyvibe.app/files"}):
+            result = config._get_app_dir()
+            assert result == Path("/data/data/com.spotyvibe.app/files") / "spotyvibe"
+
+    def test_android_falls_back_to_home(self):
+        env = os.environ.copy()
+        env.pop("SPOTYVIBE_FILES_DIR", None)
+        with patch.object(config, "IS_ANDROID", True), \
+             patch.dict(os.environ, env, clear=True):
+            result = config._get_app_dir()
+            assert result == Path(os.path.expanduser("~")) / "spotyvibe"
+
+
+class TestIsAndroid:
+    def test_false_on_desktop(self):
+        assert config.IS_ANDROID is False

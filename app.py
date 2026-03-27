@@ -10,7 +10,7 @@ import uuid
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, Response, render_template, jsonify, request, redirect, stream_with_context
-from config import load_config, get_credentials, save_credentials, CREDENTIALS_FILE, BATCH_SIZE, BASE_DIR, get_model, get_settings, get_debug_mode, get_playlist_size, DEBUG_LOG_FILE, MAX_CONSECUTIVE_EMPTY_BATCHES, get_new_artist_percentage
+from config import load_config, get_credentials, save_credentials, CREDENTIALS_FILE, BATCH_SIZE, BASE_DIR, get_model, get_settings, get_debug_mode, get_playlist_size, DEBUG_LOG_FILE, MAX_CONSECUTIVE_EMPTY_BATCHES, get_new_artist_percentage, IS_ANDROID
 import markdown
 
 load_config()
@@ -576,5 +576,11 @@ def spotify_callback():
 
 
 if __name__ == "__main__":
-    app.run(debug=os.environ.get("FLASK_DEBUG", "0") == "1", port=5000)
+    app.run(
+        debug=os.environ.get("FLASK_DEBUG", "0") == "1",
+        host="127.0.0.1",
+        port=5000,
+        # The reloader forks a child process which crashes under Chaquopy
+        use_reloader=False if IS_ANDROID else None,
+    )
 

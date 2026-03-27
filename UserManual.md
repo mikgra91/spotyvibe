@@ -263,6 +263,29 @@ No special action is needed — there is nothing to install or configure. If you
 
 ---
 
+## Building the Android APK
+
+SpotyVibe can be packaged as a standalone Android app. The `android/` directory contains the full build scaffolding.
+
+**Prerequisites:**
+
+- **Android Studio** (latest stable) with Android SDK API 34 installed
+- **JDK 17** (bundled with Android Studio or installed separately)
+- **Android SDK** — install via Android Studio's SDK Manager
+
+**Building:**
+
+```bash
+cd android
+./build_apk.sh
+```
+
+The build script copies the Python sources into the Android project and runs a Gradle build. The resulting APK bundles the complete SpotyVibe app — Flask server, Python runtime, and all pip dependencies — so no external Python installation is needed on the device.
+
+The APK targets `arm64-v8a` devices. After installing, the app starts Flask in the background and loads the UI in a WebView. All features work identically to the desktop version.
+
+---
+
 ## Where Are My Data Files?
 
 All your personal data is stored outside the project in your system's app data folder:

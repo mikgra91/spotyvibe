@@ -1,10 +1,14 @@
 """Centralised credential management.
 
-Stores credentials in %LOCALAPPDATA%\\spotyvibe\\.credentials so
-the user never has to put secrets inside the project directory.
+Stores credentials in a platform-appropriate directory:
+  - Windows:  %LOCALAPPDATA%\\spotyvibe\\.credentials
+  - Android:  internal app storage (set via SPOTYVIBE_FILES_DIR env var)
+  - Fallback: ~/spotyvibe/.credentials
+so the user never has to put secrets inside the project directory.
 """
 
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv, set_key, dotenv_values
 
@@ -36,7 +40,25 @@ DEFAULT_NEW_ARTIST_PERCENTAGE = 30
 # Default OpenAI model used when none is configured
 DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
 
-_APP_DIR = Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))) / "spotyvibe"
+# True when running inside Chaquopy on Android
+IS_ANDROID = hasattr(sys, 'getandroidapilevel')
+
+
+def _get_app_dir():
+    """Return the platform-appropriate storage directory."""
+    if IS_ANDROID:
+        # Running inside Chaquopy on Android — use the files dir
+        # passed from Kotlin via environment variable
+        android_files = os.environ.get("SPOTYVIBE_FILES_DIR")
+        if android_files:
+            return Path(android_files) / "spotyvibe"
+        # Fallback: use the Python home directory (Chaquopy sets this)
+        return Path(os.path.expanduser("~")) / "spotyvibe"
+    # Desktop (Windows / macOS / Linux)
+    return Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))) / "spotyvibe"
+
+
+_APP_DIR = _get_app_dir()
 CREDENTIALS_FILE = _APP_DIR / ".credentials"
 CACHE_FILE = _APP_DIR / ".spotify-cache"
 PROFILE_FILE = _APP_DIR / "personalized_music_profile.json"
@@ -54,8 +76,8 @@ def ensure_env():
     """Create the AppData .credentials with all required keys if missing."""
     _APP_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Migrate from the old .env file if it exists
-    if _OLD_ENV_FILE.exists() and not CREDENTIALS_FILE.exists():
+    # Migrate from the old .env file if it exists (desktop only)
+    if not IS_ANDROID and _OLD_ENV_FILE.exists() and not CREDENTIALS_FILE.exists():
         _OLD_ENV_FILE.rename(CREDENTIALS_FILE)
 
     if not CREDENTIALS_FILE.exists():

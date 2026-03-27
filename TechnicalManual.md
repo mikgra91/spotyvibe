@@ -85,8 +85,20 @@ spotyvibe/
 │
 ├── templates/              # Flask templates
 │   └── index.html          # Single-page web UI (HTML + JS)
-│
-└── tests/                  # Automated tests
+│├── android/                # Android APK build scaffolding (Chaquopy + Gradle)
+│   ├── build.gradle        # Root Gradle config with Chaquopy plugin
+│   ├── build_apk.sh        # One-command build script (copies sources + runs Gradle)
+│   ├── settings.gradle     # Gradle project settings
+│   ├── gradle.properties   # JVM and Android build properties
+│   ├── gradle/wrapper/     # Gradle wrapper config
+│   └── app/                # Android application module
+│       ├── build.gradle    # App-level Gradle: Chaquopy Python 3.10, pip deps, arm64-v8a
+│       └── src/main/
+│           ├── AndroidManifest.xml   # INTERNET + ACCESS_NETWORK_STATE permissions
+│           ├── kotlin/.../MainActivity.kt  # Flask thread, splash, WebView, OAuth popups
+│           ├── python/              # Python sources (copied at build time)
+│           └── res/                 # Layouts, icons, strings
+│└── tests/                  # Automated tests
     ├── conftest.py         # Pytest configuration
     ├── test_utils.py       # Tests for shared utilities
     ├── test_suggestions.py # Tests for suggestion logic
@@ -130,6 +142,7 @@ Manages all application settings and credentials.
 | `EXHAUSTED_ARTIST_THRESHOLD` | An artist with this many tracks in history is marked [EXHAUSTED] in the exclusion block (default: 4). |
 | `MAX_CONSECUTIVE_EMPTY_BATCHES` | How many consecutive all-filtered batches are allowed before the loop breaks and the playlist is created with whatever was found (default: 3). |
 | `DEFAULT_OPENAI_MODEL` | Fallback model when none is configured (default: `gpt-4.1-mini`). |
+| `IS_ANDROID` | `True` when running under Chaquopy (detected via `sys.getandroidapilevel`). All Android-specific logic is gated behind this flag; desktop behaviour is unaffected. |
 | `CREDENTIALS_FILE` | Path to `%LOCALAPPDATA%\spotyvibe\.credentials`. |
 | `PROFILE_FILE` | Path to the personalised taste profile in AppData. |
 | `CACHE_FILE` | Path to the cached Spotify OAuth token. |
@@ -137,6 +150,7 @@ Manages all application settings and credentials.
 
 **Key helpers:**
 
+- **`_get_app_dir()`** — Returns the platform-appropriate storage directory. On Android: reads `SPOTYVIBE_FILES_DIR` env var (set by `MainActivity.kt`), falling back to `/data/data/com.spotyvibe.app/files/spotyvibe/`. On desktop: returns `%LOCALAPPDATA%\spotyvibe` (unchanged). All file paths (`CREDENTIALS_FILE`, `PROFILE_FILE`, `CACHE_FILE`, `DEBUG_LOG_FILE`) are resolved from this base.
 - **`get_model()`** — Returns the user's configured `OPENAI_MODEL` from the credentials file, falling back to `DEFAULT_OPENAI_MODEL`.
 - **`get_debug_mode()`** — Returns `True` if the `DEBUG_MODE` setting is enabled.
 - **`get_playlist_size()`** — Returns the configured playlist size (minimum `BATCH_SIZE`).
@@ -144,6 +158,8 @@ Manages all application settings and credentials.
 - **`get_settings()`** — Returns a dict of non-secret settings (model name, debug mode flag, playlist size, new artist percentage) for the Settings UI.
 
 **Credential storage:** Credentials and settings (including the selected model) are stored in `%LOCALAPPDATA%\spotyvibe\.credentials` as a dotenv file, outside the project directory. The `load_config()` function loads them into `os.environ`. The `save_credentials()` function ensures the file always ends with a newline before appending new keys, preventing `python-dotenv` parse errors from concatenated lines.
+
+**Android storage:** On Android, `_get_app_dir()` resolves to the app's internal storage (`/data/data/com.spotyvibe.app/files/spotyvibe/`). The `.env` migration from legacy locations is guarded by `if not IS_ANDROID` so it only runs on desktop.
 
 ---
 
@@ -366,6 +382,52 @@ The stylesheet includes two CSS media-query breakpoints for mobile and tablet de
 | `max-width: 480px` | Phones | Minimal padding, vertical stacking for buttons / forms / modals, full-width modals that slide up from the bottom (bottom-sheet pattern), 44px minimum touch targets on all interactive elements, full-width toast notifications, repositioned tooltips, stacked train header and actions |
 
 The desktop experience is completely unaffected — all responsive rules are scoped inside `@media` blocks. This is relevant to the planned Android APK: the WebView will render the same responsive UI without any additional adaptation.
+
+---
+
+### Android Platform (`android/`)
+
+The `android/` directory contains a complete Android project that packages SpotyVibe as a self-contained APK using **Chaquopy** — a Gradle plugin that embeds a Python interpreter and pip-installed dependencies inside the APK.
+
+**Platform detection:** `config.py` sets `IS_ANDROID = True` when `sys.getandroidapilevel` exists (a Chaquopy-specific attribute). All Android-specific paths and behaviours are gated behind this flag, so the desktop experience is completely unaffected.
+
+**Storage path resolution:** `_get_app_dir()` returns the platform-appropriate base directory. On Android it reads the `SPOTYVIBE_FILES_DIR` environment variable (injected by `MainActivity.kt` at startup) and falls back to `/data/data/com.spotyvibe.app/files/spotyvibe/`. All credential, profile, cache, and log paths derive from this base.
+
+**Chaquopy bundling:** The app-level `build.gradle` configures:
+- Python 3.10 interpreter
+- pip dependencies from `requirements.txt`
+- ABI filter: `arm64-v8a` only (covers modern Android devices)
+- Python source directory pointing to the copied project files
+
+**Build script (`build_apk.sh`):** A one-command script that:
+1. Copies `app.py`, `config.py`, `core/`, `prompts/`, `data/`, `templates/`, `static/` into `android/app/src/main/python/`
+2. Copies `requirements.txt` for Chaquopy's pip integration
+3. Runs `./gradlew assembleDebug` to produce the APK
+
+**MainActivity lifecycle (`MainActivity.kt`):**
+1. Sets `SPOTYVIBE_FILES_DIR` environment variable pointing to the app's internal files directory.
+2. Starts Flask in a **daemon thread** so the Android main thread remains free for UI rendering.
+3. Shows a splash screen while Flask initialises.
+4. Polls `http://127.0.0.1:5000` until the server responds (with exponential backoff).
+5. Hides the splash screen and loads the URL in a **WebView** with JavaScript enabled.
+6. `app.py` sets `use_reloader=False` on Android because Flask's reloader forks a child process, which crashes under Chaquopy's embedded runtime.
+
+**OAuth popup handling:** `MainActivity.kt` overrides `onCreateWindow()` in the WebView's `WebChromeClient` to open Spotify's OAuth popup in a secondary WebView. When the popup completes, it is automatically dismissed — matching the desktop browser behaviour.
+
+**Permissions:** `AndroidManifest.xml` declares `INTERNET` and `ACCESS_NETWORK_STATE` — required for OpenAI API calls, Spotify API calls, and localhost Flask communication.
+
+**Project structure:**
+
+| File | Purpose |
+|---|---|
+| `build.gradle` (root) | Gradle plugins: Android + Chaquopy |
+| `app/build.gradle` | App config: Python version, pip deps, ABI filter, min/target SDK |
+| `AndroidManifest.xml` | Permissions and activity declaration |
+| `MainActivity.kt` | Flask thread, splash screen, WebView, OAuth popups |
+| `activity_main.xml` | FrameLayout: splash ImageView + WebView |
+| `build_apk.sh` | Copies Python sources and runs Gradle build |
+| `settings.gradle` | Gradle project structure |
+| `gradle.properties` | JVM args and Android build properties |
 
 ---
 
