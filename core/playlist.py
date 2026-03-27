@@ -1,18 +1,69 @@
+"""Spotify playlist management and OAuth authentication.
+
+Technologies & patterns used:
+- **spotipy** (v2.23+): Python wrapper for the Spotify Web API. Handles
+  OAuth 2.0 token management, automatic token refresh, and provides
+  Pythonic methods for every Spotify REST endpoint.
+- **SpotifyOAuth (Authorization Code Flow)**: The OAuth 2.0 flow that
+  requires user login via browser redirect. This grants access to
+  private user data (playlists, profile) as opposed to the simpler
+  Client Credentials flow (which only accesses public data).
+- **Token caching**: Spotipy stores the OAuth token in a local file
+  (`.spotify-cache` in AppData). On subsequent runs, the cached token
+  is reused and automatically refreshed when expired, avoiding repeated
+  browser-based logins.
+- **concurrent.futures.ThreadPoolExecutor**: Used for parallel Spotify
+  search requests. The Spotify search API is IO-bound (network calls),
+  so threading achieves near-linear speedup. Each thread gets its own
+  `spotipy.Spotify` client to avoid sharing non-thread-safe HTTP
+  sessions.
+- **current_user_* methods**: Modern spotipy methods that use `/me/`
+  endpoints instead of the deprecated `/users/{user_id}/` variants.
+  This avoids the need to look up the user's Spotify ID.
+"""
+
 import os
+# concurrent.futures provides a high-level interface for asynchronous
+# execution. ThreadPoolExecutor is used here (not ProcessPoolExecutor)
+# because the workload is I/O-bound (HTTP requests to Spotify API),
+# not CPU-bound. Threads share memory and have lower overhead than
+# processes for this use case.
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# spotipy is a lightweight Python wrapper for all Spotify Web API
+# endpoints. It handles OAuth token lifecycle, request serialization,
+# pagination, and error mapping.
 import spotipy
 from spotipy.exceptions import SpotifyException
+# SpotifyOAuth implements the Authorization Code Flow — the user
+# authorises via browser, the app receives a code, exchanges it for
+# access + refresh tokens, and caches them locally.
 from spotipy.oauth2 import SpotifyOAuth
-from config import CACHE_FILE
+from config import CACHE_FILE, IS_ANDROID
 
 
+# Name used for the managed playlist. If a playlist with this name
+# already exists, new tracks are added to it (idempotent). This avoids
+# creating duplicate playlists on every generation.
 PLAYLIST_NAME = "SpotyVibe Playlist"
-REDIRECT_URI = "http://127.0.0.1:5000/callback"
+# Redirect URI must match what is configured in the Spotify Developer
+# Dashboard. The Android variant uses a custom URI scheme (deep link)
+# while the desktop variant uses a local HTTP server callback.
+REDIRECT_URI = "spotyvibe://callback" if IS_ANDROID else "http://127.0.0.1:5000/callback"
 
 
 def get_spotify_oauth():
-    """Create a SpotifyOAuth instance with the token cache in AppData."""
+    """Create a SpotifyOAuth instance with the token cache in AppData.
+
+    Configuration choices:
+    - `scope="playlist-modify-private playlist-read-private"`: Minimal
+      scopes — only requests the permissions actually needed. This is a
+      security best practice (principle of least privilege).
+    - `cache_path`: Token is stored in AppData alongside credentials,
+      keeping secrets out of the project directory.
+    - `open_browser=False`: The app controls when/how the browser opens
+      (via the UI), rather than letting spotipy auto-launch it.
+    """
     return SpotifyOAuth(
         client_id=os.getenv("SPOTIPY_CLIENT_ID"),
         client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
@@ -37,6 +88,11 @@ def get_spotify_auth_status():
     call (``current_user``) to verify the token is still valid.  Stale or
     revoked tokens are detected and reported as "not_authenticated" so the
     UI can prompt the user to re-connect.
+
+    This three-state return value drives the UI's conditional rendering:
+    - not_configured  → show "Enter Spotify credentials" form
+    - not_authenticated → show "Connect to Spotify" button
+    - authenticated → show the main playlist generation UI
     """
     client_id = os.getenv("SPOTIPY_CLIENT_ID")
     client_secret = os.getenv("SPOTIPY_CLIENT_SECRET")
@@ -153,11 +209,23 @@ def remove_from_playlist(artist, track):
 def search_tracks(tracks, on_progress=None):
     """Search Spotify for each track using parallel requests.
 
-    Returns:
-        found:     list of track dicts (original fields + added "uri" key)
-        not_found: list of "artist - track" strings
+    **Concurrency model**: Uses `ThreadPoolExecutor` with 10 workers.
+    Each worker creates its own `spotipy.Spotify` client because the
+    underlying `requests.Session` is NOT thread-safe. This is a common
+    pattern: share-nothing threading where each thread owns its state.
 
-    on_progress: optional callback(completed, total) called after each search.
+    Why 10 workers? This is a practical sweet spot — enough to saturate
+    the network for typical batch sizes (10–30 tracks) without hitting
+    Spotify's rate limits. Spotify's API allows ~30 req/sec for most
+    endpoints.
+
+    **Progress callback**: The optional `on_progress(completed, total)`
+    callback enables the UI to show a real-time progress bar via
+    Server-Sent Events (SSE). Each completed search triggers a callback.
+
+    Returns:
+        found:     list of track dicts (original fields + added "uri" and "cover_url")
+        not_found: list of "artist - track" strings
     """
     found = []
     not_found = []
@@ -211,6 +279,18 @@ def search_tracks(tracks, on_progress=None):
 
 def add_to_playlist(verified_tracks):
     """Add pre-verified tracks (must have a "uri" key) to the SpotyVibe Playlist.
+
+    **Idempotent design**: Checks for existing tracks in the playlist
+    before adding, so calling this function multiple times with the same
+    tracks won't create duplicates.
+
+    **Playlist creation**: Uses `current_user_playlist_create()` (maps to
+    `POST /v1/me/playlists`) — the modern endpoint. The deprecated
+    `POST /v1/users/{user_id}/playlists` is NOT used.
+
+    **Error recovery**: On a 403 Forbidden (expired/revoked token), the
+    token cache is cleared and a descriptive error is raised so the UI
+    can guide the user to re-authenticate.
 
     Returns:  {"url": str, "added": int}
     """

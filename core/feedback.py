@@ -1,7 +1,38 @@
+"""User feedback recording (like / dislike) for tracks and artists.
+
+Technologies & patterns used:
+- **Append-only feedback log**: Likes and dislikes are appended to lists
+  in the JSON profile, never deleted. This creates a growing training
+  signal that improves GPT suggestions over time — both the prompt
+  (which includes feedback history) and the code-side dedup filter
+  (which excludes disliked tracks) benefit from this data.
+- **Two-tier rejection model**:
+  - Track-level dislike: Records the specific track but does NOT reject
+    the artist. The user may still enjoy other tracks by the same artist.
+  - Artist-level dislike: Adds the artist to `artists.rejected`, which
+    is a hard exclusion — GPT is told to never suggest any track by
+    that artist again.
+  This granularity prevents over-filtering while respecting strong
+  preferences.
+- **Separation from suggestions.py**: Feedback is recorded in its own
+  module to keep the suggestion engine stateless — it only reads the
+  profile, never writes feedback. This follows the Single Responsibility
+  Principle.
+"""
+
 from core.profile import load_profile, save_profile
 
 
 def like_track(artist, track=None, reason=None):
+    """Record a positive signal for a track or artist.
+
+    If `track` is provided, the specific track is added to liked_tracks.
+    The artist is always added to `artists.confirmed` (if not already
+    present), strengthening it as a reference for future suggestions.
+
+    The optional `reason` field captures WHY the user liked the track,
+    which enriches the context GPT receives in future prompts.
+    """
     profile = load_profile()
 
     if track:
@@ -22,6 +53,20 @@ def like_track(artist, track=None, reason=None):
 
 
 def dislike_track(artist, track=None, reason=None):
+    """Record a negative signal for a track or artist.
+
+    Behaviour depends on whether `track` is provided:
+    - With track:    Track-level dislike — only that track is recorded in
+                     disliked_tracks. The artist is NOT rejected, so other
+                     tracks by the same artist can still be suggested.
+    - Without track: Artist-level dislike — the artist is added to
+                     `artists.rejected` with a reason. GPT is instructed
+                     to never suggest this artist again.
+
+    The `reason` defaults to "user feedback" to ensure every dislike has
+    an explanation — this context helps GPT understand the rejection
+    pattern (e.g. "too slow", "wrong genre") and avoid similar tracks.
+    """
     profile = load_profile()
 
     reason = reason or "user feedback"

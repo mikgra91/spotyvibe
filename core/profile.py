@@ -1,5 +1,25 @@
 """Centralised music profile management.
 
+Technologies & patterns used:
+- **JSON as a document store**: The profile is a single JSON file acting
+  as a lightweight NoSQL-like document. This avoids the overhead of a
+  database engine (SQLite, PostgreSQL) for what is fundamentally a
+  single-document, single-user dataset. Trade-off: no concurrent writes,
+  no transactions — acceptable for a desktop/single-user app.
+- **shutil.copy2**: Used for history backups, preserving file metadata
+  (timestamps). This gives a simple one-level undo without a full
+  version-control or journaling system.
+- **pathlib.Path**: All file paths use `pathlib` instead of `os.path`
+  string manipulation. This gives type-safe, cross-platform path handling
+  with a fluent API (`.exists()`, `.parent.mkdir()`, etc.).
+- **Separation of I/O and business logic**: Profile CRUD is isolated here
+  so that `suggestions.py` and `feedback.py` never touch the filesystem
+  directly — they call `load_profile()` / `save_profile()`.
+- **GPT-powered profile training**: The `train_profile()` function sends
+  structured user input to GPT with `response_format={"type": "json_object"}`
+  (structured outputs), ensuring the AI returns parseable JSON rather than
+  free-form text.
+
 The active profile lives in %LOCALAPPDATA%\\spotyvibe\\ (same
 directory as .credentials).  A single history file is kept so the user
 can later revert to the previous version.
@@ -11,6 +31,9 @@ from datetime import datetime, timezone
 from config import BASE_DIR, PROFILE_FILE, PROFILE_HISTORY_FILE, get_model
 from core.utils import get_openai_client, strip_code_fences, debug_log
 
+# Template and prompt paths are resolved from BASE_DIR (the project root)
+# using pathlib. This means the app can run from any working directory
+# without breaking file resolution.
 TEMPLATE_FILE = BASE_DIR / "data" / "music_profile.json"
 TRAINING_PROMPT_FILE = BASE_DIR / "prompts" / "profile_training_prompt.txt"
 
@@ -39,7 +62,14 @@ def load_profile():
 
 
 def save_profile(profile):
-    """Save the profile to AppData, keeping one history backup."""
+    """Save the profile to AppData, keeping one history backup.
+
+    Pattern: **Copy-on-write with single backup**. Before each save,
+    the current file is copied to a `.history.json` sibling. This
+    provides a simple undo mechanism. More complex alternatives
+    (git-like versioning, append-only log) were considered unnecessary
+    for a single-user app with infrequent writes.
+    """
     # Back up the current file before overwriting
     if PROFILE_FILE.exists():
         shutil.copy2(str(PROFILE_FILE), str(PROFILE_HISTORY_FILE))
@@ -71,6 +101,12 @@ def save_profile_sections(sections):
     *sections* is a dict with keys: core_description, must_have,
     soft_preferences, avoid — each a string (lines separated by newlines).
 
+    Design choice: This function provides a **manual save path** that
+    bypasses GPT entirely. Users can edit their profile without consuming
+    API tokens. The AI training path (`train_profile`) is a separate
+    opt-in action. This dual approach lets users choose between speed
+    (manual) and intelligence (AI-assisted).
+
     Returns the updated profile dict.
     """
     profile = load_profile()
@@ -99,6 +135,22 @@ def train_profile(sections):
 
     *sections* is a dict with keys: core_description, must_have,
     soft_preferences, avoid — each a string (lines separated by newlines).
+
+    How it works:
+    1. Loads the current profile and the training system prompt from disk.
+    2. Constructs a user message with the existing profile JSON and the
+       new user input, structured into labelled sections so GPT can parse
+       each one with the correct semantics.
+    3. Calls GPT with `response_format={"type": "json_object"}` — this
+       enables OpenAI's **Structured Outputs** mode, which constrains the
+       model to return valid JSON. This prevents formatting issues that
+       would otherwise require complex parsing/retry logic.
+    4. Merges the AI-refined profile with the original's history/feedback
+       sections (safety net — GPT might accidentally modify them).
+    5. Stamps the update time and saves.
+
+    Temperature 0.3 is used (low creativity) because profile training
+    should faithfully represent user input, not hallucinate preferences.
 
     Returns the updated profile dict.
     """

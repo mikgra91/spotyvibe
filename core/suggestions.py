@@ -1,3 +1,33 @@
+"""GPT-powered music suggestion engine with deduplication and retry logic.
+
+Technologies & patterns used:
+- **OpenAI Chat Completions API**: Uses the messages-based API with system
+  + user roles. The system prompt defines the AI's persona and rules;
+  the user prompt provides per-request context (profile, exclusion list).
+- **Structured Outputs** (`response_format={"type": "json_object"}`):
+  Forces GPT to return valid JSON, eliminating brittle regex-based parsing.
+- **Prompt template files**: System and user prompts live in `prompts/`
+  as plain text with `{placeholder}` variables. This separates prompt
+  engineering from code — prompts can be iterated without deployments.
+- **Exclusion block pattern**: History is formatted as a human-readable
+  grouped list rather than raw JSON. LLMs parse structured text better
+  than deeply nested JSON when doing set-membership checks.
+- **Code-side deduplication**: GPT cannot be relied on to perfectly avoid
+  repeats. A deterministic Python filter (`filter_duplicate_suggestions`)
+  catches any duplicates the model misses — defence in depth.
+- **Adaptive retry with escalating warnings**: When GPT returns all-
+  duplicate batches, the retry prompt gets progressively more explicit,
+  telling the model exactly which tracks it repeated. This is a prompt-
+  engineering technique called "iterative correction".
+- **collections.defaultdict**: Used to group tracks by artist efficiently
+  for the exclusion block, avoiding manual key-existence checks.
+- **re (regex)**: Used for fuzzy key normalisation in dedup — strips
+  punctuation and collapses whitespace so "Don't Stop" and "dont stop"
+  are recognised as the same track.
+- **math.ceil**: Calculates the minimum number of new-artist slots from
+  a percentage, ensuring at least one new artist even at low percentages.
+"""
+
 import json
 import math
 import re
@@ -6,14 +36,21 @@ from pathlib import Path
 from config import BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD, get_model
 from core.utils import get_openai_client, strip_code_fences, debug_log
 
-# Paths resolved from the package root — no os.chdir() dependency
+# Paths resolved from the package root using pathlib — immune to os.chdir()
 SYSTEM_PROMPT_FILE = BASE_DIR / "prompts" / "system_prompt.txt"
 PROMPT_FILE = BASE_DIR / "prompts" / "prompt_template.txt"
 
 
 
 def normalize_history(profile):
-    """Lowercase and deduplicate history lists so GPT never sees case-duplicates."""
+    """Lowercase and deduplicate history lists so GPT never sees case-duplicates.
+
+    Why lowercase everything? GPT is case-insensitive when reasoning about
+    artist/track names, but exact-string deduplication is case-sensitive.
+    Normalising to lowercase at the boundary (when history is loaded)
+    prevents "Radiohead" and "radiohead" from being treated as different
+    entries in both the exclusion list and the Python-side filter.
+    """
     for key in ("suggested_artists", "suggested_tracks"):
         items = profile.get("history", {}).get(key, [])
         seen = set()
@@ -43,8 +80,19 @@ def _build_exclusion_block(profile):
     Instead of sending a flat JSON array of "artist track" strings
     (which LLMs struggle to cross-reference), we format the history
     as a structured list grouped by artist — much easier for the model
-    to scan.  Artists with many exhausted tracks are flagged so the
-    model avoids them entirely.
+    to scan.
+
+    Design rationale: Early versions sent the raw JSON array of track
+    strings directly in the prompt. GPT frequently failed to match
+    entries against its own suggestions because it had to mentally
+    parse compound "artist track" strings. The grouped format with
+    clear headers and per-artist bullet points dramatically reduced
+    repeat rates.
+
+    The EXHAUSTED_ARTIST_THRESHOLD marks artists with many prior
+    tracks as [EXHAUSTED], telling GPT to skip them entirely. This
+    pushes the model toward fresh artist discovery instead of
+    suggesting the 5th track by the same artist.
     """
     tracks = profile.get("history", {}).get("suggested_tracks", [])
     if not tracks:
@@ -123,20 +171,33 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
                    new_artist_percentage=30):
     """Build the system + user message pair for the OpenAI API.
 
-    accepted_tracks: optional list of {"artist": ..., "track": ...} dicts
-        already confirmed from previous attempts.  When provided, a short
-        addendum is appended telling GPT how many more tracks are needed and
-        which ones are already accepted (so it can skip them).
-    batch_size: how many tracks to request from GPT in this call.
-        Defaults to BATCH_SIZE from config.
-    recently_filtered_tracks: optional list of {"artist": ..., "track": ...}
-        dicts that were suggested in the previous batch but were ALL filtered
-        out because they are already in history.  Used to give GPT an explicit
-        per-retry warning so it cannot plausibly miss the exclusions.
-    consecutive_empty: how many consecutive all-filtered batches have occurred
-        so far (used to scale the warning severity).
-    new_artist_percentage: minimum percentage (1–100) of suggestions that must
-        come from artists not present in suggested_artists history.
+    This is the core prompt-assembly function. It combines:
+    1. A system prompt (from file) that defines GPT's role and rules.
+    2. A user prompt (from template) that injects the profile JSON,
+       exclusion block, and batch-size requirement.
+    3. Optional addenda for multi-batch workflows and retry warnings.
+
+    **Multi-batch continuation**: When generating playlists larger than
+    one batch, `accepted_tracks` carries forward the tracks already
+    confirmed, and the prompt instructs GPT to fill the remaining slots.
+
+    **Retry escalation** (`recently_filtered_tracks`, `consecutive_empty`):
+    When the code-side dedup filter removes ALL tracks in a batch, the
+    next request includes a strongly-worded warning with the specific
+    tracks that failed. This uses prompt-engineering escalation — each
+    retry attempt increases the severity of the language to overcome
+    GPT's tendency to repeat recent outputs.
+
+    **New artist percentage**: Ensures diversity by requiring a minimum
+    percentage of suggestions from previously-unseen artists. The value
+    is injected into the system prompt via placeholder replacement.
+
+    Parameters:
+        accepted_tracks: list of {"artist", "track"} already confirmed.
+        batch_size: tracks to request (default: BATCH_SIZE from config).
+        recently_filtered_tracks: tracks that were all-filtered last batch.
+        consecutive_empty: count of consecutive all-filtered batches.
+        new_artist_percentage: min % of suggestions from new artists (1–100).
     """
     if batch_size is None:
         batch_size = BATCH_SIZE
@@ -242,6 +303,16 @@ def normalize_response(result):
 
 
 def call_gpt(messages):
+    """Send the assembled messages to the OpenAI Chat Completions API.
+
+    Uses `response_format={"type": "json_object"}` (Structured Outputs)
+    to guarantee parseable JSON. Temperature 0.7 balances creativity
+    (important for music discovery) with coherence.
+
+    Gracefully handles empty or unparseable responses by returning
+    a valid empty-playlist structure rather than crashing — the caller
+    can then retry or report "no results" to the user.
+    """
     client = get_openai_client()
     response = client.chat.completions.create(
         model=get_model(),
@@ -269,6 +340,13 @@ def call_gpt(messages):
 
 
 def update_profile(profile, result):
+    """Append newly suggested artists and tracks to the profile history.
+
+    Uses set-based deduplication (lowercased) to prevent history bloat.
+    The history is append-only — entries are never removed here, only
+    added. This ensures the exclusion list grows monotonically, which
+    is essential for the dedup strategy to work correctly.
+    """
     existing_artists = {a.lower() for a in profile["history"]["suggested_artists"]}
     for artist in result["profile_updates"]["suggested_artists"]:
         lower = artist.lower().strip()
@@ -289,7 +367,13 @@ def update_profile(profile, result):
 # ── Code-side dedup (GPT cannot be trusted to follow history) ────────
 
 def _normalize_key(text):
-    """Lowercase, strip punctuation, collapse whitespace — for fuzzy dedup."""
+    """Lowercase, strip punctuation, collapse whitespace — for fuzzy dedup.
+
+    Why fuzzy? GPT may return "Don't Stop Me Now" while history has
+    "dont stop me now". Stripping punctuation and normalising whitespace
+    catches these near-duplicates that exact string comparison would miss.
+    Uses regex character classes for fast, single-pass cleaning.
+    """
     text = text.lower().strip()
     text = re.sub(r'[^a-z0-9\s]', '', text)   # keep only letters, digits, spaces
     text = re.sub(r'\s+', ' ', text).strip()   # collapse whitespace
@@ -298,7 +382,23 @@ def _normalize_key(text):
 
 def filter_duplicate_suggestions(profile, result):
     """Remove tracks that already exist in history, were previously disliked,
-    or appear more than once within the current batch."""
+    or appear more than once within the current batch.
+
+    This is the **code-side safety net** for deduplication. Even with
+    detailed exclusion lists in the prompt, GPT will occasionally repeat
+    tracks. This function provides deterministic, 100% reliable filtering
+    as a second layer of defence.
+
+    The function also builds an internal `_filtered_out` list that is
+    used by the retry logic in `build_messages()` to tell GPT exactly
+    which tracks it repeated, enabling targeted correction on the next
+    attempt.
+
+    Three exclusion sources:
+    1. `history.suggested_tracks` — everything previously suggested.
+    2. `feedback.disliked_tracks` — tracks the user explicitly rejected.
+    3. Within-batch duplicates — GPT sometimes repeats within one response.
+    """
 
     # Build an exclusion set from history + disliked tracks
     exclude_keys = set()
