@@ -111,6 +111,7 @@ spotyvibe/
 
 ### Tests
 
-- Run `python -m pytest tests/ -v` before completing any code change.
+- Run `python -m pytest tests/ -v` before completing any code or styling change (Python files, HTML templates, CSS).
+- **Do not run tests for documentation-only changes** (e.g. updates to `README.md`, `UserManual.md`, `TechnicalManual.md`, or `AGENTS.md`).
 - External API calls (OpenAI, Spotify) must be mocked in tests.
 

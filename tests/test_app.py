@@ -22,6 +22,15 @@ class TestIndex:
         resp = client.get("/")
         assert resp.status_code == 200
 
+    def test_contains_theme_switcher(self, client):
+        resp = client.get("/")
+        html = resp.data.decode()
+        assert 'id="styleSwitcher"' in html
+        for theme in ("equalizer", "pulse"):
+            assert f'data-theme="{theme}"' in html
+        for removed in ("aurora", "soundwave"):
+            assert f'data-theme="{removed}"' not in html
+
 
 class TestHelpContent:
     @patch("app.BASE_DIR")

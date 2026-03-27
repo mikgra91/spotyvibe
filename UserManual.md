@@ -54,7 +54,7 @@ python app.py
 
 Then open your browser and go to: **http://127.0.0.1:5000**
 
-You should see the SpotyVibe interface — a premium dark cinematic layout with a vignette-edged stage, layered teal/green and blue/purple aurora sound-ribbon waves, floating frosted dark-glass panels, and luminous green accents.
+You should see the SpotyVibe interface — a premium dark cinematic layout with a vignette-edged stage, animated background visuals, floating frosted dark-glass panels, and luminous green accents.
 
 > **Accessibility note:** If you have reduced-motion preferences enabled in your operating system, all animations and transitions are automatically disabled.
 
@@ -93,7 +93,18 @@ You can switch to a different model at any time. More capable models (e.g., `gpt
 - **Higher values** (e.g., 60–80%) push GPT to explore new territory aggressively. Useful early on when your history is small.
 - **Lower values** (e.g., 10–20%) let GPT revisit artists it knows you like more often. Useful once you have a rich history and want deeper cuts from proven artists.
 
-### 3. Connect Your Spotify Account
+### 3. Choose a Visual Theme
+
+At the top of the page, below the SpotyVibe title, you'll find a **Theme** switcher with two options:
+
+| Theme | Description |
+|---|---|
+| **Equalizer** | The default — animated frequency-spectrum bars that bounce with spring physics and simulated beats. |
+| **Pulse** | Expanding concentric rings with floating particles and occasional bass-drop bursts. |
+
+Click any theme button to switch instantly. Your choice is saved in the browser (localStorage) and restored automatically on your next visit.
+
+### 4. Connect Your Spotify Account
 
 After saving your credentials, a banner will appear asking you to **Connect to Spotify**. Click the link — a small popup window will open where you log in to Spotify and grant permission. Once authorised, the popup closes automatically and the banner disappears.
 
@@ -103,7 +114,7 @@ If your Spotify session expires or you need to re-authenticate, open the **⚙�
 
 > **Tip:** If you see a `403 Forbidden` error during playlist generation, the app will automatically disconnect for you. Simply click **Connect to Spotify** in the warning banner to reconnect.
 
-### 4. Set Up Your Music Profile
+### 5. Set Up Your Music Profile
 
 Before generating suggestions, you need to tell the AI what kind of music you like. The UI is divided into two clearly labelled sections:
 
@@ -236,6 +247,19 @@ Now every GPT interaction (profile training and playlist generation) is logged t
 You can open this file with any text editor to review and optimise the prompts in the `prompts/` directory.
 
 > **Tip:** Disable debug mode when you're done — the log file can grow large over repeated runs.
+
+---
+
+## Using SpotyVibe on Mobile
+
+SpotyVibe works on phones and tablets — just open the same `http://127.0.0.1:5000` URL in your mobile browser. The interface automatically adapts to your screen size:
+
+- **Tablets** — the layout narrows to fit the screen, with slightly smaller headings and buttons.
+- **Phones** — buttons and forms stack vertically for easy one-handed use. Modals slide up from the bottom of the screen as full-width sheets. All buttons and interactive elements have a minimum 44px touch target for comfortable tapping.
+
+No special action is needed — there is nothing to install or configure. If your desktop and mobile device are on the same network, open the app URL from your phone and it just works.
+
+> **Tip:** Toast notifications appear full-width on phones so they're easy to read. Tooltips reposition themselves to stay visible on small screens.
 
 ---
 

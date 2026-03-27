@@ -8,7 +8,12 @@ An AI-powered music discovery tool that creates personalised Spotify playlists b
 
 SpotyVibe uses **artificial intelligence** to learn what kind of music you enjoy and then generates a playlist of 30 tracks tailored to your preferences. The tracks are automatically added to a private Spotify playlist that you can listen to right away.
 
-The interface features a premium dark aurora-wave aesthetic — a near-black cinematic background with a subtle vignette, layered teal/green and blue/purple glowing sound-ribbon waves, frosted dark-glass panels, and luminous green accents — designed for an immersive, high-end music discovery experience.
+The interface features a premium dark aesthetic with frosted dark-glass panels and luminous green accents — designed for an immersive, high-end music discovery experience. A **theme switcher** at the top of the page lets you choose between two animated background styles:
+
+- **Equalizer** — animated frequency-spectrum bars with spring physics and beat simulation (the default)
+- **Pulse** — expanding concentric rings with floating particles and bass-drop effects
+
+Your theme preference is saved in the browser and restored on next visit.
 
 The more you use it, the smarter it gets — every time you like or dislike a suggestion, the AI refines its understanding of your taste and delivers better recommendations next time.
 
@@ -31,6 +36,7 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 - **New Artist % setting** — configurable percentage (1–100, default 30%) of each batch that must come from artists not yet in your history, pushing GPT to explore new territory.
 - **Hardened GPT prompt** — Bear Ghost is set as the explicit primary style reference; a "Hard Negative Rules" section disqualifies generic or predictable tracks; GPT emits a self-validation block to force it to check its own output before finalising.
 - **Debug mode** — logs all GPT communication to a file for prompt analysis and tuning.
+- **Mobile responsive** — the UI automatically adapts to tablet and phone screens with touch-friendly controls and bottom-sheet modals, no app install required.
 
 ## Quick Start
 

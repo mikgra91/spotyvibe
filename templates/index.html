@@ -9,14 +9,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
-<body>
-<div class="background">
-    <div class="wave wave-top-haze"></div>
-    <div class="wave wave-top-glow"></div>
-    <div class="wave wave-top-ribbon"></div>
-    <div class="wave wave-bottom-haze"></div>
-    <div class="wave wave-bottom-glow"></div>
-    <div class="wave wave-bottom-ribbon"></div>
+<body class="theme-equalizer">
+<div class="background" id="themeBackground">
+    <canvas id="equalizerCanvas"></canvas>
 </div>
 <div class="container" style="position: relative;">
 
@@ -33,6 +28,15 @@
 
     <h1>SpotyVibe</h1>
     <p class="subtitle">AI-powered music discovery & playlist generation — discover, curate, refine.</p>
+
+    <!-- Style switcher -->
+    <div class="style-switcher">
+        <span class="style-switcher-label">Theme</span>
+        <div class="style-switcher-options" id="styleSwitcher">
+            <button class="style-switcher-btn active" data-theme="equalizer" onclick="switchTheme('equalizer')">Equalizer</button>
+            <button class="style-switcher-btn" data-theme="pulse" onclick="switchTheme('pulse')">Pulse</button>
+        </div>
+    </div>
 
     <!-- ── Section 1: Train ── -->
     <p class="section-label">Step 1 — Taste Profile</p>
@@ -136,9 +140,7 @@
     <div id="statusBox" class="hidden"></div>
     <div id="playlistLinkBox" class="playlist-link-box hidden"></div>
 
-    <ul id="trackList" class="track-list">
-        <li class="empty-state">Click <strong>Generate &amp; Create Playlist</strong> to get started.</li>
-    </ul>
+    <ul id="trackList" class="track-list"></ul>
 </div>
 
 <!-- Toast notification -->
@@ -1143,6 +1145,518 @@
     function closeModal(id) {
         document.getElementById(id).classList.remove('open');
     }
+
+    /* ------------------------------------------------------------------ */
+    /*  Theme / style switcher                                             */
+    /* ------------------------------------------------------------------ */
+    const THEME_BACKGROUNDS = {
+        equalizer: `<canvas id="equalizerCanvas"></canvas>`,
+        pulse: `<canvas id="pulseCanvas"></canvas>`,
+    };
+
+    const THEME_RENDERERS = {};
+
+    function switchTheme(theme) {
+        // Stop any running renderer
+        if (THEME_RENDERERS._stopCurrent) THEME_RENDERERS._stopCurrent();
+
+        // Update body class
+        document.body.className = 'theme-' + theme;
+
+        // Swap background content
+        const bg = document.getElementById('themeBackground');
+        bg.innerHTML = THEME_BACKGROUNDS[theme] || '';
+
+        // Start renderer if canvas-based
+        const canvas = bg.querySelector('canvas');
+        if (canvas && THEME_RENDERERS[theme]) {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            THEME_RENDERERS._stopCurrent = THEME_RENDERERS[theme](canvas);
+
+            // Handle resize
+            const resizeHandler = () => {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            };
+            window.addEventListener('resize', resizeHandler);
+            const prevStop = THEME_RENDERERS._stopCurrent;
+            THEME_RENDERERS._stopCurrent = () => {
+                if (prevStop) prevStop();
+                window.removeEventListener('resize', resizeHandler);
+            };
+        }
+
+        // Update active button
+        document.querySelectorAll('.style-switcher-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.theme === theme);
+        });
+
+        // Persist choice
+        try { localStorage.setItem('spotyvibe-theme', theme); } catch(e) {}
+    }
+
+    // Restore saved theme on load (deferred until renderers are registered below)
+    let _pendingTheme = null;
+    try {
+        const saved = localStorage.getItem('spotyvibe-theme');
+        if (saved && THEME_BACKGROUNDS[saved]) _pendingTheme = saved;
+    } catch(e) {}
+
+    /* ------------------------------------------------------------------ */
+    /*  Theme renderer: Equalizer                                          */
+    /* ------------------------------------------------------------------ */
+    THEME_RENDERERS.equalizer = function(canvas) {
+        const ctx = canvas.getContext('2d');
+        let animId;
+
+        /* ---------- configuration ---------- */
+        const BAR_COUNT  = 56;
+        const GAP        = 3;
+        const FLOOR_Y    = 0.98;          // bars sit at 98 % of canvas height
+        const MAX_H_FRAC = 0.85;          // max bar height as fraction of canvas
+        const SPRING     = 0.08;          // spring stiffness toward target
+        const DAMPING    = 0.78;          // velocity damping (lower = more bounce)
+        const REFL_FRAC  = 0;             // no reflection (bars at bottom edge)
+
+        /* ---------- pre-allocated arrays ---------- */
+        const heights    = new Float32Array(BAR_COUNT);
+        const targets    = new Float32Array(BAR_COUNT);
+        const velocities = new Float32Array(BAR_COUNT);
+        const phases     = new Float32Array(BAR_COUNT);   // per-bar wave offset
+
+        /* ---------- colour palette (green → cyan → blue → purple → pink) --- */
+        const palette = [
+            [30, 215, 96],    // green
+            [25, 211, 170],   // teal
+            [0, 200, 220],    // cyan
+            [40, 160, 255],   // sky blue
+            [76, 120, 255],   // blue
+            [120, 80, 255],   // indigo
+            [170, 60, 255],   // purple
+            [210, 50, 230],   // magenta
+            [255, 70, 180]    // pink
+        ];
+
+        function lerpColor(a, b, t) {
+            return [
+                a[0] + (b[0] - a[0]) * t,
+                a[1] + (b[1] - a[1]) * t,
+                a[2] + (b[2] - a[2]) * t
+            ];
+        }
+
+        function barColor(idx) {
+            var f = idx / (BAR_COUNT - 1) * (palette.length - 1);
+            var lo = Math.floor(f);
+            var hi = Math.min(lo + 1, palette.length - 1);
+            return lerpColor(palette[lo], palette[hi], f - lo);
+        }
+
+        /* pre-compute colours once */
+        const colors = new Array(BAR_COUNT);
+        for (var i = 0; i < BAR_COUNT; i++) {
+            colors[i] = barColor(i);
+            phases[i] = i * 0.18 + Math.random() * 0.4;
+            heights[i] = 0.05 + Math.random() * 0.15;
+            targets[i] = heights[i];
+        }
+
+        /* ---------- beat simulation state ---------- */
+        var nextBeatAt   = 800 + Math.random() * 600;
+        var beatAccum    = 0;
+        var lastTime     = 0;
+
+        /* Wave generation: several layered sine waves that evolve over time */
+        function waveTarget(idx, time) {
+            var t  = idx / BAR_COUNT;
+            var p  = phases[idx];
+            /* slow-moving base wave */
+            var w1 = 0.35 + 0.35 * Math.sin(t * Math.PI * 2.2 + time * 0.0006 + p);
+            /* mid-speed harmonic */
+            var w2 = 0.18 * Math.sin(t * Math.PI * 5.0 - time * 0.0012 + p * 1.7);
+            /* fast shimmer (small amplitude) */
+            var w3 = 0.08 * Math.sin(t * Math.PI * 11.0 + time * 0.003 + p * 2.3);
+            /* breathing envelope */
+            var env = 0.8 + 0.2 * Math.sin(time * 0.0004 + p * 0.5);
+            return Math.max(0.04, Math.min(1.0, (w1 + w2 + w3) * env));
+        }
+
+        /* ---------- draw loop ---------- */
+        function draw(time) {
+            var w = canvas.width, h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            var dt = lastTime ? time - lastTime : 16;
+            lastTime = time;
+
+            /* --- beat trigger --- */
+            beatAccum += dt;
+            if (beatAccum >= nextBeatAt) {
+                beatAccum  = 0;
+                nextBeatAt = 700 + Math.random() * 900;
+                /* pick a cluster centre and width */
+                var centre = Math.random() * BAR_COUNT;
+                var spread = 6 + Math.random() * 10;
+                for (var i = 0; i < BAR_COUNT; i++) {
+                    var dist = Math.abs(i - centre);
+                    if (dist < spread) {
+                        var boost = (1.0 - dist / spread);
+                        boost *= boost;                       // quadratic falloff
+                        targets[i] = Math.min(1.0, targets[i] + boost * (0.5 + Math.random() * 0.35));
+                        velocities[i] += boost * 0.06;        // impulse kick
+                    }
+                }
+            }
+
+            /* --- update targets from wave function --- */
+            for (var i = 0; i < BAR_COUNT; i++) {
+                var wt = waveTarget(i, time);
+                /* blend toward wave target (keeps beat spikes decaying naturally) */
+                targets[i] += (wt - targets[i]) * 0.045;
+            }
+
+            /* --- spring physics --- */
+            for (var i = 0; i < BAR_COUNT; i++) {
+                var diff = targets[i] - heights[i];
+                velocities[i] += diff * SPRING;
+                velocities[i] *= DAMPING;
+                heights[i]    += velocities[i];
+                if (heights[i] < 0.02)  { heights[i] = 0.02;  velocities[i] *= -0.3; }
+                if (heights[i] > 1.0)   { heights[i] = 1.0;   velocities[i] *= -0.2; }
+            }
+
+            /* --- geometry --- */
+            var totalGap  = GAP * (BAR_COUNT - 1);
+            var barW      = (w - totalGap) / BAR_COUNT;
+            var yFloor    = h * FLOOR_Y;
+            var maxBarH   = h * MAX_H_FRAC;
+            var radius    = Math.min(barW * 0.5, 5);
+
+            /* --- draw bars --- */
+            for (var i = 0; i < BAR_COUNT; i++) {
+                var x    = i * (barW + GAP);
+                var barH = heights[i] * maxBarH;
+                if (barH < 1) barH = 1;
+                var yTop = yFloor - barH;
+                var c    = colors[i];
+                var cr   = c[0] | 0, cg = c[1] | 0, cb = c[2] | 0;
+
+                /* per-bar vertical gradient */
+                var grad = ctx.createLinearGradient(x, yFloor, x, yTop);
+                grad.addColorStop(0, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.95)');
+                grad.addColorStop(0.5, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.75)');
+                grad.addColorStop(1, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.35)');
+
+                /* glow */
+                ctx.shadowColor = 'rgba(' + cr + ',' + cg + ',' + cb + ',0.55)';
+                ctx.shadowBlur  = 14 + heights[i] * 10;
+
+                /* rounded-top bar path */
+                ctx.beginPath();
+                ctx.moveTo(x, yFloor);
+                ctx.lineTo(x, yTop + radius);
+                ctx.quadraticCurveTo(x, yTop, x + radius, yTop);
+                ctx.lineTo(x + barW - radius, yTop);
+                ctx.quadraticCurveTo(x + barW, yTop, x + barW, yTop + radius);
+                ctx.lineTo(x + barW, yFloor);
+                ctx.closePath();
+                ctx.fillStyle = grad;
+                ctx.fill();
+
+                /* thin highlight line at bar top for depth */
+                ctx.shadowBlur = 0;
+                ctx.beginPath();
+                ctx.moveTo(x + radius, yTop);
+                ctx.lineTo(x + barW - radius, yTop);
+                ctx.strokeStyle = 'rgba(255,255,255,' + (0.12 + heights[i] * 0.15) + ')';
+                ctx.lineWidth   = 1;
+                ctx.stroke();
+
+                /* --- mirror reflection below floor --- */
+                var reflH = barH * REFL_FRAC;
+                var reflGrad = ctx.createLinearGradient(x, yFloor, x, yFloor + reflH);
+                reflGrad.addColorStop(0, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.12)');
+                reflGrad.addColorStop(0.6, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.03)');
+                reflGrad.addColorStop(1, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.0)');
+                ctx.fillStyle = reflGrad;
+                ctx.fillRect(x, yFloor + 1, barW, reflH);
+            }
+
+            /* floor line (subtle separator between bars and reflections) */
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.moveTo(0, yFloor + 0.5);
+            ctx.lineTo(w, yFloor + 0.5);
+            ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+            ctx.lineWidth   = 1;
+            ctx.stroke();
+
+            animId = requestAnimationFrame(draw);
+        }
+        animId = requestAnimationFrame(draw);
+        return () => cancelAnimationFrame(animId);
+    };
+
+    /* ------------------------------------------------------------------ */
+    /*  Theme renderer: Pulse                                              */
+    /* ------------------------------------------------------------------ */
+    THEME_RENDERERS.pulse = function(canvas) {
+        const ctx = canvas.getContext('2d');
+        let animId;
+
+        /* --- palette (RGB tuples) --- */
+        const COLORS = [
+            [30, 215, 96],   // green
+            [25, 211, 197],  // teal
+            [76, 168, 255],  // cyan
+            [140, 61, 255],  // purple
+            [177, 77, 255],  // violet
+            [255, 77, 184]   // pink
+        ];
+
+        /* --- emitter points (spawn sources for rings) --- */
+        const EMITTER_COUNT = 5;
+        const emitters = [];
+        function initEmitters() {
+            emitters.length = 0;
+            const w = canvas.width, h = canvas.height;
+            for (let i = 0; i < EMITTER_COUNT; i++) {
+                emitters.push({
+                    x: w * (0.15 + Math.random() * 0.7),
+                    y: h * (0.15 + Math.random() * 0.7),
+                    /* depth: 0 = far-back (small, slow), 1 = foreground (big, fast) */
+                    depth: 0.3 + Math.random() * 0.7,
+                    colorIdx: Math.floor(Math.random() * COLORS.length),
+                    nextSpawn: 0,
+                    interval: 1200 + Math.random() * 2000
+                });
+            }
+        }
+        initEmitters();
+
+        /* --- pre-allocated ring pool --- */
+        const MAX_RINGS = 120;
+        const ringPool = [];
+        let ringCount = 0;
+        for (let i = 0; i < MAX_RINGS; i++) {
+            ringPool.push({
+                active: false, x: 0, y: 0, r: 0, maxR: 0,
+                speed: 0, color: COLORS[0], life: 0,
+                lineWidth: 2, soft: false, intensity: 1
+            });
+        }
+        function acquireRing() {
+            for (let i = 0; i < MAX_RINGS; i++) {
+                if (!ringPool[i].active) { ringCount++; return ringPool[i]; }
+            }
+            return null;
+        }
+        function releaseRing(ring) { ring.active = false; ringCount--; }
+
+        function spawnRing(ex, ey, depth, colorIdx, intense) {
+            const ring = acquireRing();
+            if (!ring) return;
+            const c = COLORS[colorIdx % COLORS.length];
+            const depthScale = 0.4 + depth * 0.6;
+            ring.active = true;
+            ring.x = ex + (Math.random() - 0.5) * 30;
+            ring.y = ey + (Math.random() - 0.5) * 30;
+            ring.r = 0;
+            ring.maxR = (180 + Math.random() * 350) * depthScale;
+            ring.speed = (0.25 + Math.random() * 0.55) * depthScale;
+            ring.color = c;
+            ring.life = 1;
+            ring.intensity = intense ? 1.6 : 1;
+            /* varying stroke: some thick & soft, others sharp & thin */
+            if (Math.random() < 0.35) {
+                ring.lineWidth = 4 + Math.random() * 6;
+                ring.soft = true;
+            } else {
+                ring.lineWidth = 0.8 + Math.random() * 1.8;
+                ring.soft = false;
+            }
+        }
+
+        /* --- floating particle pool --- */
+        const MAX_PARTICLES = 60;
+        const particles = [];
+        function initParticles() {
+            particles.length = 0;
+            for (let i = 0; i < MAX_PARTICLES; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 0.3,
+                    vy: -0.1 - Math.random() * 0.25,
+                    size: 1 + Math.random() * 2.5,
+                    alpha: 0.08 + Math.random() * 0.18,
+                    color: COLORS[Math.floor(Math.random() * COLORS.length)]
+                });
+            }
+        }
+        initParticles();
+
+        /* --- bass-drop state --- */
+        let nextDrop = 4000 + Math.random() * 6000;
+        let dropFlash = 0;
+
+        /* --- timing --- */
+        let lastTime = 0;
+
+        /* --- ambient glow phase (slow breathing) --- */
+        let breathPhase = 0;
+
+        function draw(time) {
+            const dt = lastTime ? (time - lastTime) : 16;
+            lastTime = time;
+
+            const W = canvas.width, H = canvas.height;
+            ctx.clearRect(0, 0, W, H);
+
+            /* ---------- ambient breathing glow ---------- */
+            breathPhase += dt * 0.0004;
+            const cx = W * 0.5, cy = H * 0.5;
+            const breathVal = 0.5 + 0.5 * Math.sin(breathPhase);
+            const ambR = 220 + breathVal * 120 + dropFlash * 80;
+            const ambAlpha = 0.045 + breathVal * 0.035 + dropFlash * 0.06;
+            const amb = ctx.createRadialGradient(cx, cy, 0, cx, cy, ambR);
+            amb.addColorStop(0, `rgba(30,215,96,${(ambAlpha * 1.2).toFixed(3)})`);
+            amb.addColorStop(0.35, `rgba(25,211,197,${(ambAlpha * 0.7).toFixed(3)})`);
+            amb.addColorStop(0.65, `rgba(140,61,255,${(ambAlpha * 0.5).toFixed(3)})`);
+            amb.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = amb;
+            ctx.beginPath();
+            ctx.arc(cx, cy, ambR, 0, Math.PI * 2);
+            ctx.fill();
+
+            /* ---------- bass-drop logic ---------- */
+            nextDrop -= dt;
+            if (dropFlash > 0) dropFlash = Math.max(0, dropFlash - dt * 0.003);
+            if (nextDrop <= 0) {
+                /* burst: spawn many rings rapidly from 2-3 emitters */
+                dropFlash = 1;
+                const burstCount = 2 + Math.floor(Math.random() * 2);
+                for (let b = 0; b < burstCount; b++) {
+                    const em = emitters[Math.floor(Math.random() * emitters.length)];
+                    const numRings = 3 + Math.floor(Math.random() * 4);
+                    for (let j = 0; j < numRings; j++) {
+                        spawnRing(em.x, em.y, em.depth, em.colorIdx + j, true);
+                    }
+                }
+                nextDrop = 5000 + Math.random() * 8000;
+            }
+
+            /* ---------- normal emitter spawning ---------- */
+            for (let e = 0; e < emitters.length; e++) {
+                const em = emitters[e];
+                em.nextSpawn -= dt;
+                if (em.nextSpawn <= 0) {
+                    /* spawn 1-2 concentric rings per pulse */
+                    const n = Math.random() < 0.3 ? 2 : 1;
+                    for (let j = 0; j < n; j++) {
+                        spawnRing(em.x, em.y, em.depth, em.colorIdx + j, false);
+                    }
+                    em.nextSpawn = em.interval * (0.8 + Math.random() * 0.4);
+                }
+                /* slowly drift emitters for organic feel */
+                em.x += (Math.random() - 0.5) * 0.15;
+                em.y += (Math.random() - 0.5) * 0.15;
+                em.x = Math.max(W * 0.05, Math.min(W * 0.95, em.x));
+                em.y = Math.max(H * 0.05, Math.min(H * 0.95, em.y));
+            }
+
+            /* ---------- draw rings ---------- */
+            for (let i = 0; i < MAX_RINGS; i++) {
+                const ring = ringPool[i];
+                if (!ring.active) continue;
+
+                ring.r += ring.speed * (dt * 0.06);
+                ring.life = 1 - ring.r / ring.maxR;
+                if (ring.life <= 0) { releaseRing(ring); continue; }
+
+                const [r, g, b] = ring.color;
+                const a = ring.life * ring.intensity;
+                const ea = Math.min(a, 1);
+
+                /* soft glow fill for thick rings */
+                if (ring.soft && ring.r > 5) {
+                    const inner = Math.max(0, ring.r - ring.lineWidth * 3);
+                    const grad = ctx.createRadialGradient(
+                        ring.x, ring.y, inner,
+                        ring.x, ring.y, ring.r + ring.lineWidth * 2
+                    );
+                    grad.addColorStop(0, `rgba(${r},${g},${b},0)`);
+                    grad.addColorStop(0.5, `rgba(${r},${g},${b},${(0.07 * ea).toFixed(3)})`);
+                    grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(ring.x, ring.y, ring.r + ring.lineWidth * 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                /* ring stroke */
+                ctx.beginPath();
+                ctx.arc(ring.x, ring.y, ring.r, 0, Math.PI * 2);
+                const strokeA = (ring.soft ? 0.2 : 0.4) * ea;
+                ctx.strokeStyle = `rgba(${r},${g},${b},${strokeA.toFixed(3)})`;
+                ctx.lineWidth = ring.lineWidth * (ring.soft ? ring.life : 1);
+
+                if (ring.soft) {
+                    ctx.shadowColor = `rgba(${r},${g},${b},${(0.45 * ea).toFixed(3)})`;
+                    ctx.shadowBlur = 18 + ring.lineWidth * 2;
+                } else {
+                    ctx.shadowColor = `rgba(${r},${g},${b},${(0.3 * ea).toFixed(3)})`;
+                    ctx.shadowBlur = 8;
+                }
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+
+            /* ---------- floating particles ---------- */
+            for (let i = 0; i < MAX_PARTICLES; i++) {
+                const p = particles[i];
+                p.x += p.vx * (dt * 0.06);
+                p.y += p.vy * (dt * 0.06);
+                /* wrap around edges */
+                if (p.x < -10) p.x = W + 10;
+                if (p.x > W + 10) p.x = -10;
+                if (p.y < -10) { p.y = H + 10; p.x = Math.random() * W; }
+
+                const [pr, pg, pb] = p.color;
+                const pa = p.alpha + dropFlash * 0.12;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(${pr},${pg},${pb},${pa.toFixed(3)})`;
+                ctx.shadowColor = `rgba(${pr},${pg},${pb},${(pa * 0.6).toFixed(3)})`;
+                ctx.shadowBlur = 6;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            /* ---------- subtle vignette overlay for depth ---------- */
+            const vig = ctx.createRadialGradient(cx, cy, W * 0.2, cx, cy, W * 0.75);
+            vig.addColorStop(0, 'rgba(0,0,0,0)');
+            vig.addColorStop(1, 'rgba(0,0,0,0.15)');
+            ctx.fillStyle = vig;
+            ctx.fillRect(0, 0, W, H);
+
+            animId = requestAnimationFrame(draw);
+        }
+
+        /* pre-spawn some rings so the scene isn't empty on start */
+        for (let e = 0; e < emitters.length; e++) {
+            const em = emitters[e];
+            for (let j = 0; j < 3; j++) {
+                spawnRing(em.x, em.y, em.depth, em.colorIdx + j, false);
+            }
+        }
+        animId = requestAnimationFrame(draw);
+        return () => cancelAnimationFrame(animId);
+    };
+
+    // Initialize the active theme now that all renderers are registered
+    switchTheme(_pendingTheme || 'equalizer');
 
     /* ------------------------------------------------------------------ */
     /*  Toast notifications                                                */

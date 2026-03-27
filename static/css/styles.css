@@ -992,3 +992,296 @@ h1 {
     height: 100%;
     display: block;
 }
+
+/* =============================================
+   Responsive — Tablet  (≤ 768px)
+   ============================================= */
+@media (max-width: 768px) {
+    .container {
+        padding: 2rem 1.2rem;
+    }
+
+    h1 {
+        font-size: 2.2rem;
+    }
+
+    .subtitle {
+        font-size: 0.95rem;
+        margin-bottom: 2rem;
+    }
+
+    .generate-section,
+    .train-section {
+        padding: 24px 20px;
+    }
+
+    .track-item {
+        padding: 16px 18px;
+    }
+
+    .track-header {
+        flex-wrap: wrap;
+    }
+
+    .track-actions {
+        width: 100%;
+        margin-top: 10px;
+        justify-content: flex-start;
+    }
+
+    .modal {
+        padding: 1.6rem;
+        width: 94%;
+    }
+
+    .settings-wrapper {
+        top: 1rem;
+        right: 0.6rem;
+    }
+
+    .btn-run {
+        padding: 16px 32px;
+        font-size: 15px;
+    }
+
+    .btn-run-cancel {
+        padding: 16px 28px;
+        font-size: 15px;
+    }
+
+    .tooltip-trigger:hover::after {
+        width: 220px;
+    }
+
+    .section-divider {
+        margin-top: 50px;
+    }
+}
+
+/* =============================================
+   Responsive — Phone  (≤ 480px)
+   ============================================= */
+@media (max-width: 480px) {
+    .container {
+        padding: 1.2rem 0.85rem;
+    }
+
+    h1 {
+        font-size: 1.8rem;
+        margin-right: 40px; /* avoid overlap with settings gear */
+    }
+
+    .subtitle {
+        font-size: 0.88rem;
+        margin-bottom: 1.6rem;
+        margin-right: 40px;
+    }
+
+    .generate-section,
+    .train-section {
+        padding: 18px 14px;
+        border-radius: var(--radius-md);
+    }
+
+    /* Stack run buttons vertically */
+    .run-section {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .btn-run,
+    .btn-run-cancel,
+    .btn-use-tracks {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+    }
+
+    .btn-run {
+        padding: 16px 20px;
+    }
+
+    .btn-run-cancel {
+        padding: 16px 20px;
+    }
+
+    /* Train header stacks on narrow screens */
+    .train-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .train-actions {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .train-actions-right {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .train-actions .btn,
+    .train-actions-right .btn {
+        flex: 1;
+        text-align: center;
+        justify-content: center;
+    }
+
+    /* Track items */
+    .track-item {
+        padding: 14px 12px;
+        border-radius: var(--radius-md);
+    }
+
+    .track-cover {
+        width: 44px;
+        height: 44px;
+        border-radius: 8px;
+    }
+
+    .track-name {
+        font-size: 0.92rem;
+    }
+
+    .track-reason {
+        font-size: 0.8rem;
+    }
+
+    .track-actions {
+        gap: 4px;
+    }
+
+    .track-actions .btn {
+        padding: 8px 14px;
+        font-size: 13px;
+    }
+
+    /* Modals full-width */
+    .modal {
+        width: 100%;
+        max-width: 100%;
+        padding: 1.4rem 1rem;
+        border-radius: var(--radius-md) var(--radius-md) 0 0;
+        max-height: 90vh;
+    }
+
+    .modal-overlay.open {
+        align-items: flex-end;
+    }
+
+    .modal h2 {
+        font-size: 1.15rem;
+    }
+
+    .modal-actions {
+        flex-direction: column;
+    }
+
+    .modal-actions .btn {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+    }
+
+    /* Accordion panels */
+    .accordion-header {
+        padding: 12px 14px;
+    }
+
+    .accordion-header h3 {
+        font-size: 0.84rem;
+    }
+
+    .accordion-body-inner {
+        padding: 12px;
+    }
+
+    .accordion-body-inner textarea {
+        min-height: 70px;
+        font-size: 0.82rem;
+    }
+
+    /* Settings gear */
+    .settings-wrapper {
+        top: 0.8rem;
+        right: 0.4rem;
+    }
+
+    .settings-dropdown {
+        min-width: 180px;
+    }
+
+    /* Toast full-width on phone */
+    .toast {
+        left: 1rem;
+        right: 1rem;
+        transform: translateY(80px);
+        max-width: none;
+    }
+
+    .toast.show {
+        transform: translateY(0);
+    }
+
+    /* Section labels */
+    .section-label {
+        font-size: 0.68rem;
+    }
+
+    .section-desc {
+        font-size: 0.84rem;
+    }
+
+    .section-divider {
+        margin-top: 40px;
+    }
+
+    /* Style switcher */
+    .style-switcher {
+        margin-bottom: 1rem;
+    }
+
+    .style-switcher-btn {
+        padding: 5px 12px;
+        font-size: 0.7rem;
+    }
+
+    /* Tooltips reposition for small screens */
+    .tooltip-trigger:hover::after {
+        width: 200px;
+        left: auto;
+        right: -10px;
+        transform: none;
+    }
+
+    .tooltip-trigger:hover::before {
+        left: auto;
+        right: 4px;
+        transform: none;
+    }
+
+    /* Ensure touch-friendly minimum sizes */
+    .btn,
+    .btn-train,
+    .btn-run,
+    .btn-run-cancel,
+    .btn-use-tracks,
+    .settings-btn,
+    .settings-dropdown button,
+    .style-switcher-btn {
+        min-height: 44px;
+    }
+
+    /* Feedback form on small screens */
+    .form-actions {
+        flex-direction: column;
+    }
+
+    .form-actions .btn {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+    }
+}

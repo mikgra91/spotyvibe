@@ -81,7 +81,7 @@ spotyvibe/
 │
 ├── static/                 # Static assets served by Flask
 │   └── css/
-│       └── styles.css      # Main stylesheet — aurora-wave dark glass design system
+│       └── styles.css      # Main stylesheet — dark glass design system + theme definitions
 │
 ├── templates/              # Flask templates
 │   └── index.html          # Single-page web UI (HTML + JS)
@@ -92,6 +92,23 @@ spotyvibe/
     ├── test_suggestions.py # Tests for suggestion logic
     └── test_feedback.py    # Tests for feedback recording
 ```
+
+#### Theme System
+
+The application supports two visual background themes, switchable at runtime via a pill-button bar below the page title.
+
+| Theme | Implementation | Body class |
+|---|---|---|
+| **Equalizer** | Canvas — 56 spring-physics bars with beat simulation, rounded tops, reflections, and per-bar glow | `.theme-equalizer` |
+| **Pulse** | Canvas — ring pool (120 slots) with 5 emitters, floating particles, breathing ambient glow, and bass-drop bursts | `.theme-pulse` |
+
+**Switching mechanism:**
+1. `switchTheme(name)` sets `document.body.className` to `theme-{name}`
+2. Replaces `#themeBackground` innerHTML with a `<canvas>` element for the selected theme
+3. Canvas themes start a `requestAnimationFrame` loop; the previous loop is stopped via a returned cleanup function
+4. Preference is persisted in `localStorage` under key `spotyvibe-theme` and restored on page load
+
+All canvas renderers are registered in the `THEME_RENDERERS` object in `index.html`.
 
 ---
 
@@ -338,6 +355,17 @@ The stylesheet implements a premium aurora-wave dark glass design with the follo
 **Inputs:** Darker input background (`#0f1318`) with 3px focus rings and additional glow halo for enhanced accessibility and premium feel.
 
 **Accessibility:** A `prefers-reduced-motion` media query disables all CSS animations and transitions for users who have requested reduced motion in their OS settings.
+
+**Responsive Design:**
+
+The stylesheet includes two CSS media-query breakpoints for mobile and tablet devices. No HTML or JavaScript changes were required — the existing `<meta name="viewport" content="width=device-width, initial-scale=1.0">` tag in `index.html` is sufficient.
+
+| Breakpoint | Target | Key layout changes |
+|---|---|---|
+| `max-width: 768px` | Tablets | Reduced container padding, smaller headings (`h1` / `h2`), wrapping track actions, smaller modals, adjusted button padding |
+| `max-width: 480px` | Phones | Minimal padding, vertical stacking for buttons / forms / modals, full-width modals that slide up from the bottom (bottom-sheet pattern), 44px minimum touch targets on all interactive elements, full-width toast notifications, repositioned tooltips, stacked train header and actions |
+
+The desktop experience is completely unaffected — all responsive rules are scoped inside `@media` blocks. This is relevant to the planned Android APK: the WebView will render the same responsive UI without any additional adaptation.
 
 ---
 
