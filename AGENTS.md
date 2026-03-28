@@ -108,8 +108,28 @@ spotyvibe/
 - **Do not run destructive git commands** such as `git restore`, `git checkout -- <path>`, `git reset`, or `git clean`.
 - If the working tree contains unexpected changes, use non-destructive inspection (`git status`, diffs) and ask the user how to proceed.
 
+### Git Commit Message Style
+
+Follow the existing repository commit message style:
+
+- **Subject line:** short, sentence-case summary (no trailing period). Keep it descriptive (avoid placeholder commits like `"y"`).
+- **Body (recommended for multi-file changes):** blank line after the subject, then a bullet list using `- `.
+- Bullets should describe **what changed and why**, not just file names.
+
+Example:
+
+```
+Add profile import/export and tighten Android WebView security
+
+- Add profile import/export endpoints and UI controls
+- Enforce server-side import size limits
+- Restrict Android WebView downloads to trusted localhost endpoints
+- Update docs and tests for new behavior
+```
+
 
 ### Credentials & Security
+
 
 - Never hardcode API keys or secrets in source code.
 - All credentials are stored in `%LOCALAPPDATA%\spotyvibe\.credentials` (dotenv format), outside the project directory.
