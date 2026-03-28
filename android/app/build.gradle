@@ -8,6 +8,12 @@ android {
     namespace 'com.spotyvibe.app'
     compileSdk 34
 
+    sourceSets {
+        main {
+            python.srcDir "src/main/python"
+        }
+    }
+
     defaultConfig {
         applicationId "com.spotyvibe.app"
         minSdk 26

@@ -95,7 +95,7 @@ class MainActivity : AppCompatActivity() {
         flaskThread = Thread({
             try {
                 Log.i(TAG, "Starting Flask server...")
-                py.getModule("bootstrap").callAttr("start", filesDir.absolutePath)
+                py.getModule("spotyvibe_bootstrap").callAttr("start", filesDir.absolutePath)
             } catch (e: Exception) {
                 Log.e(TAG, "Flask server error", e)
             }
