@@ -423,7 +423,7 @@ h1 {
     margin-top: 12px;
 }
 
-.hidden { display: none; }
+.hidden { display: none !important; }
 
 .empty-state {
     text-align: center;
