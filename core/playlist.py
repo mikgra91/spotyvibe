@@ -23,6 +23,7 @@ Technologies & patterns used:
 """
 
 import os
+import re
 # concurrent.futures provides a high-level interface for asynchronous
 # execution. ThreadPoolExecutor is used here (not ProcessPoolExecutor)
 # because the workload is I/O-bound (HTTP requests to Spotify API),
@@ -50,6 +51,40 @@ PLAYLIST_NAME = "SpotyVibe Playlist"
 # Dashboard. The Android variant uses a custom URI scheme (deep link)
 # while the desktop variant uses a local HTTP server callback.
 REDIRECT_URI = "spotyvibe://callback" if IS_ANDROID else "http://127.0.0.1:5000/callback"
+
+
+def _sanitize_spotify_search_value(value):
+    """Sanitize values used inside Spotify search quotes.
+
+    Spotify search queries often use the syntax: track:"..." artist:"...".
+    We want to preserve real artist/track names (including punctuation like
+    apostrophes), while preventing malformed queries.
+
+    We therefore:
+    - strip ASCII control characters (including newlines, null bytes)
+    - remove double-quotes and backslashes (they break quoted syntax)
+    - collapse whitespace
+    """
+    if value is None:
+        return ""
+
+    s = str(value)
+    s = re.sub(r"[\x00-\x1F\x7F]", " ", s)
+    # Remove characters that can break Spotify's quoted query syntax.
+    s = s.replace('"', " ").replace("\\", " ")
+    # Also handle common “smart quotes”.
+    s = s.replace("“", " ").replace("”", " ")
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def _build_track_artist_query(artist, track):
+    artist_q = _sanitize_spotify_search_value(artist)
+    track_q = _sanitize_spotify_search_value(track)
+    return f'track:"{track_q}" artist:"{artist_q}"'
+
+
+
 
 
 def get_spotify_oauth():
@@ -188,7 +223,7 @@ def remove_from_playlist(artist, track):
     if not playlist:
         return {"removed": False, "reason": "Playlist not found"}
 
-    query = f'track:"{track}" artist:"{artist}"'
+    query = _build_track_artist_query(artist, track)
     res = sp.search(q=query, type="track", limit=1)
 
     if not res or not res["tracks"]["items"]:
@@ -243,8 +278,9 @@ def search_tracks(tracks, on_progress=None):
         # Each thread gets its own client to avoid sharing a non-thread-safe
         # requests.Session across concurrent workers.
         thread_sp = get_spotify_client()
-        query = f'track:"{t["track"]}" artist:"{t["artist"]}"'
+        query = _build_track_artist_query(t["artist"], t["track"])
         res = thread_sp.search(q=query, type="track", limit=1)
+
         if res and res["tracks"]["items"]:
             item = res["tracks"]["items"][0]
             uri = item["uri"]

@@ -40,6 +40,11 @@ DEFAULT_NEW_ARTIST_PERCENTAGE = 30
 # Default OpenAI model used when none is configured
 DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
 
+# Maximum allowed size for profile imports (JSON payload size).
+# Enforced server-side by POST /api/profile/import.
+PROFILE_IMPORT_MAX_BYTES = 10 * 1024 * 1024  # 10MB
+
+
 # True when running inside Chaquopy on Android
 IS_ANDROID = hasattr(sys, 'getandroidapilevel')
 
@@ -112,8 +117,14 @@ def get_model():
 
 
 def get_debug_mode():
-    """Return True if debug mode is enabled."""
+    """Return True if debug mode is enabled.
+
+    Debug logging is desktop-only; on Android this always returns False.
+    """
+    if IS_ANDROID:
+        return False
     return os.getenv("DEBUG_MODE", "").lower() in ("1", "true", "on")
+
 
 
 def get_playlist_size():
@@ -143,8 +154,11 @@ def get_settings():
         "debug_mode": get_debug_mode(),
         "playlist_size": get_playlist_size(),
         "new_artist_percentage": get_new_artist_percentage(),
-        "debug_log_path": str(DEBUG_LOG_FILE),
+        "debug_log_path": "" if IS_ANDROID else str(DEBUG_LOG_FILE),
+        "debug_controls_available": not IS_ANDROID,
+        "is_android": IS_ANDROID,
     }
+
 
 
 # Keys that contain secrets and should be masked in the UI

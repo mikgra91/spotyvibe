@@ -169,15 +169,19 @@ Manages all application settings and credentials.
 | `PROFILE_FILE` | Path to the personalised taste profile in AppData. |
 | `CACHE_FILE` | Path to the cached Spotify OAuth token. |
 | `DEBUG_LOG_FILE` | Path to the debug log file (`%LOCALAPPDATA%\spotyvibe\debug.log`). |
+| `PROFILE_IMPORT_MAX_BYTES` | Maximum allowed request size for `POST /api/profile/import` (default: 10MB). |
+
 
 **Key helpers:**
 
 - **`_get_app_dir()`** — Returns the platform-appropriate storage directory. On Android: reads `SPOTYVIBE_FILES_DIR` env var (set by `MainActivity.kt`), falling back to `/data/data/com.spotyvibe.app/files/spotyvibe/`. On desktop: returns `%LOCALAPPDATA%\spotyvibe` (unchanged). All file paths (`CREDENTIALS_FILE`, `PROFILE_FILE`, `CACHE_FILE`, `DEBUG_LOG_FILE`) are resolved from this base.
 - **`get_model()`** — Returns the user's configured `OPENAI_MODEL` from the credentials file, falling back to `DEFAULT_OPENAI_MODEL`.
-- **`get_debug_mode()`** — Returns `True` if the `DEBUG_MODE` setting is enabled.
+- **`get_debug_mode()`** — Returns `True` if the `DEBUG_MODE` setting is enabled (**desktop only**; always `False` on Android).
+
 - **`get_playlist_size()`** — Returns the configured playlist size (minimum `BATCH_SIZE`).
 - **`get_new_artist_percentage()`** — Returns the configured new-artist percentage, clamped to 1–100, falling back to `DEFAULT_NEW_ARTIST_PERCENTAGE`.
-- **`get_settings()`** — Returns `{"model": str, "debug_mode": bool, "playlist_size": int, "new_artist_percentage": int, "debug_log_path": str(DEBUG_LOG_FILE)}` for the Settings UI. The `debug_log_path` field lets the frontend display the platform-correct log path instead of hardcoding a Windows-specific path.
+- **`get_settings()`** — Returns `{"model": str, "debug_mode": bool, "playlist_size": int, "new_artist_percentage": int, "debug_log_path": str, "debug_controls_available": bool, "is_android": bool}` for the Settings UI. Debug controls are desktop-only; Android receives `debug_controls_available=false` and an empty `debug_log_path`.
+
 
 **Credential storage:** Credentials and settings (including the selected model) are stored in `%LOCALAPPDATA%\spotyvibe\.credentials` as a dotenv file, outside the project directory. The `load_config()` function loads them into `os.environ`. The `save_credentials()` function ensures the file always ends with a newline before appending new keys, preventing `python-dotenv` parse errors from concatenated lines.
 
@@ -277,7 +281,11 @@ Manages all interactions with the Spotify Web API via the `spotipy` library.
 
 **Spotify API compatibility:** Playlist creation uses `POST /v1/me/playlists` (via `spotipy.Spotify.current_user_playlist_create()`) instead of the deprecated `POST /v1/users/{user_id}/playlists` endpoint, which was removed by Spotify in February 2026.
 
-**Parallelised search:** `search_tracks()` uses `ThreadPoolExecutor` with 10 workers to verify tracks on Spotify concurrently, reducing the search time from ~15s (sequential) to ~2s for 30 tracks.
+**Parallelised search:** `search_tracks()` uses `ThreadPoolExecutor` with 10 workers to verify tracks on Spotify concurrently, reducing the search time from ~15s (sequential) to ~2s for typical playlist sizes (e.g., 10–30 tracks).
+
+
+**Search query sanitisation:** User/model-provided artist and track strings are sanitised before building `track:"..." artist:"..."` queries to avoid malformed Spotify search syntax (e.g., embedded quotes/control characters).
+
 
 ---
 
@@ -309,7 +317,12 @@ Exposes all functionality via HTTP endpoints.
 | POST | `/api/remove` | Removes a track from Spotify without recording feedback. |
 | GET | `/api/profile/status` | Returns whether the profile is trained and when. |
 | GET | `/api/profile/data` | Returns the full profile JSON for pre-filling the training form. |
+| GET | `/api/profile/export` | Downloads the full profile JSON as `spotyvibe_profile.json` (used by the UI Export button). |
+| POST | `/api/profile/import` | Replaces the full profile JSON from an imported JSON object (used by the UI Import button). The previous profile is backed up to `.history.json`. Enforces a 10MB request size limit. |
+| POST | `/api/profile/reset-to-history` | Swaps the active profile file with its `.history.json` backup (one-step revert). Returns 400 if no history exists yet. |
 | POST | `/api/train-profile` | Sends structured taste sections (`core_description`, `must_have`, `soft_preferences`, `avoid`) to GPT and updates the profile. `core_description` is required. |
+
+
 | GET | `/api/spotify/status` | Returns Spotify auth status (`not_configured`, `not_authenticated`, `authenticated`). Validates the token with a live API call. |
 | GET | `/api/spotify/auth` | Redirects to Spotify's authorisation page. |
 | POST | `/api/spotify/disconnect` | Clears the cached Spotify token to force re-authentication. |
@@ -319,7 +332,8 @@ Exposes all functionality via HTTP endpoints.
 | GET | `/api/settings` | Returns non-secret settings (model, debug mode, playlist size, new artist percentage). |
 | POST | `/api/settings` | Updates non-secret settings (model, debug mode, playlist size, new artist percentage). |
 | GET | `/api/settings/models` | Returns available OpenAI chat models and the currently selected one. |
-| DELETE | `/api/settings/debug-log` | Clears the debug log file. |
+| DELETE | `/api/settings/debug-log` | Clears the debug log file (**desktop only**; returns 404 on Android). |
+
 | GET | `/api/help` | Returns the User Manual content as rendered HTML. |
 
 **SSE streaming (`/api/run`):**
@@ -351,6 +365,9 @@ Both sections are wrapped in styled cards (`.train-section` and `.generate-secti
 
 **Key UI components:**
 - **Train Taste Profile** — accordion-style editor with four collapsible sections: Core Description (required, open by default), Must Have, Soft Preferences, and Avoid. Existing profile data is pre-filled via `GET /api/profile/data` when the form is opened. Core Description is validated client-side — submission is blocked with an error highlight if empty. Shows an inline warning and disables inputs if the OpenAI API key is missing.
+- **Profile import/export/reset** — when the user explicitly enters Edit Profile mode, the UI exposes **⬆ Import** (posts to `POST /api/profile/import`), **⬇ Export** (downloads from `GET /api/profile/export`), and **↩ Reset to history** (calls `POST /api/profile/reset-to-history`). Import replaces the entire profile file; the previous profile is automatically backed up via `.history.json`.
+
+
 - **Generate button** — triggers the pipeline with live progress updates. Shows an inline warning and disables the button if OpenAI key or Spotify credentials/authentication are missing.
 - **⛔ Cancel button** — visible only during generation. Calls `POST /api/cancel` with `finalize: false` and aborts the SSE reader via `AbortController`. Stops the generation without creating or modifying any playlist.
 - **▶ Use X tracks now button** — visible during generation once at least one track has been verified. Calls `POST /api/cancel` with `finalize: true` (does NOT abort the SSE reader). The server stops the loop and emits a `result` event with the partial playlist. Label updates in real time via `batch_verified` SSE events.
@@ -362,7 +379,8 @@ Both sections are wrapped in styled cards (`.train-section` and `.generate-secti
 - **Help modal** — loads the User Manual content from `/api/help`.
 - **Toast notifications** — brief confirmation messages after feedback/remove actions.
 
-**Debug mode:** When enabled via the Settings modal, all GPT interactions (both suggestion generation and profile training) are logged to `%LOCALAPPDATA%\spotyvibe\debug.log` via the `debug_log()` utility. Each log entry includes a timestamp, the full message array sent to GPT, and the raw response content.
+**Debug mode (desktop only):** When enabled via the Settings modal on desktop, all GPT interactions (both suggestion generation and profile training) are logged to `%LOCALAPPDATA%\spotyvibe\debug.log` via the `debug_log()` utility. Android builds do not expose debug controls and do not write prompt logs.
+
 
 ---
 
@@ -432,9 +450,14 @@ The `android/` directory contains a complete Android project that packages Spoty
 3. Shows a splash screen while Flask initialises.
 4. Polls `http://127.0.0.1:5000` until the server responds (with exponential backoff).
 5. Hides the splash screen and loads the URL in a **WebView** with JavaScript enabled.
-6. `app.py` sets `use_reloader=False` on Android because Flask's reloader forks a child process, which crashes under Chaquopy's embedded runtime.
-7. **`onDestroy()`** interrupts the Flask daemon thread and calls `WebView.destroy()` to release resources when the activity is finishing.
-8. **`onNewIntent()`** handles OAuth callback deep-links from the system browser, loading the callback URL in the WebView so the token exchange completes inside the app process.
+6. Enables Android-specific WebView integrations:
+   - **File chooser support** (`onShowFileChooser`) so `<input type="file">` works for profile import.
+      - **Download handling** (`DownloadListener` + `DownloadManager`) so the profile export endpoint downloads into the device's **Downloads**. Downloads are restricted to `http://127.0.0.1:5000/api/profile/export`.
+
+7. `app.py` sets `use_reloader=False` on Android because Flask's reloader forks a child process, which crashes under Chaquopy's embedded runtime.
+8. **`onDestroy()`** interrupts the Flask daemon thread and calls `WebView.destroy()` to release resources when the activity is finishing.
+9. **`onNewIntent()`** handles OAuth callback deep-links from the system browser, loading the callback URL in the WebView so the token exchange completes inside the app process.
+
 
 **OAuth flow on Android:** Desktop browsers handle Spotify OAuth via a `window.open()` popup. On Android WebView this fails because popup URLs that leave `127.0.0.1` (e.g. `accounts.spotify.com`) are routed to the system browser, which cannot reach the localhost `/callback` endpoint since Flask runs only inside the app process.
 
@@ -505,7 +528,8 @@ User clicks "Generate"
  │  (profile JSON   │     │  GPT-4.1     │
  │   + system rules)│◄────│  (JSON mode) │
  └────────┬────────┘     └──────────────┘
-          │ 30 suggestions
+                    │ N suggestions (until playlist_size is reached)
+
           ▼
  ┌─────────────────┐
  │  Filter dupes    │ Code-side dedup against full history + disliked

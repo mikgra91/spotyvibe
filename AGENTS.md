@@ -103,6 +103,12 @@ spotyvibe/
 - Only remove an import after verifying no usages remain in the entire file.
 - after new features always create/update the existing unit tests
 
+### Git Safety
+
+- **Do not run destructive git commands** such as `git restore`, `git checkout -- <path>`, `git reset`, or `git clean`.
+- If the working tree contains unexpected changes, use non-destructive inspection (`git status`, diffs) and ask the user how to proceed.
+
+
 ### Credentials & Security
 
 - Never hardcode API keys or secrets in source code.

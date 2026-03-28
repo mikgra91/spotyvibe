@@ -42,15 +42,24 @@
     <p class="section-label">Step 1 — Taste Profile</p>
     <p class="section-desc">Teach the AI what you like (and dislike) so it can tailor suggestions to your taste.</p>
 
-    <!-- Train taste profile -->
+        <!-- Train taste profile -->
     <div class="train-section" id="trainSection">
-        <div class="train-header">
-            <div>
+                <div class="train-header">
+            <div class="train-header-left">
                 <h2>🎯 Music Profile</h2>
                 <span class="train-status" id="trainStatus"></span>
+                <div class="profile-io-row hidden" id="profileIoActions" aria-label="Profile import/export/reset">
+                    <button class="btn btn-profile-io" id="profileImportBtn" onclick="startImportProfile()" title="Import profile JSON">⬆ Import</button>
+                    <button class="btn btn-profile-io" id="profileExportBtn" onclick="exportProfile()" title="Export profile JSON">⬇ Export</button>
+                    <button class="btn btn-profile-io" id="profileResetBtn" onclick="resetProfileToHistory()" title="Reset profile to previous saved version">↩ Reset to history</button>
+                </div>
             </div>
-            <button class="btn-train" id="trainToggleBtn" onclick="toggleTrainBody()">Edit profile</button>
+            <div class="train-header-actions">
+                <button class="btn-train" id="trainToggleBtn" onclick="toggleTrainBody()">Edit profile</button>
+                <input id="profileImportInput" type="file" accept="application/json,.json" style="position:absolute;left:-9999px;width:1px;height:1px;" />
+            </div>
         </div>
+
         <div id="trainWarn" class="hidden"></div>
         <div class="train-body hidden" id="trainBody">
 
@@ -212,7 +221,7 @@
             <input id="settings-new-artist-pct" type="number" min="1" max="100" step="1" style="width:100%;">
             <div class="cred-status" id="status-settings-new-artist-pct"></div>
         </div>
-        <div class="form-row">
+                <div class="form-row" id="debugModeRow">
             <label>Debug Mode</label>
             <div style="display:flex;align-items:center;gap:10px;">
                 <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:0.88rem;color:var(--text-secondary);font-weight:400;">
@@ -248,8 +257,15 @@
     let suggestions = [];
     let openFormIndex = null;   // which item currently has its form expanded
     let openFormAction = null;  // "like" or "dislike"
-    let spotifyAuthStatus = 'unknown';
+        let spotifyAuthStatus = 'unknown';
     let openaiKeySet = false;
+
+    // Profile editor state: Import/Export/Reset should only show when the
+    // user explicitly enters edit mode (not when the editor auto-opens).
+    let userProfileEditMode = false;
+
+    // Server-controlled flag (Debug Mode is desktop-only)
+    let debugControlsAvailable = true;
 
     /* ------------------------------------------------------------------ */
     /*  Credential & auth checks                                           */
@@ -384,7 +400,7 @@
         document.getElementById(id).classList.toggle('open');
     }
 
-    async function checkProfileStatus() {
+        async function checkProfileStatus() {
         try {
             const resp = await fetch('/api/profile/status');
             const data = await resp.json();
@@ -395,8 +411,14 @@
                 el.textContent = '✓ Last trained: ' + d.toLocaleString();
             } else {
                 el.textContent = '⚠ Not yet trained — describe your taste below.';
-                // Auto-open the form if the profile hasn't been trained
+
+                // Auto-open the editor body for first-time users, but DO NOT
+                // show Import/Export/Reset unless the user pressed "Edit profile".
                 document.getElementById('trainBody').classList.remove('hidden');
+                userProfileEditMode = false;
+                updateProfileIoVisibility();
+                updateTrainToggleLabel();
+                prefillTrainFields();
             }
         } catch (e) { /* ignore */ }
     }
@@ -414,12 +436,121 @@
         } catch (e) { /* ignore — fields stay empty */ }
     }
 
+                function updateProfileIoVisibility() {
+        const io = document.getElementById('profileIoActions');
+        if (!io) return;
+        io.classList.toggle('hidden', !userProfileEditMode);
+    }
+
+    function updateTrainToggleLabel() {
+        const body = document.getElementById('trainBody');
+        const btn = document.getElementById('trainToggleBtn');
+        if (!body || !btn) return;
+        btn.textContent = body.classList.contains('hidden') ? 'Edit profile' : 'Hide profile';
+    }
+
     function toggleTrainBody() {
         const body = document.getElementById('trainBody');
         const isOpening = body.classList.contains('hidden');
-        body.classList.toggle('hidden');
-        if (isOpening) prefillTrainFields();
+
+        if (isOpening) {
+            body.classList.remove('hidden');
+            userProfileEditMode = true;
+            prefillTrainFields();
+        } else {
+            body.classList.add('hidden');
+            userProfileEditMode = false;
+        }
+
+        updateProfileIoVisibility();
+        updateTrainToggleLabel();
     }
+
+    function startImportProfile() {
+        const input = document.getElementById('profileImportInput');
+        if (!input) return;
+
+        const ok = confirm(
+            'Import profile? This will replace your current profile file.\n\n' +
+            'Your previous profile will be backed up automatically to the history file.'
+        );
+        if (!ok) return;
+
+        input.value = '';
+        input.click();
+    }
+
+    async function exportProfile() {
+        // Prefer an <a download> click so desktop browsers download without navigation.
+        // Android WebView will route this through the native download handler.
+        try {
+            const a = document.createElement('a');
+            a.href = '/api/profile/export';
+            a.download = 'spotyvibe_profile.json';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            showToast('Export started…', 'info', 2000);
+        } catch (e) {
+            window.location.href = '/api/profile/export';
+        }
+    }
+
+        async function handleProfileImportFile(file) {
+        if (!file) return;
+
+        // Client-side early check (server also enforces).
+        const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
+        if (file.size > MAX_IMPORT_BYTES) {
+            showToast('Import failed: file is larger than 10MB.', 'error');
+            return;
+        }
+
+        const text = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ''));
+            reader.onerror = () => reject(new Error('Could not read file'));
+            reader.readAsText(file);
+        });
+
+        let parsed;
+        try {
+            parsed = JSON.parse(text);
+        } catch (e) {
+            showToast('Invalid JSON file.', 'error');
+            return;
+        }
+
+        try {
+            const resp = await fetch('/api/profile/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ profile: parsed }),
+            });
+            const data = await resp.json();
+
+            if (!resp.ok || data.error) {
+                showToast('Import failed: ' + (data.error || 'unknown error'), 'error');
+                return;
+            }
+
+            showToast('Profile imported. Previous profile saved to history.', 'success');
+            await Promise.all([checkProfileStatus(), prefillTrainFields()]);
+        } catch (e) {
+            showToast('Network error: ' + e.message, 'error');
+        }
+    }
+
+    // Wire up the hidden file input once.
+    (function bindProfileImportInput() {
+        const input = document.getElementById('profileImportInput');
+        if (!input) return;
+        input.addEventListener('change', () => {
+            const file = input.files && input.files[0];
+            handleProfileImportFile(file);
+        });
+    })();
+
 
     async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, successMsg, requireOpenAI) {
         if (requireOpenAI && !openaiKeySet) {
@@ -468,7 +599,10 @@
                 return;
             }
 
-            document.getElementById('trainBody').classList.add('hidden');
+                        document.getElementById('trainBody').classList.add('hidden');
+            userProfileEditMode = false;
+            updateProfileIoVisibility();
+            updateTrainToggleLabel();
 
             const icon = document.getElementById('trainSuccessIcon');
             icon.className = 'train-success';
@@ -494,8 +628,37 @@
         return submitProfile('/api/save-profile', 'trainSaveBtn', 'Save', '⏳ Saving…', '✅ Profile saved!', false);
     }
 
+        async function resetProfileToHistory() {
+        const ok = confirm(
+            'Reset profile to history?\n\n' +
+            'This swaps your current profile with the previous saved version.'
+        );
+        if (!ok) return;
+
+        try {
+            const resp = await fetch('/api/profile/reset-to-history', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+            });
+            const data = await resp.json();
+
+            if (!resp.ok || data.error) {
+                showToast('Reset failed: ' + (data.error || 'unknown error'), 'error');
+                return;
+            }
+
+            showToast('Profile reset to history.', 'success');
+            await Promise.all([checkProfileStatus(), prefillTrainFields()]);
+        } catch (e) {
+            showToast('Network error: ' + e.message, 'error');
+        }
+    }
+
     // Check profile status on page load
     checkProfileStatus();
+    updateTrainToggleLabel();
+    updateProfileIoVisibility();
 
     /* ------------------------------------------------------------------ */
     /*  Run pipeline (SSE streaming)                                       */
@@ -1013,7 +1176,7 @@
     /* ------------------------------------------------------------------ */
     /*  Settings modal                                                     */
     /* ------------------------------------------------------------------ */
-    async function openSettings() {
+        async function openSettings() {
         document.getElementById('settingsDropdown').classList.remove('open');
         document.getElementById('settingsModal').classList.add('open');
         document.getElementById('settingsLoading').classList.add('active');
@@ -1023,18 +1186,24 @@
             const resp = await fetch('/api/settings');
             const data = await resp.json();
 
-            // Debug mode checkbox
-            const debugCheckbox = document.getElementById('settings-debug');
-            debugCheckbox.checked = !!data.debug_mode;
-            const debugStatus = document.getElementById('status-settings-debug');
-            const debugLogPath = data.debug_log_path || 'debug.log';
-            function updateDebugStatus() {
-                const on = debugCheckbox.checked;
-                debugStatus.textContent = on ? '✓ Enabled — log: ' + debugLogPath : 'Disabled';
-                debugStatus.className = 'cred-status ' + (on ? 'set' : 'unset');
+            // Debug Mode (desktop-only)
+            debugControlsAvailable = !!(data.debug_controls_available ?? true) && !(data.is_android ?? false);
+            const debugRow = document.getElementById('debugModeRow');
+            if (debugRow) debugRow.classList.toggle('hidden', !debugControlsAvailable);
+
+            if (debugControlsAvailable) {
+                const debugCheckbox = document.getElementById('settings-debug');
+                debugCheckbox.checked = !!data.debug_mode;
+                const debugStatus = document.getElementById('status-settings-debug');
+                const debugLogPath = data.debug_log_path || 'debug.log';
+                function updateDebugStatus() {
+                    const on = debugCheckbox.checked;
+                    debugStatus.textContent = on ? '✓ Enabled — log: ' + debugLogPath : 'Disabled';
+                    debugStatus.className = 'cred-status ' + (on ? 'set' : 'unset');
+                }
+                updateDebugStatus();
+                debugCheckbox.onchange = updateDebugStatus;
             }
-            updateDebugStatus();
-            debugCheckbox.onchange = updateDebugStatus;
 
             // Model status
             const modelStatus = document.getElementById('status-settings-model');
@@ -1056,6 +1225,7 @@
             pctStatus.className = 'cred-status set';
 
         } catch (e) { /* ignore */ }
+
 
         // Fetch available models and populate dropdown
         const select = document.getElementById('settings-model');
@@ -1094,7 +1264,9 @@
             payload.model = modelSelect.value;
         }
 
-        payload.debug_mode = document.getElementById('settings-debug').checked;
+        if (debugControlsAvailable) {
+            payload.debug_mode = document.getElementById('settings-debug').checked;
+        }
 
         const sizeVal = parseInt(document.getElementById('settings-playlist-size').value, 10);
         if (!isNaN(sizeVal) && sizeVal >= 10) {

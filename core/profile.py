@@ -77,7 +77,96 @@ def save_profile(profile):
         json.dump(profile, f, indent=2)
 
 
+def swap_profile_with_history():
+    """Swap the active profile with its one-level history backup.
+
+    This implements the "Reset to history" action:
+    - current becomes history
+    - history becomes current
+
+    Raises:
+        ValueError: if the history file does not exist.
+
+    Returns:
+        The new active profile dict (loaded from disk after the swap).
+    """
+    ensure_profile()
+
+    if not PROFILE_HISTORY_FILE.exists():
+        raise ValueError("No history profile exists yet.")
+
+    PROFILE_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+    tmp = PROFILE_FILE.parent / (PROFILE_FILE.name + ".swap.tmp")
+    if tmp.exists():
+        tmp.unlink()
+
+    # Atomic-ish swap via renames.
+    PROFILE_FILE.rename(tmp)
+    PROFILE_HISTORY_FILE.rename(PROFILE_FILE)
+    tmp.rename(PROFILE_HISTORY_FILE)
+
+    return load_profile()
+
+
+def _deep_merge(dst, src):
+    """Recursively merge *src* onto *dst*.
+
+    Used to ensure imported profiles preserve any missing keys from the
+    template without requiring the imported JSON to be perfectly complete.
+
+    Rules:
+    - dict + dict → deep merge
+    - otherwise  → src replaces dst
+    """
+    if not isinstance(dst, dict) or not isinstance(src, dict):
+        return src
+
+    for key, value in src.items():
+        if key in dst and isinstance(dst.get(key), dict) and isinstance(value, dict):
+            dst[key] = _deep_merge(dst[key], value)
+        else:
+            dst[key] = value
+    return dst
+
+
+def export_profile_dict():
+    """Return the current active profile as a Python dict."""
+    return load_profile()
+
+
+def import_profile_dict(imported_profile):
+    """Replace the current profile with *imported_profile*.
+
+    This performs a template-based merge so missing keys are filled from
+    the default template.
+
+    IMPORTANT: This replaces the full personalized_music_profile.json.
+    The existing file is moved to personalized_music_profile.history.json
+    by the standard save_profile() backup mechanism.
+
+    Returns the imported (normalized) profile dict.
+    """
+    if not isinstance(imported_profile, dict):
+        raise ValueError("Imported profile must be a JSON object.")
+
+    template = _load_template()
+    merged = _deep_merge(template, imported_profile)
+
+    # Minimal structural sanity checks so other modules don't crash.
+    if not isinstance(merged.get("preferences"), dict):
+        raise ValueError("Imported profile is missing a valid 'preferences' object.")
+    if not isinstance(merged.get("history"), dict):
+        raise ValueError("Imported profile is missing a valid 'history' object.")
+    if not isinstance(merged.get("feedback"), dict):
+        raise ValueError("Imported profile is missing a valid 'feedback' object.")
+
+    save_profile(merged)
+    return merged
+
+
 # ── Status ───────────────────────────────────────────────────────────
+
 
 def is_profile_trained():
     """True if the profile has been trained at least once (has a timestamp)."""

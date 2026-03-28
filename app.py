@@ -6,12 +6,13 @@ import threading
 import time
 import uuid
 
+
 # Ensure the spotyvibe package directory is on sys.path so all
 # imports resolve correctly regardless of the working directory.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, Response, render_template, jsonify, request, redirect, stream_with_context
-from config import load_config, get_credentials, save_credentials, CREDENTIALS_FILE, BATCH_SIZE, BASE_DIR, get_model, get_settings, get_debug_mode, get_playlist_size, DEBUG_LOG_FILE, MAX_CONSECUTIVE_EMPTY_BATCHES, get_new_artist_percentage, IS_ANDROID
+from config import load_config, get_credentials, save_credentials, CREDENTIALS_FILE, BATCH_SIZE, BASE_DIR, get_model, get_settings, get_debug_mode, get_playlist_size, DEBUG_LOG_FILE, MAX_CONSECUTIVE_EMPTY_BATCHES, get_new_artist_percentage, IS_ANDROID, PROFILE_IMPORT_MAX_BYTES
 import markdown
 
 load_config()
@@ -19,6 +20,8 @@ load_config()
 from core.profile import (
     load_profile, save_profile, is_profile_trained,
     get_profile_status, train_profile, save_profile_sections,
+    export_profile_dict, import_profile_dict,
+    swap_profile_with_history,
 )
 from core.suggestions import (
     normalize_history,
@@ -417,8 +420,11 @@ def write_settings():
     payload = {}
     if "model" in data:
         payload["OPENAI_MODEL"] = data["model"]
-    if "debug_mode" in data:
+
+    # Debug Mode is desktop-only.
+    if "debug_mode" in data and not IS_ANDROID:
         payload["DEBUG_MODE"] = "true" if data["debug_mode"] else ""
+
     if "playlist_size" in data:
         try:
             payload["PLAYLIST_SIZE"] = str(int(data["playlist_size"]))
@@ -433,14 +439,22 @@ def write_settings():
     return jsonify({"status": "ok"})
 
 
+
 @app.route("/api/settings/debug-log", methods=["DELETE"])
 def clear_debug_log_endpoint():
-    """Clear the debug log file."""
+    """Clear the debug log file.
+
+    Desktop-only (Android builds must not expose prompt logging controls).
+    """
+    if IS_ANDROID:
+        return jsonify({"error": "Not available on Android."}), 404
+
     try:
         clear_debug_log()
         return jsonify({"status": "ok"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 # ── Taste profile training ──────────────────────────────────────────
@@ -456,6 +470,78 @@ def profile_data():
     """Return the current profile preferences for pre-filling the UI."""
     profile = load_profile()
     return jsonify(profile)
+
+
+@app.route("/api/profile/export")
+def export_profile_endpoint():
+    """Download the full profile JSON as a file.
+
+    This is used by the UI's "Export" button. The filename is fixed so
+    users don't accidentally tie their local profile to an arbitrary
+    import filename.
+    """
+    profile = export_profile_dict()
+    payload = json.dumps(profile, indent=2, ensure_ascii=False) + "\n"
+
+    return Response(
+        payload,
+        mimetype="application/json",
+        headers={
+            "Content-Disposition": 'attachment; filename="spotyvibe_profile.json"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.route("/api/profile/import", methods=["POST"])
+def import_profile_endpoint():
+    """Replace the current profile JSON with an imported profile.
+
+    Request body (JSON): {"profile": {...}}
+
+    The previous profile is backed up to the .history.json file by the
+    standard save_profile() copy-on-write mechanism.
+    """
+    # Enforce request size (defense-in-depth; the client also checks).
+    if request.content_length is not None and request.content_length > PROFILE_IMPORT_MAX_BYTES:
+        return jsonify({"error": "Import is too large (max 10MB)."}), 413
+
+    raw = request.get_data(cache=True) or b""
+    if len(raw) > PROFILE_IMPORT_MAX_BYTES:
+        return jsonify({"error": "Import is too large (max 10MB)."}), 413
+
+    data = request.get_json(force=True, silent=True) or {}
+    imported = data.get("profile")
+    if imported is None:
+        return jsonify({"error": "Missing 'profile' object."}), 400
+
+    try:
+        updated = import_profile_dict(imported)
+        return jsonify({
+            "status": "ok",
+            "last_updated": updated.get("last_updated"),
+        })
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/profile/reset-to-history", methods=["POST"])
+def reset_profile_to_history_endpoint():
+    """Swap the current profile with the history backup."""
+    try:
+        updated = swap_profile_with_history()
+        return jsonify({
+            "status": "ok",
+            "last_updated": updated.get("last_updated"),
+        })
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 
 
 @app.route("/api/train-profile", methods=["POST"])

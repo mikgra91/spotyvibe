@@ -6,7 +6,8 @@ An AI-powered music discovery tool that creates personalised Spotify playlists b
 
 ## What Is This?
 
-SpotyVibe uses **artificial intelligence** to learn what kind of music you enjoy and then generates a playlist of 30 tracks tailored to your preferences. The tracks are automatically added to a private Spotify playlist that you can listen to right away.
+SpotyVibe uses **artificial intelligence** to learn what kind of music you enjoy and then generates a playlist of tracks tailored to your preferences (**playlist size is configurable**; default: 10). The tracks are automatically added to a private Spotify playlist that you can listen to right away.
+
 
 The interface features a premium dark aesthetic with frosted dark-glass panels and luminous green accents — designed for an immersive, high-end music discovery experience. A **theme switcher** at the top of the page lets you choose between two animated background styles:
 
@@ -20,7 +21,8 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 ## How It Works
 
 1. **Describe your taste** — Fill in structured sections (core description, must-haves, soft preferences, things to avoid) so the AI understands exactly what you want.
-2. **Generate a playlist** — The AI creates 30 personalised track suggestions, each shown with its Spotify album cover, and adds them to your Spotify playlist.
+2. **Generate a playlist** — The AI creates a personalised set of track suggestions (based on your configured playlist size), each shown with its Spotify album cover, and adds them to your Spotify playlist.
+
 3. **Give feedback** — Like tracks you enjoy, dislike ones you don't. The AI learns from every interaction.
 4. **Repeat** — Each run produces fresh recommendations that get more accurate over time.
 
@@ -28,6 +30,9 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 
 - **AI-powered suggestions** with configurable OpenAI model selection.
 - **Structured taste profile** — accordion-style editor with separate sections for core description, must-haves, soft preferences, and things to avoid. Existing profile data is pre-filled for easy editing. Save changes directly or use **AI Profile Update** to let GPT refine your input.
+- **Profile import/export** — import a full profile JSON (the current profile is automatically backed up to the history file) or export your current active profile as a JSON download.
+- **Reset to history** — revert your Music Profile to the previous saved version (one-step undo).
+
 - **Album artwork** displayed alongside each suggested track.
 - **Spotify integration** — auto-creates and manages a private playlist.
 - **Cancel generation** — stop an in-progress playlist generation at any time with the ⛔ Cancel button.
@@ -35,7 +40,7 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 - **Automatic loop protection** — if GPT ignores the exclusion list for 3 consecutive batches, the loop stops automatically and creates the playlist with whatever was found. Each retry sends an explicit warning listing the exact tracks GPT suggested that were already known.
 - **New Artist % setting** — configurable percentage (1–100, default 30%) of each batch that must come from artists not yet in your history, pushing GPT to explore new territory.
 - **Hardened GPT prompt** — Bear Ghost is set as the explicit primary style reference; a "Hard Negative Rules" section disqualifies generic or predictable tracks; GPT emits a self-validation block to force it to check its own output before finalising.
-- **Debug mode** — logs all GPT communication to a file for prompt analysis and tuning.
+- **Debug mode (desktop only)** — logs all GPT communication to a file for prompt analysis and tuning (not available in the Android APK).
 - **Mobile responsive** — the UI automatically adapts to tablet and phone screens with touch-friendly controls and bottom-sheet modals, no app install required.
 - **Android APK ready** — project includes Chaquopy-based Android scaffolding for building a self-contained APK that bundles the full Flask app, Python runtime, and all dependencies. The Android build pins Android Gradle Plugin 8.2.2, Kotlin 1.9.22, Chaquopy 15.0.1, compile/target SDK 34, and Python 3.10 with pinned pip dependencies. Spotify OAuth works seamlessly on Android via direct navigation (popups are not supported in WebView). Emulator testing is supported via the `x86_64` ABI filter.
 

@@ -1,16 +1,21 @@
 package com.spotyvibe.app
 
+import android.app.DownloadManager
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import android.util.Log
 import android.view.View
 import android.webkit.ConsoleMessage
+import android.webkit.ValueCallback
+import android.webkit.URLUtil
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
@@ -32,6 +37,31 @@ class MainActivity : AppCompatActivity() {
     private lateinit var splashView: View
     private lateinit var errorView: View
     private var flaskThread: Thread? = null
+
+    // File input handler for <input type="file"> in the WebView.
+    private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
+    private val fileChooserLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val callback = fileChooserCallback ?: return@registerForActivityResult
+        fileChooserCallback = null
+
+        if (result.resultCode != RESULT_OK) {
+            callback.onReceiveValue(null)
+            return@registerForActivityResult
+        }
+
+        val data = result.data
+        val uris = mutableListOf<Uri>()
+        data?.data?.let { uris.add(it) }
+        data?.clipData?.let { clip ->
+            for (i in 0 until clip.itemCount) {
+                uris.add(clip.getItemAt(i).uri)
+            }
+        }
+
+        callback.onReceiveValue(if (uris.isNotEmpty()) uris.toTypedArray() else null)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -157,7 +187,9 @@ class MainActivity : AppCompatActivity() {
             domStorageEnabled = true               // for localStorage (theme)
             mediaPlaybackRequiresUserGesture = false
             allowFileAccess = false
-            allowContentAccess = false
+            // Required for Android's Storage Access Framework (content:// URIs)
+            // when using <input type="file"> in the WebView.
+            allowContentAccess = true
         }
 
         webView.webViewClient = object : WebViewClient() {
@@ -177,6 +209,35 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(
+                webView: WebView?,
+                filePathCallback: ValueCallback<Array<Uri>>?,
+                fileChooserParams: WebChromeClient.FileChooserParams?
+            ): Boolean {
+                // Cancel any pending chooser.
+                this@MainActivity.fileChooserCallback?.onReceiveValue(null)
+                this@MainActivity.fileChooserCallback = filePathCallback
+
+                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "*/*"
+                    putExtra(
+                        Intent.EXTRA_MIME_TYPES,
+                        arrayOf("application/json", "text/json", "text/plain")
+                    )
+                }
+
+                return try {
+                    fileChooserLauncher.launch(Intent.createChooser(intent, "Select profile JSON"))
+                    true
+                } catch (e: Exception) {
+                    Log.e(TAG, "File chooser error", e)
+                    this@MainActivity.fileChooserCallback = null
+                    filePathCallback?.onReceiveValue(null)
+                    false
+                }
+            }
+
             // Forward JS console.log to Logcat for debugging
             override fun onConsoleMessage(msg: ConsoleMessage?): Boolean {
                 msg?.let {
@@ -221,6 +282,45 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
         }
+
+                // Handle file downloads (used for exporting the profile JSON).
+        // Security: restrict downloads to our trusted localhost export endpoint.
+        webView.setDownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
+            try {
+                val uri = Uri.parse(url)
+                val isTrustedExport = (
+                    uri.scheme == "http" &&
+                    uri.host == "127.0.0.1" &&
+                    uri.port == 5000 &&
+                    uri.path == "/api/profile/export"
+                )
+
+                if (!isTrustedExport) {
+                    Log.w(TAG, "Blocked download from untrusted URL: $url")
+                    return@setDownloadListener
+                }
+
+                val request = DownloadManager.Request(uri).apply {
+                    setMimeType(mimeType)
+                    addRequestHeader("User-Agent", userAgent)
+                    setDescription("SpotyVibe profile export")
+
+                    val filename = URLUtil.guessFileName(url, contentDisposition, mimeType)
+                    setTitle(filename)
+
+                    setNotificationVisibility(
+                        DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
+                    )
+                    setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename)
+                }
+
+                val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+                dm.enqueue(request)
+            } catch (e: Exception) {
+                Log.e(TAG, "Download failed", e)
+            }
+        }
+
 
         // Enable window.open() support for OAuth popups
         webView.settings.javaScriptCanOpenWindowsAutomatically = true

@@ -214,7 +214,43 @@ class TestProfileData:
         assert data["preferences"]["core_description"] == "rock"
 
 
+class TestProfileImportExport:
+    @patch("app.export_profile_dict")
+    def test_export_downloads_json(self, mock_export, client):
+        mock_export.return_value = {"preferences": {"core_description": "rock"}}
+        resp = client.get("/api/profile/export")
+        assert resp.status_code == 200
+        assert resp.mimetype == "application/json"
+        dispo = resp.headers.get("Content-Disposition", "")
+        assert "attachment" in dispo
+        assert "spotyvibe_profile.json" in dispo
+        assert "core_description" in resp.data.decode("utf-8")
+
+    @patch("app.import_profile_dict")
+    def test_import_replaces_profile(self, mock_import, client):
+        mock_import.return_value = {"last_updated": "2026-01-01T00:00:00Z"}
+        resp = client.post(
+            "/api/profile/import",
+            data=json.dumps({"profile": {"preferences": {"core_description": "x"}}}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "ok"
+        assert data["last_updated"] == "2026-01-01T00:00:00Z"
+        mock_import.assert_called_once()
+
+    def test_import_rejects_missing_profile(self, client):
+        resp = client.post(
+            "/api/profile/import",
+            data=json.dumps({"nope": {}}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+
 class TestTrainProfile:
+
     @patch("app.train_profile")
     def test_trains_and_returns_ok(self, mock_train, client):
         mock_train.return_value = {"last_updated": "2025-06-01T00:00:00"}

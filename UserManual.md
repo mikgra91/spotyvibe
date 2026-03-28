@@ -139,7 +139,28 @@ To set up your profile:
 
 If you already have a profile, the fields are **pre-filled** with your existing preferences so you can see and edit what the AI currently knows.
 
+### Import / Export / Reset your profile
+
+When you expand the **Music Profile** editor (via **Edit profile**), extra profile file actions appear under the **Last trained** label:
+
+- **⬆ Import** — Select a JSON profile file and import it into SpotyVibe.
+  - On Android, this opens the system file picker.
+  - Import **replaces your entire current profile file**.
+  - Before replacing it, SpotyVibe automatically backs up your existing profile to the history file (`personalized_music_profile.history.json`).
+  - **Size limit:** Imported files must be **10MB or smaller**.
+
+- **⬇ Export** — Downloads your current active profile as `spotyvibe_profile.json`.
+  - On Android, the file is saved to your device's **Downloads**.
+
+- **↩ Reset to history** — Reverts your profile to the previous saved version (one-step undo).
+  - This **swaps** the current profile and the history file.
+  - If no history exists yet, SpotyVibe will show an error.
+
+> **Tip:** The exported file is always in the correct format to re-import later.
+
+
 > **Note:** The Core Description field is required. If you clear it and try to submit, the app will highlight the field and ask you to fill it in.
+
 
 The AI Profile Update merges with what the AI already knows — your feedback history and past suggestions are always preserved. The direct Save option is useful when you just want to make a quick edit without waiting for AI processing.
 
@@ -151,9 +172,10 @@ Once your profile is trained and Spotify is connected, go to the **Step 2 — Ge
 
 1. Click **▶ Generate & Create Playlist**.
 2. Watch the progress updates as the AI works:
-   - It asks GPT for 30 track suggestions based on your taste.
+   - It asks GPT for track suggestions based on your taste until it reaches your configured **Playlist Size** (default: 10).
    - It verifies each track exists on Spotify.
    - If some tracks aren't found, it automatically retries with new suggestions.
+
 3. When finished, the suggested tracks appear in a list — each shown with its **album cover artwork** — and are added to a private Spotify playlist called **"SpotyVibe Playlist"**.
 4. A link to the playlist is shown — click it to open it in Spotify.
 
@@ -214,7 +236,8 @@ Click the **✕** button to dismiss a track from the list and remove it from the
 
 ## Running Again
 
-Every time you click **Generate & Create Playlist**, the AI produces a fresh batch of 30 suggestions. It never repeats tracks from previous runs — your history is remembered automatically.
+Every time you click **Generate & Create Playlist**, the AI produces a fresh batch of suggestions sized to your configured **Playlist Size**. It never repeats tracks from previous runs — your history is remembered automatically.
+
 
 The more feedback you give, the better the suggestions become.
 
@@ -236,15 +259,19 @@ Both options preserve your feedback history and past suggestions — nothing is 
 
 ---
 
-## Debug Mode
+## Debug Mode (Desktop only)
 
-If the AI's suggestions don't seem to match your preferences, you can enable **Debug Mode** to inspect the exact prompts being sent and the responses received:
+If the AI's suggestions don't seem to match your preferences, you can enable **Debug Mode** (desktop only) to inspect the exact prompts being sent and the responses received:
+
 
 1. Open **⚙️ gear menu → ⚙️ Settings**.
 2. Check **"Log GPT requests & responses to debug file"**.
 3. Click **Save**.
 
-Now every GPT interaction (profile training and playlist generation) is logged to a `debug.log` file. The exact path is shown in the Settings panel (it varies by platform — `%LOCALAPPDATA%\spotyvibe\debug.log` on Windows, internal app storage on Android). Each log entry includes a timestamp, the full messages sent to GPT, and the raw response.
+Now every GPT interaction (profile training and playlist generation) is logged to a `debug.log` file. The exact path is shown in the Settings panel (e.g. `%LOCALAPPDATA%\spotyvibe\debug.log` on Windows). Each log entry includes a timestamp, the full messages sent to GPT, and the raw response.
+
+> **Android note:** Debug Mode is intentionally not available in the Android APK.
+
 
 You can open this file with any text editor to review and optimise the prompts in the `prompts/` directory.
 
@@ -301,7 +328,7 @@ All your personal data is stored outside the project in your system's app data f
 | Credentials | `%LOCALAPPDATA%\spotyvibe\.credentials` | Your API keys and settings (never in the project folder). |
 | Taste profile | `%LOCALAPPDATA%\spotyvibe\personalized_music_profile.json` | Your trained taste profile + history. |
 | Spotify token | `%LOCALAPPDATA%\spotyvibe\.spotify-cache` | Cached Spotify authentication token. |
-| Debug log | `%LOCALAPPDATA%\spotyvibe\debug.log` | GPT request/response log (only when debug mode is enabled). |
+| Debug log | `%LOCALAPPDATA%\spotyvibe\debug.log` | GPT request/response log (desktop only, only when debug mode is enabled). |
 
 This means you can safely update or reinstall the app without losing your profile or credentials.
 
