@@ -321,7 +321,7 @@ def call_gpt(messages):
         response_format={"type": "json_object"},
     )
 
-    raw_content = response.choices[0].message.content.strip()
+    raw_content = (response.choices[0].message.content or "").strip()
     debug_log("Suggestion Generation", messages, raw_content)
 
     content = strip_code_fences(raw_content)

@@ -284,7 +284,8 @@
         try {
             const resp = await fetch('/api/spotify/status');
             const data = await resp.json();
-            spotifyAuthStatus = data.status;
+            const valid = ['authenticated', 'not_authenticated', 'not_configured'];
+            spotifyAuthStatus = valid.includes(data.status) ? data.status : 'unknown';
         } catch (e) {
             spotifyAuthStatus = 'unknown';
         }
@@ -344,7 +345,13 @@
 
         if (!openaiKeySet) {
             trainWarn.className = 'component-warn';
-            trainWarn.innerHTML = '⚠️ OpenAI API key is missing. Open <a onclick="openCredentials()">⚙️ Settings</a> to enter it.';
+            trainWarn.textContent = '';
+            trainWarn.append('⚠️ OpenAI API key is missing. Open ');
+            const trainLink = document.createElement('a');
+            trainLink.textContent = '⚙️ Settings';
+            trainLink.style.cursor = 'pointer';
+            trainLink.addEventListener('click', openCredentials);
+            trainWarn.append(trainLink, ' to enter it.');
             trainBtn.disabled = true;
             trainToggle.disabled = true;
         } else {
@@ -356,20 +363,38 @@
         // --- Generate section: needs OpenAI key + Spotify auth ---
         const runWarn = document.getElementById('runWarn');
         const runBtn = document.getElementById('runBtn');
-        const warnings = [];
 
+        function _warnLink(text, handler) {
+            const a = document.createElement('a');
+            a.textContent = text;
+            a.style.cursor = 'pointer';
+            a.addEventListener('click', handler);
+            return a;
+        }
+
+        const warnFragments = [];
         if (!openaiKeySet) {
-            warnings.push('OpenAI API key is missing — open <a onclick="openCredentials()">⚙️ Settings</a>.');
+            const f = document.createDocumentFragment();
+            f.append('OpenAI API key is missing — open ', _warnLink('⚙️ Settings', openCredentials), '.');
+            warnFragments.push(f);
         }
         if (spotifyAuthStatus === 'not_configured') {
-            warnings.push('Spotify credentials are missing — open <a onclick="openCredentials()">⚙️ Settings</a>.');
+            const f = document.createDocumentFragment();
+            f.append('Spotify credentials are missing — open ', _warnLink('⚙️ Settings', openCredentials), '.');
+            warnFragments.push(f);
         } else if (spotifyAuthStatus === 'not_authenticated') {
-            warnings.push('Spotify login required — <a onclick="connectSpotify()">Connect to Spotify</a>.');
+            const f = document.createDocumentFragment();
+            f.append('Spotify login required — ', _warnLink('Connect to Spotify', connectSpotify), '.');
+            warnFragments.push(f);
         }
 
-        if (warnings.length > 0) {
+        if (warnFragments.length > 0) {
             runWarn.className = 'component-warn';
-            runWarn.innerHTML = '⚠️ ' + warnings.join('<br>⚠️ ');
+            runWarn.textContent = '';
+            warnFragments.forEach((frag, i) => {
+                if (i > 0) runWarn.append(document.createElement('br'));
+                runWarn.append('⚠️ ', frag);
+            });
             runBtn.disabled = true;
         } else {
             runWarn.className = 'hidden';
@@ -1061,6 +1086,27 @@
     function attr(s) {
         return (s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }
+    function sanitizeHtml(html) {
+        const ALLOWED = new Set(['H1','H2','H3','H4','H5','H6','P','UL','OL','LI',
+            'A','STRONG','EM','CODE','PRE','BR','HR','TABLE','THEAD','TBODY','TR',
+            'TH','TD','BLOCKQUOTE','IMG','SPAN','DIV','DL','DT','DD','SUP','SUB']);
+        const ALLOWED_ATTRS = {A:['href','title'],IMG:['src','alt','title'],TD:['colspan','rowspan'],TH:['colspan','rowspan']};
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        (function walk(parent) {
+            for (const node of Array.from(parent.childNodes)) {
+                if (node.nodeType === 1) {
+                    if (!ALLOWED.has(node.tagName)) { node.remove(); continue; }
+                    const ok = ALLOWED_ATTRS[node.tagName] || [];
+                    for (const a of Array.from(node.attributes)) {
+                        if (!ok.includes(a.name) || (a.name === 'href' && /^\s*javascript:/i.test(a.value))) node.removeAttribute(a.name);
+                    }
+                    walk(node);
+                }
+            }
+        })(tmp);
+        return tmp.innerHTML;
+    }
 
     /* ------------------------------------------------------------------ */
     /*  Settings menu                                                      */
@@ -1311,7 +1357,7 @@
             const resp = await fetch('/api/help');
             const data = await resp.json();
             if (data.html) {
-                document.getElementById('helpContent').innerHTML = data.html;
+                document.getElementById('helpContent').innerHTML = sanitizeHtml(data.html);
                 helpLoaded = true;
             } else {
                 document.getElementById('helpContent').innerHTML =

@@ -4,6 +4,7 @@ import sys
 import json
 import threading
 import time
+import traceback
 import uuid
 
 
@@ -49,11 +50,15 @@ _STALE_RUN_SECONDS = 600  # 10 minutes
 
 
 def _sweep_stale_runs():
-    """Remove _runs entries older than _STALE_RUN_SECONDS to prevent leaks."""
-    now = time.monotonic()
-    stale = [rid for rid, r in _runs.items() if now - r.get("created_at", now) > _STALE_RUN_SECONDS]
-    for rid in stale:
-        _runs.pop(rid, None)
+    """Remove _runs entries older than _STALE_RUN_SECONDS to prevent leaks.
+
+    Acquires _runs_lock internally — safe to call from any context.
+    """
+    with _runs_lock:
+        now = time.monotonic()
+        stale = [rid for rid, r in _runs.items() if now - r.get("created_at", now) > _STALE_RUN_SECONDS]
+        for rid in stale:
+            _runs.pop(rid, None)
 
 
 @app.route("/")
@@ -95,8 +100,8 @@ def run_pipeline():
     body = request.get_json(force=True, silent=True) or {}
     run_id = body.get("run_id") or str(uuid.uuid4())
     cancel_event = threading.Event()
+    _sweep_stale_runs()
     with _runs_lock:
-        _sweep_stale_runs()
         _runs[run_id] = {"cancel": cancel_event, "finalize_on_cancel": False, "verified_tracks": [], "created_at": time.monotonic()}
 
     def generate():
@@ -291,6 +296,7 @@ def run_pipeline():
             )
 
         except Exception as e:
+            traceback.print_exc()
             yield _sse("error", message=str(e))
         finally:
             with _runs_lock:
