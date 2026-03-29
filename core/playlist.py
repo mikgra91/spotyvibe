@@ -42,7 +42,6 @@ from spotipy.exceptions import SpotifyException
 from spotipy.oauth2 import SpotifyOAuth
 from config import CACHE_FILE, IS_ANDROID
 
-
 # Name used for the managed playlist. If a playlist with this name
 # already exists, new tracks are added to it (idempotent). This avoids
 # creating duplicate playlists on every generation.
@@ -197,7 +196,9 @@ def find_existing_playlist(sp):
 def get_existing_track_uris(sp, playlist_id):
     """Load all track URIs already in the playlist to avoid duplicates."""
     existing = set()
-    results = sp.playlist_tracks(playlist_id, fields="items(track(uri)),next", limit=100)
+    # playlist_items() maps to GET /playlists/{id}/items (the current endpoint
+    # after Spotify removed /tracks in February 2026).
+    results = sp.playlist_items(playlist_id, fields="items(track(uri)),next", limit=100)
     while True:
         for entry in results.get("items", []):
             track = entry.get("track")

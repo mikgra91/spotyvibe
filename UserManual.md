@@ -20,7 +20,11 @@ You will also need two sets of API keys (free to obtain):
 | **OpenAI API Key** | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) — sign up and create a new API key. |
 | **Spotify Client ID & Secret** | [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) — create a new app to get your Client ID and Client Secret. |
 
-> **Important:** When creating your Spotify app in the Developer Dashboard, you must add `http://127.0.0.1:5000/callback` as a **Redirect URI** in the app settings. Without this, Spotify authentication will not work.
+> **Important:** When creating your Spotify app in the Developer Dashboard, you must add the following **Redirect URIs** in the app settings:
+> - `http://127.0.0.1:5000/callback` — required for the **desktop** app
+> - `spotyvibe://callback` — required for the **Android APK**
+>
+> Without the matching URI for your platform, Spotify authentication will fail with "redirect_uri: No matching configuration".
 
 > **💰 Cost note:** The OpenAI API is a **paid service**. Each playlist generation and profile training uses API credits. The default model (`gpt-4.1-mini`) is very affordable, but larger models cost significantly more. See [OpenAI Pricing](https://platform.openai.com/docs/pricing) for details.
 
@@ -371,7 +375,8 @@ python -m core.feedback dislike "Artist Name" --reason "why"
 |---|---|
 | **"Spotify credentials missing"** | Open ⚙️ → Credentials and enter your Spotify Client ID and Secret. |
 | **"Please train your taste profile first"** | Use the Train Taste Profile section to describe your music taste before generating. |
-| **Spotify auth fails with "INVALID_CLIENT"** | Double-check your Client ID and Secret. Make sure `http://127.0.0.1:5000/callback` is listed as a Redirect URI in your Spotify Developer Dashboard. |
+| **Spotify auth fails with "INVALID_CLIENT"** | Double-check your Client ID and Secret. Make sure the correct Redirect URI is listed in your Spotify Developer Dashboard (see Prerequisites above). |
+| **Android: "redirect_uri: No matching configuration"** | Add `spotyvibe://callback` as a Redirect URI in your [Spotify Developer Dashboard](https://developer.spotify.com/dashboard). This URI is required for the Android APK — without it, Spotify rejects the login request. |
 | **"403 Forbidden" during generation** | Your Spotify session has expired or permissions were revoked. The app disconnects automatically — click **Connect to Spotify** in the warning banner to reconnect. You can also manually disconnect via ⚙️ → 🔌 Disconnect Spotify. |
 | **"OpenAI API key is not configured"** | Open ⚙️ → Credentials and enter your OpenAI API Key. |
 | **GPT kept suggesting the same songs and stopped early** | This is the automatic loop-protection kicking in. After 3 consecutive batches where every suggestion was already in your history, the app stops and creates the playlist with whatever tracks were found. Click **▶ Use X tracks now** before that point, or update your taste profile with new preferences and re-run. |

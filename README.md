@@ -42,7 +42,7 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 - **Hardened GPT prompt** — Bear Ghost is set as the explicit primary style reference; a "Hard Negative Rules" section disqualifies generic or predictable tracks; GPT emits a self-validation block to force it to check its own output before finalising.
 - **Debug mode (desktop only)** — logs all GPT communication to a file for prompt analysis and tuning (not available in the Android APK).
 - **Mobile responsive** — the UI automatically adapts to tablet and phone screens with touch-friendly controls and bottom-sheet modals, no app install required.
-- **Android APK ready** — project includes Chaquopy-based Android scaffolding for building a self-contained APK that bundles the full Flask app, Python runtime, and all dependencies. The Android build pins Android Gradle Plugin 8.2.2, Kotlin 1.9.22, Chaquopy 15.0.1, compile/target SDK 34, and Python 3.10 with pinned pip dependencies. Spotify OAuth works seamlessly on Android via direct navigation (popups are not supported in WebView). Emulator testing is supported via the `x86_64` ABI filter.
+- **Android APK ready** — project includes Chaquopy-based Android scaffolding for building a self-contained APK that bundles the full Flask app, Python runtime, and all dependencies. The Android build pins Android Gradle Plugin 8.2.2, Kotlin 1.9.22, Chaquopy 15.0.1, compile/target SDK 34, and Python 3.10 with pinned pip dependencies. Spotify OAuth works seamlessly on Android via deep-link callback (`spotyvibe://callback`); add this URI alongside `http://127.0.0.1:5000/callback` in your Spotify Developer Dashboard. Emulator testing is supported via the `x86_64` ABI filter.
 
 ## Quick Start
 

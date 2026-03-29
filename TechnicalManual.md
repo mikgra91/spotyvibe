@@ -279,7 +279,10 @@ Manages all interactions with the Spotify Web API via the `spotipy` library.
 
 **403 error handling:** `add_to_playlist()` catches `SpotifyException` with HTTP 403. When this occurs, it automatically calls `disconnect_spotify()` to clear the stale token and raises a `RuntimeError` with a user-friendly message. The UI then shows the "Connect to Spotify" banner on the next status check.
 
-**Spotify API compatibility:** Playlist creation uses `POST /v1/me/playlists` (via `spotipy.Spotify.current_user_playlist_create()`) instead of the deprecated `POST /v1/users/{user_id}/playlists` endpoint, which was removed by Spotify in February 2026.
+**Spotify API compatibility (February 2026 changes):**
+- Playlist creation uses `POST /v1/me/playlists` (`current_user_playlist_create()`). The `POST /v1/users/{user_id}/playlists` endpoint was removed.
+- Playlist track reads use `GET /playlists/{id}/items` (`sp.playlist_items()`). The old `GET /playlists/{id}/tracks` endpoint (`sp.playlist_tracks()`) was removed in February 2026 and must not be used.
+- Spotify reduced the search `limit` maximum to 10 (default 5). SpotyVibe uses `limit=1` for all track lookups.
 
 **Parallelised search:** `search_tracks()` uses `ThreadPoolExecutor` with 10 workers to verify tracks on Spotify concurrently, reducing the search time from ~15s (sequential) to ~2s for typical playlist sizes (e.g., 10–30 tracks).
 
@@ -461,10 +464,13 @@ The `android/` directory contains a complete Android project that packages Spoty
 
 **OAuth flow on Android:** Desktop browsers handle Spotify OAuth via a `window.open()` popup. On Android WebView this fails because popup URLs that leave `127.0.0.1` (e.g. `accounts.spotify.com`) are routed to the system browser, which cannot reach the localhost `/callback` endpoint since Flask runs only inside the app process.
 
-The fix uses a two-part detection and fallback:
+The fix uses a deep-link + three-part approach:
 1. **Frontend detection:** `index.html` checks the user-agent for `/; wv\)/` (the Android WebView signature). When detected, `window.location.href = '/api/spotify/auth'` replaces the popup with a same-window redirect.
-2. **Backend fallback:** The `/callback` handler's success page checks for `window.opener`. When it is `null` (the direct-navigation case on Android), the page issues a delayed redirect to the home page with `setTimeout(()=>window.location.href="/",1500)` instead of attempting `window.opener.postMessage()`. The 1.5 s delay matches the popup path and lets the user see the success message.
-3. **Deep-link return:** `onNewIntent()` in `MainActivity.kt` intercepts the OAuth callback URL from the system browser and loads it in the WebView, completing the token exchange inside the app.
+2. **Deep-link redirect URI:** `playlist.py` uses `spotyvibe://callback` as the OAuth redirect URI on Android (vs `http://127.0.0.1:5000/callback` on desktop). `AndroidManifest.xml` declares an `<intent-filter>` for this scheme so the OS routes the Spotify callback back to `MainActivity`.
+3. **`handleOAuthIntent()`:** When the system browser redirects to `spotyvibe://callback?code=...`, Android delivers it to `MainActivity` via `onNewIntent()` (warm resume) or `onCreate()` (cold start after process death). `handleOAuthIntent()` extracts the `code` parameter and calls `webView.loadUrl("http://127.0.0.1:5000/callback?code=...")`, completing the token exchange inside Flask.
+4. **Backend fallback:** The `/callback` handler's success page checks for `window.opener`. When it is `null` (the direct-navigation case on Android), the page issues a delayed redirect to the home page instead of attempting `window.opener.postMessage()`.
+
+**Important:** `spotyvibe://callback` **must be registered** in the Spotify Developer Dashboard alongside `http://127.0.0.1:5000/callback`. Omitting it causes Spotify to reject the login with "redirect_uri: No matching configuration".
 
 Desktop behaviour is completely unaffected — the popup flow is used whenever WebView is not detected.
 

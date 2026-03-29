@@ -83,8 +83,11 @@ spotyvibe/
 ### Spotify API
 
 - **Always use the current Spotify Web API endpoints.** Do not use deprecated or removed endpoints. Before making Spotify API changes, verify the endpoint is supported by checking the [Spotify Web API Reference](https://developer.spotify.com/documentation/web-api).
+- **Consult [`SKILL.md`](SKILL.md) for a full summary of endpoints used by SpotyVibe, the February 2026 breaking changes, OAuth redirect URI requirements, and spotipy method mappings.**
 - Playlist creation must use `POST /v1/me/playlists` (via `spotipy.Spotify.current_user_playlist_create()`), not the removed `POST /v1/users/{user_id}/playlists`.
+- Playlist track reads/writes must use `GET/POST /playlists/{id}/items` (via `sp.playlist_items()` / `sp.playlist_add_items()`). The old `/tracks` endpoints were removed in February 2026.
 - Prefer `current_user_*` spotipy methods over the older `user_*` variants wherever available.
+- Search `limit` must be ≤ 10 (Spotify reduced the maximum in February 2026).
 
 ### Documentation
 

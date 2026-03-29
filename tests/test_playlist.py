@@ -121,7 +121,7 @@ class TestFindExistingPlaylist:
 class TestGetExistingTrackUris:
     def test_collects_all_uris(self):
         sp = MagicMock()
-        sp.playlist_tracks.return_value = {
+        sp.playlist_items.return_value = {
             "items": [
                 {"track": {"uri": "spotify:track:1"}},
                 {"track": {"uri": "spotify:track:2"}},
@@ -133,7 +133,7 @@ class TestGetExistingTrackUris:
 
     def test_paginates(self):
         sp = MagicMock()
-        sp.playlist_tracks.return_value = {
+        sp.playlist_items.return_value = {
             "items": [{"track": {"uri": "spotify:track:1"}}],
             "next": "more",
         }
@@ -146,7 +146,7 @@ class TestGetExistingTrackUris:
 
     def test_skips_entries_without_uri(self):
         sp = MagicMock()
-        sp.playlist_tracks.return_value = {
+        sp.playlist_items.return_value = {
             "items": [
                 {"track": {"uri": "spotify:track:1"}},
                 {"track": None},

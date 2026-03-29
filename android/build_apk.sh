@@ -13,13 +13,32 @@ echo "=== SpotyVibe Android Build ==="
 echo "Build type: $BUILD_TYPE"
 echo "Project root: $PROJECT_ROOT"
 
+# 0. Clean previous build artifacts/caches from earlier runs
+echo "Cleaning previous build artifacts..."
+
+# Stop any running Gradle daemons (ignore errors if none are running)
+./gradlew --stop >/dev/null 2>&1 || true
+
+# Clean via Gradle (removes prior build outputs)
+./gradlew clean
+
+# Extra cleanup for commonly-stale build fragments (safe to ignore if missing)
+rm -rf \
+  "$SCRIPT_DIR/app/build" \
+  "$SCRIPT_DIR/build" \
+  "$SCRIPT_DIR/.gradle" \
+  "$SCRIPT_DIR/app/.cxx" \
+  "$SCRIPT_DIR/app/.externalNativeBuild" \
+  2>/dev/null || true
+
 # 1. Clean and recreate the Python source directory
+
 echo "Copying Python sources..."
 rm -rf "$PYTHON_DEST"
 mkdir -p "$PYTHON_DEST"
 
 # 2. Copy Python files (preserving directory structure, excluding __pycache__)
-for item in app.py config.py core prompts data static templates; do
+for item in app.py spotyvibe_bootstrap.py config.py core prompts data static templates; do
     if [ -d "$PROJECT_ROOT/$item" ]; then
         # Directory: copy recursively and then remove __pycache__ dirs
         cp -r "$PROJECT_ROOT/$item" "$PYTHON_DEST/"
@@ -33,7 +52,6 @@ echo "Python sources copied to $PYTHON_DEST"
 
 # 3. Build the APK
 echo "Building APK..."
-cd "$SCRIPT_DIR"
 
 if [ "$BUILD_TYPE" = "release" ]; then
     ./gradlew assembleRelease
