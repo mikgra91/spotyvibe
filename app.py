@@ -1,4 +1,5 @@
 import html
+import math
 import os
 import sys
 import json
@@ -169,6 +170,12 @@ def run_pipeline():
             profile = load_profile()
             normalize_history(profile)
 
+            # Two-pass mode: when history is large, boost new-artist pressure
+            # after the first half of the playlist is filled to break recycling loops.
+            _history_len = len(profile.get("history", {}).get("suggested_tracks", []))
+            large_history = _history_len > 150
+            large_history_half = math.ceil(playlist_size / 2) if large_history else None
+
             verified_tracks = []   # tracks with a confirmed Spotify URI
             verified_uris = set()  # fast URI dedup across attempts
             all_not_found = []
@@ -213,12 +220,18 @@ def run_pipeline():
                     )
                     break
 
+                # Phase 3 two-pass: once we have half the playlist from a large
+                # history, ramp up new-artist pressure for remaining batches.
+                effective_nap = new_artist_percentage
+                if large_history and large_history_half is not None and len(verified_tracks) >= large_history_half:
+                    effective_nap = min(new_artist_percentage + 40, 95)
+
                 messages = build_messages(
                     profile,
                     accepted_tracks=accepted,
                     batch_size=request_count,
                     recently_filtered_tracks=last_filtered_tracks if last_filtered_tracks else None,
-                    new_artist_percentage=new_artist_percentage,
+                    new_artist_percentage=effective_nap,
                     batch_num=batch_num,
                 )
                 gpt_call_count += 1
@@ -243,7 +256,7 @@ def run_pipeline():
                     truncated_artists = {item["artist"].lower().strip() for item in result["playlist"]}
                     result["profile_updates"]["suggested_artists"] = list(truncated_artists)
                     result["profile_updates"]["suggested_tracks"] = [
-                        f"{item['artist'].lower().strip()} {item['track'].lower().strip()}"
+                        {"artist": item["artist"].lower().strip(), "track": item["track"].lower().strip()}
                         for item in result["playlist"]
                     ]
                     result["new_artists"] = [a for a in result["new_artists"] if a in truncated_artists]

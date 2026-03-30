@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from core.suggestions import (
     _build_deny_set_json,
+    _migrate_suggested_tracks,
     _normalize_key,
     build_messages,
     call_gpt,
@@ -40,7 +41,8 @@ class TestNormalizeHistory:
         assert len(result["history"]["suggested_artists"]) == 1
         assert result["history"]["suggested_artists"][0] == "artist a"
         assert len(result["history"]["suggested_tracks"]) == 1
-        assert result["history"]["suggested_tracks"][0] == "track 1"
+        # After migration, string entries become {"artist": "", "track": "..."} dicts
+        assert result["history"]["suggested_tracks"][0] == {"artist": "", "track": "track 1"}
 
     def test_empty_history(self):
         profile = {"history": {"suggested_artists": [], "suggested_tracks": []}}
@@ -57,6 +59,29 @@ class TestNormalizeHistory:
         }
         result = normalize_history(profile)
         assert result["history"]["suggested_artists"] == ["zebra", "alpha", "muse"]
+
+    def test_migrates_legacy_strings_to_dicts(self):
+        profile = {
+            "history": {
+                "suggested_artists": ["pink floyd"],
+                "suggested_tracks": ["pink floyd wish you were here"],
+            }
+        }
+        result = normalize_history(profile)
+        tracks = result["history"]["suggested_tracks"]
+        assert len(tracks) == 1
+        assert tracks[0] == {"artist": "pink floyd", "track": "wish you were here"}
+
+    def test_dict_entries_pass_through_unchanged(self):
+        profile = {
+            "history": {
+                "suggested_artists": ["radiohead"],
+                "suggested_tracks": [{"artist": "radiohead", "track": "creep"}],
+            }
+        }
+        result = normalize_history(profile)
+        tracks = result["history"]["suggested_tracks"]
+        assert tracks[0] == {"artist": "radiohead", "track": "creep"}
 
 
 class TestFilterDuplicateSuggestions:
@@ -265,12 +290,12 @@ class TestUpdateProfile:
         result = {
             "profile_updates": {
                 "suggested_artists": ["new artist"],
-                "suggested_tracks": ["new artist newsong"],
+                "suggested_tracks": [{"artist": "new artist", "track": "newsong"}],
             }
         }
         updated = update_profile(profile, result)
         assert "new artist" in updated["history"]["suggested_artists"]
-        assert "new artist newsong" in updated["history"]["suggested_tracks"]
+        assert {"artist": "new artist", "track": "newsong"} in updated["history"]["suggested_tracks"]
         assert "existing artist" in updated["history"]["suggested_artists"]
 
     def test_no_duplicate_artists(self):
@@ -296,18 +321,20 @@ class TestUpdateProfile:
         profile = {
             "history": {
                 "suggested_artists": [],
-                "suggested_tracks": ["artist track1"],
+                "suggested_tracks": [{"artist": "", "track": "artist track1"}],
             }
         }
         result = {
             "profile_updates": {
                 "suggested_artists": [],
-                "suggested_tracks": ["Artist Track1"],
+                "suggested_tracks": [{"artist": "", "track": "Artist Track1"}],
             }
         }
         updated = update_profile(profile, result)
+        # Dedup: normalized keys match — only one entry remains
         count = sum(
-            1 for t in updated["history"]["suggested_tracks"] if t.lower() == "artist track1"
+            1 for t in updated["history"]["suggested_tracks"]
+            if isinstance(t, dict) and t.get("track", "").lower() == "artist track1"
         )
         assert count == 1
 

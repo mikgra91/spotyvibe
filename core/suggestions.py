@@ -85,25 +85,82 @@ def build_feedback_summary(profile, max_chars=2000):
     return summary
 
 
-def normalize_history(profile):
-    """Lowercase and deduplicate history lists so GPT never sees case-duplicates.
+def _migrate_suggested_tracks(profile):
+    """Convert legacy string suggested_tracks entries to {"artist", "track"} dicts.
 
-    Why lowercase everything? GPT is case-insensitive when reasoning about
-    artist/track names, but exact-string deduplication is case-sensitive.
-    Normalising to lowercase at the boundary (when history is loaded)
-    prevents "Radiohead" and "radiohead" from being treated as different
-    entries in both the exclusion list and the Python-side filter.
+    Old format: "artist name track name" (concatenated string)
+    New format: {"artist": "artist name", "track": "track name"}
+
+    Uses longest-match against suggested_artists to split the string. If no
+    match is found, the full string is stored as track with empty artist —
+    the normalize_key dedup still works because it hashes "artist track" as
+    the combined key regardless of which field the data is in.
+    Idempotent: dict entries are left unchanged.
     """
-    for key in ("suggested_artists", "suggested_tracks"):
-        items = profile.get("history", {}).get(key, [])
-        seen = set()
-        deduped = []
-        for item in items:
-            lower = item.lower().strip()
-            if lower not in seen:
-                seen.add(lower)
-                deduped.append(lower)
-        profile["history"][key] = deduped
+    tracks = profile.get("history", {}).get("suggested_tracks", [])
+    if not tracks or all(isinstance(t, dict) for t in tracks):
+        return profile
+
+    known_artists = sorted(
+        set(profile.get("history", {}).get("suggested_artists", [])),
+        key=len, reverse=True,
+    )
+
+    migrated = []
+    for entry in tracks:
+        if isinstance(entry, dict):
+            migrated.append(entry)
+            continue
+        e_lower = str(entry).lower().strip()
+        matched_artist, matched_track = "", e_lower
+        for artist in known_artists:
+            a_lower = artist.lower().strip()
+            if e_lower.startswith(a_lower + " "):
+                matched_artist = a_lower
+                matched_track = e_lower[len(a_lower):].strip()
+                break
+        migrated.append({"artist": matched_artist, "track": matched_track})
+
+    profile["history"]["suggested_tracks"] = migrated
+    return profile
+
+
+def normalize_history(profile):
+    """Lowercase, migrate, and deduplicate history so GPT never sees duplicates.
+
+    suggested_artists stays as a list of lowercase strings.
+    suggested_tracks is migrated to {"artist", "track"} dicts (idempotent) and
+    then deduplicated by (artist, track) key-pair.
+    """
+    # Migrate legacy string entries to dicts before deduplication
+    _migrate_suggested_tracks(profile)
+
+    # Deduplicate suggested_artists (strings)
+    artists = profile.get("history", {}).get("suggested_artists", [])
+    seen: set = set()
+    deduped_artists = []
+    for item in artists:
+        lower = str(item).lower().strip()
+        if lower not in seen:
+            seen.add(lower)
+            deduped_artists.append(lower)
+    profile["history"]["suggested_artists"] = deduped_artists
+
+    # Deduplicate suggested_tracks (dicts)
+    tracks = profile.get("history", {}).get("suggested_tracks", [])
+    seen_keys: set = set()
+    deduped_tracks = []
+    for item in tracks:
+        if isinstance(item, dict):
+            a = item.get("artist", "").lower().strip()
+            t = item.get("track", "").lower().strip()
+        else:
+            a, t = "", str(item).lower().strip()
+        key = (a, t)
+        if key not in seen_keys:
+            seen_keys.add(key)
+            deduped_tracks.append({"artist": a, "track": t})
+    profile["history"]["suggested_tracks"] = deduped_tracks
     return profile
 
 
@@ -146,27 +203,34 @@ def _build_deny_set_json(profile, ephemeral_deny_tracks=None):
     if len(tracks) > GPT_HISTORY_LIMIT:
         tracks = tracks[-GPT_HISTORY_LIMIT:]
 
+    # Legacy fallback: known_artists is only needed if unmigrated string entries exist
     known_artists = sorted(
         set(profile.get("history", {}).get("suggested_artists", [])),
-        key=len, reverse=True
+        key=len, reverse=True,
     )
 
-    artist_counts = defaultdict(int)
-    by_artist = defaultdict(list)
+    artist_counts: dict = defaultdict(int)
+    by_artist: dict = defaultdict(list)
 
     for entry in tracks:
-        e_lower = entry.lower().strip()
-        matched = False
-        for artist in known_artists:
-            a_lower = artist.lower().strip()
-            if e_lower.startswith(a_lower + " "):
-                track_name = e_lower[len(a_lower):].strip()
-                by_artist[a_lower].append(track_name)
-                artist_counts[a_lower] += 1
-                matched = True
-                break
-        if not matched:
-            by_artist["_unmatched"].append(entry)
+        if isinstance(entry, dict):
+            a = entry.get("artist", "").lower().strip()
+            t = entry.get("track", "").lower().strip()
+        else:
+            # Legacy string — use longest-match (only present before first migration)
+            e_lower = str(entry).lower().strip()
+            a, t = "", e_lower
+            for artist in known_artists:
+                al = artist.lower().strip()
+                if e_lower.startswith(al + " "):
+                    a, t = al, e_lower[len(al):].strip()
+                    break
+
+        if a:
+            by_artist[a].append(t)
+            artist_counts[a] += 1
+        else:
+            by_artist["_unmatched"].append(t)
 
     exhausted = [a for a, c in artist_counts.items() if c >= EXHAUSTED_ARTIST_THRESHOLD]
 
@@ -218,7 +282,12 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
 
     gpt_language = get_gpt_language()
 
-    system_prompt = load_text_file(SYSTEM_PROMPT_FILE)
+    # Check for a model-specific system prompt (e.g. system_prompt_gpt-4-1.txt).
+    # Falls back to the default system_prompt.txt if not found.
+    model_slug = re.sub(r"[^a-z0-9-]", "-", get_model().lower()).strip("-")
+    model_specific_file = BASE_DIR / "prompts" / f"system_prompt_{model_slug}.txt"
+    active_prompt_file = model_specific_file if model_specific_file.exists() else SYSTEM_PROMPT_FILE
+    system_prompt = load_text_file(active_prompt_file)
     system_prompt = system_prompt.replace("{batch_size}", str(effective_batch_size))
     system_prompt = system_prompt.replace("{new_artist_percentage}", str(new_artist_percentage))
     system_prompt = system_prompt.replace("{min_new_artists}", str(min_new_artists))
@@ -343,6 +412,10 @@ def update_profile(profile, result):
     The history is append-only — entries are never removed here, only
     added. This ensures the exclusion list grows monotonically, which
     is essential for the dedup strategy to work correctly.
+
+    suggested_tracks are stored as {"artist", "track"} dicts. Legacy string
+    entries in the profile are handled via _normalize_key for dedup but new
+    entries are always written as dicts.
     """
     existing_artists = {a.lower() for a in profile["history"]["suggested_artists"]}
     for artist in result["profile_updates"]["suggested_artists"]:
@@ -351,12 +424,26 @@ def update_profile(profile, result):
             profile["history"]["suggested_artists"].append(lower)
             existing_artists.add(lower)
 
-    existing_tracks = {t.lower() for t in profile["history"]["suggested_tracks"]}
+    existing_tracks: set = set()
+    for t in profile["history"]["suggested_tracks"]:
+        if isinstance(t, dict):
+            existing_tracks.add(_normalize_key(f"{t.get('artist', '')} {t.get('track', '')}"))
+        else:
+            existing_tracks.add(_normalize_key(str(t)))
+
     for track in result["profile_updates"]["suggested_tracks"]:
-        lower = track.lower().strip()
-        if lower not in existing_tracks:
-            profile["history"]["suggested_tracks"].append(lower)
-            existing_tracks.add(lower)
+        if isinstance(track, dict):
+            key = _normalize_key(f"{track.get('artist', '')} {track.get('track', '')}")
+            entry: dict = {
+                "artist": track.get("artist", "").lower().strip(),
+                "track": track.get("track", "").lower().strip(),
+            }
+        else:
+            key = _normalize_key(str(track))
+            entry = {"artist": "", "track": str(track).lower().strip()}
+        if key not in existing_tracks:
+            profile["history"]["suggested_tracks"].append(entry)
+            existing_tracks.add(key)
 
     return profile
 
@@ -397,7 +484,10 @@ def filter_duplicate_suggestions(profile, result):
     # Build track-level exclusion set from history + disliked tracks
     exclude_keys = set()
     for entry in profile.get("history", {}).get("suggested_tracks", []):
-        exclude_keys.add(_normalize_key(entry))
+        if isinstance(entry, dict):
+            exclude_keys.add(_normalize_key(f"{entry.get('artist', '')} {entry.get('track', '')}"))
+        else:
+            exclude_keys.add(_normalize_key(entry))
     for dt in profile.get("feedback", {}).get("disliked_tracks", []):
         artist = dt.get("artist", "")
         track = dt.get("track", "")
@@ -415,18 +505,24 @@ def filter_duplicate_suggestions(profile, result):
             forbidden_artist_keys.add(_normalize_key(str(name)))
 
     # Build exhausted artist keys using longest-match against known artists
+    # Legacy fallback for any unmigrated string entries
     known_artists = sorted(
         set(profile.get("history", {}).get("suggested_artists", [])),
-        key=len, reverse=True
+        key=len, reverse=True,
     )
-    artist_track_counts = defaultdict(int)
+    artist_track_counts: dict = defaultdict(int)
     for entry in profile.get("history", {}).get("suggested_tracks", []):
-        e_lower = entry.lower().strip()
-        for artist in known_artists:
-            a_lower = artist.lower().strip()
-            if e_lower.startswith(a_lower + " "):
-                artist_track_counts[_normalize_key(a_lower)] += 1
-                break
+        if isinstance(entry, dict):
+            a_key = _normalize_key(entry.get("artist", ""))
+            if a_key:
+                artist_track_counts[a_key] += 1
+        else:
+            e_lower = str(entry).lower().strip()
+            for artist in known_artists:
+                a_lower = artist.lower().strip()
+                if e_lower.startswith(a_lower + " "):
+                    artist_track_counts[_normalize_key(a_lower)] += 1
+                    break
     exhausted_artist_keys = {
         a for a, count in artist_track_counts.items()
         if count >= EXHAUSTED_ARTIST_THRESHOLD
@@ -480,7 +576,7 @@ def filter_duplicate_suggestions(profile, result):
     result["profile_updates"] = {
         "suggested_artists": list(filtered_artists),
         "suggested_tracks": [
-            f"{item['artist'].lower().strip()} {item['track'].lower().strip()}"
+            {"artist": item["artist"].lower().strip(), "track": item["track"].lower().strip()}
             for item in filtered
         ],
     }

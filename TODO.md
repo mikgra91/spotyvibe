@@ -200,9 +200,9 @@
 - [x] Diversity hints on retries when history > 50 tracks (`core/suggestions.py`)
 
 ### Phase 3 — Structural
-- [ ] Store tracks as `{"artist": ..., "track": ...}` dicts in history instead of concatenated strings (requires profile migration) (`core/suggestions.py`, `core/profile.py`)
-- [ ] Two-pass generation for large histories (>150 tracks) (`core/suggestions.py`, `app.py`)
-- [ ] Per-model prompt tuning (if switching between gpt-4.1-mini and gpt-4.1) (`prompts/`, `core/suggestions.py`)
+- [x] Store tracks as `{"artist": ..., "track": ...}` dicts in history instead of concatenated strings (requires profile migration) (`core/suggestions.py`, `core/profile.py`)
+- [x] Two-pass generation for large histories (>150 tracks) (`core/suggestions.py`, `app.py`)
+- [x] Per-model prompt tuning (if switching between gpt-4.1-mini and gpt-4.1) (`prompts/`, `core/suggestions.py`)
 
 ---
 
