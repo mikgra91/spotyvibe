@@ -230,13 +230,27 @@ Manages all application settings and credentials.
 
 ---
 
+### `core/openai_http.py` — Direct HTTP Client for OpenAI API
+
+Replaces the `openai` Python SDK with a stdlib-only HTTP wrapper (`urllib.request` + `json`). This eliminates the native/Rust transitive dependencies (`jiter`, `pydantic-core`) that prevented Android/Chaquopy builds with newer SDK versions.
+
+**Public API:**
+- **`chat_completions_create(model, messages, temperature, response_format)`** — `POST /v1/chat/completions`. Validates the model against `OPENAI_SUPPORTED_MODELS_JSON` locally before making the request.
+- **`extract_chat_content(response)`** — Extracts the assistant content string from a chat completions response dict.
+- **`list_models()`** — `GET /v1/models`. Available for direct use; the Settings UI instead uses the local allowlist via `get_openai_models()`.
+
+**Error hierarchy:** `OpenAIError` → `OpenAIConfigError`, `OpenAIRequestError` (`OpenAIAuthError`, `OpenAIRateLimitError`), `OpenAITimeoutError`, `OpenAIResponseError`, `OpenAIUnsupportedModelError`.
+
+**Retry policy:** 2 retries for `list_models`, 1 retry for `chat_completions_create`. Retries on 429/5xx with exponential back-off.
+
+---
+
 ### `core/utils.py` — Shared Utilities
 
 Contains functions used across multiple modules:
 
-- **`get_openai_client()`** — Returns a lazily-initialised OpenAI client. Re-creates the client when the API key changes (e.g., after a settings update). Raises a clear error if the key is not configured.
+- **`get_openai_models()`** — Returns structured model objects `{"id", "label", "supported"}` from the curated allowlist (`OPENAI_SUPPORTED_MODELS_JSON` in `config.py`). No API call is made. The currently configured model is appended at the end if it is not in the allowlist (marked `supported: false`).
 - **`strip_code_fences(text)`** — Removes markdown code fences (`` ```json ... ``` ``) from GPT responses. Used by both `suggestions.py` and `profile.py`.
-- **`get_openai_models()`** — Fetches the list of available GPT chat models from the OpenAI API. Filters to models suitable for chat completions (prefixed `gpt-`, `o1`, `o3`, `o4`) and excludes audio, realtime, transcription, TTS, and embedding variants.
 - **`debug_log(label, messages, response_content)`** — Appends a timestamped GPT request/response pair to the debug log file. Only writes when debug mode is enabled. Used by `call_gpt()` (suggestions) and `train_profile()` (profile training).
 - **`sanitize_text(text)`** — Removes null bytes and control characters, normalizes whitespace. Used to sanitize untrusted user input before processing or storage.
 - **`sanitize_profile(profile)`** — Recursively applies `sanitize_text()` to all string values in a profile dict/list structure. Used during profile import to prevent injection of malicious content.
@@ -704,7 +718,7 @@ User clicks "Generate"
 | Component | Technology | Version |
 |---|---|---|
 | Backend | Python + Flask | 3.10+ / Flask ≥3.0 |
-| AI | OpenAI API (configurable, default: GPT-4.1-mini) | openai ≥1.0 |
+| AI | OpenAI API via `core/openai_http.py` (stdlib urllib, no SDK) | — |
 | Spotify | Spotipy (Spotify Web API wrapper) | spotipy ≥2.23 |
 | Credential storage | python-dotenv | ≥1.0 |
 | Frontend | Vanilla HTML/CSS/JavaScript | No framework |

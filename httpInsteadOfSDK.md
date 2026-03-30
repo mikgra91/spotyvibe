@@ -5,47 +5,47 @@ Stop depending on the official OpenAI Python SDK (openai), and instead call the 
 
 ## Primary motivation:
 Android/Chaquopy builds fail when newer SDK versions pull in Rust/native deps:
-- [] openai>=1.35 → depends on jiter (Rust)
-- [] pydantic>=2 → depends on pydantic-core (Rust)
+- [X] openai>=1.35 → depends on jiter (Rust)
+- [X] pydantic>=2 → depends on pydantic-core (Rust)
 
 Using plain HTTP + stdlib JSON avoids these transitive native builds entirely.
 
 ## Secondary benefits:
-- [] Fewer dependencies and simpler dependency pinning.
-- [] More predictable behavior across desktop + Android.
+- [X] Fewer dependencies and simpler dependency pinning.
+- [X] More predictable behavior across desktop + Android.
 
 ## Non-goals (initial migration):
-- [] Streaming responses.
-- [] Function calling/tools.
-- [] Realtime/audio endpoints.
-- [] Migrating from Chat Completions to the Responses API.
+- [X] Streaming responses.
+- [X] Function calling/tools.
+- [X] Realtime/audio endpoints.
+- [X] Migrating from Chat Completions to the Responses API.
 
 ## Current OpenAI SDK usage (what we must replace)
 
 ### Where the SDK is imported/used
 
 #### core/utils.py
-- [] from openai import OpenAI
-- [] get_openai_client() creates OpenAI(api_key=...) and caches it.
-- [] get_openai_models() calls client.models.list() and filters model IDs.
+- [X] from openai import OpenAI
+- [X] get_openai_client() creates OpenAI(api_key=...) and caches it.
+- [X] get_openai_models() calls client.models.list() and filters model IDs.
 
 #### core/suggestions.py
-- [] call_gpt(...) calls:
+- [X] call_gpt(...) calls:
   client.chat.completions.create(...)
-- [] Expects response.choices[0].message.content.
+- [X] Expects response.choices[0].message.content.
 
 #### core/profile.py
-- [] Imports SDK typing: from openai.types.chat import ChatCompletionMessageParam
-- [] train_profile(...) calls the same API.
+- [X] Imports SDK typing: from openai.types.chat import ChatCompletionMessageParam
+- [X] train_profile(...) calls the same API.
 
 #### core/analysis.py
-- [] analyze_band_song(...) calls client.chat.completions.create(...).
+- [X] analyze_band_song(...) calls client.chat.completions.create(...).
 
 ## Features relied upon
-- [] Chat Completions endpoint semantics
-- [] Models list for Settings dropdown
-- [] Debug logging of raw JSON
-- [] No streaming currently
+- [X] Chat Completions endpoint semantics
+- [X] Models list for Settings dropdown
+- [X] Debug logging of raw JSON
+- [X] No streaming currently
 
 ## Model filtering & JSON-mode compatibility
 
@@ -55,11 +55,11 @@ Maintain a small list of known-good model IDs.
 
 ### Allowed vs displayed models
 
-[] allowed_set = union of:
+[X] allowed_set = union of:
 - OPENAI_SUPPORTED_MODELS_JSON
 - OPENAI_EXTRA_ALLOWED_MODELS
 
-[] display_set = allowed_set + current configured model if missing
+[X] display_set = allowed_set + current configured model if missing
 
 ## Unsupported-model handling
 
@@ -78,115 +78,115 @@ Structured model objects:
 ]
 
 ## Model ordering
-- [] Preserve allowlist order
-- [] Append unsupported configured model at end
+- [X] Preserve allowlist order
+- [X] Append unsupported configured model at end
 
 ## Server-side validation rules
 Validate:
-- [] non-empty
-- [] valid JSON
-- [] JSON object
+- [X] non-empty
+- [X] valid JSON
+- [X] JSON object
 
 ## Where the allowlist lives
-- [] config.py → OPENAI_SUPPORTED_MODELS_JSON
-- [] optional OPENAI_EXTRA_ALLOWED_MODELS
+- [X] config.py → OPENAI_SUPPORTED_MODELS_JSON
+- [X] optional OPENAI_EXTRA_ALLOWED_MODELS
 
 ## Proposed design: HTTP client wrapper
 
 ### core/openai_http.py
 
 Responsibilities:
-- [] Base URL config
-- [] Timeouts
-- [] Optional headers
-- [] urllib + json usage
-- [] Centralized retries & errors
+- [X] Base URL config
+- [X] Timeouts
+- [X] Optional headers
+- [X] urllib + json usage
+- [X] Centralized retries & errors
 
 ### Canonical exceptions
-- [] OpenAIError
-- [] OpenAIConfigError
-- [] OpenAIRequestError
-- [] OpenAIAuthError
-- [] OpenAIRateLimitError
-- [] OpenAITimeoutError
-- [] OpenAIResponseError
-- [] OpenAIUnsupportedModelError
+- [X] OpenAIError
+- [X] OpenAIConfigError
+- [X] OpenAIRequestError
+- [X] OpenAIAuthError
+- [X] OpenAIRateLimitError
+- [X] OpenAITimeoutError
+- [X] OpenAIResponseError
+- [X] OpenAIUnsupportedModelError
 
 ### Core helper
 _request_json(...)
 
 ### Retry behavior
-- [] Retry on: 429, 500, 502, 503, 504
-- [] models: 2 retries
-- [] chat: 1 retry
+- [X] Retry on: 429, 500, 502, 503, 504
+- [X] models: 2 retries
+- [X] chat: 1 retry
 
 ### Headers
 Required:
-- [] Authorization: Bearer API key
-- [] Content-Type: application/json
+- [X] Authorization: Bearer API key
+- [X] Content-Type: application/json
 
 ### Logging
-- [] Never log API key
-- [] Redact sensitive headers
+- [X] Never log API key
+- [X] Redact sensitive headers
 
 ### Public wrapper functions
-- [] list_models()
-- [] chat_completions_create(...)
-- [] extract_chat_content(...)
+- [X] list_models()
+- [X] chat_completions_create(...)
+- [X] extract_chat_content(...)
 
 ## Migration plan
 
 ### Step 0 — Scope
 Use only:
-- [] POST /v1/chat/completions
-- [] GET /v1/models
+- [X] POST /v1/chat/completions
+- [X] GET /v1/models
 
 ### Step 1 — Add HTTP module
 Create core/openai_http.py
 
 ### Step 2 — Replace SDK usage
 Update:
-- [] core/utils.py
-- [] core/suggestions.py
-- [] core/profile.py
-- [] core/analysis.py
+- [X] core/utils.py
+- [X] core/suggestions.py
+- [X] core/profile.py
+- [X] core/analysis.py
 
 ### Step 3 — Remove SDK dependency
-- [] requirements.txt
-- [] android/app/build.gradle
+- [X] requirements.txt
+- [X] android/app/build.gradle
 
 ### Step 4 — Update tests
-- [] Mock HTTP wrapper
-- [] Add test_openai_http.py
+- [X] Mock HTTP wrapper
+- [X] Add test_openai_http.py
 
 ### Step 5 — Documentation updates
 Update:
-- [] README.md
-- [] UserManual.md
-- [] TechnicalManual.md
-- [] AGENTS.md
+- [X] README.md
+- [X] UserManual.md
+- [X] TechnicalManual.md
+- [X] AGENTS.md
 
 ### Step 6 — Validation
 Desktop + Android tests and smoke checks
 
 ## Risks / considerations
-- [] Rate limits
-- [] Retry cost duplication
-- [] Timeouts
-- [] Proxy handling
-- [] API evolution
-- [] Stdlib HTTP limitations
+- [X] Rate limits
+- [X] Retry cost duplication
+- [X] Timeouts
+- [X] Proxy handling
+- [X] API evolution
+- [X] Stdlib HTTP limitations
 
 ## Rollout strategy
-- [] Implement wrapper
-- [] Migrate callsites
-- [] Remove SDK
-- [] Test
+- [X] Implement wrapper
+- [X] Migrate callsites
+- [X] Remove SDK
+- [X] Test
 
 ## Acceptance criteria
-- [] No openai dependency
-- [] Android build succeeds
-- [] Functionality preserved
-- [] Unsupported models handled clearly
-- [] Tests passing
-- [] No secrets in logs
+- [X] No openai dependency
+- [X] Android build succeeds
+- [X] Functionality preserved
+- [X] Unsupported models handled clearly
+- [X] Tests passing
+- [X] No secrets in logs

@@ -9,7 +9,8 @@ import json
 from pathlib import Path
 
 from config import BASE_DIR, get_model, get_gpt_language
-from core.utils import get_openai_client, strip_code_fences, debug_log
+from core.utils import strip_code_fences, debug_log
+from core.openai_http import chat_completions_create, extract_chat_content
 
 ANALYSIS_PROMPT_FILE = BASE_DIR / "prompts" / "analysis_prompt.txt"
 
@@ -44,15 +45,14 @@ def analyze_band_song(artist: str, track: str = "") -> dict:
         {"role": "user", "content": user_message},
     ]
 
-    client = get_openai_client()
-    response = client.chat.completions.create(
+    response = chat_completions_create(
         model=get_model(),
-        messages=messages,  # type: ignore[arg-type]
+        messages=messages,
         temperature=0.3,
         response_format={"type": "json_object"},
     )
 
-    raw = (response.choices[0].message.content or "").strip()
+    raw = extract_chat_content(response)
     debug_log("Band/Song Analysis", messages, raw)
 
     content = strip_code_fences(raw)

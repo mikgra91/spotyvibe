@@ -28,12 +28,10 @@ can later revert to the previous version.
 import json
 import shutil
 from datetime import datetime, timezone
-from typing import cast
-
-from openai.types.chat import ChatCompletionMessageParam
 
 from config import BASE_DIR, PROFILE_FILE, PROFILE_HISTORY_FILE, get_model, get_gpt_language
-from core.utils import debug_log, get_openai_client, strip_code_fences, sanitize_profile
+from core.utils import debug_log, strip_code_fences, sanitize_profile
+from core.openai_http import chat_completions_create, extract_chat_content
 
 
 # Template and prompt paths are resolved from BASE_DIR (the project root)
@@ -400,24 +398,19 @@ def train_profile(sections):
 
     user_message = "".join(parts)
 
-    client = get_openai_client()
-
-    # The OpenAI Python SDK types `messages` as an iterable of
-    # ChatCompletionMessageParam (a TypedDict union). A plain
-    # `list[dict[str, str]]` triggers static type errors in Pylance, so we cast.
-    train_messages: list[ChatCompletionMessageParam] = [
-        cast(ChatCompletionMessageParam, {"role": "system", "content": system_prompt}),
-        cast(ChatCompletionMessageParam, {"role": "user", "content": user_message}),
+    train_messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message},
     ]
 
-    response = client.chat.completions.create(
+    response = chat_completions_create(
         model=get_model(),
         messages=train_messages,
         temperature=0.3,
         response_format={"type": "json_object"},
     )
 
-    raw_content = (response.choices[0].message.content or "").strip()
+    raw_content = extract_chat_content(response)
     if not raw_content:
         raise ValueError(
             "AI returned an empty response while training the profile. "

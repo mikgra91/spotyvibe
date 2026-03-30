@@ -35,7 +35,8 @@ import unicodedata
 from collections import defaultdict
 from pathlib import Path
 from config import BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD, get_model, get_gpt_language
-from core.utils import get_openai_client, strip_code_fences, debug_log
+from core.utils import strip_code_fences, debug_log
+from core.openai_http import chat_completions_create, extract_chat_content
 
 # Paths resolved from the package root using pathlib — immune to os.chdir()
 SYSTEM_PROMPT_FILE = BASE_DIR / "prompts" / "system_prompt.txt"
@@ -379,15 +380,14 @@ def call_gpt(messages, temperature=0.7):
     Temperature is configurable — callers pass a lower value on retries
     to push toward more deterministic (less repetitive) output.
     """
-    client = get_openai_client()
-    response = client.chat.completions.create(
+    response = chat_completions_create(
         model=get_model(),
         messages=messages,
         temperature=temperature,
         response_format={"type": "json_object"},
     )
 
-    raw_content = (response.choices[0].message.content or "").strip()
+    raw_content = extract_chat_content(response)
     debug_log("Suggestion Generation", messages, raw_content)
 
     content = strip_code_fences(raw_content)

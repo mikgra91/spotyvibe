@@ -16,7 +16,7 @@ Project-level instructions for AI coding agents working on this codebase.
 |---|---|
 | Language | Python 3.10+ |
 | Web framework | Flask ≥3.0 |
-| AI | OpenAI API (openai ≥1.0) |
+| AI | OpenAI API (direct HTTP via `core/openai_http.py`, no SDK) |
 | Spotify integration | Spotipy ≥2.23 (Spotify Web API wrapper) |
 | Credential storage | python-dotenv ≥1.0 |
 | Frontend | Vanilla HTML / CSS / JavaScript (single-page, no framework) |
@@ -53,12 +53,14 @@ The Android APK is built with **Chaquopy**, which installs Python packages from 
 
 These pins are intentionally **not identical** to `requirements.txt` because Android builds must avoid packages (or transitive dependencies) which require compiling native extensions (especially **Rust**) from source.
 
+The OpenAI SDK (`openai`) has been **removed** — API calls now use `core/openai_http.py` (Python stdlib `urllib` + `json`). This eliminates the native/Rust transitive dependencies (`jiter`, `pydantic-core`) that previously blocked Chaquopy builds.
+
 Current known constraints (do not change without validating an Android build):
 
-- **`pydantic` must be `<2.0`**
+- **`pydantic` must be `<2.0`** (if re-added)
   - Pydantic v2 depends on **`pydantic-core`** (Rust). Chaquopy does not provide wheels for it, and source builds fail.
-- **`openai` must be `<1.35`**
-  - OpenAI Python >= 1.35 depends on **`jiter`** (Rust). Same issue: no Chaquopy wheels, source builds fail.
+- **Do not re-add `openai` to Android pip installs**
+  - OpenAI Python ≥1.35 depends on **`jiter`** (Rust). The direct HTTP client in `core/openai_http.py` replaces the SDK entirely.
 
 If you update any Android pip pins:
 - Check the full transitive dependency set for sdists / native builds.
@@ -77,7 +79,8 @@ spotyvibe/
 ├── config.py               # Centralised configuration & credential management
 ├── requirements.txt        # Python dependencies
 ├── core/                   # Business logic modules
-│   ├── utils.py            # Shared utilities (OpenAI client, helpers)
+│   ├── openai_http.py      # Direct HTTP client for OpenAI API (no SDK)
+│   ├── utils.py            # Shared utilities (debug log, text helpers)
 │   ├── profile.py          # Taste profile I/O and GPT-based training
 │   ├── suggestions.py      # GPT suggestion engine and deduplication
 │   ├── playlist.py         # Spotify playlist management and OAuth

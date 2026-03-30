@@ -1722,9 +1722,10 @@
                 select.innerHTML = '';
                 models.forEach(m => {
                     const opt = document.createElement('option');
-                    opt.value = m;
-                    opt.textContent = m;
-                    if (m === selected) opt.selected = true;
+                    opt.value = m.id;
+                    opt.textContent = m.label;
+                    if (!m.supported) opt.style.color = 'var(--warning, #f0a030)';
+                    if (m.id === selected) opt.selected = true;
                     select.appendChild(opt);
                 });
             } else {

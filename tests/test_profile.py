@@ -119,10 +119,10 @@ class TestTrainProfile:
     @patch("core.profile.save_profile")
     @patch("core.profile.debug_log")
     @patch("core.profile.get_model", return_value="gpt-4o")
-    @patch("core.profile.get_openai_client")
+    @patch("core.profile.chat_completions_create")
     @patch("core.profile.load_profile")
     def test_calls_gpt_and_updates_profile(
-        self, mock_load, mock_client_fn, mock_model, mock_debug, mock_save
+        self, mock_load, mock_create, mock_model, mock_debug, mock_save
     ):
         original_profile = {
             "last_updated": None,
@@ -144,13 +144,7 @@ class TestTrainProfile:
             "feedback": {"liked_tracks": ["REPLACED"], "disliked_tracks": []},
             "taste_rules": {"primary_driver": "energy", "dealbreaker_priority": ["country"]},
         }
-
-        mock_client = MagicMock()
-        mock_client_fn.return_value = mock_client
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps(gpt_output)
-        mock_client.chat.completions.create.return_value = mock_response
+        mock_create.return_value = {"choices": [{"message": {"content": json.dumps(gpt_output)}}]}
 
         sections = {
             "core_description": "I love rock music",
@@ -178,10 +172,10 @@ class TestTrainProfile:
     @patch("core.profile.save_profile")
     @patch("core.profile.debug_log")
     @patch("core.profile.get_model", return_value="gpt-4o")
-    @patch("core.profile.get_openai_client")
+    @patch("core.profile.chat_completions_create")
     @patch("core.profile.load_profile")
     def test_raises_on_invalid_json(
-        self, mock_load, mock_client_fn, mock_model, mock_debug, mock_save
+        self, mock_load, mock_create, mock_model, mock_debug, mock_save
     ):
         mock_load.return_value = {
             "last_updated": None,
@@ -192,13 +186,7 @@ class TestTrainProfile:
             "feedback": {"liked_tracks": [], "disliked_tracks": []},
             "taste_rules": {"primary_driver": "", "dealbreaker_priority": []},
         }
-
-        mock_client = MagicMock()
-        mock_client_fn.return_value = mock_client
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "NOT VALID JSON {{{{"
-        mock_client.chat.completions.create.return_value = mock_response
+        mock_create.return_value = {"choices": [{"message": {"content": "NOT VALID JSON {{{{"}}]}
 
         import pytest
         with pytest.raises(ValueError, match="invalid response"):
@@ -213,10 +201,10 @@ class TestTrainProfile:
     @patch("core.profile.save_profile")
     @patch("core.profile.debug_log")
     @patch("core.profile.get_model", return_value="gpt-4o")
-    @patch("core.profile.get_openai_client")
+    @patch("core.profile.chat_completions_create")
     @patch("core.profile.load_profile")
     def test_preserves_schema_when_gpt_drops_keys(
-        self, mock_load, mock_client_fn, mock_model, mock_debug, mock_save
+        self, mock_load, mock_create, mock_model, mock_debug, mock_save
     ):
         original_profile = {
             "last_updated": None,
@@ -233,13 +221,7 @@ class TestTrainProfile:
         gpt_output = {
             "preferences": {"core_description": "heavy rock", "must_have": ["guitar"], "soft_preferences": [], "avoid": []},
         }
-
-        mock_client = MagicMock()
-        mock_client_fn.return_value = mock_client
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = json.dumps(gpt_output)
-        mock_client.chat.completions.create.return_value = mock_response
+        mock_create.return_value = {"choices": [{"message": {"content": json.dumps(gpt_output)}}]}
 
         result = train_profile({
             "core_description": "heavy rock",

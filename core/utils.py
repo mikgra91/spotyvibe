@@ -1,13 +1,9 @@
 """Shared utilities for the core modules.
 
 Technologies & patterns used:
-- **openai** (v1.x): Official Python SDK for the OpenAI API. Uses the
-  new resource-based client (`OpenAI(...)`) introduced in v1.0, replacing
-  the legacy module-level `openai.ChatCompletion.create()` style.
-- **Singleton / lazy initialisation**: The OpenAI client is created once
-  and reused across requests. This avoids repeated HTTP-session setup and
-  reduces latency. The client is automatically recreated when the API key
-  changes, supporting runtime credential updates without a restart.
+- **Direct HTTP**: OpenAI API calls use core.openai_http (stdlib urllib +
+  json) instead of the openai SDK. This removes native/Rust transitive
+  dependencies (jiter, pydantic-core) that break Android/Chaquopy builds.
 - **python-dotenv integration**: API keys live in environment variables,
   loaded from a `.credentials` file by config.py. This module reads them
   via `os.getenv()` — the standard twelve-factor-app approach.
@@ -17,17 +13,10 @@ import json
 import os
 import re
 from datetime import datetime, timezone
-# OpenAI Python SDK v1.x — provides a class-based client (`OpenAI`) that
-# manages HTTP sessions, retries, and streaming internally.
-from openai import OpenAI
-from config import DEBUG_LOG_FILE, get_debug_mode
-
-# Module-level singleton cache for the OpenAI client.
-# Why a global singleton? Creating an OpenAI() client spins up an
-# httpx.Client with connection pooling. Reusing it across requests
-# avoids repeated TLS handshakes and keeps connection overhead low.
-_openai_client = None
-_openai_key = None
+from config import (
+    DEBUG_LOG_FILE, get_debug_mode,
+    OPENAI_SUPPORTED_MODELS_JSON, OPENAI_EXTRA_ALLOWED_MODELS, get_model,
+)
 
 
 def debug_log(label, messages, response_content):
@@ -107,40 +96,6 @@ def strip_code_fences(text):
     return text.strip()
 
 
-def get_openai_client():
-    """Return a lazily-initialised OpenAI client.
-
-    Re-creates the client when the API key changes (e.g. after the user
-    updates credentials via the Settings UI).  Raises ``ValueError`` early
-    if the key is not configured.
-
-    Pattern: **Lazy Singleton with key-change detection**.
-    - First call creates the client and caches it in module globals.
-    - Subsequent calls return the cached instance (fast path).
-    - If the API key has been rotated via the Settings UI, the old client
-      is discarded and a fresh one is created with the new key.
-
-    Alternative considered: Dependency injection (passing the client as a
-    parameter). This was rejected because every Flask route and core
-    function would need the client threaded through, adding boilerplate
-    with no practical benefit for a single-user desktop app.
-    """
-    global _openai_client, _openai_key
-
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError(
-            "OpenAI API key is not configured. "
-            "Go to ⚙️ → Credentials to set it."
-        )
-
-    if _openai_client is None or _openai_key != api_key:
-        _openai_client = OpenAI(api_key=api_key)
-        _openai_key = api_key
-
-    return _openai_client
-
-
 def sanitize_text(text):
     """Remove null bytes, control characters, and normalize whitespace.
 
@@ -168,35 +123,41 @@ def sanitize_profile(profile):
 
 
 def get_openai_models():
-    """Fetch available GPT chat models from the OpenAI API.
+    """Return available OpenAI chat models for the Settings dropdown.
 
-    Returns a sorted list of model ID strings suitable for chat completions.
+    Returns a list of model dicts: {"id", "label", "supported"}.
 
-    Uses the OpenAI Models API (`client.models.list()`) which returns all
-    models accessible to the current API key. The results are filtered to
-    chat-capable models (gpt-*, o1, o3, o4 prefixes) and excludes
-    specialised models (audio, TTS, embeddings, etc.) that cannot be used
-    for chat completions.
+    Uses the curated allowlist from config — no API call required.
+    This approach works on Android/Chaquopy where the openai SDK (and its
+    native deps) are not available, and avoids a network round-trip just
+    to populate a dropdown.
 
-    This dynamic listing means the Settings UI always shows the latest
-    models without code changes — new OpenAI model releases appear
-    automatically.
+    The currently configured model is appended at the end if it is not
+    already in the allowlist, marked as unsupported so the UI can warn
+    the user.
+
+    Model ordering: allowlist order first, then OPENAI_EXTRA_ALLOWED_MODELS,
+    then the configured model (if missing from both lists).
     """
-    client = get_openai_client()
-    models = client.models.list()
+    allowed_ids = list(OPENAI_SUPPORTED_MODELS_JSON)
+    extra_ids = list(OPENAI_EXTRA_ALLOWED_MODELS)
+    all_allowed: set = set(allowed_ids) | set(extra_ids)
 
-    chat_prefixes = ("gpt-", "o1", "o3", "o4")
-    chat_models = [
-        m.id for m in models.data
-        if m.id.startswith(chat_prefixes)
-        and "realtime" not in m.id
-        and "audio" not in m.id
-        and "transcribe" not in m.id
-        and "tts" not in m.id
-        and "embedding" not in m.id
-        and "search" not in m.id
-    ]
+    # Build display list preserving declaration order, deduplicating
+    models = []
+    seen: set = set()
+    for mid in allowed_ids + extra_ids:
+        if mid not in seen:
+            models.append({"id": mid, "label": mid, "supported": True})
+            seen.add(mid)
 
-    return sorted(chat_models)
+    # Append configured model at the end if it is not in the allowlist
+    current = get_model()
+    if current and current not in all_allowed:
+        models.append({
+            "id": current,
+            "label": f"{current} (unsupported)",
+            "supported": False,
+        })
 
-
+    return models

@@ -44,6 +44,7 @@ from core.feedback import like_track, dislike_track
 from core.analysis import analyze_band_song
 from core.history import save_run, load_runs, undo_last_run
 from core.utils import get_openai_models, clear_debug_log, sanitize_text
+from core.openai_http import OpenAIConfigError, OpenAIError
 from core.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist,
     get_spotify_auth_status, get_spotify_auth_url, handle_spotify_callback,
@@ -560,9 +561,9 @@ def list_models():
         _models_cache["data"] = models
         _models_cache["expires"] = now + _MODELS_CACHE_TTL
         return jsonify({"models": models, "selected": get_model()})
-    except ValueError as e:
+    except (ValueError, OpenAIConfigError) as e:
         return jsonify({"error": str(e), "models": [], "selected": get_model()}), 400
-    except Exception as e:
+    except (OpenAIError, Exception) as e:
         return jsonify({"error": str(e), "models": [], "selected": get_model()}), 500
 
 

@@ -1,7 +1,7 @@
 import os
 from unittest.mock import patch, MagicMock, mock_open
 
-from core.utils import strip_code_fences, debug_log, clear_debug_log, get_openai_client, get_openai_models, sanitize_text, sanitize_profile
+from core.utils import strip_code_fences, debug_log, clear_debug_log, get_openai_models, sanitize_text, sanitize_profile
 
 
 class TestStripCodeFences:
@@ -90,61 +90,6 @@ class TestClearDebugLog:
             clear_debug_log()  # should not raise
 
 
-class TestGetOpenaiClient:
-    def setup_method(self):
-        """Reset the module-level client cache before each test."""
-        import core.utils
-        core.utils._openai_client = None
-        core.utils._openai_key = None
-
-    @patch.dict(os.environ, {"OPENAI_API_KEY": ""}, clear=False)
-    def test_raises_when_no_key(self):
-        env = os.environ.copy()
-        env.pop("OPENAI_API_KEY", None)
-        with patch.dict(os.environ, env, clear=True):
-            import core.utils
-            core.utils._openai_client = None
-            core.utils._openai_key = None
-            try:
-                get_openai_client()
-                assert False, "Expected ValueError"
-            except ValueError as e:
-                assert "not configured" in str(e)
-
-    @patch("core.utils.OpenAI")
-    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test123"})
-    def test_creates_client(self, mock_openai_cls):
-        import core.utils
-        core.utils._openai_client = None
-        core.utils._openai_key = None
-        client = get_openai_client()
-        mock_openai_cls.assert_called_once_with(api_key="sk-test123")
-        assert client is mock_openai_cls.return_value
-
-    @patch("core.utils.OpenAI")
-    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test123"})
-    def test_reuses_client_same_key(self, mock_openai_cls):
-        import core.utils
-        core.utils._openai_client = None
-        core.utils._openai_key = None
-        c1 = get_openai_client()
-        c2 = get_openai_client()
-        # Should only create one client
-        mock_openai_cls.assert_called_once()
-        assert c1 is c2
-
-    @patch("core.utils.OpenAI")
-    def test_recreates_client_on_key_change(self, mock_openai_cls):
-        import core.utils
-        core.utils._openai_client = None
-        core.utils._openai_key = None
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-key1"}):
-            get_openai_client()
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-key2"}):
-            get_openai_client()
-        assert mock_openai_cls.call_count == 2
-
-
 class TestSanitizeText:
     def test_removes_null_bytes(self):
         assert sanitize_text("hello\x00world") == "helloworld"
@@ -187,30 +132,52 @@ class TestSanitizeProfile:
 
 
 class TestGetOpenaiModels:
-    @patch("core.utils.get_openai_client")
-    def test_returns_sorted_chat_models(self, mock_get_client):
-        mock_client = MagicMock()
-        mock_get_client.return_value = mock_client
-
-        model_data = [
-            MagicMock(id="gpt-4o"),
-            MagicMock(id="gpt-3.5-turbo"),
-            MagicMock(id="o1-preview"),
-            MagicMock(id="gpt-4o-realtime"),  # should be excluded
-            MagicMock(id="gpt-4o-audio"),      # should be excluded
-            MagicMock(id="text-embedding-3"),   # should be excluded
-            MagicMock(id="tts-1"),              # should be excluded
-        ]
-        mock_client.models.list.return_value = MagicMock(data=model_data)
-
+    def test_returns_list_of_dicts(self):
+        """get_openai_models returns structured objects with id, label, supported."""
         models = get_openai_models()
-        assert "gpt-4o" in models
-        assert "gpt-3.5-turbo" in models
-        assert "o1-preview" in models
-        assert "gpt-4o-realtime" not in models
-        assert "gpt-4o-audio" not in models
-        assert "text-embedding-3" not in models
-        assert "tts-1" not in models
-        # Should be sorted
-        assert models == sorted(models)
+        assert isinstance(models, list)
+        assert len(models) > 0
+        for m in models:
+            assert "id" in m
+            assert "label" in m
+            assert "supported" in m
 
+    def test_supported_models_are_marked_true(self):
+        models = get_openai_models()
+        supported = [m for m in models if m["supported"]]
+        assert len(supported) > 0
+        # All supported model labels should not contain "(unsupported)"
+        for m in supported:
+            assert "(unsupported)" not in m["label"]
+
+    def test_includes_default_model(self):
+        models = get_openai_models()
+        ids = [m["id"] for m in models]
+        assert "gpt-4.1-mini" in ids
+
+    def test_appends_configured_model_if_not_in_allowlist(self):
+        with patch("core.utils.get_model", return_value="custom-preview-model"):
+            models = get_openai_models()
+        ids = [m["id"] for m in models]
+        assert "custom-preview-model" in ids
+        custom = next(m for m in models if m["id"] == "custom-preview-model")
+        assert custom["supported"] is False
+        assert "(unsupported)" in custom["label"]
+        # Unsupported model should be appended at the end
+        assert models[-1]["id"] == "custom-preview-model"
+
+    def test_does_not_duplicate_if_configured_model_in_allowlist(self):
+        with patch("core.utils.get_model", return_value="gpt-4.1-mini"):
+            models = get_openai_models()
+        count = sum(1 for m in models if m["id"] == "gpt-4.1-mini")
+        assert count == 1
+
+    def test_preserves_allowlist_order(self):
+        from config import OPENAI_SUPPORTED_MODELS_JSON
+        with patch("core.utils.get_model", return_value="gpt-4.1-mini"):
+            models = get_openai_models()
+        allowlist_models = [m for m in models if m["supported"]]
+        returned_ids = [m["id"] for m in allowlist_models]
+        # Verify order matches OPENAI_SUPPORTED_MODELS_JSON
+        allowlist_in_result = [mid for mid in OPENAI_SUPPORTED_MODELS_JSON if mid in returned_ids]
+        assert allowlist_in_result == [mid for mid in returned_ids if mid in OPENAI_SUPPORTED_MODELS_JSON]
