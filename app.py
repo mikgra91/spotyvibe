@@ -21,7 +21,8 @@ from config import (
     GENERAL_REQUEST_MAX_BYTES, MAX_GPT_CALLS_PER_RUN,
     MAX_CORE_DESCRIPTION_LEN, MAX_PROFILE_SECTION_LEN,
     MAX_FEEDBACK_REASON_LEN, MAX_FEEDBACK_ARTIST_LEN, MAX_FEEDBACK_TRACK_LEN,
-    is_onboarding_completed, set_onboarding_completed,
+    is_onboarding_completed, set_onboarding_completed, MAX_SONG_LIST_SIZE,
+    _get_app_dir,
 )
 import markdown
 
@@ -85,6 +86,7 @@ def index():
 @app.route("/onboarding")
 def onboarding():
     return render_template("onboarding.html")
+
 
 
 @app.route("/api/onboarding/status")
@@ -216,11 +218,13 @@ def run_pipeline():
                     accepted_tracks=accepted,
                     batch_size=request_count,
                     recently_filtered_tracks=last_filtered_tracks if last_filtered_tracks else None,
-                    consecutive_empty=consecutive_empty_batches,
                     new_artist_percentage=new_artist_percentage,
+                    batch_num=batch_num,
                 )
                 gpt_call_count += 1
-                result = call_gpt(messages)
+                # Adaptive temperature: lower on retries for more deterministic output
+                temperature = max(0.3, 0.7 - (consecutive_empty_batches * 0.2))
+                result = call_gpt(messages, temperature=temperature)
 
                 # ── Check again after the blocking GPT call ──
                 if cancel_event.is_set():
@@ -231,6 +235,18 @@ def run_pipeline():
                 # Extracts _filtered_out so we can pass it back to GPT on retry.
                 result = filter_duplicate_suggestions(profile, result)
                 filtered_out = result.pop("_filtered_out", [])
+
+                # Truncate over-requested batch (+3 buffer) to the actual count needed.
+                # Recompute profile_updates so history reflects only added tracks.
+                if len(result["playlist"]) > request_count:
+                    result["playlist"] = result["playlist"][:request_count]
+                    truncated_artists = {item["artist"].lower().strip() for item in result["playlist"]}
+                    result["profile_updates"]["suggested_artists"] = list(truncated_artists)
+                    result["profile_updates"]["suggested_tracks"] = [
+                        f"{item['artist'].lower().strip()} {item['track'].lower().strip()}"
+                        for item in result["playlist"]
+                    ]
+                    result["new_artists"] = [a for a in result["new_artists"] if a in truncated_artists]
 
                 if not result["playlist"]:
                     consecutive_empty_batches += 1
@@ -364,6 +380,19 @@ def run_pipeline():
                 {k: v for k, v in t.items() if k not in _HIDDEN_KEYS}
                 for t in verified_tracks
             ]
+
+            # Append new tracks to the persistent song list (best-effort)
+            try:
+                if _SONGLIST_FILE.exists():
+                    existing_songs = json.loads(_SONGLIST_FILE.read_text(encoding="utf-8"))
+                else:
+                    existing_songs = []
+                combined = existing_songs + visible_playlist
+                combined = combined[-MAX_SONG_LIST_SIZE:]  # keep newest, drop oldest
+                _SONGLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
+                _SONGLIST_FILE.write_text(json.dumps(combined, ensure_ascii=False, indent=2), encoding="utf-8")
+            except Exception:
+                pass
 
             yield _sse(
                 "result",
@@ -772,6 +801,45 @@ def undo_run():
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+_SONGLIST_FILE = _get_app_dir() / "songlist.json"
+
+
+@app.route("/api/songlist")
+def get_songlist():
+    """Return the persistent song list."""
+    if _SONGLIST_FILE.exists():
+        songs = json.loads(_SONGLIST_FILE.read_text(encoding="utf-8"))
+    else:
+        songs = []
+    return jsonify(songs=songs, max_size=MAX_SONG_LIST_SIZE)
+
+
+@app.route("/api/songlist", methods=["POST"])
+def save_songlist():
+    """Save/update the persistent song list."""
+    data = request.get_json(force=True)
+    songs = data.get("songs", [])
+    if len(songs) > MAX_SONG_LIST_SIZE:
+        return jsonify(error=f"Song list exceeds maximum of {MAX_SONG_LIST_SIZE}"), 400
+    _SONGLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _SONGLIST_FILE.write_text(json.dumps(songs, ensure_ascii=False, indent=2), encoding="utf-8")
+    return jsonify(ok=True, count=len(songs))
+
+
+@app.route("/api/songlist/track", methods=["DELETE"])
+def delete_songlist_track():
+    """Permanently remove a specific track from the persistent song list."""
+    data = request.get_json(force=True)
+    artist = data.get("artist", "").strip()
+    track = data.get("track", "").strip()
+    if not _SONGLIST_FILE.exists():
+        return jsonify(ok=True, count=0)
+    songs = json.loads(_SONGLIST_FILE.read_text(encoding="utf-8"))
+    songs = [s for s in songs if not (s.get("artist") == artist and s.get("track") == track)]
+    _SONGLIST_FILE.write_text(json.dumps(songs, ensure_ascii=False, indent=2), encoding="utf-8")
+    return jsonify(ok=True, count=len(songs))
 
 
 @app.route("/api/playlists")

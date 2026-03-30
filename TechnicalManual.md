@@ -103,10 +103,14 @@ spotyvibe/
 ├── templates/              # Flask templates
 │   ├── index.html          # Single-page web UI (HTML + JS)
 │   └── onboarding.html     # Multi-page swipeable onboarding
+├── build-tools/            # Build helper scripts (desktop + Android)
+│   ├── build_apk.sh        # Builds the Android APK (copies sources + runs Gradle)
+│   └── build_exe.sh        # Builds the Windows executable via PyInstaller
+│
 │├── android/                # Android APK build scaffolding (Chaquopy + Gradle)
 │   ├── build.gradle        # Root Gradle config with pinned AGP 8.2.2, Kotlin 1.9.22, Chaquopy 15.0.1
-│   ├── build_apk.sh        # One-command build script (copies sources + runs Gradle)
 │   ├── settings.gradle     # Gradle project settings
+
 │   ├── gradle.properties   # JVM and Android build properties
 │   ├── gradle/wrapper/     # Gradle wrapper config
 │   └── app/                # Android application module
@@ -177,7 +181,8 @@ Manages all application settings and credentials.
 
 | Constant | Purpose |
 |---|---|
-| `BASE_DIR` | Absolute path to the `spotyvibe/` directory. All file paths are resolved from here. |
+| `BASE_DIR` | Absolute path to the runtime asset root. In source runs this is the project directory; in PyInstaller builds it resolves to `sys._MEIPASS` so bundled files (templates/static/prompts/data/UserManual.md) can be found. |
+
 | `BATCH_SIZE` | Number of tracks GPT generates per single request (default: 10). |
 | `DEFAULT_PLAYLIST_SIZE` | Default total tracks per generation run (default: 10). |
 | `DEFAULT_NEW_ARTIST_PERCENTAGE` | Default minimum percentage of suggestions from artists not yet in history (default: 30). |
@@ -533,7 +538,8 @@ The `android/` directory contains a complete Android project that packages Spoty
 - ABI filters: `arm64-v8a` (production devices) + `x86_64` (emulator testing — remove for release builds)
 - Python source directory pointing to the copied project files
 
-**Build script (`build_apk.sh`):** A one-command script that:
+**Build script (`build-tools/build_apk.sh`):** A one-command script that:
+
 1. Copies `app.py`, `config.py`, `core/`, `prompts/`, `data/`, `templates/`, `static/` into `android/app/src/main/python/` using `find` + `cpio`, skipping `__pycache__` directories during the copy itself (avoids copying then cleaning)
 2. Copies `requirements.txt` for Chaquopy's pip integration
 3. Runs `./gradlew assembleDebug` to produce the APK
@@ -576,7 +582,9 @@ Desktop behaviour is completely unaffected — the popup flow is used whenever W
 | `AndroidManifest.xml` | Permissions and activity declaration |
 | `MainActivity.kt` | Flask thread, splash screen, WebView, OAuth popups |
 | `activity_main.xml` | FrameLayout: splash ImageView + WebView |
-| `build_apk.sh` | Copies Python sources and runs Gradle build |
+| `build-tools/build_apk.sh` | Copies Python sources and runs Gradle build |
+
+
 | `settings.gradle` | Gradle project structure and centralised `dependencyResolutionManagement` repository declarations |
 | `gradle.properties` | JVM args and Android build properties |
 
@@ -712,4 +720,73 @@ python -m pytest tests/ -v
 ```
 
 All core logic (normalisation, deduplication, feedback recording, utility functions) is covered by unit tests. External API calls (OpenAI, Spotify) are mocked.
+
+---
+
+## Windows executable (PyInstaller)
+
+SpotyVibe includes a Windows-first **PyInstaller one-folder** build setup.
+
+### Build-time files
+
+| Path | Purpose |
+|---|---|
+| `requirements.txt` | Runtime + dev dependencies (includes PyInstaller + Pillow for desktop builds) |
+
+| `desktop_launcher.py` | Desktop-only entry point for packaged builds (keeps `app.py` unchanged) |
+| `spotyvibe.spec` | PyInstaller spec (one-folder) which bundles Flask runtime assets |
+| `spotyvibe_onefile.spec` | PyInstaller spec (one-file) for a single-EXE distribution |
+| `build-tools/build_exe.sh` | Convenience wrapper around the spec builds (`--package`/`--full`) |
+| `build_assets/spotyvibe.ico` | Windows icon for the executable |
+| `build_assets/make_ico.py` | Generates the `.ico` from the Android launcher PNG |
+
+
+
+### Build command
+
+```bash
+pip install -r requirements.txt
+python build_assets/make_ico.py
+python -m pytest tests/ -v
+
+
+# One-folder build
+pyinstaller --noconfirm --clean spotyvibe.spec
+
+# Or via helper script
+./build-tools/build_exe.sh --package
+```
+
+
+### Output and runtime behavior
+
+- Output: `dist/spotyvibe/spotyvibe.exe`
+- The executable runs the same Flask server at `http://127.0.0.1:5000`.
+- `desktop_launcher.py` auto-opens the default browser to the UI on launch (best-effort).
+
+- Runtime assets are bundled via the spec file (`templates/`, `static/`, `prompts/`, `data/`, plus `UserManual.md`).
+- Secrets are intentionally **not** bundled; credentials remain in `%LOCALAPPDATA%\spotyvibe\.credentials`.
+
+### One-file build (optional)
+
+A one-file build bundles everything into a single `.exe`.
+
+Trade-offs:
+- Slower cold start (PyInstaller extracts files on launch)
+- Harder to inspect/debug compared to the one-folder build
+
+Build:
+
+```bash
+pyinstaller --noconfirm --clean spotyvibe_onefile.spec
+
+# Or via helper script
+./build-tools/build_exe.sh --full
+```
+
+
+Output:
+- `dist/spotyvibe_onefile.exe`
+
+
 

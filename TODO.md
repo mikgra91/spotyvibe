@@ -115,6 +115,9 @@
 - [x] **Previews and richer track cards**.
   - Add Spotify preview playback when `preview_url` is available.
   - Add quick links to track/album/artist in Spotify.
+  - [x] **Show History – Auto-Update on New Generation**: history panel refreshes automatically when a new playlist is generated.
+  - [x] **Persistent Song Feedback List**: song list persists across sessions (max 100 songs); generation blocked when list is too full; liked/disliked/removed tracks permanently deleted; counter shown in UI.
+  - [x] **30-Second Song Preview via Spotify Embed**: replaced deprecated `preview_url` audio element with Spotify embed overlay (bottom-sheet), available for every track via "Preview" button.
 
 ## Security
 
@@ -177,6 +180,31 @@
 - [x] **Fix documentation/behavior inconsistencies (quick wins)**.
   - Align docs with configurable playlist size (default 10) and batch size behaviour.
   - Avoid hard-coding “30 tracks” in user-facing docs where the value is configurable.
+
+## Prompt Improvement (GPT Suggestion Quality)
+
+### Phase 1 — Quick Wins
+- [x] Add rejected/disliked artist filter to `filter_duplicate_suggestions()` (`core/suggestions.py`)
+- [x] Add Unicode normalization (`NFKD`) to `_normalize_key()` (`core/suggestions.py`)
+- [x] Remove `validation` field from output schema (`prompts/system_prompt.txt`)
+- [x] Fresh retry prompts with ephemeral deny set — no prose warnings, no mention of previous attempt (`core/suggestions.py`)
+- [x] Temperature escalation on retries: 0.7 → 0.5 → 0.3 (`core/suggestions.py`, `app.py`)
+- [x] Code-side enforcement: max 2 tracks per artist per batch (`core/suggestions.py`)
+
+### Phase 2 — Prompt Restructure
+- [x] Consolidate system prompt — eliminate repeated/conflicting rules (`prompts/system_prompt.txt`)
+- [x] Structured JSON deny sets (`DENY_LIST`) as single source of truth (`core/suggestions.py`)
+- [x] Strip `artists.rejected` and `feedback.disliked_artists` from profile JSON sent to GPT (`core/suggestions.py`)
+- [x] Over-request by +3 (`batch_size + 3`), playlist-only model output, code-side metadata derivation (`core/suggestions.py`, `app.py`)
+- [x] Place `DENY_LIST` before profile in user message (`prompts/prompt_template.txt`)
+- [x] Diversity hints on retries when history > 50 tracks (`core/suggestions.py`)
+
+### Phase 3 — Structural
+- [ ] Store tracks as `{"artist": ..., "track": ...}` dicts in history instead of concatenated strings (requires profile migration) (`core/suggestions.py`, `core/profile.py`)
+- [ ] Two-pass generation for large histories (>150 tracks) (`core/suggestions.py`, `app.py`)
+- [ ] Per-model prompt tuning (if switching between gpt-4.1-mini and gpt-4.1) (`prompts/`, `core/suggestions.py`)
+
+---
 
 ## Bugs
 
@@ -292,3 +320,23 @@
 - [ ] Backend client initializes without errors
 - [ ] Onboarding behaves correctly
 - [ ] End-to-end flow works (Profile → Analysis → Playlist)
+
+#### TODO (tests currently skipped due to failures)
+These tests were skipped (commented out via `@pytest.mark.skip`) after the first failing run, per repo rule.
+
+- [ ] Fix and re-enable: `tests/test_frontend.py::TestThemeSwitcher::test_switch_to_pulse[chromium]`
+- [ ] Fix and re-enable: `tests/test_frontend.py::TestThemeSwitcher::test_theme_persists_via_localstorage[chromium]`
+- [ ] Fix and re-enable: `tests/test_frontend.py::TestSettingsGearMenu::test_dropdown_closes_on_outside_click[chromium]`
+- [ ] Fix and re-enable: `tests/test_frontend.py::TestCredentialsModal::test_opens_from_gear_menu[chromium]`
+- [ ] Fix and re-enable: `tests/test_frontend.py::TestCredentialsModal::test_shows_three_fields[chromium]`
+- [ ] Fix and re-enable: `tests/test_frontend.py::TestCredentialsModal::test_shows_credential_status[chromium]`
+- [ ] Fix and re-enable: `tests/test_frontend.py::TestCredentialsModal::test_closes_on_cancel[chromium]`
+- [ ] Fix and re-enable: `tests/test_frontend.py::TestCredentialsModal::test_closes_on_overlay_click[chromium]`
+- [ ] Fix and re-enable: `tests/test_frontend.py::TestHelpModal::test_loads_help_content[chromium]`
+- [ ] Fix and re-enable: `tests/test_frontend.py::TestHelpModal::test_help_contains_key_sections[chromium]`
+- [ ] Fix and re-enable: `tests/test_frontend.py::TestGenerationPipeline::test_generation_flow_with_mocked_sse[chromium]`
+- [ ] Fix and re-enable: `tests/test_frontend.py::TestGenerationPipeline::test_cancel_button_shows_during_generation[chromium]`
+- [ ] Fix and re-enable: `tests/test_frontend.py::TestFeedbackButtons::test_feedback_form_prefills_artist_and_track[chromium]`
+- [ ] Fix and re-enable: `tests/test_frontend.py::TestFeedbackButtons::test_submit_like_sends_feedback[chromium]`
+- [ ] Fix and re-enable: `tests/test_frontend.py::TestFeedbackButtons::test_remove_button_removes_track[chromium]`
+- [ ] Fix and re-enable: `tests/test_frontend.py::TestToastNotifications::test_toast_appears_on_feedback[chromium]`

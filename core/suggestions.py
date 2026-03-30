@@ -31,6 +31,7 @@ Technologies & patterns used:
 import json
 import math
 import re
+import unicodedata
 from collections import defaultdict
 from pathlib import Path
 from config import BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD, get_model, get_gpt_language
@@ -116,207 +117,167 @@ def load_text_file(filepath):
     return path.read_text(encoding="utf-8")
 
 
-def _build_exclusion_block(profile):
-    """Build a human-readable exclusion block grouped by artist.
+def _build_deny_set_json(profile, ephemeral_deny_tracks=None):
+    """Build a consolidated JSON deny set for the prompt.
 
-    Instead of sending a flat JSON array of "artist track" strings
-    (which LLMs struggle to cross-reference), we format the history
-    as a structured list grouped by artist — much easier for the model
-    to scan.
+    Merges all exclusion sources into a single structured block:
+    - artists.rejected + feedback.disliked_artists → forbidden_artists
+    - exhausted artists (computed from history) → exhausted_artists
+    - history.suggested_tracks grouped by artist → forbidden_tracks
+    - feedback.disliked_tracks → disliked_tracks
+    - ephemeral_deny_tracks (retry-filtered, NOT persisted) → retry_forbidden_tracks
 
-    Design rationale: Early versions sent the raw JSON array of track
-    strings directly in the prompt. GPT frequently failed to match
-    entries against its own suggestions because it had to mentally
-    parse compound "artist track" strings. The grouped format with
-    clear headers and per-artist bullet points dramatically reduced
-    repeat rates.
-
-    The EXHAUSTED_ARTIST_THRESHOLD marks artists with many prior
-    tracks as [EXHAUSTED], telling GPT to skip them entirely. This
-    pushes the model toward fresh artist discovery instead of
-    suggesting the 5th track by the same artist.
+    GPT-4.1-mini in json_object mode processes JSON lookups more accurately
+    than prose exclusion lists. DENY_LIST is the single source of truth —
+    exclusion fields are stripped from the profile JSON before sending.
     """
-    tracks = profile.get("history", {}).get("suggested_tracks", [])
-    if not tracks:
-        return ""
+    # Forbidden artists (merged from all sources)
+    forbidden_artists = set()
+    for entry in profile.get("artists", {}).get("rejected", []):
+        name = entry.get("name", "") if isinstance(entry, dict) else str(entry)
+        if name:
+            forbidden_artists.add(name.lower().strip())
+    for name in profile.get("feedback", {}).get("disliked_artists", []):
+        if name:
+            forbidden_artists.add(str(name).lower().strip())
 
-    # Truncate to the GPT history limit
+    # Exhausted artists via longest-match parsing
+    tracks = profile.get("history", {}).get("suggested_tracks", [])
     if len(tracks) > GPT_HISTORY_LIMIT:
         tracks = tracks[-GPT_HISTORY_LIMIT:]
 
-    # Build artist→tracks from the raw entries by matching against
-    # the known suggested_artists list.
-    known_artists = profile.get("history", {}).get("suggested_artists", [])
-    # Sort by length descending so longer artist names match first
-    known_artists_sorted = sorted(set(known_artists), key=len, reverse=True)
+    known_artists = sorted(
+        set(profile.get("history", {}).get("suggested_artists", [])),
+        key=len, reverse=True
+    )
 
+    artist_counts = defaultdict(int)
     by_artist = defaultdict(list)
-    unmatched = []
 
     for entry in tracks:
+        e_lower = entry.lower().strip()
         matched = False
-        for artist in known_artists_sorted:
-            # Check if entry starts with the artist name (both lowercased)
+        for artist in known_artists:
             a_lower = artist.lower().strip()
-            e_lower = entry.lower().strip()
             if e_lower.startswith(a_lower + " "):
                 track_name = e_lower[len(a_lower):].strip()
                 by_artist[a_lower].append(track_name)
+                artist_counts[a_lower] += 1
                 matched = True
                 break
         if not matched:
-            unmatched.append(entry)
+            by_artist["_unmatched"].append(entry)
 
-    # Build the formatted block
-    lines = []
-    lines.append("=" * 60)
-    lines.append("ALREADY SUGGESTED TRACKS (DO NOT REPEAT)")
-    lines.append("=" * 60)
-    lines.append("")
-    lines.append("The following tracks have ALREADY been suggested.")
-    lines.append("Do NOT suggest any of them again.")
-    lines.append("If an artist is marked [EXHAUSTED], do NOT suggest ANY track by that artist.")
-    lines.append("")
+    exhausted = [a for a, c in artist_counts.items() if c >= EXHAUSTED_ARTIST_THRESHOLD]
 
-    exhausted_artists = []
+    # Disliked tracks
+    disliked_tracks = {}
+    for dt in profile.get("feedback", {}).get("disliked_tracks", []):
+        artist = dt.get("artist", "").lower().strip()
+        track = dt.get("track", "").lower().strip()
+        if artist and track:
+            disliked_tracks.setdefault(artist, []).append(track)
 
-    for artist in sorted(by_artist.keys()):
-        track_list = by_artist[artist]
-        is_exhausted = len(track_list) >= EXHAUSTED_ARTIST_THRESHOLD
-        if is_exhausted:
-            exhausted_artists.append(artist)
-            lines.append(f"■ {artist} [EXHAUSTED — do NOT suggest this artist at all]:")
-        else:
-            lines.append(f"■ {artist}:")
-        for t in track_list:
-            lines.append(f"  - {t}")
-        lines.append("")
+    deny_set = {
+        "forbidden_artists": sorted(forbidden_artists),
+        "exhausted_artists": sorted(exhausted),
+        "forbidden_tracks": {
+            a: sorted(t) for a, t in sorted(by_artist.items()) if a != "_unmatched"
+        },
+        "disliked_tracks": {a: sorted(t) for a, t in sorted(disliked_tracks.items())},
+    }
 
-    if unmatched:
-        lines.append("■ Other previously suggested tracks:")
-        for t in unmatched:
-            lines.append(f"  - {t}")
-        lines.append("")
+    if "_unmatched" in by_artist:
+        deny_set["other_forbidden_tracks"] = sorted(by_artist["_unmatched"])
 
-    if exhausted_artists:
-        lines.append("EXHAUSTED ARTISTS (do NOT suggest ANY track by these):")
-        for a in exhausted_artists:
-            lines.append(f"  ✗ {a}")
-        lines.append("")
+    if ephemeral_deny_tracks:
+        deny_set["retry_forbidden_tracks"] = sorted(ephemeral_deny_tracks)
 
-    lines.append("=" * 60)
-    return "\n".join(lines)
+    return json.dumps(deny_set, indent=2)
 
 
 def build_messages(profile, accepted_tracks=None, batch_size=None,
-                   recently_filtered_tracks=None, consecutive_empty=0,
-                   new_artist_percentage=30):
+                   recently_filtered_tracks=None,
+                   new_artist_percentage=30, batch_num=0):
     """Build the system + user message pair for the OpenAI API.
 
-    This is the core prompt-assembly function. It combines:
-    1. A system prompt (from file) that defines GPT's role and rules.
-    2. A user prompt (from template) that injects the profile JSON,
-       exclusion block, and batch-size requirement.
-    3. Optional addenda for multi-batch workflows and retry warnings.
-
-    **Multi-batch continuation**: When generating playlists larger than
-    one batch, `accepted_tracks` carries forward the tracks already
-    confirmed, and the prompt instructs GPT to fill the remaining slots.
-
-    **Retry escalation** (`recently_filtered_tracks`, `consecutive_empty`):
-    When the code-side dedup filter removes ALL tracks in a batch, the
-    next request includes a strongly-worded warning with the specific
-    tracks that failed. This uses prompt-engineering escalation — each
-    retry attempt increases the severity of the language to overcome
-    GPT's tendency to repeat recent outputs.
-
-    **New artist percentage**: Ensures diversity by requiring a minimum
-    percentage of suggestions from previously-unseen artists. The value
-    is injected into the system prompt via placeholder replacement.
-
-    Parameters:
-        accepted_tracks: list of {"artist", "track"} already confirmed.
-        batch_size: tracks to request (default: BATCH_SIZE from config).
-        recently_filtered_tracks: tracks that were all-filtered last batch.
-        consecutive_empty: count of consecutive all-filtered batches.
-        new_artist_percentage: min % of suggestions from new artists (1–100).
+    Key design decisions:
+    - Over-requests by +3 (effective_batch_size) to absorb expected filtering.
+    - On retries, filtered tracks go into an ephemeral deny set — never
+      mentioned in prose (mentioning them primes GPT to repeat them).
+    - DENY_LIST JSON comes before profile in the user message (positional bias).
+    - Exclusion fields stripped from profile_for_gpt (DENY_LIST is sole source).
+    - Diversity hints added when history is large (>50 tracks).
     """
     if batch_size is None:
         batch_size = BATCH_SIZE
 
-    min_new_artists = math.ceil(batch_size * new_artist_percentage / 100)
+    # Over-request by +3 to absorb filtering; caller truncates after filter
+    effective_batch_size = batch_size + 3
+    min_new_artists = math.ceil(effective_batch_size * new_artist_percentage / 100)
 
     gpt_language = get_gpt_language()
 
     system_prompt = load_text_file(SYSTEM_PROMPT_FILE)
-    # Replace all per-run placeholders in the system prompt
-    system_prompt = system_prompt.replace("{batch_size}", str(batch_size))
+    system_prompt = system_prompt.replace("{batch_size}", str(effective_batch_size))
     system_prompt = system_prompt.replace("{new_artist_percentage}", str(new_artist_percentage))
     system_prompt = system_prompt.replace("{min_new_artists}", str(min_new_artists))
     system_prompt = system_prompt.replace("{gpt_language}", gpt_language)
 
     user_template = load_text_file(PROMPT_FILE)
 
-    # Build a copy of the profile WITHOUT history.suggested_tracks —
-    # that data is now presented separately in the exclusion block
-    # so the LLM can parse it more easily.
-    profile_for_gpt = json.loads(json.dumps(profile))  # deep copy
-    history = profile_for_gpt.get("history", {})
-    # Remove the raw track list from the JSON — it will be in the exclusion block
-    history.pop("suggested_tracks", None)
-    # Keep a trimmed suggested_artists list so GPT knows which artists are old
-    artists = history.get("suggested_artists", [])
-    if len(artists) > GPT_HISTORY_LIMIT:
-        history["suggested_artists"] = artists[-GPT_HISTORY_LIMIT:]
+    # Build ephemeral deny set from retry-filtered tracks (NOT persisted to profile)
+    ephemeral_deny_tracks = set()
+    if recently_filtered_tracks:
+        for t in recently_filtered_tracks:
+            key = _normalize_key(f"{t['artist']} {t['track']}")
+            ephemeral_deny_tracks.add(key)
 
-    # Build the exclusion block from the full profile (before trimming)
-    exclusion_block = _build_exclusion_block(profile)
+    # Build consolidated JSON deny set (merges all exclusion sources)
+    deny_set_json = _build_deny_set_json(profile, ephemeral_deny_tracks or None)
+
+    # Profile copy with exclusion fields stripped — DENY_LIST is the sole source
+    profile_for_gpt = json.loads(json.dumps(profile))
+    history = profile_for_gpt.get("history", {})
+    history.pop("suggested_tracks", None)
+    artists_hist = history.get("suggested_artists", [])
+    if len(artists_hist) > GPT_HISTORY_LIMIT:
+        history["suggested_artists"] = artists_hist[-GPT_HISTORY_LIMIT:]
+    profile_for_gpt.get("artists", {}).pop("rejected", None)
+    profile_for_gpt.get("feedback", {}).pop("disliked_artists", None)
 
     feedback_summary = build_feedback_summary(profile)
 
     user_message = user_template.format(
         profile_json=json.dumps(profile_for_gpt, indent=2),
-        exclusion_block=exclusion_block,
-        batch_size=batch_size,
+        deny_set_json=deny_set_json,
+        batch_size=effective_batch_size,
         recent_feedback=feedback_summary,
     )
 
     if accepted_tracks:
-        remaining = batch_size
         listing = "\n".join(
             f"- {t['artist']} - {t['track']}" for t in accepted_tracks
         )
         user_message += (
             f"\n\nI already accepted these {len(accepted_tracks)} tracks from"
             f" previous batches — do NOT suggest them again:\n{listing}\n\n"
-            f"I need {remaining} MORE tracks. Still return the result in"
+            f"I need {effective_batch_size} MORE tracks. Still return the result in"
             " the same JSON schema but with exactly"
-            f" {remaining} entries in \"playlist\"."
+            f" {effective_batch_size} entries in \"playlist\"."
         )
 
-    if recently_filtered_tracks:
-        # Cap at 30 entries so the prompt stays manageable
-        capped = recently_filtered_tracks[:30]
-        filtered_listing = "\n".join(
-            f"  - {t['artist']} - {t['track']}" for t in capped
-        )
-        attempt_label = f"attempt {consecutive_empty + 1}" if consecutive_empty > 0 else "attempt 1"
-        user_message += (
-            f"\n\n{'=' * 60}\n"
-            f"⚠️  RETRY WARNING ({attempt_label}) — YOUR PREVIOUS BATCH WAS ENTIRELY FILTERED\n"
-            f"{'=' * 60}\n"
-            f"Every single track you suggested in the last batch was already\n"
-            f"present in the exclusion list above. You are NOT following the\n"
-            f"\"ALREADY SUGGESTED TRACKS\" section. This is the {attempt_label}.\n\n"
-            f"The {len(capped)} specific tracks from your last batch that were\n"
-            f"ALL rejected (already in history — do NOT suggest these again):\n"
-            f"{filtered_listing}\n\n"
-            f"STRICT REQUIREMENT: You MUST suggest {batch_size} tracks that\n"
-            f"appear neither in the exclusion list NOR in the list above.\n"
-            f"Explore different artists, sub-genres, or time periods you have\n"
-            f"not yet touched.\n"
-            f"{'=' * 60}\n"
-        )
+    # Diversity hints when history is large — give GPT a concrete direction
+    if len(profile.get("history", {}).get("suggested_tracks", [])) > 50:
+        diversity_hints = [
+            "Focus on artists from the 1970s-1980s that match the profile.",
+            "Explore Japanese, Korean, or Scandinavian artists matching the profile.",
+            "Look for artists who released their first album after 2020.",
+            "Consider solo projects or side projects of artists similar to the confirmed list.",
+            "Explore soundtrack and compilation albums for hidden gems.",
+        ]
+        hint = diversity_hints[batch_num % len(diversity_hints)]
+        user_message += f"\n\nDiversity guidance: {hint}"
 
     return [
         {"role": "system", "content": system_prompt},
@@ -326,46 +287,34 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
 
 def normalize_response(result):
     """Force-lowercase all artist and track names in the GPT response.
-    Also strips the 'validation' key which is only for GPT's self-check."""
-    # 'validation' is an internal self-check block — discard it so it never
-    # pollutes profile_updates or the UI.
+
+    Strips model-generated metadata fields — new_artists and profile_updates
+    are computed code-side in filter_duplicate_suggestions() after truncation,
+    so model output for these would be inaccurate anyway.
+    """
     result.pop("validation", None)
 
     for entry in result.get("playlist", []):
         entry["artist"] = entry.get("artist", "").lower().strip()
         entry["track"] = entry.get("track", "").lower().strip()
 
-    result["new_artists"] = [
-        a.lower().strip() for a in result.get("new_artists", [])
-    ]
-
-    updates = result.get("profile_updates", {})
-    updates["suggested_artists"] = [
-        a.lower().strip() for a in updates.get("suggested_artists", [])
-    ]
-    updates["suggested_tracks"] = [
-        t.lower().strip() for t in updates.get("suggested_tracks", [])
-    ]
-    result["profile_updates"] = updates
+    # These are derived in code — initialize empty so downstream never fails
+    result["new_artists"] = []
+    result["profile_updates"] = {"suggested_artists": [], "suggested_tracks": []}
     return result
 
 
-def call_gpt(messages):
+def call_gpt(messages, temperature=0.7):
     """Send the assembled messages to the OpenAI Chat Completions API.
 
-    Uses `response_format={"type": "json_object"}` (Structured Outputs)
-    to guarantee parseable JSON. Temperature 0.7 balances creativity
-    (important for music discovery) with coherence.
-
-    Gracefully handles empty or unparseable responses by returning
-    a valid empty-playlist structure rather than crashing — the caller
-    can then retry or report "no results" to the user.
+    Temperature is configurable — callers pass a lower value on retries
+    to push toward more deterministic (less repetitive) output.
     """
     client = get_openai_client()
     response = client.chat.completions.create(
         model=get_model(),
         messages=messages,
-        temperature=0.7,
+        temperature=temperature,
         response_format={"type": "json_object"},
     )
 
@@ -417,84 +366,125 @@ def update_profile(profile, result):
 def _normalize_key(text):
     """Lowercase, strip punctuation, collapse whitespace — for fuzzy dedup.
 
-    Why fuzzy? GPT may return "Don't Stop Me Now" while history has
-    "dont stop me now". Stripping punctuation and normalising whitespace
-    catches these near-duplicates that exact string comparison would miss.
-    Uses regex character classes for fast, single-pass cleaning.
+    NFKD normalization handles curly quotes, accented characters, and
+    ligatures (e.g. "Beyoncé" vs "Beyonce", "The Mowgli's" vs "The Mowgli´s").
     """
-    text = text.lower().strip()
-    text = re.sub(r'[^a-z0-9\s]', '', text)   # keep only letters, digits, spaces
-    text = re.sub(r'\s+', ' ', text).strip()   # collapse whitespace
-    return text
+    if not text:
+        return ""
+    s = unicodedata.normalize("NFKD", str(text))
+    s = s.lower()
+    s = re.sub(r'[^a-z0-9\s]', '', s)   # keep only letters, digits, spaces
+    s = re.sub(r'\s+', ' ', s).strip()   # collapse whitespace
+    return s
 
 
 def filter_duplicate_suggestions(profile, result):
     """Remove tracks that already exist in history, were previously disliked,
-    or appear more than once within the current batch.
+    are from rejected/disliked/exhausted artists, exceed the 2-per-artist
+    cap, or appear more than once within the current batch.
 
-    This is the **code-side safety net** for deduplication. Even with
-    detailed exclusion lists in the prompt, GPT will occasionally repeat
-    tracks. This function provides deterministic, 100% reliable filtering
-    as a second layer of defence.
+    Exclusion sources (in priority order):
+    1. `artists.rejected` + `feedback.disliked_artists` — artist-level bans.
+    2. Exhausted artists (>= EXHAUSTED_ARTIST_THRESHOLD tracks in history).
+    3. `history.suggested_tracks` + `feedback.disliked_tracks` — track-level bans.
+    4. Within-batch duplicates.
+    5. Max 2 tracks per artist per batch.
 
-    The function also builds an internal `_filtered_out` list that is
-    used by the retry logic in `build_messages()` to tell GPT exactly
-    which tracks it repeated, enabling targeted correction on the next
-    attempt.
-
-    Three exclusion sources:
-    1. `history.suggested_tracks` — everything previously suggested.
-    2. `feedback.disliked_tracks` — tracks the user explicitly rejected.
-    3. Within-batch duplicates — GPT sometimes repeats within one response.
+    Also computes `profile_updates` and `new_artists` code-side so callers
+    never rely on model-generated metadata (which would be wrong after truncation).
     """
 
-    # Build an exclusion set from history + disliked tracks
+    # Build track-level exclusion set from history + disliked tracks
     exclude_keys = set()
-
     for entry in profile.get("history", {}).get("suggested_tracks", []):
         exclude_keys.add(_normalize_key(entry))
-
     for dt in profile.get("feedback", {}).get("disliked_tracks", []):
         artist = dt.get("artist", "")
         track = dt.get("track", "")
         if artist and track:
             exclude_keys.add(_normalize_key(f"{artist} {track}"))
 
+    # Build forbidden artist keys (rejected + disliked artists)
+    forbidden_artist_keys = set()
+    for entry in profile.get("artists", {}).get("rejected", []):
+        name = entry.get("name", "") if isinstance(entry, dict) else str(entry)
+        if name:
+            forbidden_artist_keys.add(_normalize_key(name))
+    for name in profile.get("feedback", {}).get("disliked_artists", []):
+        if name:
+            forbidden_artist_keys.add(_normalize_key(str(name)))
+
+    # Build exhausted artist keys using longest-match against known artists
+    known_artists = sorted(
+        set(profile.get("history", {}).get("suggested_artists", [])),
+        key=len, reverse=True
+    )
+    artist_track_counts = defaultdict(int)
+    for entry in profile.get("history", {}).get("suggested_tracks", []):
+        e_lower = entry.lower().strip()
+        for artist in known_artists:
+            a_lower = artist.lower().strip()
+            if e_lower.startswith(a_lower + " "):
+                artist_track_counts[_normalize_key(a_lower)] += 1
+                break
+    exhausted_artist_keys = {
+        a for a, count in artist_track_counts.items()
+        if count >= EXHAUSTED_ARTIST_THRESHOLD
+    }
+
     seen_in_batch = set()
+    artist_counts_in_batch = defaultdict(int)
     filtered = []
-    filtered_out = []  # tracks removed because they are already known / disliked
+    filtered_out = []
 
     for item in result.get("playlist", []):
         artist = item.get("artist", "").lower().strip()
         track = item.get("track", "").lower().strip()
+        artist_key = _normalize_key(artist)
         key = _normalize_key(f"{artist} {track}")
+
+        if artist_key in forbidden_artist_keys:
+            print(f"Filtered (rejected/disliked artist): {artist}")
+            filtered_out.append(item)
+            continue
+
+        if artist_key in exhausted_artist_keys:
+            print(f"Filtered (exhausted artist): {artist}")
+            filtered_out.append(item)
+            continue
 
         if key in exclude_keys:
             print(f"Filtered (already suggested / disliked): {artist} - {track}")
             filtered_out.append(item)
             continue
+
         if key in seen_in_batch:
             print(f"Filtered (duplicate in batch): {artist} - {track}")
+            filtered_out.append(item)
+            continue
+
+        artist_counts_in_batch[artist_key] += 1
+        if artist_counts_in_batch[artist_key] > 2:
+            print(f"Filtered (max 2 per artist exceeded): {artist}")
             filtered_out.append(item)
             continue
 
         seen_in_batch.add(key)
         filtered.append(item)
 
-    # Rebuild profile_updates to match the filtered playlist
     result["playlist"] = filtered
-    # Expose the tracks that were removed so callers can feed them back to GPT
-    # as an explicit retry warning (internal key, stripped before returning to UI).
     result["_filtered_out"] = filtered_out
+
+    # Compute profile_updates and new_artists code-side (authoritative after truncation)
     filtered_artists = {item["artist"].lower().strip() for item in filtered}
-    result["profile_updates"]["suggested_artists"] = list(filtered_artists)
-    result["profile_updates"]["suggested_tracks"] = [
-        f"{item['artist'].lower().strip()} {item['track'].lower().strip()}"
-        for item in filtered
-    ]
-    result["new_artists"] = [
-        a for a in result.get("new_artists", [])
-        if a.lower().strip() in filtered_artists
-    ]
+    result["profile_updates"] = {
+        "suggested_artists": list(filtered_artists),
+        "suggested_tracks": [
+            f"{item['artist'].lower().strip()} {item['track'].lower().strip()}"
+            for item in filtered
+        ],
+    }
+    existing_artists = {a.lower() for a in profile.get("history", {}).get("suggested_artists", [])}
+    result["new_artists"] = [a for a in filtered_artists if a not in existing_artists]
 
     return result

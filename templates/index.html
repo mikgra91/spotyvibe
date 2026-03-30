@@ -55,14 +55,14 @@
             <div class="train-header-left">
                 <h2>🎯 Music Profile</h2>
                 <span class="train-status" id="trainStatus"></span>
+            </div>
+            <div class="train-header-actions">
+                <button class="btn-train" id="trainToggleBtn" onclick="toggleTrainBody()">Edit profile</button>
                 <div class="profile-io-row hidden" id="profileIoActions" aria-label="Profile import/export/reset">
                     <button class="btn btn-profile-io" id="profileImportBtn" onclick="startImportProfile()" title="Import profile JSON">⬆ Import</button>
                     <button class="btn btn-profile-io" id="profileExportBtn" onclick="exportProfile()" title="Export profile JSON">⬇ Export</button>
                     <button class="btn btn-profile-io" id="profileResetBtn" onclick="resetProfileToHistory()" title="Reset profile to previous saved version">↩ Reset to history</button>
                 </div>
-            </div>
-            <div class="train-header-actions">
-                <button class="btn-train" id="trainToggleBtn" onclick="toggleTrainBody()">Edit profile</button>
                 <input id="profileImportInput" type="file" accept="application/json,.json" style="position:absolute;left:-9999px;width:1px;height:1px;" />
             </div>
         </div>
@@ -151,9 +151,11 @@
         <div class="train-body hidden" id="analysisBody">
             <p class="acc-hint" style="margin-bottom:12px;">Enter an artist (and optional track) to get an AI analysis with ready-to-paste profile suggestions.</p>
             <div class="analysis-inputs">
-                <input id="analysisArtist" type="text" placeholder="Artist / band name" maxlength="200" style="flex:1;">
-                <input id="analysisTrack" type="text" placeholder="Track name (optional)" maxlength="200" style="flex:1;">
-                <button class="btn btn-save" id="analysisSendBtn" onclick="runAnalysis()">Analyse</button>
+                <div class="analysis-input-row">
+                    <input id="analysisArtist" type="text" placeholder="Artist / band name" maxlength="200">
+                    <input id="analysisTrack" type="text" placeholder="Track name (optional)" maxlength="200">
+                </div>
+                <button class="btn btn-save" id="analysisSendBtn" onclick="runAnalysis()" style="width:100%;">Analyse</button>
             </div>
             <div id="analysisResult" class="hidden"></div>
         </div>
@@ -221,6 +223,7 @@
     <div id="statusBox" class="hidden"></div>
     <div id="playlistLinkBox" class="playlist-link-box hidden"></div>
 
+    <div class="songlist-counter-row"><span id="songlistCounter" class="songlist-counter"></span></div>
     <ul id="trackList" class="track-list"></ul>
 
     <!-- ── Run History ── -->
@@ -1066,6 +1069,8 @@
             return;
         }
 
+        if (!canGenerate()) return;
+
         partialTrackCount = 0;
         currentRunId = generateUUID();
         currentAbortController = new AbortController();
@@ -1209,21 +1214,26 @@
             case 'cancelled':
                 showStatus('⛔ ' + event.message, 'info');
                 break;
-            case 'result':
+                        case 'result': {
                 suggestions = event.playlist || [];
                 renderTracks();
+
+                const _batchCount = suggestions.length;
+                if (historyBodyOpen) loadHistory();
                 if (event.playlist_url) showPlaylistLink(event.playlist_url);
 
                 const parts = [
                     event.was_cancelled
-                        ? `⛔ Generation stopped early. Playlist created with ${suggestions.length} track(s).`
-                        : `✅ ${suggestions.length} suggestions generated.`
+                        ? `⛔ Generation stopped early. Playlist created with ${_batchCount} track(s).`
+                        : `✅ ${_batchCount} suggestions generated.`
                 ];
                 if (event.added)     parts.push(`${event.added} new track(s) added to playlist.`);
                 if (event.not_found && event.not_found.length)
                     parts.push(`${event.not_found.length} track(s) not found on Spotify.`);
                 showStatus(parts.join(' '), event.was_cancelled ? 'info' : 'success');
                 break;
+            }
+
             case 'error':
                 showStatus('❌ ' + event.message, 'error');
                 break;
@@ -1239,6 +1249,11 @@
         openFormIndex = null;
         openFormAction = null;
 
+        // Update song list counter
+        const maxSize = window._maxSongListSize || 100;
+        const counterEl = document.getElementById('songlistCounter');
+        if (counterEl) counterEl.textContent = `${suggestions.length} / ${maxSize} songs`;
+
         if (suggestions.length === 0) {
             list.innerHTML = '<li class="empty-state">No suggestions yet.</li>';
             return;
@@ -1248,8 +1263,8 @@
             const li = document.createElement('li');
             li.className = 'track-item';
             li.id = `track-${idx}`;
-            const previewBtn = track.preview_url
-                ? `<button class="btn-preview" id="preview-${idx}" onclick="togglePreview(${idx})" title="Preview">▶</button>`
+            const previewBtn = track.track_id
+                ? `<button class="btn-preview" onclick="openPreviewOverlay(${idx})">Preview</button>`
                 : '';
             const spotifyLinks = [
                 track.spotify_url ? `<a class="track-link" href="${attr(track.spotify_url)}" target="_blank" rel="noopener" title="Open track on Spotify">🎵</a>` : '',
@@ -1258,7 +1273,6 @@
             ].join('');
 
             li.innerHTML = `
-                ${track.preview_url ? `<audio id="audio-${idx}" src="${attr(track.preview_url)}" preload="none"></audio>` : ''}
                 <div class="track-header">
                     ${track.cover_url ? `<img class="track-cover" src="${attr(track.cover_url)}" alt="Album cover">` : ''}
                     <div class="track-info">
@@ -1295,36 +1309,36 @@
     }
 
     /* ------------------------------------------------------------------ */
-    /*  Track preview playback                                             */
+    /*  Track preview — Spotify embed overlay                             */
     /* ------------------------------------------------------------------ */
-    let _currentPreviewIdx = null;
+    function openPreviewOverlay(idx) {
+        const track = suggestions[idx];
+        if (!track || !track.track_id) return;
 
-    function togglePreview(idx) {
-        const audio = document.getElementById(`audio-${idx}`);
-        const btn = document.getElementById(`preview-${idx}`);
-        if (!audio || !btn) return;
+        const overlay = document.getElementById('spotifyPreviewOverlay');
+        const iframe  = document.getElementById('spotifyPreviewIframe');
+        const title   = document.getElementById('spotifyPreviewTitle');
 
-        // Stop any currently playing preview
-        if (_currentPreviewIdx !== null && _currentPreviewIdx !== idx) {
-            const prev = document.getElementById(`audio-${_currentPreviewIdx}`);
-            const prevBtn = document.getElementById(`preview-${_currentPreviewIdx}`);
-            if (prev) { prev.pause(); prev.currentTime = 0; }
-            if (prevBtn) prevBtn.textContent = '▶';
-            _currentPreviewIdx = null;
-        }
-
-        if (audio.paused) {
-            audio.play().catch(() => {});
-            btn.textContent = '⏹';
-            _currentPreviewIdx = idx;
-            audio.onended = () => { btn.textContent = '▶'; _currentPreviewIdx = null; };
-        } else {
-            audio.pause();
-            audio.currentTime = 0;
-            btn.textContent = '▶';
-            _currentPreviewIdx = null;
-        }
+        title.textContent = `${track.artist} — ${track.track}`;
+        iframe.src = `https://open.spotify.com/embed/track/${track.track_id}?utm_source=generator&theme=0`;
+        overlay.classList.add('visible');
     }
+
+    function closePreviewOverlay() {
+        const overlay = document.getElementById('spotifyPreviewOverlay');
+        const iframe  = document.getElementById('spotifyPreviewIframe');
+        overlay.classList.remove('visible');
+        iframe.removeAttribute('src'); // stops playback immediately
+    }
+
+        document.addEventListener('DOMContentLoaded', () => {
+        const overlay = document.getElementById('spotifyPreviewOverlay');
+        if (!overlay) return;
+        overlay.addEventListener('click', function(e) {
+            if (e.target === this) closePreviewOverlay();
+        });
+    });
+
 
     /* ------------------------------------------------------------------ */
     /*  Feedback form toggle                                               */
@@ -1403,6 +1417,15 @@
             const label = openFormAction === 'like' ? '👍 Liked' : '👎 Disliked';
             showToast(`${label}: ${artist}` + (track ? ` — ${track}` : ''));
             animateRemove(idx);
+            // Permanently remove from persistent song list
+            const fbTrack = suggestions[idx];
+            if (fbTrack) {
+                fetch('/api/songlist/track', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ artist: fbTrack.artist, track: fbTrack.track }),
+                }).catch(() => {});
+            }
         } catch (e) {
             alert('Network error: ' + e.message);
         } finally {
@@ -1429,6 +1452,14 @@
         }
 
         animateRemove(idx);
+        // Permanently remove from persistent song list
+        if (track) {
+            fetch('/api/songlist/track', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ artist: track.artist, track: track.track }),
+            }).catch(() => {});
+        }
     }
 
     function animateRemove(idx) {
@@ -2168,192 +2199,4 @@
             nextDrop -= dt;
             if (dropFlash > 0) dropFlash = Math.max(0, dropFlash - dt * 0.003);
             if (nextDrop <= 0) {
-                /* burst: spawn many rings rapidly from 2-3 emitters */
-                dropFlash = 1;
-                const burstCount = 2 + Math.floor(Math.random() * 2);
-                for (let b = 0; b < burstCount; b++) {
-                    const em = emitters[Math.floor(Math.random() * emitters.length)];
-                    const numRings = 3 + Math.floor(Math.random() * 4);
-                    for (let j = 0; j < numRings; j++) {
-                        spawnRing(em.x, em.y, em.depth, em.colorIdx + j, true);
-                    }
-                }
-                nextDrop = 5000 + Math.random() * 8000;
-            }
-
-            /* ---------- normal emitter spawning ---------- */
-            for (let e = 0; e < emitters.length; e++) {
-                const em = emitters[e];
-                em.nextSpawn -= dt;
-                if (em.nextSpawn <= 0) {
-                    /* spawn 1-2 concentric rings per pulse */
-                    const n = Math.random() < 0.3 ? 2 : 1;
-                    for (let j = 0; j < n; j++) {
-                        spawnRing(em.x, em.y, em.depth, em.colorIdx + j, false);
-                    }
-                    em.nextSpawn = em.interval * (0.8 + Math.random() * 0.4);
-                }
-                /* slowly drift emitters for organic feel */
-                em.x += (Math.random() - 0.5) * 0.15;
-                em.y += (Math.random() - 0.5) * 0.15;
-                em.x = Math.max(W * 0.05, Math.min(W * 0.95, em.x));
-                em.y = Math.max(H * 0.05, Math.min(H * 0.95, em.y));
-            }
-
-            /* ---------- draw rings ---------- */
-            for (let i = 0; i < MAX_RINGS; i++) {
-                const ring = ringPool[i];
-                if (!ring.active) continue;
-
-                ring.r += ring.speed * (dt * 0.06);
-                ring.life = 1 - ring.r / ring.maxR;
-                if (ring.life <= 0) { releaseRing(ring); continue; }
-
-                const [r, g, b] = ring.color;
-                const a = ring.life * ring.intensity;
-                const ea = Math.min(a, 1);
-
-                /* soft glow fill for thick rings */
-                if (ring.soft && ring.r > 5) {
-                    const inner = Math.max(0, ring.r - ring.lineWidth * 3);
-                    const grad = ctx.createRadialGradient(
-                        ring.x, ring.y, inner,
-                        ring.x, ring.y, ring.r + ring.lineWidth * 2
-                    );
-                    grad.addColorStop(0, `rgba(${r},${g},${b},0)`);
-                    grad.addColorStop(0.5, `rgba(${r},${g},${b},${(0.07 * ea).toFixed(3)})`);
-                    grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
-                    ctx.fillStyle = grad;
-                    ctx.beginPath();
-                    ctx.arc(ring.x, ring.y, ring.r + ring.lineWidth * 2, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-
-                /* ring stroke */
-                ctx.beginPath();
-                ctx.arc(ring.x, ring.y, ring.r, 0, Math.PI * 2);
-                const strokeA = (ring.soft ? 0.2 : 0.4) * ea;
-                ctx.strokeStyle = `rgba(${r},${g},${b},${strokeA.toFixed(3)})`;
-                ctx.lineWidth = ring.lineWidth * (ring.soft ? ring.life : 1);
-
-                if (ring.soft) {
-                    ctx.shadowColor = `rgba(${r},${g},${b},${(0.45 * ea).toFixed(3)})`;
-                    ctx.shadowBlur = 18 + ring.lineWidth * 2;
-                } else {
-                    ctx.shadowColor = `rgba(${r},${g},${b},${(0.3 * ea).toFixed(3)})`;
-                    ctx.shadowBlur = 8;
-                }
-                ctx.stroke();
-                ctx.shadowBlur = 0;
-            }
-
-            /* ---------- floating particles ---------- */
-            for (let i = 0; i < MAX_PARTICLES; i++) {
-                const p = particles[i];
-                p.x += p.vx * (dt * 0.06);
-                p.y += p.vy * (dt * 0.06);
-                /* wrap around edges */
-                if (p.x < -10) p.x = W + 10;
-                if (p.x > W + 10) p.x = -10;
-                if (p.y < -10) { p.y = H + 10; p.x = Math.random() * W; }
-
-                const [pr, pg, pb] = p.color;
-                const pa = p.alpha + dropFlash * 0.12;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(${pr},${pg},${pb},${pa.toFixed(3)})`;
-                ctx.shadowColor = `rgba(${pr},${pg},${pb},${(pa * 0.6).toFixed(3)})`;
-                ctx.shadowBlur = 6;
-                ctx.fill();
-                ctx.shadowBlur = 0;
-            }
-
-            /* ---------- subtle vignette overlay for depth ---------- */
-            const vig = ctx.createRadialGradient(cx, cy, W * 0.2, cx, cy, W * 0.75);
-            vig.addColorStop(0, 'rgba(0,0,0,0)');
-            vig.addColorStop(1, 'rgba(0,0,0,0.15)');
-            ctx.fillStyle = vig;
-            ctx.fillRect(0, 0, W, H);
-
-            animId = requestAnimationFrame(draw);
-        }
-
-        /* pre-spawn some rings so the scene isn't empty on start */
-        for (let e = 0; e < emitters.length; e++) {
-            const em = emitters[e];
-            for (let j = 0; j < 3; j++) {
-                spawnRing(em.x, em.y, em.depth, em.colorIdx + j, false);
-            }
-        }
-        animId = requestAnimationFrame(draw);
-        return () => cancelAnimationFrame(animId);
-    };
-
-    // Initialize the active theme now that all renderers are registered
-    switchTheme(_pendingTheme || 'equalizer');
-
-    /* ------------------------------------------------------------------ */
-    /*  Toast notifications                                                */
-    /* ------------------------------------------------------------------ */
-    /* ------------------------------------------------------------------ */
-    /*  i18n / Language switcher                                          */
-    /* ------------------------------------------------------------------ */
-    let _i18nStrings = {};
-
-    async function switchLanguage(lang) {
-        localStorage.setItem('svLang', lang);
-        await applyLanguage(lang);
-    }
-
-    async function applyLanguage(lang) {
-        try {
-            const resp = await fetch(`/static/i18n/${lang}.json`);
-            if (!resp.ok) return;
-            _i18nStrings = await resp.json();
-        } catch (e) { return; }
-
-        document.querySelectorAll('[data-i18n]').forEach(el => {
-            const key = el.getAttribute('data-i18n');
-            if (_i18nStrings[key] !== undefined) el.textContent = _i18nStrings[key];
-        });
-        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-            const key = el.getAttribute('data-i18n-placeholder');
-            if (_i18nStrings[key] !== undefined) el.placeholder = _i18nStrings[key];
-        });
-
-        // Update language picker to show current selection
-        const picker = document.getElementById('langPicker');
-        if (picker) picker.value = lang;
-    }
-
-    function i18n(key, fallback) {
-        return _i18nStrings[key] !== undefined ? _i18nStrings[key] : (fallback || key);
-    }
-
-    // Apply saved language on load
-    (function() {
-        const saved = localStorage.getItem('svLang') || 'en';
-        // Run asynchronously so page renders first
-        setTimeout(() => applyLanguage(saved), 0);
-        // Pre-set picker
-        const picker = document.getElementById('langPicker');
-        if (picker) picker.value = saved;
-    })();
-
-    let toastTimer = null;
-    function showToast(message, type = 'success', duration = 3000) {
-        const toast = document.getElementById('toast');
-        if (toastTimer) clearTimeout(toastTimer);
-        toast.textContent = message;
-        toast.className = `toast toast-${type} show`;
-        toastTimer = setTimeout(() => {
-            toast.classList.remove('show');
-            toastTimer = null;
-        }, duration);
-    }
-</script>
-</body>
-</html>
-
-
-
+                /* bur

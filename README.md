@@ -79,6 +79,44 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 
 ---
 
+## Build a Windows executable (PyInstaller)
+
+SpotyVibe includes a desktop-only PyInstaller setup which builds a **one-folder** Windows executable.
+
+```bash
+pip install -r requirements.txt
+python build_assets/make_ico.py
+python -m pytest tests/ -v
+
+
+# One-folder build
+pyinstaller --noconfirm --clean spotyvibe.spec
+
+# (Optional) one-file build
+pyinstaller --noconfirm --clean spotyvibe_onefile.spec
+
+# Or use the helper script:
+#   ./build-tools/build_exe.sh --package
+#   ./build-tools/build_exe.sh --full
+```
+
+
+Output:
+- One-folder: `dist/spotyvibe/spotyvibe.exe`
+- One-file: `dist/spotyvibe_onefile.exe`
+
+
+Notes:
+- The executable runs the same local server at `http://127.0.0.1:5000`.
+- On launch, the desktop executable auto-opens your default browser to the UI.
+- Credentials are **not** bundled; they remain in `%LOCALAPPDATA%\spotyvibe\.credentials`.
+- The one-file build has a slower cold start (it extracts bundled files on launch).
+
+
+
+---
+
+
 ## Documentation
 
 | Document | Description |

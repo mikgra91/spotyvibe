@@ -64,7 +64,45 @@ You should see the SpotyVibe interface — a premium dark cinematic layout with 
 
 ---
 
+## Building a Windows executable (optional)
+
+If you want to run SpotyVibe without installing Python, you can build a Windows executable using PyInstaller.
+
+```bash
+pip install -r requirements.txt
+python build_assets/make_ico.py
+
+
+# One-folder build (recommended)
+pyinstaller --noconfirm --clean spotyvibe.spec
+
+# (Optional) one-file build
+pyinstaller --noconfirm --clean spotyvibe_onefile.spec
+
+# Or use the helper script:
+#   ./build-tools/build_exe.sh --package
+#   ./build-tools/build_exe.sh --full
+```
+
+
+Then run either:
+- One-folder: `dist/spotyvibe/spotyvibe.exe`
+- One-file: `dist/spotyvibe_onefile.exe`
+
+
+The executable starts the server and auto-opens your default browser to **http://127.0.0.1:5000**.
+
+> **One-file note:** The one-file build may start more slowly on first launch because it extracts bundled files to a temporary directory.
+
+
+> **Note:** Your credentials are still stored outside the app bundle at `%LOCALAPPDATA%\spotyvibe\.credentials`.
+
+
+
+---
+
 ## First-Time Setup
+
 
 ### 1. Enter Your API Keys
 
@@ -270,6 +308,8 @@ At the top of the history list is an **Undo last run** button. Clicking it remov
 
 > **Note:** Undo only affects the most recent run. If the playlist has been deleted on Spotify, or if the run history is empty, the undo operation will fail with an explanatory message.
 
+> **Tip:** If the history panel is open when a new generation completes, the list refreshes automatically — no need to close and reopen it.
+
 ---
 
 ## Reviewing Suggestions
@@ -277,8 +317,17 @@ At the top of the history list is an **Undo last run** button. Clicking it remov
 Each suggested track shows the **artist**, **track name**, and a short **reason** explaining why the AI picked it. Tracks are displayed as rich cards with the following details:
 
 - **Album artwork** — the album cover is shown on each track card.
-- **Spotify preview (▶)** — if a 30-second preview is available, a play button lets you listen to a clip directly in the app without leaving the page.
+- **Preview** — every track shows a **Preview** button. Clicking it opens a bottom-sheet overlay with the embedded Spotify player so you can listen right in the app. Click the **✕** in the overlay or tap the dark backdrop to close it.
 - **Quick links** — icon links open the track (🎵), artist (🎤), and album (💿) pages on Spotify so you can explore further.
+
+### Persistent Song List
+
+The song list is **saved automatically** after each generation and restored when you reload the page — you never lose your track cards between sessions. A counter below the Generate button shows how many songs are currently in the list (max 100).
+
+- When you **like, dislike, or remove** a track it is permanently deleted from the saved list.
+- If the list has too many songs to fit another batch, generation is **blocked** with a warning. Review and remove some songs first to make room.
+
+> **Tip:** The persistent list acts as a running record of everything SpotyVibe has generated for you, so the AI can continue building on it across multiple sessions without repeating suggestions.
 
 You have three options for each track:
 
@@ -389,9 +438,11 @@ The Android project pins Android Gradle Plugin 8.2.2, Kotlin 1.9.22, and Chaquop
 **Building:**
 
 ```bash
-cd android
-./build_apk.sh
+# Run from the repo root
+./build-tools/build_apk.sh debug
 ```
+
+
 
 The build script copies the Python sources into the Android project and runs a Gradle build. The resulting APK bundles the complete SpotyVibe app — Flask server, Python runtime, and all pip dependencies — so no external Python installation is needed on the device.
 

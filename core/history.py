@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from config import BASE_DIR, _get_app_dir
 
 _HISTORY_FILE = _get_app_dir() / "run_history.json"
+_MAX_HISTORY_ENTRIES = 50
 
 
 def _load_history() -> list:
@@ -47,9 +48,9 @@ def save_run(run_id: str, playlist_id: str, playlist_url: str, tracks: list) -> 
         ],
     }
     history.append(entry)
-    # Keep at most 50 runs
-    if len(history) > 50:
-        history = history[-50:]
+    # Keep at most _MAX_HISTORY_ENTRIES runs
+    if len(history) > _MAX_HISTORY_ENTRIES:
+        history = history[-_MAX_HISTORY_ENTRIES:]
     _save_history(history)
 
 

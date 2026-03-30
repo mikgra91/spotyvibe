@@ -12,9 +12,24 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv, set_key, dotenv_values
 
-# Absolute path to the spotyvibe package directory — used as the base for
+def _get_base_dir() -> Path:
+    """Return the runtime base directory for bundled assets.
+
+    - Source / `python app.py`: the project directory containing config.py
+    - PyInstaller (frozen): the temporary extraction directory (sys._MEIPASS)
+
+    This is intentionally resolved at import-time so modules can safely
+    use BASE_DIR for locating templates/, static/, prompts/, data/, etc.
+    """
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return Path(getattr(sys, "_MEIPASS")).resolve()
+    return Path(__file__).resolve().parent
+
+
+# Absolute path to the spotyvibe runtime directory — used as the base for
 # all relative path resolution so that os.chdir() is never needed.
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = _get_base_dir()
+
 
 # How many tracks GPT generates per single request
 BATCH_SIZE = 10
@@ -28,6 +43,9 @@ GPT_HISTORY_LIMIT = 200
 # When an artist already has this many tracks in history, GPT is told to
 # skip them entirely and look for new artists instead.
 EXHAUSTED_ARTIST_THRESHOLD = 4
+
+# Maximum number of songs in the persistent feedback list
+MAX_SONG_LIST_SIZE = 100
 
 # How many consecutive batches may return an entirely-filtered result before
 # the loop is broken and the playlist is created with whatever was found.
@@ -170,7 +188,15 @@ def get_gpt_language():
 
 def is_onboarding_completed() -> bool:
     """Return True if the user has completed (or skipped) onboarding."""
-    return os.getenv("ONBOARDING_COMPLETED", "").lower() in ("1", "true", "yes")
+    val = os.getenv("ONBOARDING_COMPLETED", "")
+    if val.lower() in ("1", "true", "yes"):
+        return True
+    # Fallback: re-read .credentials file in case os.environ is stale
+    if CREDENTIALS_FILE.exists():
+        from dotenv import dotenv_values
+        vals = dotenv_values(CREDENTIALS_FILE)
+        return vals.get("ONBOARDING_COMPLETED", "").lower() in ("1", "true", "yes")
+    return False
 
 
 def set_onboarding_completed(completed: bool = True) -> None:

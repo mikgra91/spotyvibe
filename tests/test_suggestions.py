@@ -1,15 +1,16 @@
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from core.suggestions import (
-    normalize_history,
-    filter_duplicate_suggestions,
+    _build_deny_set_json,
     _normalize_key,
     build_messages,
+    call_gpt,
+    filter_duplicate_suggestions,
+    load_text_file,
+    normalize_history,
     normalize_response,
     update_profile,
-    call_gpt,
-    load_text_file,
-    _build_exclusion_block,
 )
 
 
@@ -76,10 +77,12 @@ class TestFilterDuplicateSuggestions:
             "history": {"suggested_tracks": ["artist1 track1"]},
             "feedback": {"disliked_tracks": []},
         }
-        result = self._make_result([
-            {"artist": "artist1", "track": "track1", "reason": "r"},
-            {"artist": "artist2", "track": "track2", "reason": "r"},
-        ])
+        result = self._make_result(
+            [
+                {"artist": "artist1", "track": "track1", "reason": "r"},
+                {"artist": "artist2", "track": "track2", "reason": "r"},
+            ]
+        )
         filtered = filter_duplicate_suggestions(profile, result)
         assert len(filtered["playlist"]) == 1
         assert filtered["playlist"][0]["artist"] == "artist2"
@@ -91,10 +94,12 @@ class TestFilterDuplicateSuggestions:
                 "disliked_tracks": [{"artist": "bad", "track": "song"}],
             },
         }
-        result = self._make_result([
-            {"artist": "bad", "track": "song", "reason": "r"},
-            {"artist": "good", "track": "hit", "reason": "r"},
-        ])
+        result = self._make_result(
+            [
+                {"artist": "bad", "track": "song", "reason": "r"},
+                {"artist": "good", "track": "hit", "reason": "r"},
+            ]
+        )
         filtered = filter_duplicate_suggestions(profile, result)
         assert len(filtered["playlist"]) == 1
         assert filtered["playlist"][0]["artist"] == "good"
@@ -104,10 +109,12 @@ class TestFilterDuplicateSuggestions:
             "history": {"suggested_tracks": []},
             "feedback": {"disliked_tracks": []},
         }
-        result = self._make_result([
-            {"artist": "x", "track": "y", "reason": "r"},
-            {"artist": "x", "track": "y", "reason": "r"},
-        ])
+        result = self._make_result(
+            [
+                {"artist": "x", "track": "y", "reason": "r"},
+                {"artist": "x", "track": "y", "reason": "r"},
+            ]
+        )
         filtered = filter_duplicate_suggestions(profile, result)
         assert len(filtered["playlist"]) == 1
 
@@ -121,31 +128,95 @@ class TestFilterDuplicateSuggestions:
         assert filtered["playlist"] == []
 
 
+def _extract_deny_json(user_message: str) -> dict:
+    """Helper for tests: parse the deny-set JSON embedded in our test templates."""
+    start = user_message.index("DENY:\n") + len("DENY:\n")
+    end = user_message.index("\nPROFILE:")
+    raw = user_message[start:end]
+    return json.loads(raw)
+
+
+class TestBuildDenySetJson:
+    def test_empty_when_no_history(self):
+        profile = {
+            "history": {"suggested_tracks": [], "suggested_artists": []},
+            "artists": {"rejected": []},
+            "feedback": {"disliked_artists": [], "disliked_tracks": []},
+        }
+        deny = json.loads(_build_deny_set_json(profile))
+        assert deny["forbidden_artists"] == []
+        assert deny["exhausted_artists"] == []
+        assert deny["forbidden_tracks"] == {}
+        assert deny["disliked_tracks"] == {}
+
+    def test_marks_exhausted_artist(self):
+        profile = {
+            "history": {
+                "suggested_artists": ["artist x"],
+                "suggested_tracks": [
+                    "artist x t1",
+                    "artist x t2",
+                    "artist x t3",
+                    "artist x t4",
+                ],
+            },
+            "artists": {"rejected": []},
+            "feedback": {"disliked_artists": [], "disliked_tracks": []},
+        }
+        deny = json.loads(_build_deny_set_json(profile))
+        assert "artist x" in deny["exhausted_artists"]
+
+    def test_includes_retry_forbidden_tracks(self):
+        profile = {
+            "history": {"suggested_tracks": [], "suggested_artists": []},
+            "artists": {"rejected": []},
+            "feedback": {"disliked_artists": [], "disliked_tracks": []},
+        }
+        deny = json.loads(_build_deny_set_json(profile, ephemeral_deny_tracks={"a b"}))
+        assert deny["retry_forbidden_tracks"] == ["a b"]
+
+
 class TestBuildMessages:
     @patch("core.suggestions.load_text_file")
     def test_returns_two_messages(self, mock_load):
         mock_load.side_effect = [
-            "You are a music bot. Generate {batch_size} tracks.",  # system prompt
-            "Profile: {profile_json}\n{exclusion_block}\nGive me {batch_size} songs.",  # user template
+            "You are a music bot. Generate {batch_size} tracks in {gpt_language}.",
+            "DENY:\n{deny_set_json}\nPROFILE:{profile_json}\nPROFILE:\n{profile_json}\nFEEDBACK:\n{recent_feedback}\nNeed {batch_size} songs.",
         ]
         profile = {
             "history": {"suggested_artists": [], "suggested_tracks": []},
             "feedback": {},
             "preferences": {},
         }
-        messages = build_messages(profile)
+        messages = build_messages(profile, batch_size=10)
         assert len(messages) == 2
         assert messages[0]["role"] == "system"
         assert messages[1]["role"] == "user"
-        # Verify {batch_size} was replaced
         assert "{batch_size}" not in messages[0]["content"]
         assert "{batch_size}" not in messages[1]["content"]
+        assert "{gpt_language}" not in messages[0]["content"]
+
+    @patch("core.suggestions.load_text_file")
+    def test_recently_filtered_tracks_end_up_in_deny_set(self, mock_load):
+        mock_load.side_effect = [
+            "System prompt {batch_size}.",
+            "DENY:\n{deny_set_json}\nPROFILE:\n{profile_json}\nNeed {batch_size} songs.",
+        ]
+        profile = {
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {},
+        }
+        filtered = [{"artist": "dup", "track": "song"}]
+        messages = build_messages(profile, recently_filtered_tracks=filtered)
+        deny = _extract_deny_json(messages[1]["content"])
+        assert "retry_forbidden_tracks" in deny
+        assert "dup song" in deny["retry_forbidden_tracks"]
 
     @patch("core.suggestions.load_text_file")
     def test_accepted_tracks_appended(self, mock_load):
         mock_load.side_effect = [
             "System prompt {batch_size}.",
-            "Profile: {profile_json}\n{exclusion_block}\n{batch_size} tracks.",
+            "DENY:\n{deny_set_json}\nPROFILE:\n{profile_json}\nNeed {batch_size} songs.",
         ]
         profile = {
             "history": {"suggested_artists": [], "suggested_tracks": []},
@@ -158,7 +229,7 @@ class TestBuildMessages:
 
 
 class TestNormalizeResponse:
-    def test_lowercases_playlist_entries(self):
+    def test_lowercases_playlist_entries_and_strips_metadata(self):
         result = {
             "playlist": [{"artist": "AC/DC", "track": "Thunderstruck"}],
             "new_artists": ["AC/DC"],
@@ -170,28 +241,17 @@ class TestNormalizeResponse:
         normalized = normalize_response(result)
         assert normalized["playlist"][0]["artist"] == "ac/dc"
         assert normalized["playlist"][0]["track"] == "thunderstruck"
-        assert normalized["new_artists"] == ["ac/dc"]
-        assert normalized["profile_updates"]["suggested_artists"] == ["ac/dc"]
-        assert normalized["profile_updates"]["suggested_tracks"] == ["ac/dc thunderstruck"]
+        assert normalized["new_artists"] == []
+        assert normalized["profile_updates"]["suggested_artists"] == []
+        assert normalized["profile_updates"]["suggested_tracks"] == []
 
     def test_strips_validation_key(self):
         result = {
             "playlist": [],
-            "new_artists": [],
-            "profile_updates": {"suggested_artists": [], "suggested_tracks": []},
             "validation": {"some": "data"},
         }
         normalized = normalize_response(result)
         assert "validation" not in normalized
-
-    def test_handles_empty_playlist(self):
-        result = {
-            "playlist": [],
-            "new_artists": [],
-            "profile_updates": {"suggested_artists": [], "suggested_tracks": []},
-        }
-        normalized = normalize_response(result)
-        assert normalized["playlist"] == []
 
 
 class TestUpdateProfile:
@@ -227,8 +287,9 @@ class TestUpdateProfile:
             }
         }
         updated = update_profile(profile, result)
-        count = sum(1 for a in updated["history"]["suggested_artists"]
-                    if a.lower() == "artist a")
+        count = sum(
+            1 for a in updated["history"]["suggested_artists"] if a.lower() == "artist a"
+        )
         assert count == 1
 
     def test_no_duplicate_tracks(self):
@@ -245,8 +306,9 @@ class TestUpdateProfile:
             }
         }
         updated = update_profile(profile, result)
-        count = sum(1 for t in updated["history"]["suggested_tracks"]
-                    if t.lower() == "artist track1")
+        count = sum(
+            1 for t in updated["history"]["suggested_tracks"] if t.lower() == "artist track1"
+        )
         assert count == 1
 
 
@@ -338,56 +400,4 @@ class TestLoadTextFile:
             assert False, "Expected FileNotFoundError"
         except FileNotFoundError:
             pass
-
-
-class TestBuildExclusionBlock:
-    def test_empty_when_no_history(self):
-        profile = {"history": {"suggested_tracks": [], "suggested_artists": []}}
-        assert _build_exclusion_block(profile) == ""
-
-    def test_groups_tracks_by_artist(self):
-        profile = {
-            "history": {
-                "suggested_artists": ["artist a"],
-                "suggested_tracks": ["artist a song1", "artist a song2"],
-            }
-        }
-        block = _build_exclusion_block(profile)
-        assert "artist a" in block.lower()
-        assert "song1" in block
-        assert "song2" in block
-
-    def test_marks_exhausted_artist(self):
-        profile = {
-            "history": {
-                "suggested_artists": ["artist x"],
-                "suggested_tracks": [
-                    "artist x t1", "artist x t2",
-                    "artist x t3", "artist x t4",
-                ],
-            }
-        }
-        block = _build_exclusion_block(profile)
-        assert "EXHAUSTED" in block
-
-
-class TestBuildMessagesRetryWarning:
-    @patch("core.suggestions.load_text_file")
-    def test_retry_warning_appended(self, mock_load):
-        mock_load.side_effect = [
-            "System prompt {batch_size} {new_artist_percentage} {min_new_artists}.",
-            "Profile: {profile_json}\n{exclusion_block}\n{batch_size} tracks.",
-        ]
-        profile = {
-            "history": {"suggested_artists": [], "suggested_tracks": []},
-            "feedback": {},
-        }
-        filtered = [{"artist": "dup", "track": "song"}]
-        messages = build_messages(
-            profile,
-            recently_filtered_tracks=filtered,
-            consecutive_empty=1,
-        )
-        assert "RETRY WARNING" in messages[1]["content"]
-        assert "dup - song" in messages[1]["content"]
 

@@ -1336,6 +1336,20 @@ h1 {
         text-align: center;
         justify-content: center;
     }
+
+    /* Audio filter grid — stack label above inputs on narrow screens */
+    .audio-filter-row {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .audio-filter-row label {
+        grid-column: 1 / -1;
+    }
+
+    /* Song analysis — stack inputs vertically on narrow screens */
+    .analysis-input-row {
+        flex-direction: column;
+    }
 }
 
 /* =============================================
@@ -1501,14 +1515,19 @@ h1 {
 
 .analysis-inputs {
     display: flex;
+    flex-direction: column;
     gap: 10px;
-    flex-wrap: wrap;
     margin-bottom: 14px;
 }
 
-.analysis-inputs input {
+.analysis-input-row {
+    display: flex;
+    gap: 10px;
+}
+
+.analysis-input-row input {
     flex: 1;
-    min-width: 160px;
+    min-width: 0;
 }
 
 .analysis-card {
@@ -1716,30 +1735,100 @@ h1 {
 
 /* ── Audio feature filters ──────────────────────────────────────────── */
 .audio-filter-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
 }
 
 .audio-filter-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: 140px 1fr 1fr;
     align-items: center;
     gap: 8px;
 }
 
 .audio-filter-row label {
-    width: 160px;
-    flex-shrink: 0;
     font-size: 0.82rem;
     color: var(--text-secondary);
-    text-transform: none;
-    letter-spacing: 0;
     font-weight: 400;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .audio-filter-row input {
-    flex: 1;
-    min-width: 60px;
+    width: 100%;
     padding: 6px 10px;
     font-size: 0.82rem;
+}
+
+/* ---- Song list counter ---- */
+.songlist-counter-row {
+    min-height: 1.4em;
+    padding: 4px 0 2px;
+}
+.songlist-counter {
+    font-size: 0.78rem;
+    color: var(--text-muted, #888);
+}
+
+/* ---- Spotify Preview Overlay ---- */
+.spotify-preview-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+.spotify-preview-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.spotify-preview-panel {
+    position: relative;
+    background: var(--bg-card, #1e1e1e);
+    border-radius: 16px 16px 0 0;
+    padding: 16px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.spotify-preview-close {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    background: none;
+    border: none;
+    color: var(--text-secondary, #aaa);
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+.spotify-preview-close:hover {
+    color: var(--text-primary, #fff);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.spotify-preview-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text-primary, #fff);
+    margin-bottom: 12px;
+    padding-right: 32px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.spotify-preview-panel iframe {
+    display: block;
 }

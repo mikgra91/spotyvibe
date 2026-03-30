@@ -47,7 +47,29 @@ The Spotify app must have `http://127.0.0.1:5000/callback` listed as a Redirect 
 
 ---
 
+## Android (Chaquopy) dependency pinning
+
+The Android APK is built with **Chaquopy**, which installs Python packages from the `python { pip { ... } }` block in `android/app/build.gradle`.
+
+These pins are intentionally **not identical** to `requirements.txt` because Android builds must avoid packages (or transitive dependencies) which require compiling native extensions (especially **Rust**) from source.
+
+Current known constraints (do not change without validating an Android build):
+
+- **`pydantic` must be `<2.0`**
+  - Pydantic v2 depends on **`pydantic-core`** (Rust). Chaquopy does not provide wheels for it, and source builds fail.
+- **`openai` must be `<1.35`**
+  - OpenAI Python >= 1.35 depends on **`jiter`** (Rust). Same issue: no Chaquopy wheels, source builds fail.
+
+If you update any Android pip pins:
+- Check the full transitive dependency set for sdists / native builds.
+- Run `./build-tools/build_apk.sh debug` to confirm Chaquopy can install everything for all configured ABIs.
+
+
+
+---
+
 ## Project Structure
+
 
 ```
 spotyvibe/

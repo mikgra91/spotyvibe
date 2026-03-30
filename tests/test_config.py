@@ -1,9 +1,11 @@
 """Tests for config.py — credential management and settings getters."""
 
+import importlib
 import os
 import sys
 from pathlib import Path
 from unittest.mock import patch, mock_open, MagicMock
+
 
 import config
 
@@ -295,3 +297,38 @@ class TestGetAppDir:
 class TestIsAndroid:
     def test_false_on_desktop(self):
         assert config.IS_ANDROID is False
+
+
+class TestBaseDir:
+    def test_uses_meipass_when_frozen(self, tmp_path):
+        """PyInstaller sets sys.frozen + sys._MEIPASS; BASE_DIR should follow."""
+        had_frozen = hasattr(sys, "frozen")
+        original_frozen = getattr(sys, "frozen", None)
+        had_meipass = hasattr(sys, "_MEIPASS")
+        original_meipass = getattr(sys, "_MEIPASS", None)
+
+        try:
+            setattr(sys, "frozen", True)
+            setattr(sys, "_MEIPASS", str(tmp_path))
+            reloaded = importlib.reload(config)
+            assert reloaded.BASE_DIR == tmp_path.resolve()
+        finally:
+            if had_frozen:
+                setattr(sys, "frozen", original_frozen)
+            else:
+                try:
+                    delattr(sys, "frozen")
+                except Exception:
+                    pass
+
+            if had_meipass:
+                setattr(sys, "_MEIPASS", original_meipass)
+            else:
+                try:
+                    delattr(sys, "_MEIPASS")
+                except Exception:
+                    pass
+
+            # Restore BASE_DIR for the rest of the test suite.
+            importlib.reload(config)
+

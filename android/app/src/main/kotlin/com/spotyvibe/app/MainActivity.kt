@@ -96,7 +96,7 @@ class MainActivity : AppCompatActivity() {
             splashView.visibility = View.GONE
             errorView.visibility = View.GONE
             webView.visibility = View.VISIBLE
-            webView.loadUrl(ONBOARDING_URL)
+            webView.loadUrl(FLASK_URL)  // Server handles onboarding redirect
         }
     }
 

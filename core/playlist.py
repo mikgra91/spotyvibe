@@ -280,11 +280,12 @@ def search_tracks(tracks, on_progress=None):
         # requests.Session across concurrent workers.
         thread_sp = get_spotify_client()
         query = _build_track_artist_query(t["artist"], t["track"])
-        res = thread_sp.search(q=query, type="track", limit=1)
+        res = thread_sp.search(q=query, type="track", limit=1, market="from_token")
 
         if res and res["tracks"]["items"]:
             item = res["tracks"]["items"][0]
             uri = item["uri"]
+            track_id = uri.split(":")[-1] if uri else None
             # Extract the smallest album cover (typically 64×64)
             images = item.get("album", {}).get("images", [])
             cover_url = images[-1]["url"] if images else None
@@ -296,6 +297,7 @@ def search_tracks(tracks, on_progress=None):
             enriched = {
                 **t,
                 "uri": uri,
+                "track_id": track_id,
                 "cover_url": cover_url,
                 "preview_url": preview_url,
                 "spotify_url": spotify_url,

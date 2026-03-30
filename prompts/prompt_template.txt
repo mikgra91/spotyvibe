@@ -1,13 +1,13 @@
-Here is my complete music taste profile. Study every section carefully before generating suggestions.
+DENY_LIST — every artist and track here is FORBIDDEN:
+
+{deny_set_json}
+
+Here is my music taste profile:
 
 <user_profile>
 {profile_json}
 </user_profile>
 
-{exclusion_block}
-
 {recent_feedback}
 
-Based on this profile, suggest exactly {batch_size} tracks following all your instructions.
-Focus on DISCOVERING new artists and tracks I haven't heard yet.
-Return ONLY the JSON object — no other text.
+Suggest exactly {batch_size} tracks following all system instructions. Return only JSON.
