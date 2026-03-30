@@ -40,9 +40,35 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 - **Automatic loop protection** — if GPT ignores the exclusion list for 3 consecutive batches, the loop stops automatically and creates the playlist with whatever was found. Each retry sends an explicit warning listing the exact tracks GPT suggested that were already known.
 - **New Artist % setting** — configurable percentage (1–100, default 30%) of each batch that must come from artists not yet in your history, pushing GPT to explore new territory.
 - **Hardened GPT prompt** — Bear Ghost is set as the explicit primary style reference; a "Hard Negative Rules" section disqualifies generic or predictable tracks; GPT emits a self-validation block to force it to check its own output before finalising.
+- **Band/Song Analysis** — AI-powered analysis of any band or song, returning genre, style, characteristics, and copy-paste profile suggestions (`core/analysis.py`).
+- **Internationalization (i18n)** — full English and German UI with a language picker in the header; translations in `static/i18n/en.json` and `de.json`. A separate **ChatGPT Language** setting controls the language used for GPT communication.
+- **Spotify Audio Feature Constraints** — optional post-GPT filtering by energy, valence, tempo, danceability, and acousticness to fine-tune results.
+- **Feedback Reasons in prompts** — recent like/dislike reasons are summarized and sent to GPT so it can learn *why* you liked or disliked a track, not just which ones.
+- **Multiple Playlists / Playlist Naming** — create new, append, or replace playlists with custom name templates supporting `{date}` and `{style}` tokens.
+- **Run History and Rollback** — every run's metadata is saved (`core/history.py`); undo the last run to remove its tracks from the playlist.
+- **Previews and Richer Track Cards** — album art, inline Spotify preview playback, and direct links to track, artist, and album on Spotify.
+- **Hard Cost Guardrails** — max 20 GPT calls per run, max 3 consecutive empty batches, and field-level character limits to prevent runaway usage.
+- **Better SSE Resilience** — run state is persisted by `run_id`; a recovery endpoint lets the client reconnect after a network drop.
+- **Cached Model List** — `/api/settings/models` is cached with a 5-minute TTL to reduce API calls.
+- **Security hardening** — profile import validation, server-side request size limits, character sanitization, prompt injection hardening, Android WebView download restriction, and Spotify search query sanitization.
 - **Debug mode (desktop only)** — logs all GPT communication to a file for prompt analysis and tuning (not available in the Android APK).
 - **Mobile responsive** — the UI automatically adapts to tablet and phone screens with touch-friendly controls and bottom-sheet modals, no app install required.
 - **Android APK ready** — project includes Chaquopy-based Android scaffolding for building a self-contained APK that bundles the full Flask app, Python runtime, and all dependencies. The Android build pins Android Gradle Plugin 8.2.2, Kotlin 1.9.22, Chaquopy 15.0.1, compile/target SDK 34, and Python 3.10 with pinned pip dependencies. Spotify OAuth works seamlessly on Android via deep-link callback (`spotyvibe://callback`); add this URI alongside `http://127.0.0.1:5000/callback` in your Spotify Developer Dashboard. Emulator testing is supported via the `x86_64` ABI filter.
+- **Android Onboarding Flow** — multi-page swipeable onboarding for first-time Android users covering intro, credentials, and Spotify connection.
+- **Android Packaging Polish** — share/import flows, external Spotify links, and improved OAuth deep linking.
+- **Testing & CI** — pytest suite with GitHub Actions CI on push and PR (`.github/workflows/ci.yml`).
+
+## Project Structure (key paths)
+
+| Path | Purpose |
+|---|---|
+| `app.py` | Flask application entry point |
+| `core/analysis.py` | Band/song analysis logic |
+| `core/history.py` | Run history tracking and rollback |
+| `prompts/analysis_prompt.txt` | GPT prompt template for band/song analysis |
+| `static/i18n/en.json`, `de.json` | UI translation files |
+| `.github/workflows/ci.yml` | GitHub Actions CI pipeline |
+| `tests/` | pytest test suite |
 
 ## Quick Start
 

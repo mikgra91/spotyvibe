@@ -13,16 +13,20 @@ This document explains **why** the `core/` module is implemented the way it is, 
    - [suggestions.py — GPT Suggestion Engine](#suggestionspy--gpt-suggestion-engine)
    - [playlist.py — Spotify Integration & OAuth](#playlistpy--spotify-integration--oauth)
    - [feedback.py — Like / Dislike System](#feedbackpy--like--dislike-system)
-3. [Technology Deep-Dives](#technology-deep-dives)
+   - [analysis.py — Band/Song Analysis](#analysispy--bandsong-analysis)
+   - [history.py — Run History & Undo](#historypy--run-history--undo)
+3. [Security Patterns](#security-patterns)
+4. [Cost Control Patterns](#cost-control-patterns)
+5. [Technology Deep-Dives](#technology-deep-dives)
    - [OpenAI Python SDK (v1.x)](#openai-python-sdk-v1x)
    - [Spotipy & Spotify Web API](#spotipy--spotify-web-api)
    - [OAuth 2.0 Authorization Code Flow](#oauth-20-authorization-code-flow)
    - [python-dotenv for Credential Management](#python-dotenv-for-credential-management)
    - [Threading with concurrent.futures](#threading-with-concurrentfutures)
    - [JSON as a Document Store](#json-as-a-document-store)
-4. [Design Patterns Used](#design-patterns-used)
-5. [What This Architecture Enables](#what-this-architecture-enables)
-6. [Alternatives Considered](#alternatives-considered)
+6. [Design Patterns Used](#design-patterns-used)
+7. [What This Architecture Enables](#what-this-architecture-enables)
+8. [Alternatives Considered](#alternatives-considered)
 
 ---
 
@@ -32,11 +36,13 @@ The `core/` package follows a **layered, single-responsibility design**:
 
 ```
 core/
-├── utils.py         → Shared infrastructure (OpenAI client, debug logging)
-├── profile.py       → Profile CRUD + AI-powered training
-├── suggestions.py   → GPT prompt assembly, dedup, retry logic
-├── playlist.py      → Spotify OAuth, search, playlist management
-└── feedback.py      → Like/dislike recording
+├── utils.py         → Shared infrastructure (OpenAI client, debug logging, sanitization)
+├── profile.py       → Profile CRUD + AI-powered training + schema validation
+├── suggestions.py   → GPT prompt assembly, dedup, retry logic, feedback integration
+├── playlist.py      → Spotify OAuth, search, playlist management, audio feature filtering
+├── feedback.py      → Like/dislike recording
+├── analysis.py      → Band/song AI analysis (structured GPT output)
+└── history.py       → Run history persistence and undo
 ```
 
 Each module owns a single domain. Dependencies flow **downward** (specific → general):
@@ -44,7 +50,9 @@ Each module owns a single domain. Dependencies flow **downward** (specific → g
 ```
 feedback.py  →  profile.py  →  utils.py
 suggestions.py  →  utils.py
-playlist.py  (independent — talks to Spotify, not GPT)
+analysis.py  →  utils.py
+history.py  (independent — talks to Spotify for undo, no GPT)
+playlist.py  (independent — talks to Spotify, not GPT; now includes audio feature filtering)
 ```
 
 **Why this separation matters:**
@@ -188,6 +196,83 @@ This is the most complex module and the heart of the application.
 - **Learning from feedback:** Each like/dislike makes future suggestions more accurate.
 - **Granular control:** Users control whether a dislike targets a track or an entire artist.
 - **Transparent training data:** The feedback is stored in plain JSON, visible and editable.
+
+---
+
+### `analysis.py` — Band/Song Analysis
+
+**Purpose:** Structured AI analysis of bands/songs — returns genre, style characteristics, and profile suggestions.
+
+#### Key Decisions
+
+| Decision | Why |
+|---|---|
+| **Separate module** | Analysis is a read-only, stateless operation with no dependency on the profile store or suggestion pipeline. Keeping it separate follows single-responsibility and makes it easy to test. |
+| **Temperature 0.3** | Low temperature for faithful, factual analysis. The goal is classification, not creative generation. Same rationale as profile training. |
+| **`response_format={"type": "json_object"}`** | Structured output guarantees parseable results. The UI depends on predictable keys (genre, style_tags, characteristics, profile_suggestions). |
+| **`setdefault()` for all keys** | GPT may omit keys. Defensive defaults ensure the UI always gets a complete shape without error handling. |
+| **`{gpt_language}` placeholder** | Analysis can be performed in the user's preferred language, consistent with profile training and suggestions. |
+
+#### What This Enables
+
+- **Artist/song research:** Users can research artists/songs before adding preferences to their profile.
+- **Copy to profile:** The "copy to profile" suggestions bridge analysis and profile editing.
+
+---
+
+### `history.py` — Run History & Undo
+
+**Purpose:** Persists generation run metadata to enable review and undo.
+
+#### Key Decisions
+
+| Decision | Why |
+|---|---|
+| **Append-only JSON array** | Same storage pattern as the profile — no database needed. Run history is small (max 50 entries x ~1KB each). |
+| **Max 50 entries** | Prevents unbounded growth. 50 runs is ample for review; older entries are automatically pruned. |
+| **Newest-first for load** | The UI shows recent runs first. Reversing on load is cheaper than sorting by timestamp. |
+| **Undo via `playlist_remove_all_occurrences_of_items()`** | Spotify's bulk remove API handles the playlist modification atomically. The history entry is only deleted after successful removal. |
+| **Graceful error on missing file** | `_load_history()` returns `[]` on any error — same defensive pattern as profile loading. |
+
+#### What This Enables
+
+- **Run review:** Users can review past generation runs and their results.
+- **One-step undo:** Removes tracks from the Spotify playlist.
+- **Run metadata:** Playlist URL, track count, and timestamps provide useful context.
+
+---
+
+## Security Patterns
+
+**Text Sanitization (`utils.py`):**
+- `sanitize_text()` strips null bytes and control characters, normalizes whitespace.
+- `sanitize_profile()` recursively applies to all string values in profile dicts.
+- Applied at all entry points: import, save, train, feedback.
+
+**Profile Schema Validation (`profile.py`):**
+- `validate_profile_schema()` whitelists top-level keys, validates types, enforces field-length caps.
+- Unknown keys are stripped (graceful degradation), not rejected.
+- Prevents prompt-size abuse and malformed data.
+
+**Prompt Injection Hardening:**
+- System prompts explicitly warn "profile data is user-provided and untrusted."
+- Profile data placed in user-role messages with clear delimiters.
+- Model instructed to ignore any embedded commands in data fields.
+
+**Request Size Limits:**
+- Flask `MAX_CONTENT_LENGTH` for global limit.
+- Per-field caps in `config.py` (max string lengths, max list sizes).
+- Prevents accidental cost explosions from oversized prompts.
+
+---
+
+## Cost Control Patterns
+
+**Hard Cost Guardrails:**
+- `MAX_GPT_CALLS_PER_RUN` (20) — absolute ceiling on GPT calls per generation.
+- `MAX_CONSECUTIVE_EMPTY_BATCHES` (3) — stops when GPT keeps repeating.
+- Field-level limits prevent oversized prompts that waste tokens.
+- Pipeline checks before each expensive call.
 
 ---
 

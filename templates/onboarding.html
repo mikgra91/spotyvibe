@@ -3,56 +3,319 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SpotyVibe</title>
+    <title>SpotyVibe — Welcome</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        /* Onboarding multi-page swipeable layout */
+        .ob-wrap {
+            overflow: hidden;
+            width: 100%;
+            height: 100vh;
+        }
+        .ob-pages {
+            display: flex;
+            height: 100%;
+            transition: transform 0.4s cubic-bezier(0.4,0,0.2,1);
+        }
+        .ob-page {
+            min-width: 100%;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px 24px;
+            box-sizing: border-box;
+        }
+        .ob-indicators {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .ob-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--border);
+            transition: background var(--transition), width var(--transition);
+        }
+        .ob-dot.active {
+            background: var(--primary);
+            width: 24px;
+            border-radius: 4px;
+        }
+        .ob-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            max-width: 420px;
+            margin-top: 28px;
+        }
+        .ob-btn-skip {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            cursor: pointer;
+            padding: 8px 0;
+        }
+        .ob-btn-skip:hover { color: var(--text-secondary); }
+        .ob-logo { font-size: 3.5rem; margin-bottom: 12px; }
+        .ob-title { font-size: 2rem; font-weight: 800; color: var(--text-primary); margin-bottom: 8px; }
+        .ob-subtitle { color: var(--text-secondary); text-align: center; max-width: 320px; margin-bottom: 24px; }
+        .ob-feature-list { width: 100%; max-width: 360px; }
+        .ob-feature { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 16px; }
+        .ob-feature-icon { font-size: 1.6rem; flex-shrink: 0; }
+        .ob-feature strong { display: block; color: var(--text-primary); margin-bottom: 2px; }
+        .ob-feature p { color: var(--text-secondary); font-size: 0.86rem; margin: 0; }
+        .ob-cred-section { width: 100%; max-width: 400px; }
+        .ob-cred-label { font-size: 0.82rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+        .ob-cred-input { width: 100%; box-sizing: border-box; margin-bottom: 12px; }
+        .ob-explain { font-size: 0.83rem; color: var(--text-muted); margin-bottom: 20px; }
+        .ob-action-btn {
+            width: 100%; max-width: 360px;
+            padding: 14px 20px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #000;
+            font-weight: 700;
+            font-size: 1rem;
+            border: none;
+            border-radius: var(--radius-pill);
+            cursor: pointer;
+            margin-bottom: 10px;
+            transition: transform var(--transition), box-shadow var(--transition);
+            box-shadow: 0 4px 20px var(--glow-green);
+        }
+        .ob-action-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 28px var(--glow-green); }
+        .ob-action-btn.secondary {
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            box-shadow: none;
+        }
+        .ob-success { color: var(--primary); font-size: 0.85rem; margin-top: 4px; }
+        .ob-error { color: var(--error); font-size: 0.85rem; margin-top: 4px; }
+    </style>
 </head>
-<body class="onboarding-body">
-<div class="onboarding-container">
-    <div class="onboarding-card">
-        <div class="onboarding-logo">🎵</div>
-        <h1 class="onboarding-title">SpotyVibe</h1>
-        <p class="onboarding-subtitle">AI-Powered Music Discovery</p>
+<body class="onboarding-body" style="background: var(--bg-deep); min-height: 100vh;">
 
-        <div class="onboarding-features">
-            <div class="onboarding-feature">
-                <span class="onboarding-feature-icon">🎯</span>
-                <div>
-                    <strong>Personalised Playlists</strong>
-                    <p>AI learns your taste and discovers tracks you'll love.</p>
+<div class="ob-wrap" id="obWrap">
+    <div class="ob-pages" id="obPages">
+
+        <!-- Page 1: Intro -->
+        <div class="ob-page">
+            <div class="ob-indicators" id="indicators1">
+                <div class="ob-dot active"></div>
+                <div class="ob-dot"></div>
+                <div class="ob-dot"></div>
+            </div>
+            <div class="ob-logo">🎵</div>
+            <div class="ob-title">SpotyVibe</div>
+            <div class="ob-subtitle">AI-powered music discovery. Describe your taste, get the perfect playlist.</div>
+            <div class="ob-feature-list">
+                <div class="ob-feature">
+                    <span class="ob-feature-icon">🎯</span>
+                    <div><strong>Personalised Playlists</strong><p>AI learns your taste and discovers tracks you'll love.</p></div>
+                </div>
+                <div class="ob-feature">
+                    <span class="ob-feature-icon">🎧</span>
+                    <div><strong>Spotify Integration</strong><p>Songs are verified on Spotify and added directly to your library.</p></div>
+                </div>
+                <div class="ob-feature">
+                    <span class="ob-feature-icon">🔁</span>
+                    <div><strong>Refine & Improve</strong><p>Like or dislike suggestions. The AI learns your feedback.</p></div>
                 </div>
             </div>
-            <div class="onboarding-feature">
-                <span class="onboarding-feature-icon">🎧</span>
-                <div>
-                    <strong>Spotify Integration</strong>
-                    <p>Playlists created directly in your Spotify account.</p>
-                </div>
-            </div>
-            <div class="onboarding-feature">
-                <span class="onboarding-feature-icon">👍</span>
-                <div>
-                    <strong>Refine with Feedback</strong>
-                    <p>Like or dislike tracks to improve future suggestions.</p>
-                </div>
+            <div class="ob-nav">
+                <button class="ob-btn-skip" onclick="skipOnboarding()">Skip</button>
+                <button class="onboarding-continue-btn" style="width:auto;padding:12px 28px;" onclick="goPage(1)">Next →</button>
             </div>
         </div>
 
-        <div class="onboarding-setup-hint">
-            <p>To get started, you'll need:</p>
-            <ul>
-                <li>An <strong>OpenAI API key</strong></li>
-                <li>A <strong>Spotify account</strong> (free or premium)</li>
-            </ul>
-            <p>Set these up in <strong>Settings</strong> once inside the app.</p>
+        <!-- Page 2: Credentials -->
+        <div class="ob-page">
+            <div class="ob-indicators">
+                <div class="ob-dot"></div>
+                <div class="ob-dot active"></div>
+                <div class="ob-dot"></div>
+            </div>
+            <div class="ob-logo">🔑</div>
+            <div class="ob-title">Set Up Credentials</div>
+            <div class="ob-subtitle">SpotyVibe needs your API keys to generate playlists.</div>
+            <div class="ob-cred-section">
+                <p class="ob-explain">Your <strong>OpenAI API key</strong> powers the music recommendations. Your <strong>Spotify credentials</strong> let the app create playlists in your library. Keys are stored locally on your device only.</p>
+                <div class="ob-cred-label">OpenAI API Key</div>
+                <input class="ob-cred-input" id="ob-openai-key" type="password" placeholder="sk-…" autocomplete="off">
+                <div class="ob-cred-label">Spotify Client ID</div>
+                <input class="ob-cred-input" id="ob-spotify-id" type="text" placeholder="Enter client ID…" autocomplete="off">
+                <div class="ob-cred-label">Spotify Client Secret</div>
+                <input class="ob-cred-input" id="ob-spotify-secret" type="password" placeholder="Enter client secret…" autocomplete="off">
+                <div id="ob-cred-status" class="ob-explain" style="margin-top:0;"></div>
+                <button class="ob-action-btn" onclick="saveObCredentials()">Save Credentials</button>
+            </div>
+            <div class="ob-nav">
+                <button class="ob-btn-skip" onclick="skipOnboarding()">Skip</button>
+                <button class="onboarding-continue-btn" style="width:auto;padding:12px 28px;" onclick="goPage(2)">Next →</button>
+            </div>
         </div>
 
-        <button class="onboarding-continue-btn" onclick="window.location.href='/'">
-            Continue to SpotyVibe
-        </button>
+        <!-- Page 3: Spotify + Preferences -->
+        <div class="ob-page">
+            <div class="ob-indicators">
+                <div class="ob-dot"></div>
+                <div class="ob-dot"></div>
+                <div class="ob-dot active"></div>
+            </div>
+            <div class="ob-logo">🎶</div>
+            <div class="ob-title">Connect Spotify</div>
+            <div class="ob-subtitle">Authenticate with Spotify and optionally import an existing taste profile.</div>
+            <div style="width:100%;max-width:380px;">
+                <button class="ob-action-btn" onclick="connectSpotify()">🔌 Connect to Spotify</button>
+                <div id="ob-spotify-status" class="ob-explain" style="margin-top:-4px;"></div>
+                <button class="ob-action-btn secondary" onclick="importProfile()">⬆ Import Preference Profile</button>
+                <div id="ob-import-status" class="ob-explain" style="margin-top:-4px;"></div>
+                <input id="ob-import-input" type="file" accept="application/json,.json" style="display:none;">
+            </div>
+            <div class="ob-nav">
+                <button class="ob-btn-skip" onclick="skipOnboarding()">Skip</button>
+                <button class="onboarding-continue-btn" style="width:auto;padding:12px 28px;" onclick="finishOnboarding()">Close ✓</button>
+            </div>
+        </div>
+
     </div>
 </div>
+
+<script>
+    let currentPage = 0;
+    const totalPages = 3;
+
+    function goPage(idx) {
+        currentPage = idx;
+        document.getElementById('obPages').style.transform = `translateX(-${idx * 100}%)`;
+    }
+
+    // Touch/swipe support
+    let touchStartX = 0;
+    const wrap = document.getElementById('obWrap');
+    wrap.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+    wrap.addEventListener('touchend', e => {
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        if (dx < -50 && currentPage < totalPages - 1) goPage(currentPage + 1);
+        if (dx > 50 && currentPage > 0) goPage(currentPage - 1);
+    });
+
+    async function skipOnboarding() {
+        await markComplete();
+        window.location.href = '/';
+    }
+
+    async function finishOnboarding() {
+        await markComplete();
+        window.location.href = '/';
+    }
+
+    async function markComplete() {
+        try {
+            await fetch('/api/onboarding/complete', { method: 'POST' });
+        } catch (e) { /* best-effort */ }
+    }
+
+    async function saveObCredentials() {
+        const key = document.getElementById('ob-openai-key').value.trim();
+        const id = document.getElementById('ob-spotify-id').value.trim();
+        const secret = document.getElementById('ob-spotify-secret').value.trim();
+        const status = document.getElementById('ob-cred-status');
+
+        if (!key && !id && !secret) {
+            status.textContent = 'Nothing to save.';
+            status.className = 'ob-explain ob-error';
+            return;
+        }
+
+        const payload = {};
+        if (key) payload.OPENAI_API_KEY = key;
+        if (id) payload.SPOTIPY_CLIENT_ID = id;
+        if (secret) payload.SPOTIPY_CLIENT_SECRET = secret;
+
+        try {
+            const resp = await fetch('/api/settings/credentials', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (resp.ok) {
+                status.textContent = '✅ Credentials saved.';
+                status.className = 'ob-explain ob-success';
+            } else {
+                status.textContent = '❌ Error saving credentials.';
+                status.className = 'ob-explain ob-error';
+            }
+        } catch (e) {
+            status.textContent = '❌ Network error.';
+            status.className = 'ob-explain ob-error';
+        }
+    }
+
+    function connectSpotify() {
+        const statusEl = document.getElementById('ob-spotify-status');
+        statusEl.textContent = 'Opening Spotify…';
+        // On Android WebView, navigate directly; on desktop open a popup
+        if (/; wv\)/.test(navigator.userAgent)) {
+            window.location.href = '/api/spotify/auth';
+        } else {
+            window.open('/api/spotify/auth', 'spotifyAuth', 'width=480,height=640');
+            // Listen for callback message
+            window.addEventListener('message', async (e) => {
+                if (e.data === 'spotify-auth-complete') {
+                    statusEl.textContent = '✅ Spotify connected!';
+                    statusEl.className = 'ob-explain ob-success';
+                }
+            }, { once: true });
+        }
+    }
+
+    function importProfile() {
+        const input = document.getElementById('ob-import-input');
+        input.value = '';
+        input.onchange = async () => {
+            const file = input.files[0];
+            if (!file) return;
+            const statusEl = document.getElementById('ob-import-status');
+            try {
+                const text = await file.text();
+                const profile = JSON.parse(text);
+                const resp = await fetch('/api/profile/import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ profile }),
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    statusEl.textContent = '✅ Profile imported.';
+                    statusEl.className = 'ob-explain ob-success';
+                } else {
+                    statusEl.textContent = '❌ ' + (data.error || 'Import failed.');
+                    statusEl.className = 'ob-explain ob-error';
+                }
+            } catch (e) {
+                statusEl.textContent = '❌ ' + e.message;
+                statusEl.className = 'ob-explain ob-error';
+            }
+        };
+        input.click();
+    }
+
+    // Check if onboarding already completed → redirect to main app
+    (async function() {
+        try {
+            const resp = await fetch('/api/onboarding/status');
+            const data = await resp.json();
+            if (data.completed) window.location.href = '/';
+        } catch (e) { /* stay on page */ }
+    })();
+</script>
 </body>
 </html>

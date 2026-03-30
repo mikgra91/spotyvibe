@@ -144,3 +144,216 @@ Add profile import/export and tighten Android WebView security
 - **Do not run tests for documentation-only changes** (e.g. updates to `README.md`, `UserManual.md`, `TechnicalManual.md`, or `AGENTS.md`).
 - External API calls (OpenAI, Spotify) must be mocked in tests.
 
+# Token & Context Optimization Rules (Claude Code)
+
+## 1. Core Principle
+- Optimize for **tokens per successful task**, not per message.
+- Minimize tokens **without reducing correctness**.
+- Every token must provide value.
+- Prefer clarity over extreme brevity if it prevents retries.
+
+---
+
+## 2. Context Budget Management
+
+### 2.1 Soft Context Limit (CRITICAL)
+- Do NOT exceed **60–70% of the model's max context window**.
+- Behavior:
+  - <50% → normal operation
+  - 50–70% → begin compaction
+  - >70% → aggressive compaction required
+  - >85% → critical, must reduce immediately
+
+---
+
+### 2.2 Mandatory Compaction Thresholds
+- <300 tokens → never compact  
+- 300–800 tokens → avoid compaction  
+- 800–1,500 tokens → compact if reused  
+- >1,500 tokens → compact if reused once  
+- >3,000 tokens → compaction REQUIRED  
+
+---
+
+### 2.3 Context Reuse Rule
+- If context will be reused ≥2 times → prefer summarization.
+- Avoid re-sending large raw context multiple times.
+
+---
+
+## 3. Context Quality (More Important than Size)
+
+### 3.1 Context Dilution Rule
+- More context can reduce accuracy.
+- Always prefer **high-signal, relevant context** over large context.
+
+---
+
+### 3.2 Relevance Filtering (MANDATORY)
+- Remove irrelevant content BEFORE summarizing.
+- Never compress irrelevant information — delete it.
+
+---
+
+### 3.3 Information Density Rule
+- Preserve:
+  - constraints
+  - numbers
+  - code
+  - key facts
+- Remove:
+  - filler text
+  - explanations
+  - redundancy
+
+---
+
+## 4. Context Structure (CRITICAL — Research-Based)
+
+### 4.1 Position-Aware Ordering
+- Place most important information at:
+  1. Beginning
+  2. End
+- Avoid placing critical information in the middle of long context.
+
+---
+
+### 4.2 Lost-in-the-Middle Mitigation
+- Extract key facts and move them to the top.
+- Keep important constraints near the end when relevant.
+
+---
+
+## 5. Compression Strategy
+
+### 5.1 Hierarchical Compression (REQUIRED)
+- Never summarize large context in one step.
+- Use:
+  1. Split into chunks
+  2. Summarize each chunk
+  3. Merge summaries
+
+---
+
+### 5.2 Compression Ratios
+- General tasks → 30–60%
+- Code / technical → 50–80%
+- High precision → 70–90%
+- Avoid compression below 30% unless necessary
+
+---
+
+### 5.3 Anti-Recompression Rule
+- NEVER summarize already summarized content.
+- Always summarize from the original source if available.
+- If only a summary exists → treat it as final.
+
+---
+
+## 6. Agent Loop Optimization
+
+### 6.1 Minimize Reasoning Tokens
+- Keep reasoning short and structured.
+- Avoid verbose chain-of-thought.
+
+---
+
+### 6.2 Avoid Re-Planning
+- Do NOT restate full plans every step.
+- Only update what changed.
+
+---
+
+### 6.3 Early Convergence
+- Stop once the task is complete.
+- Avoid unnecessary exploration.
+
+---
+
+## 7. Tool Usage Optimization
+
+### 7.1 Minimize Tool Calls
+- Prefer fewer, more complete tool calls.
+- Combine operations when possible.
+
+---
+
+### 7.2 Reduce Tool Payload
+- Send only required parameters.
+- Avoid sending full files unless necessary.
+
+---
+
+### 7.3 Avoid Duplication
+- Do not re-send identical tool results.
+- Store and reference instead.
+
+---
+
+## 8. File & Code Context Management
+
+### 8.1 Partial Reads Only
+- Read only:
+  - relevant sections
+  - specific lines
+  - required symbols
+
+---
+
+### 8.2 Summarize Large Files
+- Summarize after reading.
+- Discard raw content once summarized.
+
+---
+
+### 8.3 Avoid Duplicate Context
+- Do not include the same code multiple times.
+- Reference instead of repeating.
+
+---
+
+## 9. Multi-Step Task Optimization
+
+### 9.1 Merge Steps
+- Combine compatible operations.
+
+---
+
+### 9.2 Avoid Backtracking
+- Validate before acting.
+
+---
+
+### 9.3 Cache Results
+- Reuse intermediate results.
+
+---
+
+## 10. Anti-Patterns (Avoid)
+
+- Re-reading the same file multiple times
+- Repeating full plans every step
+- Sending full file contents unnecessarily
+- Keeping outdated context
+- Verbose reasoning traces
+- Excessive tool calls
+- Large unfiltered retrieval results
+
+---
+
+## 11. Heuristics
+
+- If it can be removed → remove it
+- If it repeats → deduplicate it
+- If it grows → summarize it
+- If it’s irrelevant → delete it
+- If output is long → constrain it
+
+---
+
+## 12. Tradeoff Rule
+
+- Use more tokens only if it:
+  - prevents retries
+  - improves correctness
+  - reduces total steps

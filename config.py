@@ -33,6 +33,9 @@ EXHAUSTED_ARTIST_THRESHOLD = 4
 # the loop is broken and the playlist is created with whatever was found.
 MAX_CONSECUTIVE_EMPTY_BATCHES = 3
 
+# Hard cost guardrails — max GPT calls per single /api/run invocation
+MAX_GPT_CALLS_PER_RUN = 20
+
 # Default minimum percentage of suggestions that must come from artists not
 # yet present in suggested_artists history (1–100).
 DEFAULT_NEW_ARTIST_PERCENTAGE = 30
@@ -40,9 +43,22 @@ DEFAULT_NEW_ARTIST_PERCENTAGE = 30
 # Default OpenAI model used when none is configured
 DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
 
+# Default language for GPT communication (prompts and responses)
+DEFAULT_GPT_LANGUAGE = "English"
+
 # Maximum allowed size for profile imports (JSON payload size).
 # Enforced server-side by POST /api/profile/import.
 PROFILE_IMPORT_MAX_BYTES = 10 * 1024 * 1024  # 10MB
+
+# General request body size limit (all endpoints except profile import)
+GENERAL_REQUEST_MAX_BYTES = 1 * 1024 * 1024  # 1MB
+
+# Field-level limits for user-supplied text (prevent runaway prompts)
+MAX_CORE_DESCRIPTION_LEN = 5000
+MAX_PROFILE_SECTION_LEN = 5000
+MAX_FEEDBACK_REASON_LEN = 500
+MAX_FEEDBACK_ARTIST_LEN = 200
+MAX_FEEDBACK_TRACK_LEN = 200
 
 
 # True when running inside Chaquopy on Android
@@ -71,7 +87,7 @@ PROFILE_HISTORY_FILE = _APP_DIR / "personalized_music_profile.history.json"
 DEBUG_LOG_FILE = _APP_DIR / "debug.log"
 
 # Keys the user configures via the Settings UI
-USER_KEYS = ["OPENAI_API_KEY", "OPENAI_MODEL", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE"]
+USER_KEYS = ["OPENAI_API_KEY", "OPENAI_MODEL", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE", "GPT_LANGUAGE", "ONBOARDING_COMPLETED"]
 
 # Old file name used before the rename
 _OLD_ENV_FILE = _APP_DIR / ".env"
@@ -147,6 +163,32 @@ def get_new_artist_percentage():
         return DEFAULT_NEW_ARTIST_PERCENTAGE
 
 
+def get_gpt_language():
+    """Return the configured GPT communication language, falling back to English."""
+    return os.getenv("GPT_LANGUAGE") or DEFAULT_GPT_LANGUAGE
+
+
+def is_onboarding_completed() -> bool:
+    """Return True if the user has completed (or skipped) onboarding."""
+    return os.getenv("ONBOARDING_COMPLETED", "").lower() in ("1", "true", "yes")
+
+
+def set_onboarding_completed(completed: bool = True) -> None:
+    """Persist the onboarding completion flag."""
+    from dotenv import set_key
+    ensure_env()
+    set_key(str(CREDENTIALS_FILE), "ONBOARDING_COMPLETED", "true" if completed else "")
+    load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
+
+
+def set_gpt_language(language: str):
+    """Persist the GPT language setting."""
+    from dotenv import set_key
+    ensure_env()
+    set_key(str(CREDENTIALS_FILE), "GPT_LANGUAGE", language)
+    load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
+
+
 def get_settings():
     """Return non-secret settings for the Settings UI."""
     return {
@@ -154,6 +196,7 @@ def get_settings():
         "debug_mode": get_debug_mode(),
         "playlist_size": get_playlist_size(),
         "new_artist_percentage": get_new_artist_percentage(),
+        "gpt_language": get_gpt_language(),
         "debug_log_path": "" if IS_ANDROID else str(DEBUG_LOG_FILE),
         "debug_controls_available": not IS_ANDROID,
         "is_android": IS_ANDROID,

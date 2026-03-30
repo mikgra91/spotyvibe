@@ -21,6 +21,7 @@ Technologies & patterns used:
 """
 
 from core.profile import load_profile, save_profile
+from core.utils import sanitize_text
 
 
 def like_track(artist, track=None, reason=None):
@@ -34,6 +35,10 @@ def like_track(artist, track=None, reason=None):
     which enriches the context GPT receives in future prompts.
     """
     profile = load_profile()
+
+    artist = sanitize_text(artist or "")
+    track = sanitize_text(track or "") if track else track
+    reason = sanitize_text(reason or "") if reason else reason
 
     if track:
         entry = {"artist": artist, "track": track}
@@ -69,7 +74,9 @@ def dislike_track(artist, track=None, reason=None):
     """
     profile = load_profile()
 
-    reason = reason or "user feedback"
+    artist = sanitize_text(artist or "")
+    track = sanitize_text(track or "") if track else track
+    reason = sanitize_text(reason or "user feedback")
 
     if track:
         # Track-level dislike — only record the track, don't reject the whole artist

@@ -6,7 +6,7 @@ This document serves as a comprehensive guide to understanding the architecture 
 
 The SpotyVibe Android app uses a **hybrid local-server architecture**. Instead of rewriting the existing Python backend (Flask) into Kotlin or Java, or hosting it on a cloud server, the entire Python runtime is embedded inside the Android app. 
 
-1. **Native Shell (Kotlin):** A minimal Android app that boots up and manages the lifecycle.
+1. **Native Shell (Kotlin):** A minimal Android app that boots up and manages the lifecycle, handles an onboarding flow on first launch, processes share intents for profile import, and enforces download restrictions for security.
 2. **Local Backend (Chaquopy + Python):** The app spins up a background thread that runs the Flask server locally on `127.0.0.1:5000`.
 3. **Frontend (WebView):** The main UI is an Android `WebView` that navigates to the local Flask server, rendering the existing HTML/CSS/JS exactly as a desktop browser would.
 
@@ -25,6 +25,7 @@ The Android build is intentionally pinned for reproducibility: Android Gradle Pl
 [Android WebView](https://developer.android.com/develop/ui/views/layout/webapps/webview) is a system component for the Android OS that allows Android apps to display web content.
 - **How it works:** It acts as an embedded minimal Chrome browser. In this architecture, it interacts with the locally hosted Flask app via `127.0.0.1`.
 - **Configuration:** Features like JavaScript, DOM storage (localStorage), and custom URL interceptors (`WebViewClient`) must be explicitly enabled and configured via Kotlin.
+- **localStorage persistence:** The WebView's localStorage stores UI preferences (theme, language). This works because `domStorageEnabled = true` is set in the WebView configuration.
 
 ### 2.3 Custom URI Schemes & Deep Linking
 [Deep Links](https://developer.android.com/training/app-links/deep-linking) allow users to navigate directly into specific parts of an Android app using URLs.
@@ -59,10 +60,66 @@ Choosing an Embedded Python + WebView architecture instead of Native UI (Jetpack
 
 ---
 
-## 5. Potential Pitfalls to Watch Out For
+## 5. Android Onboarding Flow
+
+The Android app includes a multi-page swipeable onboarding for first-time users:
+
+**How it works:**
+- `MainActivity.kt` loads `/onboarding` on app start.
+- The backend checks the `ONBOARDING_COMPLETED` flag in config — if already done, the frontend redirects to `/`.
+- `templates/onboarding.html` implements a 3-page swipeable flow:
+  - **Page 1 (Intro):** App logo, name, feature highlights.
+  - **Page 2 (Credentials):** OpenAI API key, Spotify Client ID/Secret inputs with inline validation.
+  - **Page 3 (Spotify + Import):** Connect Spotify button + Import preference profile button.
+- Navigation uses CSS scroll-snap for horizontal swiping with touch event handlers (50px threshold).
+- Buttons: Skip (all pages), Next (pages 1-2), Close (page 3).
+- Completion: `POST /api/onboarding/complete` persists the flag, then redirects to `/`.
+
+**Key decisions:**
+- Onboarding is HTML/JS in the WebView, not native Kotlin — reuses existing Flask templates and endpoints.
+- State is persisted server-side via config (not just localStorage) — survives app data clear.
+- Spotify auth during onboarding uses the same deep-link OAuth flow (`spotyvibe://callback`).
+
+---
+
+## 6. Share Intent & File Import
+
+The Android app can receive shared files (JSON profiles) from other apps:
+
+**How it works:**
+- `MainActivity.kt` → `handleShareIntent()`:
+  1. Extracts `Uri` from `Intent.EXTRA_STREAM`.
+  2. Reads file content via `contentResolver.openInputStream()`.
+  3. Validates MIME type contains "json", "text", or "octet".
+  4. Posts JSON content to `/api/profile/import` endpoint.
+  5. Shows Toast notification for success/failure.
+- Called from both `onCreate()` (cold start) and `onNewIntent()` (warm resume).
+
+**Key decisions:**
+- Uses Content URIs (SAF-compatible) rather than file paths — works with any file provider.
+- Import goes through the same validation pipeline as manual import (schema validation, sanitization).
+
+---
+
+## 7. WebView Download Restriction
+
+Downloads from the WebView are restricted to trusted localhost endpoints:
+
+- `setDownloadListener()` in `MainActivity.kt` checks the download URL.
+- Only allows URLs starting with `http://127.0.0.1:5000/api/profile/export`.
+- All other download URLs are blocked with logging.
+- Uses Android `DownloadManager` to save allowed files to the device's Downloads folder.
+
+This prevents the WebView from downloading arbitrary files — only the profile export endpoint is a legitimate download source.
+
+---
+
+## 8. Potential Pitfalls to Watch Out For
 
 If you plan to use this architecture in the future, be aware of:
 * **APK Size:** Bundling a CPython runtime usually adds 20-40 MB to the final APK size.
 * **Cold Start Time:** Booting a Python runtime inside Android takes a few seconds (2-5s typically). A native splash screen is highly recommended.
 * **Lifecycle Management:** Mobile OSs aggressively kill background apps. If the user minimizes the app to check messages, the Android system might kill the Flask background thread unless managed properly.
 * **C-Extensions in Python:** While pure Python packages work perfectly out of the box, Python packages that use C/C++ extensions must be pre-compiled for ARM processors. Chaquopy handles many of these, but niche libraries might fail.
+* **Deprecated API warnings:** `getParcelableExtra()` without a class parameter is deprecated in API 33+. Use `getParcelableExtra(name, T::class.java)` for forward compatibility.
+* **Onboarding state sync:** If the user clears app data, `ONBOARDING_COMPLETED` is reset and onboarding shows again. This is by design — credentials are also cleared, so re-onboarding is appropriate.

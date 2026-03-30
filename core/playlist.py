@@ -288,7 +288,21 @@ def search_tracks(tracks, on_progress=None):
             # Extract the smallest album cover (typically 64×64)
             images = item.get("album", {}).get("images", [])
             cover_url = images[-1]["url"] if images else None
-            return "found", {**t, "uri": uri, "cover_url": cover_url}
+            preview_url = item.get("preview_url")
+            spotify_url = item.get("external_urls", {}).get("spotify")
+            album_url = item.get("album", {}).get("external_urls", {}).get("spotify")
+            artists = item.get("artists", [])
+            artist_url = artists[0].get("external_urls", {}).get("spotify") if artists else None
+            enriched = {
+                **t,
+                "uri": uri,
+                "cover_url": cover_url,
+                "preview_url": preview_url,
+                "spotify_url": spotify_url,
+                "album_url": album_url,
+                "artist_url": artist_url,
+            }
+            return "found", enriched
         return "not_found", f"{t['artist']} - {t['track']}"
 
     with ThreadPoolExecutor(max_workers=10) as executor:
@@ -314,7 +328,119 @@ def search_tracks(tracks, on_progress=None):
     return found, not_found
 
 
-def add_to_playlist(verified_tracks):
+def filter_by_audio_features(sp, tracks: list, filters: dict) -> tuple:
+    """Filter tracks by Spotify audio features.
+
+    Parameters:
+        sp: authenticated spotipy.Spotify client
+        tracks: list of track dicts with "uri" key
+        filters: dict of {feature: {"min": float, "max": float}}
+                 Supported features: energy, tempo, valence, danceability,
+                 acousticness, instrumentalness, speechiness, loudness.
+                 Any feature can be omitted or set to None to skip it.
+
+    Returns (passing, filtered_out) — both are lists of track dicts.
+    """
+    if not filters or not tracks:
+        return tracks, []
+
+    uris = [t["uri"] for t in tracks]
+    if not uris:
+        return tracks, []
+
+    try:
+        features_list = sp.audio_features(uris)
+    except Exception as e:
+        print(f"audio_features call failed: {e}")
+        return tracks, []
+
+    passing = []
+    filtered_out = []
+
+    for track, features in zip(tracks, features_list or []):
+        if features is None:
+            passing.append(track)
+            continue
+
+        ok = True
+        for feature, bounds in filters.items():
+            if not bounds:
+                continue
+            val = features.get(feature)
+            if val is None:
+                continue
+            lo = bounds.get("min")
+            hi = bounds.get("max")
+            if lo is not None and val < lo:
+                ok = False; break
+            if hi is not None and val > hi:
+                ok = False; break
+
+        if ok:
+            passing.append(track)
+        else:
+            label = f"{track.get('artist','?')} - {track.get('track','?')}"
+            print(f"Audio-feature filtered: {label}")
+            filtered_out.append(track)
+
+    return passing, filtered_out
+
+
+def get_user_playlists():
+    """Return the current user's Spotify playlists as a list of dicts.
+
+    Returns: [{"id": "...", "name": "...", "track_count": N}]
+    """
+    sp = get_spotify_client()
+    result = []
+    offset = 0
+    while True:
+        playlists = sp.current_user_playlists(limit=50, offset=offset)
+        for pl in playlists.get("items", []):
+            result.append({
+                "id": pl["id"],
+                "name": pl["name"],
+                "track_count": pl.get("tracks", {}).get("total", 0),
+            })
+        if playlists.get("next") is None:
+            break
+        offset += 50
+    return result
+
+
+def _render_playlist_name(name_template, profile=None):
+    """Replace template tokens in a playlist name string.
+
+    Supported tokens: {date} → today's date (YYYY-MM-DD),
+                      {style} → first 30 chars of core_description.
+    """
+    from datetime import date
+    name = name_template
+    name = name.replace("{date}", date.today().isoformat())
+    if profile:
+        style = profile.get("preferences", {}).get("core_description", "")[:30].strip()
+        name = name.replace("{style}", style)
+    else:
+        name = name.replace("{style}", "")
+    return name.strip() or PLAYLIST_NAME
+
+
+def add_to_playlist(verified_tracks, mode="default", playlist_id=None,
+                    playlist_name=None, profile=None):
+    """Add pre-verified tracks to a Spotify playlist.
+
+    Parameters:
+        verified_tracks: list of track dicts with "uri" key.
+        mode: "default" (create/append to SpotyVibe Playlist),
+              "create"  (always create a new playlist),
+              "append"  (append to existing playlist by playlist_id),
+              "replace" (clear then add to existing playlist by playlist_id).
+        playlist_id: required for "append" and "replace" modes.
+        playlist_name: optional name template for new playlists.
+        profile: optional profile dict for name template tokens.
+
+    Returns: {"url": str, "added": int}
+    """
     """Add pre-verified tracks (must have a "uri" key) to the SpotyVibe Playlist.
 
     **Idempotent design**: Checks for existing tracks in the playlist
@@ -333,34 +459,61 @@ def add_to_playlist(verified_tracks):
     """
     sp = get_spotify_client()
     playlist = None
+    uris = [t["uri"] for t in verified_tracks]
 
     try:
-        playlist = find_existing_playlist(sp)
-        if playlist:
-            print(f"Found existing playlist: {playlist['name']} ({playlist['id']})")
-            existing_uris = get_existing_track_uris(sp, playlist["id"])
-        else:
-            print("No existing playlist found — creating a new one.")
-            playlist = sp.current_user_playlist_create(PLAYLIST_NAME, public=False)
-            existing_uris = set()
+        if mode == "replace" and playlist_id:
+            # Clear existing tracks then add new ones
+            playlist = sp.playlist(playlist_id)
+            sp.playlist_replace_items(playlist_id, [])
+            sp.playlist_add_items(playlist_id, uris)
+            print(f"Replaced playlist {playlist_id} with {len(uris)} tracks.")
 
-        uris = []
-        for t in verified_tracks:
-            if t["uri"] in existing_uris:
-                print(f"Already in playlist: {t['artist']} - {t['track']}")
-            else:
-                uris.append(t["uri"])
+        elif mode == "append" and playlist_id:
+            # Append to existing playlist, skipping duplicates
+            playlist = sp.playlist(playlist_id)
+            existing_uris = get_existing_track_uris(sp, playlist_id)
+            new_uris = [u for u in uris if u not in existing_uris]
+            if new_uris:
+                sp.playlist_add_items(playlist_id, new_uris)
+            uris = new_uris
+            print(f"Appended {len(uris)} track(s) to playlist {playlist_id}.")
 
-        if uris and playlist:
+        elif mode == "create":
+            # Always create a new playlist
+            name = _render_playlist_name(playlist_name or PLAYLIST_NAME, profile)
+            playlist = sp.current_user_playlist_create(name, public=False)
             sp.playlist_add_items(playlist["id"], uris)
-            print(f"Added {len(uris)} new track(s).")
+            print(f"Created new playlist '{name}' with {len(uris)} tracks.")
+
         else:
-            print("No new tracks to add.")
+            # Default: create or append to the SpotyVibe Playlist
+            playlist = find_existing_playlist(sp)
+            if playlist:
+                print(f"Found existing playlist: {playlist['name']} ({playlist['id']})")
+                existing_uris = get_existing_track_uris(sp, playlist["id"])
+            else:
+                name = _render_playlist_name(playlist_name or PLAYLIST_NAME, profile)
+                print(f"No existing playlist found — creating '{name}'.")
+                playlist = sp.current_user_playlist_create(name, public=False)
+                existing_uris = set()
+
+            new_uris = []
+            for t in verified_tracks:
+                if t["uri"] in existing_uris:
+                    print(f"Already in playlist: {t['artist']} - {t['track']}")
+                else:
+                    new_uris.append(t["uri"])
+
+            if new_uris and playlist:
+                sp.playlist_add_items(playlist["id"], new_uris)
+                print(f"Added {len(new_uris)} new track(s).")
+            else:
+                print("No new tracks to add.")
+            uris = new_uris
 
     except SpotifyException as e:
         if e.http_status == 403:
-            # Token is stale or permissions were revoked — clear cache so
-            # the UI shows the "Connect to Spotify" banner on next check.
             disconnect_spotify()
             raise RuntimeError(
                 "Spotify returned 403 Forbidden. Your session has expired or "
@@ -372,4 +525,4 @@ def add_to_playlist(verified_tracks):
     playlist_url = playlist["external_urls"]["spotify"] if playlist else ""
     print("Playlist:", playlist_url)
 
-    return {"url": playlist_url, "added": len(uris)}
+    return {"url": playlist_url, "added": len(uris), "playlist_id": playlist["id"] if playlist else None}

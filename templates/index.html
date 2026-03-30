@@ -23,6 +23,13 @@
             <button onclick="openSettings()">⚙️ Settings</button>
             <button id="spotifyToggleBtn" onclick="toggleSpotifyConnection()">🔌 Connect Spotify</button>
             <button onclick="openHelp()">❓ Help</button>
+            <div class="lang-picker-row">
+                🌐
+                <select id="langPicker" onchange="switchLanguage(this.value)" title="UI Language">
+                    <option value="en">English</option>
+                    <option value="de">Deutsch</option>
+                </select>
+            </div>
         </div>
     </div>
 
@@ -131,6 +138,27 @@
         <div id="trainSuccessIcon" class="hidden"></div>
     </div>
 
+    <!-- ── Band/Song Analysis ── -->
+    <div class="analysis-section" id="analysisSection">
+        <div class="train-header">
+            <div class="train-header-left">
+                <h2>🔍 Band/Song Analysis</h2>
+            </div>
+            <div class="train-header-actions">
+                <button class="btn-train" onclick="toggleAnalysisBody()">Analyse</button>
+            </div>
+        </div>
+        <div class="train-body hidden" id="analysisBody">
+            <p class="acc-hint" style="margin-bottom:12px;">Enter an artist (and optional track) to get an AI analysis with ready-to-paste profile suggestions.</p>
+            <div class="analysis-inputs">
+                <input id="analysisArtist" type="text" placeholder="Artist / band name" maxlength="200" style="flex:1;">
+                <input id="analysisTrack" type="text" placeholder="Track name (optional)" maxlength="200" style="flex:1;">
+                <button class="btn btn-save" id="analysisSendBtn" onclick="runAnalysis()">Analyse</button>
+            </div>
+            <div id="analysisResult" class="hidden"></div>
+        </div>
+    </div>
+
     <!-- ── Section 2: Generate ── -->
     <div class="section-divider">
         <p class="section-label">Step 2 — Generate Playlist</p>
@@ -138,6 +166,50 @@
     </div>
 
     <div class="generate-section">
+        <!-- Audio feature filters (collapsible) -->
+        <div class="playlist-mode-row" id="audioFiltersSection">
+            <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleAudioFilters()">
+                <span style="font-size:0.88rem;font-weight:600;color:var(--text-secondary);">🎚 Audio Filters <span style="font-size:0.75rem;color:var(--text-muted)">(optional)</span></span>
+                <span id="audioFilterChevron" style="color:var(--text-muted)">▼</span>
+            </div>
+            <div id="audioFiltersBody" class="hidden" style="margin-top:12px;">
+                <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:10px;">Filter tracks by Spotify audio features. Leave min/max blank to disable a filter.</p>
+                <div class="audio-filter-grid">
+                    <div class="audio-filter-row"><label>Energy (0–1)</label><input type="number" id="af-energy-min" placeholder="min" min="0" max="1" step="0.05"><input type="number" id="af-energy-max" placeholder="max" min="0" max="1" step="0.05"></div>
+                    <div class="audio-filter-row"><label>Valence (0–1)</label><input type="number" id="af-valence-min" placeholder="min" min="0" max="1" step="0.05"><input type="number" id="af-valence-max" placeholder="max" min="0" max="1" step="0.05"></div>
+                    <div class="audio-filter-row"><label>Tempo (BPM)</label><input type="number" id="af-tempo-min" placeholder="min" min="0" max="300" step="5"><input type="number" id="af-tempo-max" placeholder="max" min="0" max="300" step="5"></div>
+                    <div class="audio-filter-row"><label>Danceability (0–1)</label><input type="number" id="af-danceability-min" placeholder="min" min="0" max="1" step="0.05"><input type="number" id="af-danceability-max" placeholder="max" min="0" max="1" step="0.05"></div>
+                    <div class="audio-filter-row"><label>Acousticness (0–1)</label><input type="number" id="af-acousticness-min" placeholder="min" min="0" max="1" step="0.05"><input type="number" id="af-acousticness-max" placeholder="max" min="0" max="1" step="0.05"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Playlist mode -->
+        <div class="playlist-mode-row">
+            <div class="playlist-mode-options">
+                <label class="playlist-mode-option">
+                    <input type="radio" name="playlist_mode" value="default" checked onchange="onPlaylistModeChange()"> Default (SpotyVibe Playlist)
+                </label>
+                <label class="playlist-mode-option">
+                    <input type="radio" name="playlist_mode" value="create" onchange="onPlaylistModeChange()"> Create new playlist
+                </label>
+                <label class="playlist-mode-option">
+                    <input type="radio" name="playlist_mode" value="append" onchange="onPlaylistModeChange()"> Append to existing
+                </label>
+                <label class="playlist-mode-option">
+                    <input type="radio" name="playlist_mode" value="replace" onchange="onPlaylistModeChange()"> Replace existing
+                </label>
+            </div>
+            <div id="playlistNameRow" class="hidden" style="margin-top:8px;">
+                <input id="playlistNameInput" type="text" placeholder="Playlist name (supports {date}, {style})" maxlength="200" style="width:100%;">
+            </div>
+            <div id="playlistPickerRow" class="hidden" style="margin-top:8px;">
+                <select id="playlistPicker" style="width:100%;">
+                    <option value="">Loading playlists…</option>
+                </select>
+            </div>
+        </div>
+
         <div class="run-section">
             <button class="btn-run" id="runBtn" onclick="runPipeline()">▶ Generate &amp; Create Playlist</button>
             <button class="btn-run-cancel hidden" id="cancelBtn" onclick="cancelGeneration()">⛔ Cancel</button>
@@ -150,6 +222,22 @@
     <div id="playlistLinkBox" class="playlist-link-box hidden"></div>
 
     <ul id="trackList" class="track-list"></ul>
+
+    <!-- ── Run History ── -->
+    <div class="history-section" id="historySection">
+        <div class="train-header">
+            <div class="train-header-left">
+                <h2>🕓 Run History</h2>
+            </div>
+            <div class="train-header-actions">
+                <button class="btn-train" onclick="toggleHistoryBody()">Show history</button>
+                <button class="btn btn-dislike" id="undoLastRunBtn" onclick="undoLastRun()" style="display:none;">↩ Undo last run</button>
+            </div>
+        </div>
+        <div class="train-body hidden" id="historyBody">
+            <div id="historyList"><p style="color:var(--text-muted)">Loading…</p></div>
+        </div>
+    </div>
 </div>
 
 <!-- Toast notification -->
@@ -221,7 +309,21 @@
             <input id="settings-new-artist-pct" type="number" min="1" max="100" step="1" style="width:100%;">
             <div class="cred-status" id="status-settings-new-artist-pct"></div>
         </div>
-                <div class="form-row" id="debugModeRow">
+                <div class="form-row">
+            <label for="settings-gpt-language">ChatGPT Language</label>
+            <select id="settings-gpt-language" style="width:100%;">
+                <option value="English">English</option>
+                <option value="German">German (Deutsch)</option>
+                <option value="French">French (Français)</option>
+                <option value="Spanish">Spanish (Español)</option>
+                <option value="Italian">Italian (Italiano)</option>
+                <option value="Portuguese">Portuguese (Português)</option>
+                <option value="Dutch">Dutch (Nederlands)</option>
+                <option value="Polish">Polish (Polski)</option>
+            </select>
+            <div class="cred-status" id="status-settings-gpt-language"></div>
+        </div>
+        <div class="form-row" id="debugModeRow">
             <label>Debug Mode</label>
             <div style="display:flex;align-items:center;gap:10px;">
                 <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:0.88rem;color:var(--text-secondary);font-weight:400;">
@@ -491,6 +593,145 @@
         updateTrainToggleLabel();
     }
 
+    /* ------------------------------------------------------------------ */
+    /*  Run History                                                        */
+    /* ------------------------------------------------------------------ */
+    let historyBodyOpen = false;
+
+    async function toggleHistoryBody() {
+        const body = document.getElementById('historyBody');
+        historyBodyOpen = !historyBodyOpen;
+        body.classList.toggle('hidden', !historyBodyOpen);
+        if (historyBodyOpen) await loadHistory();
+    }
+
+    async function loadHistory() {
+        const listEl = document.getElementById('historyList');
+        listEl.innerHTML = '<p style="color:var(--text-muted)">Loading…</p>';
+        try {
+            const resp = await fetch('/api/runs');
+            const data = await resp.json();
+            const runs = data.runs || [];
+            if (runs.length === 0) {
+                listEl.innerHTML = '<p style="color:var(--text-muted)">No runs yet.</p>';
+                document.getElementById('undoLastRunBtn').style.display = 'none';
+                return;
+            }
+            document.getElementById('undoLastRunBtn').style.display = '';
+            listEl.innerHTML = runs.map(r => {
+                const date = r.timestamp ? new Date(r.timestamp).toLocaleString() : '?';
+                const trackCount = (r.tracks || []).length;
+                const url = r.playlist_url ? `<a href="${attr(r.playlist_url)}" target="_blank" rel="noopener" style="color:var(--primary)">Open playlist</a>` : '';
+                return `<div class="history-run-item">
+                    <div class="history-run-date">${escHtml(date)}</div>
+                    <div class="history-run-info">${trackCount} track(s) added ${url}</div>
+                </div>`;
+            }).join('');
+        } catch (e) {
+            listEl.innerHTML = '<p style="color:var(--error)">Failed to load history.</p>';
+        }
+    }
+
+    async function undoLastRun() {
+        if (!confirm('Remove tracks added by the last run from Spotify?')) return;
+        const btn = document.getElementById('undoLastRunBtn');
+        btn.disabled = true;
+        try {
+            const resp = await fetch('/api/runs/undo', { method: 'POST' });
+            const data = await resp.json();
+            if (resp.ok) {
+                showToast(`✅ Removed ${data.removed} track(s) from Spotify.`, 'success', 3000);
+                await loadHistory();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        } catch (e) {
+            alert('Network error: ' + e.message);
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Band/Song Analysis                                                 */
+    /* ------------------------------------------------------------------ */
+    function toggleAnalysisBody() {
+        const body = document.getElementById('analysisBody');
+        body.classList.toggle('hidden');
+    }
+
+    async function runAnalysis() {
+        const artist = document.getElementById('analysisArtist').value.trim();
+        const track = document.getElementById('analysisTrack').value.trim();
+        const resultDiv = document.getElementById('analysisResult');
+        const btn = document.getElementById('analysisSendBtn');
+
+        if (!artist) {
+            resultDiv.innerHTML = '<p style="color:var(--error)">Artist name is required.</p>';
+            resultDiv.classList.remove('hidden');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Analysing…';
+        resultDiv.innerHTML = '<p style="color:var(--text-secondary)">Analysing…</p>';
+        resultDiv.classList.remove('hidden');
+
+        try {
+            const resp = await fetch('/api/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ artist, track }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) {
+                resultDiv.innerHTML = '<p style="color:var(--error)">' + escHtml(data.error || 'Error') + '</p>';
+                return;
+            }
+            resultDiv.innerHTML = renderAnalysisResult(data);
+        } catch (e) {
+            resultDiv.innerHTML = '<p style="color:var(--error)">Network error: ' + escHtml(e.message) + '</p>';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Analyse';
+        }
+    }
+
+    function renderAnalysisResult(d) {
+        const genres = (d.genre || []).join(', ') || '—';
+        const tags = (d.style_tags || []).map(t => `<span class="analysis-tag">${escHtml(t)}</span>`).join('');
+        const ch = d.characteristics || {};
+        const charRows = Object.entries(ch).map(([k, v]) =>
+            `<tr><td class="analysis-ch-key">${escHtml(k)}</td><td>${escHtml(String(v))}</td></tr>`
+        ).join('');
+        const suggestions = (d.profile_suggestions || []).map((s, i) =>
+            `<div class="analysis-suggestion">
+                <span>${escHtml(s)}</span>
+                <button class="btn-copy-suggestion" onclick="copySuggestion(${i})" data-suggestion="${escHtml(s).replace(/"/g, '&quot;')}" title="Copy to clipboard">📋</button>
+            </div>`
+        ).join('');
+
+        return `<div class="analysis-card">
+            <div class="analysis-title">${escHtml(d.artist)}${d.track ? ' — ' + escHtml(d.track) : ''}</div>
+            <div class="analysis-row"><strong>Genre:</strong> ${escHtml(genres)}</div>
+            <div class="analysis-row">${tags}</div>
+            ${charRows ? `<table class="analysis-ch-table">${charRows}</table>` : ''}
+            ${suggestions ? `<div class="analysis-suggestions-header">Profile Suggestions (click 📋 to copy)</div>${suggestions}` : ''}
+        </div>`;
+    }
+
+    function copySuggestion(idx) {
+        const btns = document.querySelectorAll('.btn-copy-suggestion');
+        const btn = btns[idx];
+        const text = btn ? btn.getAttribute('data-suggestion') : '';
+        if (!text) return;
+        navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard!', 'success', 1800));
+    }
+
+    function escHtml(str) {
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
     function startImportProfile() {
         const input = document.getElementById('profileImportInput');
         if (!input) return;
@@ -728,6 +969,84 @@
         }
     }
 
+    /* ------------------------------------------------------------------ */
+    /*  Audio feature filters                                              */
+    /* ------------------------------------------------------------------ */
+    function toggleAudioFilters() {
+        const body = document.getElementById('audioFiltersBody');
+        const chevron = document.getElementById('audioFilterChevron');
+        const open = !body.classList.contains('hidden');
+        body.classList.toggle('hidden', open);
+        chevron.textContent = open ? '▼' : '▲';
+    }
+
+    function getAudioFilters() {
+        const filters = {};
+        const features = ['energy','valence','tempo','danceability','acousticness'];
+        features.forEach(f => {
+            const minEl = document.getElementById(`af-${f}-min`);
+            const maxEl = document.getElementById(`af-${f}-max`);
+            const lo = minEl && minEl.value !== '' ? parseFloat(minEl.value) : null;
+            const hi = maxEl && maxEl.value !== '' ? parseFloat(maxEl.value) : null;
+            if (lo !== null || hi !== null) {
+                filters[f] = {};
+                if (lo !== null) filters[f].min = lo;
+                if (hi !== null) filters[f].max = hi;
+            }
+        });
+        return Object.keys(filters).length ? filters : null;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Playlist mode                                                      */
+    /* ------------------------------------------------------------------ */
+    function getPlaylistMode() {
+        const checked = document.querySelector('input[name="playlist_mode"]:checked');
+        return checked ? checked.value : 'default';
+    }
+
+    async function onPlaylistModeChange() {
+        const mode = getPlaylistMode();
+        const nameRow = document.getElementById('playlistNameRow');
+        const pickerRow = document.getElementById('playlistPickerRow');
+        nameRow.classList.toggle('hidden', mode !== 'create');
+        pickerRow.classList.toggle('hidden', mode !== 'append' && mode !== 'replace');
+
+        if ((mode === 'append' || mode === 'replace') && pickerRow && !pickerRow.dataset.loaded) {
+            pickerRow.dataset.loaded = '1';
+            const sel = document.getElementById('playlistPicker');
+            sel.innerHTML = '<option value="">Loading…</option>';
+            try {
+                const resp = await fetch('/api/playlists');
+                const data = await resp.json();
+                sel.innerHTML = '';
+                (data.playlists || []).forEach(pl => {
+                    const opt = document.createElement('option');
+                    opt.value = pl.id;
+                    opt.textContent = `${pl.name} (${pl.track_count} tracks)`;
+                    sel.appendChild(opt);
+                });
+                if (!data.playlists || data.playlists.length === 0)
+                    sel.innerHTML = '<option value="">No playlists found</option>';
+            } catch (e) {
+                sel.innerHTML = '<option value="">Error loading playlists</option>';
+            }
+        }
+    }
+
+    function getPlaylistModePayload() {
+        const mode = getPlaylistMode();
+        const payload = { playlist_mode: mode };
+        if (mode === 'create') {
+            const name = (document.getElementById('playlistNameInput')?.value || '').trim();
+            if (name) payload.playlist_name = name;
+        } else if (mode === 'append' || mode === 'replace') {
+            const id = document.getElementById('playlistPicker')?.value;
+            if (id) payload.playlist_id = id;
+        }
+        return payload;
+    }
+
     async function runPipeline() {
         // Re-check auth before starting
         await Promise.all([checkCredentialStatus(), checkSpotifyAuth()]);
@@ -754,11 +1073,15 @@
         showStatus('Starting pipeline…', 'info');
         hidePlaylistLink();
 
+        const playlistPayload = getPlaylistModePayload();
+        const audioFilters = getAudioFilters();
+        if (audioFilters) playlistPayload.audio_filters = audioFilters;
+
         try {
             const response = await fetch('/api/run', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ run_id: currentRunId }),
+                body: JSON.stringify({ run_id: currentRunId, ...playlistPayload }),
                 signal: currentAbortController.signal,
             });
             const reader = response.body.getReader();
@@ -799,12 +1122,36 @@
             }
 
         } catch (e) {
-            if (e.name !== 'AbortError') {
+            if (e.name === 'AbortError') {
+                // Expected — cancelGeneration() was called, status already set
+            } else if (e.name === 'TypeError' || e.message?.toLowerCase().includes('network')) {
+                // SSE connection lost — show recovery banner
+                showSseDisconnectBanner();
+            } else {
                 showStatus('❌ Network error: ' + e.message, 'error');
             }
-            // AbortError is expected when cancelGeneration() is called — status already set
         } finally {
             setGenerating(false);
+        }
+    }
+
+    function showSseDisconnectBanner() {
+        const savedRunId = currentRunId;
+        showStatus(
+            '⚠️ Connection lost. <button onclick="resumeRun(\'' + savedRunId + '\')" class="btn btn-save" style="margin-left:8px;padding:4px 12px;font-size:0.82rem;">Resume</button>',
+            'error'
+        );
+    }
+
+    async function resumeRun(runId) {
+        if (!runId) return;
+        try {
+            const resp = await fetch(`/api/run/${runId}/status`);
+            if (!resp.ok) { showStatus('Run no longer active.', 'info'); return; }
+            const data = await resp.json();
+            showStatus(`Run state: ${data.status}, ${data.tracks_found} tracks found.`, 'info');
+        } catch (e) {
+            showStatus('Could not recover run state.', 'error');
         }
     }
 
@@ -901,11 +1248,21 @@
             const li = document.createElement('li');
             li.className = 'track-item';
             li.id = `track-${idx}`;
+            const previewBtn = track.preview_url
+                ? `<button class="btn-preview" id="preview-${idx}" onclick="togglePreview(${idx})" title="Preview">▶</button>`
+                : '';
+            const spotifyLinks = [
+                track.spotify_url ? `<a class="track-link" href="${attr(track.spotify_url)}" target="_blank" rel="noopener" title="Open track on Spotify">🎵</a>` : '',
+                track.artist_url ? `<a class="track-link" href="${attr(track.artist_url)}" target="_blank" rel="noopener" title="Open artist on Spotify">🎤</a>` : '',
+                track.album_url ? `<a class="track-link" href="${attr(track.album_url)}" target="_blank" rel="noopener" title="Open album on Spotify">💿</a>` : '',
+            ].join('');
+
             li.innerHTML = `
+                ${track.preview_url ? `<audio id="audio-${idx}" src="${attr(track.preview_url)}" preload="none"></audio>` : ''}
                 <div class="track-header">
                     ${track.cover_url ? `<img class="track-cover" src="${attr(track.cover_url)}" alt="Album cover">` : ''}
                     <div class="track-info">
-                        <div class="track-name">${esc(track.artist)} — ${esc(track.track)}</div>
+                        <div class="track-name">${previewBtn}${esc(track.artist)} — ${esc(track.track)}${spotifyLinks ? `<span class="track-links">${spotifyLinks}</span>` : ''}</div>
                         ${track.reason ? `<div class="track-reason">${esc(track.reason)}</div>` : ''}
                     </div>
                     <div class="track-actions">
@@ -935,6 +1292,38 @@
                 </div>`;
             list.appendChild(li);
         });
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Track preview playback                                             */
+    /* ------------------------------------------------------------------ */
+    let _currentPreviewIdx = null;
+
+    function togglePreview(idx) {
+        const audio = document.getElementById(`audio-${idx}`);
+        const btn = document.getElementById(`preview-${idx}`);
+        if (!audio || !btn) return;
+
+        // Stop any currently playing preview
+        if (_currentPreviewIdx !== null && _currentPreviewIdx !== idx) {
+            const prev = document.getElementById(`audio-${_currentPreviewIdx}`);
+            const prevBtn = document.getElementById(`preview-${_currentPreviewIdx}`);
+            if (prev) { prev.pause(); prev.currentTime = 0; }
+            if (prevBtn) prevBtn.textContent = '▶';
+            _currentPreviewIdx = null;
+        }
+
+        if (audio.paused) {
+            audio.play().catch(() => {});
+            btn.textContent = '⏹';
+            _currentPreviewIdx = idx;
+            audio.onended = () => { btn.textContent = '▶'; _currentPreviewIdx = null; };
+        } else {
+            audio.pause();
+            audio.currentTime = 0;
+            btn.textContent = '▶';
+            _currentPreviewIdx = null;
+        }
     }
 
     /* ------------------------------------------------------------------ */
@@ -1270,6 +1659,21 @@
             pctStatus.textContent = '✓ At least ' + pct + '% of tracks from new artists';
             pctStatus.className = 'cred-status set';
 
+            // GPT language
+            const lang = data.gpt_language || 'English';
+            const langSelect = document.getElementById('settings-gpt-language');
+            let found = false;
+            for (const opt of langSelect.options) {
+                if (opt.value === lang) { opt.selected = true; found = true; break; }
+            }
+            if (!found) {
+                const opt = document.createElement('option');
+                opt.value = lang; opt.textContent = lang; opt.selected = true;
+                langSelect.appendChild(opt);
+            }
+            document.getElementById('status-settings-gpt-language').textContent = '✓ ' + lang;
+            document.getElementById('status-settings-gpt-language').className = 'cred-status set';
+
         } catch (e) { /* ignore */ }
 
 
@@ -1323,6 +1727,9 @@
         if (!isNaN(pctVal) && pctVal >= 1 && pctVal <= 100) {
             payload.new_artist_percentage = pctVal;
         }
+
+        const langVal = document.getElementById('settings-gpt-language').value;
+        if (langVal) payload.gpt_language = langVal;
 
         try {
             const resp = await fetch('/api/settings', {
@@ -1888,6 +2295,51 @@
     /* ------------------------------------------------------------------ */
     /*  Toast notifications                                                */
     /* ------------------------------------------------------------------ */
+    /* ------------------------------------------------------------------ */
+    /*  i18n / Language switcher                                          */
+    /* ------------------------------------------------------------------ */
+    let _i18nStrings = {};
+
+    async function switchLanguage(lang) {
+        localStorage.setItem('svLang', lang);
+        await applyLanguage(lang);
+    }
+
+    async function applyLanguage(lang) {
+        try {
+            const resp = await fetch(`/static/i18n/${lang}.json`);
+            if (!resp.ok) return;
+            _i18nStrings = await resp.json();
+        } catch (e) { return; }
+
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (_i18nStrings[key] !== undefined) el.textContent = _i18nStrings[key];
+        });
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+            const key = el.getAttribute('data-i18n-placeholder');
+            if (_i18nStrings[key] !== undefined) el.placeholder = _i18nStrings[key];
+        });
+
+        // Update language picker to show current selection
+        const picker = document.getElementById('langPicker');
+        if (picker) picker.value = lang;
+    }
+
+    function i18n(key, fallback) {
+        return _i18nStrings[key] !== undefined ? _i18nStrings[key] : (fallback || key);
+    }
+
+    // Apply saved language on load
+    (function() {
+        const saved = localStorage.getItem('svLang') || 'en';
+        // Run asynchronously so page renders first
+        setTimeout(() => applyLanguage(saved), 0);
+        // Pre-set picker
+        const picker = document.getElementById('langPicker');
+        if (picker) picker.value = saved;
+    })();
+
     let toastTimer = null;
     function showToast(message, type = 'success', duration = 3000) {
         const toast = document.getElementById('toast');

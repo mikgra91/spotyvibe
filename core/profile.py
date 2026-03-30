@@ -32,8 +32,8 @@ from typing import cast
 
 from openai.types.chat import ChatCompletionMessageParam
 
-from config import BASE_DIR, PROFILE_FILE, PROFILE_HISTORY_FILE, get_model
-from core.utils import debug_log, get_openai_client, strip_code_fences
+from config import BASE_DIR, PROFILE_FILE, PROFILE_HISTORY_FILE, get_model, get_gpt_language
+from core.utils import debug_log, get_openai_client, strip_code_fences, sanitize_profile
 
 
 # Template and prompt paths are resolved from BASE_DIR (the project root)
@@ -140,6 +140,106 @@ def export_profile_dict():
     return load_profile()
 
 
+_ALLOWED_PROFILE_KEYS = {
+    "last_updated", "meta", "preferences", "artists",
+    "history", "feedback", "taste_rules",
+}
+
+# Per-field length limits to prevent runaway prompts
+_MAX_STR_LEN = 5000
+_MAX_LIST_ITEMS = 100
+_MAX_LIST_ITEM_STR_LEN = 500
+
+
+def _validate_str_field(value, name):
+    if not isinstance(value, str):
+        raise ValueError(f"'{name}' must be a string.")
+    if len(value) > _MAX_STR_LEN:
+        raise ValueError(f"'{name}' exceeds maximum length of {_MAX_STR_LEN} characters.")
+
+
+def _validate_str_list(value, name):
+    if not isinstance(value, list):
+        raise ValueError(f"'{name}' must be a list.")
+    if len(value) > _MAX_LIST_ITEMS:
+        raise ValueError(f"'{name}' exceeds maximum of {_MAX_LIST_ITEMS} items.")
+    for i, item in enumerate(value):
+        if not isinstance(item, str):
+            raise ValueError(f"'{name}[{i}]' must be a string.")
+        if len(item) > _MAX_LIST_ITEM_STR_LEN:
+            raise ValueError(f"'{name}[{i}]' exceeds maximum length.")
+
+
+def validate_profile_schema(data):
+    """Validate an imported profile against the expected schema.
+
+    - Strips unknown top-level keys (graceful degradation).
+    - Validates types and length limits for all known fields.
+    - Raises ValueError with a descriptive message on failure.
+    """
+    if not isinstance(data, dict):
+        raise ValueError("Profile must be a JSON object.")
+
+    # Strip unknown top-level keys
+    for key in list(data.keys()):
+        if key not in _ALLOWED_PROFILE_KEYS:
+            del data[key]
+
+    # meta
+    if "meta" in data:
+        if not isinstance(data["meta"], dict):
+            raise ValueError("'meta' must be an object.")
+        if "goal" in data["meta"]:
+            _validate_str_field(data["meta"]["goal"], "meta.goal")
+
+    # preferences
+    if "preferences" in data:
+        prefs = data["preferences"]
+        if not isinstance(prefs, dict):
+            raise ValueError("'preferences' must be an object.")
+        for field in ("core_description", "must_have", "soft_preferences", "avoid"):
+            if field in prefs:
+                if field == "core_description":
+                    _validate_str_field(prefs[field], f"preferences.{field}")
+                else:
+                    _validate_str_list(prefs[field], f"preferences.{field}")
+
+    # artists
+    if "artists" in data:
+        artists = data["artists"]
+        if not isinstance(artists, dict):
+            raise ValueError("'artists' must be an object.")
+        if "confirmed" in artists:
+            _validate_str_list(artists["confirmed"], "artists.confirmed")
+        for list_of_dicts in ("moderate", "rejected"):
+            if list_of_dicts in artists:
+                val = artists[list_of_dicts]
+                if not isinstance(val, list):
+                    raise ValueError(f"'artists.{list_of_dicts}' must be a list.")
+                if len(val) > _MAX_LIST_ITEMS:
+                    raise ValueError(f"'artists.{list_of_dicts}' exceeds maximum of {_MAX_LIST_ITEMS} items.")
+
+    # history / feedback — allow but cap lists
+    for section in ("history", "feedback"):
+        if section in data:
+            sec = data[section]
+            if not isinstance(sec, dict):
+                raise ValueError(f"'{section}' must be an object.")
+            for key, val in sec.items():
+                if isinstance(val, list) and len(val) > _MAX_LIST_ITEMS * 10:
+                    sec[key] = val[-(  _MAX_LIST_ITEMS * 10):]
+
+    # taste_rules
+    if "taste_rules" in data:
+        tr = data["taste_rules"]
+        if not isinstance(tr, dict):
+            raise ValueError("'taste_rules' must be an object.")
+        if "primary_driver" in tr:
+            _validate_str_field(tr["primary_driver"], "taste_rules.primary_driver")
+        if "dealbreaker_priority" in tr:
+            _validate_str_list(tr["dealbreaker_priority"], "taste_rules.dealbreaker_priority")
+
+
 def import_profile_dict(imported_profile):
     """Replace the current profile with *imported_profile*.
 
@@ -155,10 +255,19 @@ def import_profile_dict(imported_profile):
     if not isinstance(imported_profile, dict):
         raise ValueError("Imported profile must be a JSON object.")
 
+    # Sanitise all string values (remove null bytes, control chars, etc.)
+    sanitized = sanitize_profile(imported_profile)
+    if not isinstance(sanitized, dict):
+        raise ValueError("Imported profile must be a JSON object.")
+    imported_profile = sanitized
+
+    # Validate schema — strips unknown keys, checks types and lengths
+    validate_profile_schema(imported_profile)
+
     template = _load_template()
     merged = _deep_merge(template, imported_profile)
 
-    # Minimal structural sanity checks so other modules don't crash.
+    # Structural sanity checks so other modules don't crash.
     if not isinstance(merged.get("preferences"), dict):
         raise ValueError("Imported profile is missing a valid 'preferences' object.")
     if not isinstance(merged.get("history"), dict):
@@ -251,7 +360,7 @@ def train_profile(sections):
     profile = load_profile()
 
     with open(TRAINING_PROMPT_FILE, "r", encoding="utf-8") as f:
-        system_prompt = f.read()
+        system_prompt = f.read().replace("{gpt_language}", get_gpt_language())
 
     # Build a structured user message so GPT knows what each section means
     parts = [

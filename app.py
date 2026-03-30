@@ -13,7 +13,16 @@ import uuid
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, Response, render_template, jsonify, request, redirect, stream_with_context
-from config import load_config, get_credentials, save_credentials, CREDENTIALS_FILE, BATCH_SIZE, BASE_DIR, get_model, get_settings, get_debug_mode, get_playlist_size, DEBUG_LOG_FILE, MAX_CONSECUTIVE_EMPTY_BATCHES, get_new_artist_percentage, IS_ANDROID, PROFILE_IMPORT_MAX_BYTES
+from config import (
+    load_config, get_credentials, save_credentials, CREDENTIALS_FILE,
+    BATCH_SIZE, BASE_DIR, get_model, get_settings, get_debug_mode,
+    get_playlist_size, DEBUG_LOG_FILE, MAX_CONSECUTIVE_EMPTY_BATCHES,
+    get_new_artist_percentage, get_gpt_language, IS_ANDROID, PROFILE_IMPORT_MAX_BYTES,
+    GENERAL_REQUEST_MAX_BYTES, MAX_GPT_CALLS_PER_RUN,
+    MAX_CORE_DESCRIPTION_LEN, MAX_PROFILE_SECTION_LEN,
+    MAX_FEEDBACK_REASON_LEN, MAX_FEEDBACK_ARTIST_LEN, MAX_FEEDBACK_TRACK_LEN,
+    is_onboarding_completed, set_onboarding_completed,
+)
 import markdown
 
 load_config()
@@ -30,18 +39,25 @@ from core.suggestions import (
     filter_duplicate_suggestions,
 )
 from core.feedback import like_track, dislike_track
-from core.utils import get_openai_models, clear_debug_log
+from core.analysis import analyze_band_song
+from core.history import save_run, load_runs, undo_last_run
+from core.utils import get_openai_models, clear_debug_log, sanitize_text
 from core.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist,
     get_spotify_auth_status, get_spotify_auth_url, handle_spotify_callback,
-    disconnect_spotify,
+    disconnect_spotify, get_user_playlists, filter_by_audio_features,
 )
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(24)
+app.config["MAX_CONTENT_LENGTH"] = GENERAL_REQUEST_MAX_BYTES
 
 # Clear debug log on startup so it only contains data from the current session
 clear_debug_log()
+
+# Model list cache: avoid repeated OpenAI API calls for the same data
+_models_cache: dict = {"data": None, "expires": 0.0}
+_MODELS_CACHE_TTL = 300  # 5 minutes
 
 # Active generation runs: run_id → {"cancel": Event, "finalize_on_cancel": bool, "verified_tracks": [], "created_at": float}
 _runs: dict = {}
@@ -69,6 +85,22 @@ def index():
 @app.route("/onboarding")
 def onboarding():
     return render_template("onboarding.html")
+
+
+@app.route("/api/onboarding/status")
+def onboarding_status():
+    """Return whether the user has completed onboarding."""
+    return jsonify({"completed": is_onboarding_completed()})
+
+
+@app.route("/api/onboarding/complete", methods=["POST"])
+def onboarding_complete():
+    """Mark onboarding as completed (or skipped)."""
+    try:
+        set_onboarding_completed(True)
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/help")
@@ -99,6 +131,13 @@ def run_pipeline():
     """
     body = request.get_json(force=True, silent=True) or {}
     run_id = body.get("run_id") or str(uuid.uuid4())
+    playlist_mode = body.get("playlist_mode", "default")
+    playlist_target_id = body.get("playlist_id") or None
+    playlist_custom_name = sanitize_text(str(body.get("playlist_name") or "").strip()) or None
+    if playlist_custom_name and len(playlist_custom_name) > 200:
+        playlist_custom_name = playlist_custom_name[:200]
+    # Audio feature filters: {"energy": {"min": 0.6, "max": 1.0}, ...}
+    audio_filters = body.get("audio_filters") or {}
     cancel_event = threading.Event()
     _sweep_stale_runs()
     with _runs_lock:
@@ -132,6 +171,7 @@ def run_pipeline():
             verified_uris = set()  # fast URI dedup across attempts
             all_not_found = []
             batch_num = 0
+            gpt_call_count = 0
             was_cancelled = False
             gpt_exhausted = False
 
@@ -162,6 +202,15 @@ def run_pipeline():
                 # On retries after all-filtered batches, pass the filtered tracks
                 # explicitly so GPT cannot claim it didn't know about them.
                 accepted = verified_tracks if batch_num > 1 else None
+                # Hard cost guardrail
+                if gpt_call_count >= MAX_GPT_CALLS_PER_RUN:
+                    yield _sse(
+                        "progress",
+                        message=f"Reached GPT call limit ({MAX_GPT_CALLS_PER_RUN}). "
+                                f"Stopping with {len(verified_tracks)} verified track(s).",
+                    )
+                    break
+
                 messages = build_messages(
                     profile,
                     accepted_tracks=accepted,
@@ -170,6 +219,7 @@ def run_pipeline():
                     consecutive_empty=consecutive_empty_batches,
                     new_artist_percentage=new_artist_percentage,
                 )
+                gpt_call_count += 1
                 result = call_gpt(messages)
 
                 # ── Check again after the blocking GPT call ──
@@ -218,6 +268,17 @@ def run_pipeline():
                 )
                 found, not_found = search_tracks(result["playlist"])
                 all_not_found.extend(not_found)
+
+                # Apply audio feature filters if configured
+                if audio_filters and found:
+                    from core.playlist import get_spotify_client as _get_sp
+                    _sp = _get_sp()
+                    found, af_filtered = filter_by_audio_features(_sp, found, audio_filters)
+                    if af_filtered:
+                        yield _sse(
+                            "progress",
+                            message=f"Batch {batch_num}: {len(af_filtered)} track(s) removed by audio filters.",
+                        )
 
                 for t in found:
                     if t["uri"] not in verified_uris:
@@ -278,11 +339,29 @@ def run_pipeline():
 
             # 5 — Add all verified tracks to the Spotify playlist
             yield _sse("progress", message=f"Adding {len(verified_tracks)} tracks to Spotify playlist…")
-            playlist_info = add_to_playlist(verified_tracks)
+            playlist_info = add_to_playlist(
+                verified_tracks,
+                mode=playlist_mode,
+                playlist_id=playlist_target_id,
+                playlist_name=playlist_custom_name,
+                profile=profile,
+            )
+
+            # Save run history (before stripping internal keys)
+            try:
+                save_run(
+                    run_id=run_id,
+                    playlist_id=playlist_info.get("playlist_id") or "",
+                    playlist_url=playlist_info.get("url") or "",
+                    tracks=verified_tracks,
+                )
+            except Exception:
+                pass  # history save is best-effort
 
             # Strip internal "uri" key — the UI doesn't need it
+            _HIDDEN_KEYS = {"uri"}
             visible_playlist = [
-                {k: v for k, v in t.items() if k != "uri"}
+                {k: v for k, v in t.items() if k not in _HIDDEN_KEYS}
                 for t in verified_tracks
             ]
 
@@ -307,6 +386,22 @@ def run_pipeline():
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.route("/api/run/<run_id>/status")
+def run_status(run_id):
+    """Return the current state of an active or recently completed run.
+
+    Used by the UI to recover after an SSE disconnect.
+    """
+    with _runs_lock:
+        run = _runs.get(run_id)
+    if run is None:
+        return jsonify({"status": "not_found"}), 404
+    return jsonify({
+        "status": "running" if not run["cancel"].is_set() else "cancelled",
+        "tracks_found": len(run.get("verified_tracks", [])),
+    })
 
 
 @app.route("/api/cancel", methods=["POST"])
@@ -339,12 +434,18 @@ def submit_feedback():
     """
     data   = request.get_json(force=True)
     action = data.get("action")
-    artist = data.get("artist")
-    track  = data.get("track")
-    reason = data.get("reason")
+    artist = sanitize_text(str(data.get("artist") or ""))
+    track  = sanitize_text(str(data.get("track") or "")) or None
+    reason = sanitize_text(str(data.get("reason") or "")) or None
 
     if not artist:
         return jsonify({"error": "Artist is required."}), 400
+    if len(artist) > MAX_FEEDBACK_ARTIST_LEN:
+        return jsonify({"error": f"Artist name too long (max {MAX_FEEDBACK_ARTIST_LEN} chars)."}), 400
+    if track and len(track) > MAX_FEEDBACK_TRACK_LEN:
+        return jsonify({"error": f"Track name too long (max {MAX_FEEDBACK_TRACK_LEN} chars)."}), 400
+    if reason and len(reason) > MAX_FEEDBACK_REASON_LEN:
+        reason = reason[:MAX_FEEDBACK_REASON_LEN]
     if action not in ("like", "dislike"):
         return jsonify({"error": "Action must be 'like' or 'dislike'."}), 400
 
@@ -403,9 +504,19 @@ def write_credentials():
 
 @app.route("/api/settings/models")
 def list_models():
-    """Return available OpenAI chat models and the currently selected one."""
+    """Return available OpenAI chat models and the currently selected one.
+
+    Results are cached for _MODELS_CACHE_TTL seconds to avoid redundant
+    API calls each time the Settings panel is opened.
+    """
+    now = time.time()
+    if _models_cache["data"] is not None and now < _models_cache["expires"]:
+        return jsonify({"models": _models_cache["data"], "selected": get_model()})
+
     try:
         models = get_openai_models()
+        _models_cache["data"] = models
+        _models_cache["expires"] = now + _MODELS_CACHE_TTL
         return jsonify({"models": models, "selected": get_model()})
     except ValueError as e:
         return jsonify({"error": str(e), "models": [], "selected": get_model()}), 400
@@ -441,6 +552,10 @@ def write_settings():
             payload["NEW_ARTIST_PERCENTAGE"] = str(max(1, min(100, int(data["new_artist_percentage"]))))
         except (ValueError, TypeError):
             return jsonify({"error": "new_artist_percentage must be a valid integer."}), 400
+    if "gpt_language" in data:
+        lang = sanitize_text(str(data["gpt_language"]).strip())
+        if lang:
+            payload["GPT_LANGUAGE"] = lang
     save_credentials(payload)
     return jsonify({"status": "ok"})
 
@@ -464,6 +579,33 @@ def clear_debug_log_endpoint():
 
 
 # ── Taste profile training ──────────────────────────────────────────
+
+@app.route("/api/analyze", methods=["POST"])
+def analyze_endpoint():
+    """Analyse a band/song with GPT and return structured characteristics.
+
+    Request body (JSON): {"artist": "...", "track": "..."}
+    Returns structured JSON with genre, style_tags, characteristics, profile_suggestions.
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    artist = sanitize_text(str(data.get("artist") or "").strip())
+    track = sanitize_text(str(data.get("track") or "").strip())
+
+    if not artist:
+        return jsonify({"error": "Artist name is required."}), 400
+    if len(artist) > 200:
+        return jsonify({"error": "Artist name too long."}), 400
+    if len(track) > 200:
+        return jsonify({"error": "Track name too long."}), 400
+
+    try:
+        result = analyze_band_song(artist, track)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route("/api/profile/status")
 def profile_status():
@@ -555,15 +697,17 @@ def train_profile_endpoint():
     """Send the user's structured taste description to GPT and update the profile."""
     data = request.get_json(force=True)
 
-    core_description = (data.get("core_description") or "").strip()
+    core_description = sanitize_text((data.get("core_description") or "").strip())
     if not core_description:
         return jsonify({"error": "Core description is required."}), 400
+    if len(core_description) > MAX_CORE_DESCRIPTION_LEN:
+        return jsonify({"error": f"Core description too long (max {MAX_CORE_DESCRIPTION_LEN} chars)."}), 400
 
     sections = {
         "core_description": core_description,
-        "must_have": (data.get("must_have") or "").strip(),
-        "soft_preferences": (data.get("soft_preferences") or "").strip(),
-        "avoid": (data.get("avoid") or "").strip(),
+        "must_have": sanitize_text((data.get("must_have") or "").strip())[:MAX_PROFILE_SECTION_LEN],
+        "soft_preferences": sanitize_text((data.get("soft_preferences") or "").strip())[:MAX_PROFILE_SECTION_LEN],
+        "avoid": sanitize_text((data.get("avoid") or "").strip())[:MAX_PROFILE_SECTION_LEN],
     }
 
     try:
@@ -581,15 +725,17 @@ def save_profile_endpoint():
     """Save the user's profile preferences directly without AI processing."""
     data = request.get_json(force=True)
 
-    core_description = (data.get("core_description") or "").strip()
+    core_description = sanitize_text((data.get("core_description") or "").strip())
     if not core_description:
         return jsonify({"error": "Core description is required."}), 400
+    if len(core_description) > MAX_CORE_DESCRIPTION_LEN:
+        return jsonify({"error": f"Core description too long (max {MAX_CORE_DESCRIPTION_LEN} chars)."}), 400
 
     sections = {
         "core_description": core_description,
-        "must_have": (data.get("must_have") or "").strip(),
-        "soft_preferences": (data.get("soft_preferences") or "").strip(),
-        "avoid": (data.get("avoid") or "").strip(),
+        "must_have": sanitize_text((data.get("must_have") or "").strip())[:MAX_PROFILE_SECTION_LEN],
+        "soft_preferences": sanitize_text((data.get("soft_preferences") or "").strip())[:MAX_PROFILE_SECTION_LEN],
+        "avoid": sanitize_text((data.get("avoid") or "").strip())[:MAX_PROFILE_SECTION_LEN],
     }
 
     try:
@@ -603,6 +749,40 @@ def save_profile_endpoint():
 
 
 # ── Spotify authentication ──────────────────────────────────────────
+
+@app.route("/api/runs")
+def get_runs():
+    """Return the run history (newest first)."""
+    try:
+        runs = load_runs()
+        return jsonify({"runs": runs})
+    except Exception as e:
+        return jsonify({"error": str(e), "runs": []}), 500
+
+
+@app.route("/api/runs/undo", methods=["POST"])
+def undo_run():
+    """Remove tracks added by the last run from the Spotify playlist."""
+    try:
+        from core.playlist import get_spotify_client
+        sp = get_spotify_client()
+        result = undo_last_run(sp)
+        return jsonify(result)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/playlists")
+def list_playlists():
+    """Return the current user's Spotify playlists."""
+    try:
+        playlists = get_user_playlists()
+        return jsonify({"playlists": playlists})
+    except Exception as e:
+        return jsonify({"error": str(e), "playlists": []}), 500
+
 
 @app.route("/api/spotify/status")
 def spotify_status():

@@ -33,13 +33,55 @@ import math
 import re
 from collections import defaultdict
 from pathlib import Path
-from config import BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD, get_model
+from config import BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD, get_model, get_gpt_language
 from core.utils import get_openai_client, strip_code_fences, debug_log
 
 # Paths resolved from the package root using pathlib — immune to os.chdir()
 SYSTEM_PROMPT_FILE = BASE_DIR / "prompts" / "system_prompt.txt"
 PROMPT_FILE = BASE_DIR / "prompts" / "prompt_template.txt"
 
+
+
+def build_feedback_summary(profile, max_chars=2000):
+    """Build a short 'recent feedback' block from liked/disliked tracks.
+
+    Picks the last N entries from each list and formats them as a concise
+    human-readable block that GPT can use to bias the next run.
+
+    Capped at max_chars to prevent prompt bloat.
+    """
+    liked = profile.get("feedback", {}).get("liked_tracks", [])
+    disliked = profile.get("feedback", {}).get("disliked_tracks", [])
+
+    if not liked and not disliked:
+        return ""
+
+    lines = ["Recent user feedback (use to fine-tune your suggestions):"]
+
+    recent_liked = liked[-10:]
+    for entry in recent_liked:
+        artist = entry.get("artist", "")
+        track = entry.get("track", "")
+        reason = entry.get("reason", "")
+        line = f"  + Liked: {artist} - {track}"
+        if reason:
+            line += f" (reason: {reason})"
+        lines.append(line)
+
+    recent_disliked = disliked[-10:]
+    for entry in recent_disliked:
+        artist = entry.get("artist", "")
+        track = entry.get("track", "")
+        reason = entry.get("reason", "")
+        line = f"  - Disliked: {artist} - {track}"
+        if reason:
+            line += f" (reason: {reason})"
+        lines.append(line)
+
+    summary = "\n".join(lines)
+    if len(summary) > max_chars:
+        summary = summary[:max_chars] + "\n  [... truncated]"
+    return summary
 
 
 def normalize_history(profile):
@@ -204,11 +246,14 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
 
     min_new_artists = math.ceil(batch_size * new_artist_percentage / 100)
 
+    gpt_language = get_gpt_language()
+
     system_prompt = load_text_file(SYSTEM_PROMPT_FILE)
     # Replace all per-run placeholders in the system prompt
     system_prompt = system_prompt.replace("{batch_size}", str(batch_size))
     system_prompt = system_prompt.replace("{new_artist_percentage}", str(new_artist_percentage))
     system_prompt = system_prompt.replace("{min_new_artists}", str(min_new_artists))
+    system_prompt = system_prompt.replace("{gpt_language}", gpt_language)
 
     user_template = load_text_file(PROMPT_FILE)
 
@@ -227,10 +272,13 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
     # Build the exclusion block from the full profile (before trimming)
     exclusion_block = _build_exclusion_block(profile)
 
+    feedback_summary = build_feedback_summary(profile)
+
     user_message = user_template.format(
         profile_json=json.dumps(profile_for_gpt, indent=2),
         exclusion_block=exclusion_block,
         batch_size=batch_size,
+        recent_feedback=feedback_summary,
     )
 
     if accepted_tracks:

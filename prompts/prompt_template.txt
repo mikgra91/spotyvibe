@@ -1,8 +1,12 @@
 Here is my complete music taste profile. Study every section carefully before generating suggestions.
 
+<user_profile>
 {profile_json}
+</user_profile>
 
 {exclusion_block}
+
+{recent_feedback}
 
 Based on this profile, suggest exactly {batch_size} tracks following all your instructions.
 Focus on DISCOVERING new artists and tracks I haven't heard yet.

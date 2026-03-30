@@ -97,7 +97,20 @@ You can switch to a different model at any time. More capable models (e.g., `gpt
 - **Higher values** (e.g., 60–80%) push GPT to explore new territory aggressively. Useful early on when your history is small.
 - **Lower values** (e.g., 10–20%) let GPT revisit artists it knows you like more often. Useful once you have a rich history and want deeper cuts from proven artists.
 
-### 3. Choose a Visual Theme
+**ChatGPT Language** — a dropdown that sets the language the AI uses when communicating with you (English / Deutsch). This controls GPT's response language for suggestions, profile analysis, and feedback — for example, track recommendation reasons will appear in the chosen language. This setting is independent of the UI language selected in the page header.
+
+### 3. Choose Your Language
+
+At the top of the page header you will find a **language picker**. SpotyVibe currently supports:
+
+- **English**
+- **Deutsch** (German)
+
+Selecting a language changes all UI labels, buttons, and messages. Your choice is saved in the browser (localStorage) and persists across visits — you do not need to select it again.
+
+> **Note:** This setting controls the **user-interface language only**. It is independent of the ChatGPT Language setting in the Settings panel (see step 2 above), which controls the language the AI uses in its responses.
+
+### 4. Choose a Visual Theme
 
 At the top of the page, below the SpotyVibe title, you'll find a **Theme** switcher with two options:
 
@@ -108,7 +121,7 @@ At the top of the page, below the SpotyVibe title, you'll find a **Theme** switc
 
 Click any theme button to switch instantly. Your choice is saved in the browser (localStorage) and restored automatically on your next visit.
 
-### 4. Connect Your Spotify Account
+### 5. Connect Your Spotify Account
 
 After saving your credentials, a banner will appear asking you to **Connect to Spotify**. Click the link — a small popup window will open where you log in to Spotify and grant permission. Once authorised, the popup closes automatically and the banner disappears.
 
@@ -120,7 +133,7 @@ If your Spotify session expires or you need to re-authenticate, open the **⚙�
 
 > **Tip:** If you see a `403 Forbidden` error during playlist generation, the app will automatically disconnect for you. Simply click **Connect to Spotify** in the warning banner to reconnect.
 
-### 5. Set Up Your Music Profile
+### 6. Set Up Your Music Profile
 
 Before generating suggestions, you need to tell the AI what kind of music you like. The UI is divided into two clearly labelled sections:
 
@@ -172,7 +185,43 @@ The AI Profile Update merges with what the AI already knows — your feedback hi
 
 ## Generating a Playlist
 
-Once your profile is trained and Spotify is connected, go to the **Step 2 — Generate Playlist** section:
+Once your profile is trained and Spotify is connected, go to the **Step 2 — Generate Playlist** section.
+
+### Playlist Mode
+
+Before generating, choose a **playlist mode** from the selector:
+
+| Mode | Behaviour |
+|---|---|
+| **Default** | Uses the standard "SpotyVibe Playlist". If it already exists, new tracks are appended. |
+| **Create new** | Always creates a brand-new playlist. You can enter a custom name. |
+| **Append** | Adds tracks to an existing playlist you pick from a dropdown. |
+| **Replace** | Clears all tracks in the chosen existing playlist and adds the new tracks. |
+
+Custom playlist names support **tokens** that are replaced automatically:
+
+- `{date}` — replaced with the current date (e.g. `2026-03-29`).
+- `{style}` — replaced with a short style tag derived from your profile.
+
+For example, a name template of `SpotyVibe {style} {date}` might produce `SpotyVibe Prog-Rock 2026-03-29`.
+
+### Audio Feature Filters
+
+Below the playlist mode selector you will find a collapsible **Audio Filters** section. These optional filters let you constrain the generated playlist by Spotify audio features:
+
+- **Energy** — how intense / energetic the track feels (0–100)
+- **Valence** — how happy / positive the track sounds (0–100)
+- **Tempo** — beats per minute (BPM)
+- **Danceability** — how suitable the track is for dancing (0–100)
+- **Acousticness** — how acoustic (vs. electronic) the track is (0–100)
+
+Each filter has a **min** and **max** slider. Tracks that fall outside your ranges are removed after Spotify verification — the AI still suggests them, but they are filtered out before being added to the playlist.
+
+Leave a filter's sliders at their default positions (empty) to skip that filter entirely. If all filters are empty, no filtering is applied.
+
+> **Tip:** If you find that filters are removing too many tracks, widen the ranges or disable some filters to let more tracks through.
+
+### Running a Generation
 
 1. Click **▶ Generate & Create Playlist**.
 2. Watch the progress updates as the AI works:
@@ -209,9 +258,27 @@ Use this when the AI has found some good tracks but has started repeating sugges
 
 ---
 
+## Run History and Undo
+
+Below the generation area you will find a collapsible **Run History** section. It records every playlist generation you perform, showing:
+
+- **Date and time** of the run
+- **Track count** — how many tracks were added
+- **Playlist link** — click to open the playlist in Spotify
+
+At the top of the history list is an **Undo last run** button. Clicking it removes all tracks that were added by the most recent generation run from the corresponding Spotify playlist. This is useful if a run produced poor results and you want to revert quickly without manually deleting tracks.
+
+> **Note:** Undo only affects the most recent run. If the playlist has been deleted on Spotify, or if the run history is empty, the undo operation will fail with an explanatory message.
+
+---
+
 ## Reviewing Suggestions
 
-Each suggested track shows the **artist**, **track name**, and a short **reason** explaining why the AI picked it.
+Each suggested track shows the **artist**, **track name**, and a short **reason** explaining why the AI picked it. Tracks are displayed as rich cards with the following details:
+
+- **Album artwork** — the album cover is shown on each track card.
+- **Spotify preview (▶)** — if a 30-second preview is available, a play button lets you listen to a clip directly in the app without leaving the page.
+- **Quick links** — icon links open the track (🎵), artist (🎤), and album (💿) pages on Spotify so you can explore further.
 
 You have three options for each track:
 
@@ -258,6 +325,17 @@ Your taste may evolve over time. You can update your profile at any point:
    - Click **AI Profile Update** to have GPT analyse and merge your changes.
 
 Both options preserve your feedback history and past suggestions — nothing is lost.
+
+### Band/Song Analysis
+
+Inside the **Step 1** section you will find a collapsible **Band/Song Analysis** panel. This tool lets you research any artist or track before adding it to your profile:
+
+1. Enter an **artist name** and, optionally, a **track name**.
+2. Click **Analyze**.
+3. The AI returns detailed information about the music: genre, style tags, and characteristics such as energy, instrumentation, vocals, production, and structure.
+4. Below the analysis you will see **Profile Suggestions** — short phrases you can paste directly into your taste profile fields. Each suggestion has a **copy-to-clipboard** button so you can copy the text with one click and paste it into the Core Description, Must Have, Soft Preferences, or Avoid fields.
+
+This is useful when you want to describe a sound but aren't sure of the right terminology — let the AI analyse a reference track and borrow its vocabulary.
 
 > **Tip — Profile consistency matters:** If you explicitly reject an artist (via 👎 Dislike), make sure the same artist is not still listed as a confirmed favourite. Contradictions in the profile confuse the AI and cause bad suggestions. If you notice the AI keeps repeating things you've rejected, open the Music Profile section and add a clear sentence like *"I strongly dislike [Artist] — never suggest them."*
 
@@ -319,7 +397,17 @@ The build script copies the Python sources into the Android project and runs a G
 
 The APK targets `arm64-v8a` devices by default. For **emulator testing**, the build also includes `x86_64` support — remove it from `android/app/build.gradle` before creating a release build to reduce APK size. The app module pins Python 3.10, Flask 3.x, OpenAI 1.x, Spotipy 2.x, python-dotenv 1.x, and Markdown 3.x so APK builds stay consistent.
 
-After installing, the app starts Flask in the background and loads the UI in a WebView. All features work identically to the desktop version, with one difference: Spotify authentication uses direct navigation instead of a popup window (see the note in [Connect Your Spotify Account](#4-connect-your-spotify-account) above).
+After installing, the app starts Flask in the background and loads the UI in a WebView. All features work identically to the desktop version, with one difference: Spotify authentication uses direct navigation instead of a popup window (see the note in [Connect Your Spotify Account](#5-connect-your-spotify-account) above).
+
+### Onboarding Flow (Android)
+
+The first time you launch the Android APK, a **3-page swipeable onboarding** screen appears:
+
+1. **Page 1 — Welcome** — an introduction to SpotyVibe with feature highlights.
+2. **Page 2 — Credentials** — enter your OpenAI API key and Spotify Client ID / Secret directly during setup.
+3. **Page 3 — Connect & Import** — connect your Spotify account and import an existing taste profile if you have one.
+
+Each page has **Skip**, **Next**, and **Close** buttons so you can navigate or dismiss the onboarding at any time. Once completed (or skipped), the onboarding is remembered and will not appear again on subsequent launches.
 
 ---
 
@@ -333,6 +421,7 @@ All your personal data is stored outside the project in your system's app data f
 | Taste profile | `%LOCALAPPDATA%\spotyvibe\personalized_music_profile.json` | Your trained taste profile + history. |
 | Spotify token | `%LOCALAPPDATA%\spotyvibe\.spotify-cache` | Cached Spotify authentication token. |
 | Debug log | `%LOCALAPPDATA%\spotyvibe\debug.log` | GPT request/response log (desktop only, only when debug mode is enabled). |
+| Run history | `%LOCALAPPDATA%\spotyvibe\run_history.json` | Past generation run metadata (used for undo). |
 
 This means you can safely update or reinstall the app without losing your profile or credentials.
 
@@ -383,5 +472,7 @@ python -m core.feedback dislike "Artist Name" --reason "why"
 | **"GPT could not generate any new tracks"** | Your history is very large and GPT can no longer find tracks outside it. Try describing new styles or genres in the Train Taste Profile section to expand the suggestion space. |
 | **Most tracks "not found on Spotify"** | This can happen if the AI suggests very obscure tracks. Run the generation again — each attempt produces different results. |
 | **"python-dotenv could not parse statement"** | Your credentials file is corrupted. Open ⚙️ → Credentials and re-save your keys. The app now prevents this from recurring. |
+| **Undo last run fails** | The run history may be empty (no previous runs recorded) or the target playlist was deleted on Spotify. Generate a new playlist first, or check that the playlist still exists in your Spotify account. |
+| **Audio filters remove all tracks** | Your filter ranges are too narrow and every suggested track falls outside them. Widen the min/max sliders or disable some filters entirely by resetting them to their default positions. |
 | **App won't start** | Make sure you ran `pip install -r requirements.txt` and are using Python 3.10+. |
 

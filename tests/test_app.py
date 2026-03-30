@@ -37,16 +37,17 @@ class TestOnboarding:
         resp = client.get("/onboarding")
         assert resp.status_code == 200
 
-    def test_contains_continue_button(self, client):
+    def test_contains_onboarding_pages(self, client):
         resp = client.get("/onboarding")
         html = resp.data.decode()
-        assert "Continue to SpotyVibe" in html
+        assert "SpotyVibe" in html
+        assert "ob-page" in html
 
-    def test_contains_setup_hints(self, client):
+    def test_contains_credentials_section(self, client):
         resp = client.get("/onboarding")
         html = resp.data.decode()
-        assert "OpenAI API key" in html
-        assert "Spotify account" in html
+        assert "OpenAI" in html
+        assert "Spotify" in html
 
 
 class TestHelpContent:
@@ -103,6 +104,10 @@ class TestListModels:
     @patch("app.get_model", return_value="gpt-4o")
     @patch("app.get_openai_models", side_effect=ValueError("No API key"))
     def test_returns_error_on_missing_key(self, mock_models, mock_get_model, client):
+        # Clear the models cache so the error path is hit
+        import app as app_module
+        app_module._models_cache["data"] = None
+        app_module._models_cache["expires"] = 0
         resp = client.get("/api/settings/models")
         assert resp.status_code == 400
         data = resp.get_json()
@@ -515,3 +520,126 @@ class TestSpotifyCallback:
         resp = client.get("/callback?code=bad_code")
         html = resp.data.decode()
         assert "Authentication Failed" in html
+
+
+class TestAnalyzeEndpoint:
+    @patch("app.analyze_band_song")
+    def test_returns_analysis(self, mock_analyze, client):
+        mock_analyze.return_value = {"artist": "Test", "genre": ["Rock"]}
+        resp = client.post(
+            "/api/analyze",
+            data=json.dumps({"artist": "Test", "track": "Song"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["artist"] == "Test"
+
+    def test_rejects_missing_artist(self, client):
+        resp = client.post(
+            "/api/analyze",
+            data=json.dumps({"track": "Song"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_rejects_empty_artist(self, client):
+        resp = client.post(
+            "/api/analyze",
+            data=json.dumps({"artist": "", "track": "Song"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_rejects_long_artist(self, client):
+        resp = client.post(
+            "/api/analyze",
+            data=json.dumps({"artist": "x" * 201}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    @patch("app.analyze_band_song", side_effect=ValueError("AI error"))
+    def test_returns_400_on_value_error(self, mock_analyze, client):
+        resp = client.post(
+            "/api/analyze",
+            data=json.dumps({"artist": "Test"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+
+class TestRunHistoryEndpoints:
+    @patch("app.load_runs")
+    def test_get_runs(self, mock_load, client):
+        mock_load.return_value = [{"run_id": "r1", "tracks": []}]
+        resp = client.get("/api/runs")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data["runs"]) == 1
+
+    @patch("app.load_runs", return_value=[])
+    def test_get_runs_empty(self, mock_load, client):
+        resp = client.get("/api/runs")
+        assert resp.status_code == 200
+        assert resp.get_json()["runs"] == []
+
+    @patch("app.undo_last_run")
+    @patch("core.playlist.get_spotify_client")
+    def test_undo_run(self, mock_sp, mock_undo, client):
+        mock_undo.return_value = {"undone": True, "removed": 3, "run_id": "r1"}
+        resp = client.post("/api/runs/undo")
+        assert resp.status_code == 200
+        assert resp.get_json()["undone"] is True
+
+    @patch("app.undo_last_run", side_effect=ValueError("No run history"))
+    @patch("core.playlist.get_spotify_client")
+    def test_undo_run_empty_history(self, mock_sp, mock_undo, client):
+        resp = client.post("/api/runs/undo")
+        assert resp.status_code == 400
+        assert "error" in resp.get_json()
+
+
+class TestOnboardingEndpoints:
+    @patch("app.is_onboarding_completed", return_value=False)
+    def test_onboarding_status_not_completed(self, mock_status, client):
+        resp = client.get("/api/onboarding/status")
+        assert resp.status_code == 200
+        assert resp.get_json()["completed"] is False
+
+    @patch("app.is_onboarding_completed", return_value=True)
+    def test_onboarding_status_completed(self, mock_status, client):
+        resp = client.get("/api/onboarding/status")
+        assert resp.status_code == 200
+        assert resp.get_json()["completed"] is True
+
+    @patch("app.set_onboarding_completed")
+    def test_mark_onboarding_complete(self, mock_set, client):
+        resp = client.post("/api/onboarding/complete")
+        assert resp.status_code == 200
+        mock_set.assert_called_once_with(True)
+
+
+class TestPlaylistsEndpoint:
+    @patch("app.get_user_playlists")
+    def test_lists_playlists(self, mock_playlists, client):
+        mock_playlists.return_value = [{"id": "pl1", "name": "My Playlist", "track_count": 5}]
+        resp = client.get("/api/playlists")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data["playlists"]) == 1
+        assert data["playlists"][0]["id"] == "pl1"
+
+    @patch("app.get_user_playlists", side_effect=Exception("Not connected"))
+    def test_returns_error_when_not_connected(self, mock_playlists, client):
+        resp = client.get("/api/playlists")
+        assert resp.status_code == 500
+        assert "error" in resp.get_json()
+
+
+class TestRunStatusEndpoint:
+    def test_unknown_run_returns_status(self, client):
+        resp = client.get("/api/run/nonexistent/status")
+        assert resp.status_code == 404
+        data = resp.get_json()
+        assert data["status"] == "not_found"

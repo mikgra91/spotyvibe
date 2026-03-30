@@ -1,7 +1,7 @@
 import os
 from unittest.mock import patch, MagicMock, mock_open
 
-from core.utils import strip_code_fences, debug_log, clear_debug_log, get_openai_client, get_openai_models
+from core.utils import strip_code_fences, debug_log, clear_debug_log, get_openai_client, get_openai_models, sanitize_text, sanitize_profile
 
 
 class TestStripCodeFences:
@@ -143,6 +143,47 @@ class TestGetOpenaiClient:
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-key2"}):
             get_openai_client()
         assert mock_openai_cls.call_count == 2
+
+
+class TestSanitizeText:
+    def test_removes_null_bytes(self):
+        assert sanitize_text("hello\x00world") == "helloworld"
+
+    def test_removes_control_characters(self):
+        assert sanitize_text("hello\x01\x02world") == "helloworld"
+
+    def test_preserves_newlines_and_tabs(self):
+        result = sanitize_text("line1\nline2\ttab")
+        assert "\n" in result
+        # tabs are collapsed to single space by the regex
+        assert "line2 tab" in result
+
+    def test_collapses_spaces(self):
+        assert sanitize_text("hello     world") == "hello world"
+
+    def test_strips_whitespace(self):
+        assert sanitize_text("  hello  ") == "hello"
+
+    def test_non_string_passthrough(self):
+        assert sanitize_text(42) == 42
+        assert sanitize_text(None) is None
+
+
+class TestSanitizeProfile:
+    def test_sanitizes_nested_dict(self):
+        profile = {"a": "hello\x00", "b": {"c": "world\x01"}}
+        result = sanitize_profile(profile)
+        assert result["a"] == "hello"
+        assert result["b"]["c"] == "world"
+
+    def test_sanitizes_list_values(self):
+        profile = {"items": ["a\x00b", "c\x01d"]}
+        result = sanitize_profile(profile)
+        assert result["items"] == ["ab", "cd"]
+
+    def test_preserves_non_strings(self):
+        profile = {"count": 5, "flag": True, "items": [1, 2]}
+        assert sanitize_profile(profile) == profile
 
 
 class TestGetOpenaiModels:

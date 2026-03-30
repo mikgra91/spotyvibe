@@ -15,6 +15,7 @@ Technologies & patterns used:
 
 import json
 import os
+import re
 from datetime import datetime, timezone
 # OpenAI Python SDK v1.x — provides a class-based client (`OpenAI`) that
 # manages HTTP sessions, retries, and streaming internally.
@@ -138,6 +139,32 @@ def get_openai_client():
         _openai_key = api_key
 
     return _openai_client
+
+
+def sanitize_text(text):
+    """Remove null bytes, control characters, and normalize whitespace.
+
+    Keeps standard whitespace (newline, tab, carriage return) but strips
+    all other control characters (0x01–0x08, 0x0b, 0x0c, 0x0e–0x1f, 0x7f).
+    Collapses multiple spaces/tabs on a single line to a single space.
+    """
+    if not isinstance(text, str):
+        return text
+    text = text.replace('\x00', '')
+    text = re.sub(r'[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
+    text = re.sub(r'[ \t]+', ' ', text)
+    return text.strip()
+
+
+def sanitize_profile(profile):
+    """Recursively apply sanitize_text() to all string values in a profile dict."""
+    if isinstance(profile, dict):
+        return {k: sanitize_profile(v) for k, v in profile.items()}
+    if isinstance(profile, list):
+        return [sanitize_profile(item) for item in profile]
+    if isinstance(profile, str):
+        return sanitize_text(profile)
+    return profile
 
 
 def get_openai_models():

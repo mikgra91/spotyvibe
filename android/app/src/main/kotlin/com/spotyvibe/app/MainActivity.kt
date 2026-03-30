@@ -84,6 +84,9 @@ class MainActivity : AppCompatActivity() {
         // If Android killed the process while the user was in Chrome doing
         // OAuth, the deep-link arrives via onCreate() instead of onNewIntent().
         handleOAuthIntent(intent)
+
+        // Handle shared JSON files (e.g. from Files app) for profile import
+        handleShareIntent(intent)
     }
 
     // ── Flask server ────────────────────────────────────────────────
@@ -343,6 +346,7 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         handleOAuthIntent(intent)
+        handleShareIntent(intent)
     }
 
     /**
@@ -386,6 +390,43 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * Handle incoming share intents (e.g. a .json file shared from Files).
+     * Reads the file content and posts it to the Flask import endpoint.
+     */
+    private fun handleShareIntent(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_SEND) return
+        val uri = intent.getParcelableExtra<android.net.Uri>(Intent.EXTRA_STREAM) ?: return
+        val mime = intent.type ?: ""
+        if (!mime.contains("json") && !mime.contains("text") && !mime.contains("octet")) return
+
+        Thread({
+            try {
+                val bytes = contentResolver.openInputStream(uri)?.readBytes() ?: return@Thread
+                val json = String(bytes, Charsets.UTF_8)
+                // POST to Flask import endpoint
+                val url = java.net.URL("$FLASK_URL/api/profile/import")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "application/json")
+                val body = """{"profile":$json}""".toByteArray(Charsets.UTF_8)
+                conn.outputStream.write(body)
+                val code = conn.responseCode
+                conn.disconnect()
+                runOnUiThread {
+                    if (code == 200) {
+                        android.widget.Toast.makeText(this, "Profile imported successfully", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        android.widget.Toast.makeText(this, "Profile import failed (HTTP $code)", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Share intent import failed", e)
+            }
+        }, "share-import").apply { isDaemon = true; start() }
     }
 
     private fun registerBackPress() {
