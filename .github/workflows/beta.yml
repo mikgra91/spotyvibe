@@ -29,7 +29,7 @@ jobs:
           cd dist
           7z a spotyvibe_package.zip ./spotyvibe/
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: windows
           path: |
@@ -51,7 +51,7 @@ jobs:
           ./build-tools/build_apk.sh debug
           cp android/app/build/outputs/apk/debug/app-debug.apk spotyvibe-debug.apk
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: android
           path: spotyvibe-debug.apk
@@ -60,10 +60,10 @@ jobs:
     needs: [build-windows, build-android]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: windows
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: android
       - uses: actions/checkout@v4
