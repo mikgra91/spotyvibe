@@ -8,10 +8,10 @@
   "app.subtitle": "AI-powered music discovery & playlist generation — discover, curate, refine.",
   "app.theme": "Theme",
 
-  "section.taste_profile": "Step 1 — Taste Profile",
-  "section.taste_profile_desc": "Teach the AI what you like (and dislike) so it can tailor suggestions to your taste.",
-  "section.generate": "Step 2 — Generate Playlist",
-  "section.generate_desc": "Create a Spotify playlist based on your trained taste profile.",
+  "section.taste_profile": "OpenAI",
+  "section.taste_profile_desc": "Define your taste profile and analyze reference music with AI.",
+  "section.generate": "Spotify",
+  "section.generate_desc": "Inspect track metadata, control playlists, and save generated music to Spotify.",
 
   "profile.title": "Music Profile",
   "profile.edit_profile": "Edit profile",
@@ -67,5 +67,36 @@
   "msg.generating": "Generating suggestions…",
   "msg.no_profile": "No profile trained yet",
   "msg.spotify_not_connected": "Spotify is not connected. Check the warning below the Generate button.",
-  "msg.openai_key_missing": "OpenAI API key is missing. Open Settings."
+  "msg.openai_key_missing": "OpenAI API key is missing. Open Settings.",
+
+  "provider.openai": "OpenAI",
+  "provider.openai_subtitle": "Define your taste profile and analyze reference music with AI.",
+  "provider.spotify": "Spotify",
+  "provider.spotify_subtitle": "Inspect track metadata, control playlists, and save generated music to Spotify.",
+
+  "pill.key_configured": "Key configured",
+  "pill.key_missing": "Key missing",
+  "pill.profile_trained": "Profile trained",
+  "pill.not_trained": "Not trained",
+  "pill.connected": "Connected",
+  "pill.not_connected": "Not connected",
+  "pill.credentials_missing": "Credentials missing",
+
+  "spotify_meta.title": "Spotify Metadata Analysis",
+  "spotify_meta.hint": "Look up artist, track, popularity, genres, and audio features from Spotify metadata.",
+  "spotify_meta.artist_placeholder": "Artist / band name",
+  "spotify_meta.track_placeholder": "Track name (optional)",
+  "spotify_meta.market_placeholder": "Market (e.g. US)",
+  "spotify_meta.btn_analyse": "Analyse",
+  "spotify_meta.loading": "Analyzing…",
+  "spotify_meta.match_summary": "Match Summary",
+  "spotify_meta.track": "Track",
+  "spotify_meta.artist": "Artist",
+  "spotify_meta.audio_features": "Audio Features",
+  "spotify_meta.notices": "Notices",
+
+  "warn.low_confidence_match": "Low confidence match",
+  "warn.audio_features_unavailable": "Audio features unavailable",
+  "warn.no_result": "No result found",
+  "warn.credentials_missing": "Spotify credentials missing"
 }

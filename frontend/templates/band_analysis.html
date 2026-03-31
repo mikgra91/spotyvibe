@@ -15,7 +15,9 @@
                 <input id="analysisArtist" type="text" placeholder="Artist / band name" maxlength="200" value="{{ artist_input if artist_input }}">
                 <input id="analysisTrack" type="text" placeholder="Track name (optional)" maxlength="200" value="{{ track_input if track_input }}">
             </div>
-            <button class="btn btn-save" id="analysisSendBtn" onclick="runAnalysis()">Analyse</button>
+        <div class="run-section">
+            <button class="btn-run" id="analysisSendBtn" style="width: 33%;" onclick="runAnalysis()">Analyse</button>
+        </div>
         </div>
         <div id="analysisResult" class="{% if last_analysis_result %}{% else %}hidden{% endif %}">
             {% if last_analysis_result %}{{ last_analysis_result }}{% endif %}

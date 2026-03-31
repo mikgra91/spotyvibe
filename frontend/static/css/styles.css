@@ -985,13 +985,13 @@ h1 {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 1.2rem;
+    margin-bottom: 1.6rem;
 }
 .style-switcher-label {
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1.5px;
+    letter-spacing: 1.6px;
     color: var(--text-muted);
     white-space: nowrap;
 }
@@ -1006,12 +1006,14 @@ h1 {
     color: var(--text-secondary);
     padding: 6px 14px;
     border-radius: var(--radius-pill);
-    font-size: 0.75rem;
-    font-weight: 600;
+    font-size: 0.8rem;
+    font-weight: 700;
     font-family: inherit;
     cursor: pointer;
     transition: all var(--transition);
     white-space: nowrap;
+    margin-left: 5px;
+    margin-right: 5px;
 }
 .style-switcher-btn:hover {
     background: rgba(40,48,60,0.85);
@@ -1518,11 +1520,9 @@ h1 {
     flex-direction: column;
     gap: 12px;
     margin-bottom: 14px;
+    min-height: 25px;
 }
 
-#analysisSendBtn {
-    width: 100%;
-}
 
 .analysis-input-row {
     display: flex;
@@ -1532,6 +1532,14 @@ h1 {
 .analysis-input-row input {
     flex: 1;
     min-width: 0;
+    margin-left: 5px;
+    margin-right: 5px;
+}
+
+input {
+    min-height: 30px;
+    border-radius: 15px;
+    padding-left: 15px;
 }
 
 .analysis-card {
@@ -1837,4 +1845,271 @@ h1 {
 
 .spotify-preview-panel iframe {
     display: block;
+}
+
+/* =============================================
+   Provider Sections
+   ============================================= */
+.provider-section {
+    margin-top: 60px;
+    background: var(--glass-bg);
+    border: var(--glass-border);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: 28px 28px 24px;
+    position: relative;
+}
+
+.provider-section + .provider-section {
+    margin-top: 32px;
+}
+
+.provider-section.provider-openai {
+    border-color: rgba(16, 185, 129, 0.12);
+}
+
+.provider-section.provider-spotify {
+    border-color: rgba(30, 215, 96, 0.12);
+}
+
+.provider-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.provider-header-title {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.provider-badge {
+    display: inline-block;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+}
+
+.provider-badge-openai,
+.provider-badge-spotify {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+}
+
+.provider-subtitle {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    max-width: 480px;
+}
+
+/* --- Status pills --- */
+.provider-status-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    padding-top: 4px;
+}
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    white-space: nowrap;
+}
+
+.status-pill::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.status-pill--ok {
+    background: rgba(34, 197, 94, 0.12);
+    color: #22c55e;
+    border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.status-pill--ok::before { background: #22c55e; }
+
+.status-pill--warn {
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.status-pill--warn::before { background: #f59e0b; }
+
+.status-pill--err {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.status-pill--err::before { background: #ef4444; }
+
+/* --- Dependency chips (Generate Playlist) --- */
+.generate-deps-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.dep-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    padding: 4px 12px;
+}
+
+.dep-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.dep-dot--ok { background: #22c55e; }
+.dep-dot--warn { background: #f59e0b; }
+.dep-dot--unknown { background: var(--text-muted); }
+
+/* =============================================
+   Spotify Metadata Result Cards
+   ============================================= */
+.metadata-result {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.meta-block {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+}
+
+.meta-block-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+}
+
+.meta-grid {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 6px 12px;
+    align-items: baseline;
+}
+
+.meta-key {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.meta-val {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+.meta-id {
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+/* Confidence badge */
+.confidence-badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+}
+
+.confidence-high {
+    background: rgba(34,197,94,0.15);
+    color: #22c55e;
+    border: 1px solid rgba(34,197,94,0.3);
+}
+
+.confidence-mid {
+    background: rgba(245,158,11,0.15);
+    color: #f59e0b;
+    border: 1px solid rgba(245,158,11,0.3);
+}
+
+.confidence-low {
+    background: rgba(239,68,68,0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239,68,68,0.3);
+}
+
+/* Warning badges */
+.warning-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: var(--radius-pill);
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+    .provider-section {
+        padding: 18px 16px 18px;
+    }
+
+    .provider-header {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .meta-grid {
+        grid-template-columns: 110px 1fr;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .status-pill,
+    .dep-chip,
+    .confidence-badge,
+    .warning-badge {
+        transition: none !important;
+    }
 }

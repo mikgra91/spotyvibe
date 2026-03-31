@@ -8,10 +8,10 @@
   "app.subtitle": "KI-gestützte Musikentdeckung & Playlist-Erstellung — entdecken, kuratieren, verfeinern.",
   "app.theme": "Design",
 
-  "section.taste_profile": "Schritt 1 — Geschmacksprofil",
-  "section.taste_profile_desc": "Lehr die KI, was du magst (und nicht magst), damit sie Vorschläge auf deinen Geschmack abstimmen kann.",
-  "section.generate": "Schritt 2 — Playlist erstellen",
-  "section.generate_desc": "Erstelle eine Spotify-Playlist basierend auf deinem trainierten Geschmacksprofil.",
+  "section.taste_profile": "OpenAI",
+  "section.taste_profile_desc": "Definiere dein Geschmacksprofil und analysiere Referenzmusik mit KI.",
+  "section.generate": "Spotify",
+  "section.generate_desc": "Inspiziere Track-Metadaten, verwalte Playlists und speichere generierte Musik in Spotify.",
 
   "profile.title": "Musikprofil",
   "profile.edit_profile": "Profil bearbeiten",
@@ -67,5 +67,36 @@
   "msg.generating": "Vorschläge werden generiert…",
   "msg.no_profile": "Noch kein Profil trainiert",
   "msg.spotify_not_connected": "Spotify ist nicht verbunden. Prüfe die Warnung unter dem Erstellen-Button.",
-  "msg.openai_key_missing": "OpenAI-API-Schlüssel fehlt. Öffne die Einstellungen."
+  "msg.openai_key_missing": "OpenAI-API-Schlüssel fehlt. Öffne die Einstellungen.",
+
+  "provider.openai": "OpenAI",
+  "provider.openai_subtitle": "Definiere dein Geschmacksprofil und analysiere Referenzmusik mit KI.",
+  "provider.spotify": "Spotify",
+  "provider.spotify_subtitle": "Inspiziere Track-Metadaten, verwalte Playlists und speichere generierte Musik in Spotify.",
+
+  "pill.key_configured": "Schlüssel konfiguriert",
+  "pill.key_missing": "Schlüssel fehlt",
+  "pill.profile_trained": "Profil trainiert",
+  "pill.not_trained": "Nicht trainiert",
+  "pill.connected": "Verbunden",
+  "pill.not_connected": "Nicht verbunden",
+  "pill.credentials_missing": "Zugangsdaten fehlen",
+
+  "spotify_meta.title": "Spotify-Metadatenanalyse",
+  "spotify_meta.hint": "Künstler, Track, Popularität, Genres und Audio-Features aus Spotify-Metadaten abrufen.",
+  "spotify_meta.artist_placeholder": "Künstler / Bandname",
+  "spotify_meta.track_placeholder": "Titelname (optional)",
+  "spotify_meta.market_placeholder": "Markt (z.B. US)",
+  "spotify_meta.btn_analyse": "Analysieren",
+  "spotify_meta.loading": "Wird analysiert…",
+  "spotify_meta.match_summary": "Übereinstimmungsübersicht",
+  "spotify_meta.track": "Track",
+  "spotify_meta.artist": "Künstler",
+  "spotify_meta.audio_features": "Audio-Features",
+  "spotify_meta.notices": "Hinweise",
+
+  "warn.low_confidence_match": "Niedrige Übereinstimmungsgenauigkeit",
+  "warn.audio_features_unavailable": "Audio-Features nicht verfügbar",
+  "warn.no_result": "Kein Ergebnis gefunden",
+  "warn.credentials_missing": "Spotify-Zugangsdaten fehlen"
 }

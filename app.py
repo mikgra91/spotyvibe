@@ -45,6 +45,7 @@ from core.src.analysis import analyze_band_song
 from core.src.history import save_run, load_runs, undo_last_run
 from core.src.utils import get_openai_models, clear_debug_log, sanitize_text
 from core.src.openai_http import OpenAIConfigError, OpenAIError
+from core.src.spotify_metadata import analyze_metadata, SpotifyMetadataError
 from core.src.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist,
     get_spotify_auth_status, get_spotify_auth_url, handle_spotify_callback,
@@ -940,6 +941,31 @@ def spotify_status():
 def spotify_auth():
     """Redirect the browser to Spotify's authorization page."""
     return redirect(get_spotify_auth_url())
+
+
+@app.route("/api/spotify/metadata/analyze", methods=["POST"])
+def spotify_metadata_analyze():
+    """Analyze artist/track metadata using Spotify Client Credentials."""
+    data = request.get_json(silent=True) or {}
+    artist = sanitize_text(data.get("artist", "").strip()) if data.get("artist") else None
+    track = sanitize_text(data.get("track", "").strip()) if data.get("track") else None
+    market = sanitize_text(data.get("market", "US").strip()[:2].upper()) or "US"
+
+    if not artist and not track:
+        return jsonify({"error": "At least one of 'artist' or 'track' is required"}), 400
+
+    try:
+        result = analyze_metadata(artist=artist, track=track, market=market)
+        return jsonify(result)
+    except SpotifyMetadataError as e:
+        msg = str(e)
+        if "not configured" in msg.lower() or "credentials" in msg.lower():
+            return jsonify({"error": msg}), 400
+        if "no match" in msg.lower() or "not found" in msg.lower():
+            return jsonify({"error": msg}), 404
+        return jsonify({"error": msg}), 500
+    except Exception:
+        return jsonify({"error": "Internal error"}), 500
 
 
 @app.route("/api/spotify/disconnect", methods=["POST"])

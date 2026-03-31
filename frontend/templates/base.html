@@ -18,11 +18,35 @@
     <h1>SpotyVibe</h1>
     <p class="subtitle">AI-powered music discovery &amp; playlist generation — discover, curate, refine.</p>
     {% include "theme_switcher.html" %}
-    {% include "train_profile.html" %}
-    {% include "band_analysis.html" %}
-    {% include "generate_section.html" %}
+
+    <!-- ── OpenAI Provider Section ── -->
+    <section class="provider-section provider-openai">
+        <div class="provider-header">
+            <div class="provider-header-title">
+                <span class="provider-badge provider-badge-openai">OpenAI</span>
+                <p class="provider-subtitle">Define your taste profile and analyze reference music with AI.</p>
+            </div>
+            <div class="provider-status-pills" id="openaiStatusPills"></div>
+        </div>
+        {% include "train_profile.html" %}
+        {% include "band_analysis.html" %}
+    </section>
+
+    <!-- ── Spotify Provider Section ── -->
+    <section class="provider-section provider-spotify">
+        <div class="provider-header">
+            <div class="provider-header-title">
+                <span class="provider-badge provider-badge-spotify">Spotify</span>
+                <p class="provider-subtitle">Inspect track metadata, control playlists, and save generated music to Spotify.</p>
+            </div>
+            <div class="provider-status-pills" id="spotifyStatusPills"></div>
+        </div>
+        {% include "spotify_metadata.html" %}
+        {% include "generate_section.html" %}
+        {% include "run_history.html" %}
+    </section>
+
     {% include "tracklist.html" %}
-    {% include "run_history.html" %}
     {% include "preview_overlay.html" %}
     {% include "toast.html" %}
     {% include "modals/credentials_modal.html" %}

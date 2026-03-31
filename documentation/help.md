@@ -75,14 +75,14 @@ You will enter these in the app during setup.
 
 ## Getting Started
 
-When you open SpotyVibe, you will see the main interface with two primary areas:
+When you open SpotyVibe, you will see the main interface with two provider sections:
 
-- **Step 1 — Taste Profile**
-- **Step 2 — Generate Playlist**
+- **OpenAI** — Taste profile editor, AI profile updates, and AI Band/Song Analysis.
+- **Spotify** — Spotify Metadata Analysis, playlist generation, audio filters, and run history.
+
+Status pills at the top of each section show whether your credentials are configured and connected.
 
 Before generating playlists, complete your setup and create your music profile.
-
-> **Screenshot placeholder:** First view of the app with Step 1 and Step 2 visible
 
 ---
 
@@ -211,7 +211,7 @@ If your session expires later, simply reconnect.
 
 Before SpotyVibe can generate good recommendations, you need to teach it your taste.
 
-In **Step 1 — Taste Profile**, click **Edit profile**.
+In the **OpenAI** section, click **Edit profile**.
 
 You will see several sections that help describe your ideal music.
 
@@ -327,7 +327,7 @@ This is useful if you want to back up your profile, move it to another device, o
 
 ## Use Band/Song Analysis
 
-In **Step 1**, you can open the **Band/Song Analysis** section.
+In the **OpenAI** section, you can open the **AI Band/Song Analysis** section.
 
 This feature helps you analyze an artist or song and turn that into profile language.
 
@@ -347,7 +347,7 @@ This is especially helpful if you know what you like, but are not sure how to de
 
 ## Generate a Playlist
 
-Once your profile is ready and Spotify is connected, go to **Step 2 — Generate Playlist**.
+Once your profile is ready and Spotify is connected, go to the **Spotify** section and use the **Generate Playlist** area.
 
 This is where SpotyVibe creates playlist suggestions based on your taste.
 
@@ -581,7 +581,7 @@ Your taste may change, and SpotyVibe is designed to evolve with you.
 
 To update your preferences:
 
-1. Go back to **Step 1**
+1. Go back to the **OpenAI** section
 2. Click **Edit profile**
 3. Update your description or preference lists
 4. Save or run **AI Profile Update**

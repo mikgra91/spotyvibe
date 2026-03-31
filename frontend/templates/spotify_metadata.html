@@ -1,0 +1,29 @@
+<!-- ── Spotify Metadata Analysis ── -->
+<div class="analysis-section" id="spotifyMetadataSection">
+    <div class="train-header">
+        <div class="train-header-left">
+            <h2>🔎 Spotify Metadata Analysis</h2>
+        </div>
+        <div class="train-header-actions">
+            <button class="btn-train" id="spotifyMetaToggleBtn" onclick="toggleSpotifyMetadata()">Open</button>
+        </div>
+    </div>
+    <div class="train-body hidden" id="spotifyMetadataBody">
+        <p class="acc-hint" style="margin-bottom:12px;" data-i18n="spotify_meta.hint">Look up artist, track, popularity, genres, and audio features from Spotify metadata.</p>
+        <div class="analysis-inputs">
+            <div class="analysis-input-row">
+                <input id="spotifyMetaArtist" type="text" placeholder="Artist / band name" maxlength="200" data-i18n-placeholder="analysis.artist_placeholder">
+                <input id="spotifyMetaTrack" type="text" placeholder="Track name (optional)" maxlength="200" data-i18n-placeholder="spotify_meta.track_placeholder">
+            </div>
+            <div class="analysis-input-row" style="margin-top:8px;">
+                <input id="spotifyMetaMarket" type="text" placeholder="Market (e.g. US)" maxlength="2" value="US" style="max-width:120px;" data-i18n-placeholder="spotify_meta.market_placeholder">
+            </div>
+        </div>
+        <div class="run-section">
+            <button class="btn-run" id="spotifyMetaAnalyseBtn" style="width: 33%;" onclick="runSpotifyMetadata()">Analyse</button>
+        </div>
+        <div id="spotifyMetaLoading" class="hidden" style="text-align:center;padding:16px;color:var(--text-muted);">Analyzing…</div>
+        <div id="spotifyMetaError" class="hidden component-warn" style="margin-top:12px;"></div>
+        <div id="spotifyMetaResult" class="hidden" style="margin-top:16px;"></div>
+    </div>
+</div>

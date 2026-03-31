@@ -15,7 +15,8 @@ SpotyVibe is a Python web application built with **Flask** that connects two ext
 ┌─────────────────────────────────────────────────────────────────────┐
 │                   Browser (frontend/templates/)                    │
 │                                                                    │
-│  Train Profile ─── Generate Playlist ─── Like/Dislike/Remove       │
+│  OpenAI Section ─── Spotify Section ─── Like/Dislike/Remove         │
+│  (Profile/Analysis)  (Metadata/Playlist/History)                   │
 └──────────┬────────────────┬────────────────────┬────────────────────┘
            │ POST           │ POST (SSE stream)  │ POST
            ▼                ▼                    ▼
@@ -26,7 +27,8 @@ SpotyVibe is a Python web application built with **Flask** that connects two ext
 │  /api/save-profile    /api/spotify/status   /api/remove            │
 │  /api/profile/status  /api/analyze          /api/playlists         │
 │  /api/spotify/auth    /api/spotify/disconnect  /api/cancel          │
-│  /callback            /api/settings/*       /api/help              │
+│  /api/spotify/metadata/analyze               /api/help             │
+│  /callback            /api/settings/*                              │
 │  /api/settings        /api/settings/debug-log                      │
 │  /api/runs            /api/runs/undo        /api/run/<run_id>/status│
 │  /api/onboarding/status  /api/onboarding/complete                  │
@@ -237,6 +239,46 @@ Manages all application settings and credentials.
 **Credential storage:** Credentials and settings (including the selected model) are stored in `%LOCALAPPDATA%\spotyvibe\.credentials` as a dotenv file, outside the project directory. The `load_config()` function loads them into `os.environ`. The `save_credentials()` function ensures the file always ends with a newline before appending new keys, preventing `python-dotenv` parse errors from concatenated lines.
 
 **Android storage:** On Android, `_get_app_dir()` resolves to the app's internal storage (`/data/data/com.spotyvibe.app/files/spotyvibe/`). The `.env` migration from legacy locations is guarded by `if not IS_ANDROID` so it only runs on desktop.
+
+---
+
+### `core/spotify_metadata.py` — Spotify Metadata Lookup (Client Credentials)
+
+Provides public Spotify metadata lookups using the **Client Credentials Flow** — no user OAuth required.  Completely separate from `core/playlist.py`, which uses user OAuth for playlist management.
+
+**Authentication:** `get_client_credentials_token()` exchanges `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` for a bearer token via `POST https://accounts.spotify.com/api/token`. The token is cached in memory and refreshed 60 seconds before expiry; a threading lock prevents concurrent refresh races.
+
+**Search strategy:**
+- Both artist + track → fielded query `track:{track} artist:{artist}`, type=track
+- Track only → `track:{track}`, type=track
+- Artist only → `artist:{artist}`, type=artist
+- `limit=5`, configurable `market` (default `US`)
+
+**Scoring:** Top-5 candidates are scored — exact normalised track match +0.6, exact normalised artist match +0.3, popularity/1000 tie-breaker. If the best score is below 0.5 (track) or 0.9 (artist-only), a `"low_confidence_match"` warning is added.
+
+**Text normalisation:** `normalize_compare_text()` lowercases, trims, and collapses whitespace. `strip_version_suffixes()` removes suffixes like `(remastered)`, `[2024 mix]`, `(live)`, `(deluxe edition)` before comparison only — displayed Spotify values are never altered.
+
+**Fetch flow (track):** `/v1/tracks/{id}` → `/v1/artists/{primaryArtistId}` → `/v1/audio-features/{id}` (best-effort; 403/404 returns `None` + `"audio_features_unavailable"` warning).
+
+**Fetch flow (artist-only):** `/v1/artists/{id}`.
+
+**Rate-limit handling:** 429 responses read the `Retry-After` header (capped at 10 s) and retry once.
+
+**Main entry point:** `analyze_metadata(artist, track, market)` — returns a canonical dict:
+```json
+{
+  "query": { "artist": "...", "track": "...", "market": "US" },
+  "match": { "provider": "spotify", "type": "track|artist", "confidence": 0.98,
+             "processed_at": "ISO8601", "spotify_track_id": "...", "spotify_artist_id": "..." },
+  "track": { "id", "name", "artists", "album", "release_date", "duration_ms", "popularity",
+             "preview_url", "external_urls" },
+  "artist": { "id", "name", "genres", "popularity", "followers", "external_urls" },
+  "audio_features": { "energy", "valence", "danceability", ... } | null,
+  "warnings": []
+}
+```
+
+**Endpoint:** `POST /api/spotify/metadata/analyze` — accepts `{ "artist"?, "track"?, "market"? }`. At least one of `artist`/`track` is required. Returns 400 on missing input or credential errors, 404 if no match, 200 with optional warnings otherwise.
 
 ---
 
