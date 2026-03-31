@@ -20,11 +20,13 @@ jobs:
       - run: pip install -r requirements.txt pyinstaller
 
       - name: Build Windows Executables
+        shell: bash
         run: |
           ./build-tools/build_exe.sh --package
           ./build-tools/build_exe.sh --full
 
       - name: Archive one-folder package
+        shell: bash
         run: |
           cd dist
           7z a spotyvibe_package.zip ./spotyvibe/
