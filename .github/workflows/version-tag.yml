@@ -22,7 +22,7 @@ jobs:
       - name: Get version from version.py
         id: get_version
         run: |
-          VERSION=$(python -c 'exec(open("version.py").read(), None)')
+          VERSION=$(python -c 'exec(open("version.py").read()); print(__version__)')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Determine tag name
