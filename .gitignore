@@ -7,6 +7,7 @@ build/
 .eggs/
 *.egg
 .env
+.claude
 .credentials
 .spotify-cache
 *.log
@@ -15,8 +16,5 @@ build/
 *.iml
 .DS_Store
 Thumbs.db
-
-# Local analysis/context dumps (generated)
-llm_context/
 
 
