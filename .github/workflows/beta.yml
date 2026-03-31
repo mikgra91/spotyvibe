@@ -64,21 +64,26 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: windows
       - uses: actions/download-artifact@v4
         with:
           name: android
-      - uses: actions/checkout@v4
 
-      - name: Extract changelog for beta tag
+      - name: Generate changelog from git log
         id: changelog
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          awk "/^##? $TAG\$/,/^## / { if (\$0 !~ /^##? $TAG\$/ && \$0 !~ /^## /) print }" CHANGELOG.md > changes.txt || echo "No changelog entry found."
+          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${TAG}$" | head -1)
+          if [ -n "$PREV_TAG" ]; then
+            git log "${PREV_TAG}..HEAD" --pretty=format:"- %s" > changes.txt
+          else
+            git log --pretty=format:"- %s" > changes.txt
+          fi
           if [ ! -s changes.txt ]; then
-            echo "No changelog found for $TAG" > changes.txt
+            echo "No changes found for $TAG" > changes.txt
           fi
       - id: get_changelog
         run: echo "CHANGELOG<<EOF" >> $GITHUB_ENV && cat changes.txt >> $GITHUB_ENV && echo "EOF" >> $GITHUB_ENV
