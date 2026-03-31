@@ -28,8 +28,8 @@ else:
 # Note: Spec `datas` entries are (src, dest) tuples. When `src` is a
 # directory, PyInstaller copies it recursively.
 datas = [
-    (os.path.join(project_root, "templates"), "templates"),
-    (os.path.join(project_root, "static"), "static"),
+    (os.path.join(project_root, "frontend", "templates"), "frontend/templates"),
+    (os.path.join(project_root, "frontend", "static"), "frontend/static"),
     (os.path.join(project_root, "prompts"), "prompts"),
     (os.path.join(project_root, "data"), "data"),
     (os.path.join(project_root, "documentation", "help.md"), "documentation"),
