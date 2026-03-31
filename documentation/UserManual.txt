@@ -173,16 +173,14 @@ If your Spotify session expires or you need to re-authenticate, open the **⚙�
 
 ### 6. Set Up Your Music Profile
 
-Before generating suggestions, you need to tell the AI what kind of music you like. The UI is divided into two clearly labelled **provider sections**:
+Before generating suggestions, you need to tell the AI what kind of music you like. The UI is divided into two clearly labelled sections:
 
-- **OpenAI** — Everything powered by AI: your taste profile editor, AI profile updates, and AI Band/Song Analysis.
-- **Spotify** — Everything powered by Spotify: metadata lookup, playlist generation, audio filters, and run history.
-
-Status pills at the top of each section show at a glance whether your credentials are configured and connected.
+- **Step 1 — Taste Profile:** Teach the AI your preferences.
+- **Step 2 — Generate Playlist:** Create a Spotify playlist from your profile.
 
 To set up your profile:
 
-1. In the **OpenAI** section, click **Edit profile**.
+1. In the **Step 1** section, click **Edit profile**.
 2. The editor opens with four collapsible accordion sections. Fill in the ones relevant to you:
 
    - **🎵 Core Description** *(required)* — Describe your ideal sound in your own words: genre, mood, energy, reference artists. This is the foundation of your profile and must be provided.
@@ -225,7 +223,7 @@ The AI Profile Update merges with what the AI already knows — your feedback hi
 
 ## Generating a Playlist
 
-Once your profile is trained and Spotify is connected, go to the **Spotify** section and use the **Generate Playlist** area.
+Once your profile is trained and Spotify is connected, go to the **Step 2 — Generate Playlist** section.
 
 ### Playlist Mode
 
@@ -379,7 +377,7 @@ Both options preserve your feedback history and past suggestions — nothing is 
 
 ### Band/Song Analysis
 
-Inside the **OpenAI** section you will find a collapsible **AI Band/Song Analysis** panel. This tool lets you research any artist or track before adding it to your profile:
+Inside the **Step 1** section you will find a collapsible **Band/Song Analysis** panel. This tool lets you research any artist or track before adding it to your profile:
 
 1. Enter an **artist name** and, optionally, a **track name**.
 2. Click **Analyze**.
@@ -387,28 +385,6 @@ Inside the **OpenAI** section you will find a collapsible **AI Band/Song Analysi
 4. Below the analysis you will see **Profile Suggestions** — short phrases you can paste directly into your taste profile fields. Each suggestion has a **copy-to-clipboard** button so you can copy the text with one click and paste it into the Core Description, Must Have, Soft Preferences, or Avoid fields.
 
 This is useful when you want to describe a sound but aren't sure of the right terminology — let the AI analyse a reference track and borrow its vocabulary.
-
-### Spotify Metadata Analysis
-
-Inside the **Spotify** section you will find a collapsible **Spotify Metadata Analysis** panel. Unlike the AI Band/Song Analysis (which uses GPT to interpret music), this tool queries Spotify's own database for factual metadata — no AI interpretation involved.
-
-1. Enter an **artist name**, a **track name**, or both.
-2. Optionally set a **market** (two-letter country code, default: `US`) to control which regional catalogue is searched.
-3. Click **Analyse**.
-4. Results appear in up to four blocks:
-
-   - **Match Summary** — which result Spotify matched, with a confidence score (green = high, amber = medium, red = low).
-   - **Track** — track name, artists, album, release date, duration, popularity, and a direct Spotify link.
-   - **Artist** — artist name, genres, popularity, follower count, and a direct Spotify link.
-   - **Audio Features** — energy, valence, danceability, acousticness, instrumentalness, speechiness, liveness, and tempo (BPM) — sourced from Spotify's audio analysis.
-
-> **Note:** Audio features may be unavailable for some tracks (Spotify restricts this data for certain content). If that happens, a notice badge is shown and the rest of the result is still returned.
-
-> **Note:** Spotify Metadata Analysis uses your Spotify **app credentials** (Client ID and Secret) only — no Spotify user login is required.
-
-> **Tip:** Use this tool alongside AI Band/Song Analysis: AI Analysis gives you GPT's interpretive take on a sound, while Spotify Metadata gives you the raw factual signals (energy level, BPM, genres) you can cross-reference.
-
----
 
 > **Tip — Profile consistency matters:** If you explicitly reject an artist (via 👎 Dislike), make sure the same artist is not still listed as a confirmed favourite. Contradictions in the profile confuse the AI and cause bad suggestions. If you notice the AI keeps repeating things you've rejected, open the Music Profile section and add a clear sentence like *"I strongly dislike [Artist] — never suggest them."*
 
@@ -538,9 +514,7 @@ python -m core.feedback dislike "Artist Name" --reason "why"
 | Problem | Solution |
 |---|---|
 | **"Spotify credentials missing"** | Open ⚙️ → Credentials and enter your Spotify Client ID and Secret. |
-| **Spotify Metadata Analysis shows "Spotify credentials not configured"** | Your Spotify Client ID and Secret must be saved in ⚙️ → Credentials even if you are not using Spotify user login. The metadata lookup uses app credentials, not your personal Spotify account. |
-| **Metadata confidence badge is red** | Spotify couldn't find an exact match for your query. Try providing both artist and track name together, or adjust the spelling. The best available result is still returned. |
-| **"Please train your taste profile first"** | Use the **OpenAI** section to describe your music taste before generating. |
+| **"Please train your taste profile first"** | Use the Train Taste Profile section to describe your music taste before generating. |
 | **Spotify auth fails with "INVALID_CLIENT"** | Double-check your Client ID and Secret. Make sure the correct Redirect URI is listed in your Spotify Developer Dashboard (see Prerequisites above). |
 | **Android: "redirect_uri: No matching configuration"** | Add `spotyvibe://callback` as a Redirect URI in your [Spotify Developer Dashboard](https://developer.spotify.com/dashboard). This URI is required for the Android APK — without it, Spotify rejects the login request. |
 | **"403 Forbidden" during generation** | Your Spotify session has expired or permissions were revoked. The app disconnects automatically — click **Connect to Spotify** in the warning banner to reconnect. You can also manually disconnect via ⚙️ → 🔌 Disconnect Spotify. |

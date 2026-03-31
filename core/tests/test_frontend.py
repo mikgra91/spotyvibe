@@ -255,10 +255,10 @@ class TestPageLoad:
         page.goto(base_url)
         expect(page.locator(".subtitle")).to_be_visible()
 
-    def test_step_labels_visible(self, page: Page, base_url):
+    def test_provider_sections_visible(self, page: Page, base_url):
         page.goto(base_url)
-        expect(page.locator("text=Step 1 — Taste Profile")).to_be_visible()
-        expect(page.locator("text=Step 2 — Generate Playlist")).to_be_visible()
+        expect(page.locator(".provider-badge-openai")).to_be_visible()
+        expect(page.locator(".provider-badge-spotify")).to_be_visible()
 
     def test_generate_button_visible(self, page: Page, base_url):
         page.goto(base_url)
@@ -464,8 +464,8 @@ class TestHelpModal:
         page.locator("#settingsDropdown >> text=Help").click()
         page.locator("#helpContent >> text=SpotyVibe User Guide").wait_for(timeout=5000)
         content = page.locator("#helpContent")
-        expect(content.locator("h2:has-text('Prerequisites')").first).to_be_visible()
-        expect(content.locator("h2:has-text('Generating a Playlist')").first).to_be_visible()
+        expect(content.locator("h2:has-text('Before You Start')").first).to_be_visible()
+        expect(content.locator("h2:has-text('Generate a Playlist')").first).to_be_visible()
 
     def test_closes_on_close_button(self, page: Page, base_url):
         page.goto(base_url)
