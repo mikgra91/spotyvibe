@@ -1,0 +1,4 @@
+<!-- Toast notification -->
+<div class="toast {% if toast_message %}{{ toast_type|default('info') }} show{% endif %}" id="toast">
+    {% if toast_message %}{{ toast_message|e }}{% endif %}
+</div>

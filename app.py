@@ -29,31 +29,43 @@ import markdown
 
 load_config()
 
-from core.profile import (
+from core.src.profile import (
     load_profile, save_profile, is_profile_trained,
     get_profile_status, train_profile, save_profile_sections,
     export_profile_dict, import_profile_dict,
     swap_profile_with_history,
 )
-from core.suggestions import (
+from core.src.suggestions import (
     normalize_history,
     build_messages, call_gpt, update_profile,
     filter_duplicate_suggestions,
 )
-from core.feedback import like_track, dislike_track
-from core.analysis import analyze_band_song
-from core.history import save_run, load_runs, undo_last_run
-from core.utils import get_openai_models, clear_debug_log, sanitize_text
-from core.openai_http import OpenAIConfigError, OpenAIError
-from core.playlist import (
+from core.src.feedback import like_track, dislike_track
+from core.src.analysis import analyze_band_song
+from core.src.history import save_run, load_runs, undo_last_run
+from core.src.utils import get_openai_models, clear_debug_log, sanitize_text
+from core.src.openai_http import OpenAIConfigError, OpenAIError
+from core.src.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist,
     get_spotify_auth_status, get_spotify_auth_url, handle_spotify_callback,
     disconnect_spotify, get_user_playlists, filter_by_audio_features,
 )
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(24)
 app.config["MAX_CONTENT_LENGTH"] = GENERAL_REQUEST_MAX_BYTES
+
+
+@app.template_filter("datetimeformat")
+def _datetimeformat(value):
+    if not value:
+        return ""
+    try:
+        from datetime import datetime
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return dt.strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return str(value)
 
 # Clear debug log on startup so it only contains data from the current session
 clear_debug_log()
@@ -80,9 +92,61 @@ def _sweep_stale_runs():
             _runs.pop(rid, None)
 
 
+_PLAYLIST_MODES = [
+    {"value": "create", "label": "Create new"},
+    {"value": "append", "label": "Append to existing"},
+    {"value": "replace", "label": "Replace existing"},
+]
+
+_DEFAULT_AUDIO_FILTERS = {
+    k: {"min": None, "max": None}
+    for k in ("energy", "valence", "tempo", "danceability", "acousticness")
+}
+
+
 @app.route("/")
 def index():
-    return render_template("index.html")
+    if not is_onboarding_completed():
+        return redirect("/onboarding")
+    profile_data = load_profile()
+    prefs = profile_data.get("preferences", {})
+    profile_trained = is_profile_trained()
+    spotify_connected = get_spotify_auth_status() == "authenticated"
+    raw_settings = get_settings()
+    gpt_lang = get_gpt_language()
+    settings = {
+        "model": raw_settings.get("model", ""),
+        "playlist_size": raw_settings.get("playlist_size", 10),
+        "new_artist_pct": raw_settings.get("new_artist_percentage", 30),
+        "gpt_language": gpt_lang,
+        "debug_mode": raw_settings.get("debug_mode", False),
+    }
+    debug_controls_available = raw_settings.get("debug_controls_available", True)
+    current_language = "de" if gpt_lang.lower().startswith("de") else "en"
+    credentials = get_credentials()
+    return render_template(
+        "base.html",
+        profile=prefs,
+        profile_trained=profile_trained,
+        profile_edit_mode=False,
+        spotify_connected=spotify_connected,
+        current_language=current_language,
+        current_theme="equalizer",
+        audio_filters=_DEFAULT_AUDIO_FILTERS,
+        playlist_modes=_PLAYLIST_MODES,
+        current_playlist_mode="create",
+        playlist_name="",
+        playlist_options=[],
+        can_generate=profile_trained and spotify_connected,
+        last_analysis_result=None,
+        artist_input=None,
+        track_input=None,
+        settings=settings,
+        available_models=None,
+        debug_controls_available=debug_controls_available,
+        credentials=credentials,
+        help_html="",
+    )
 
 
 @app.route("/onboarding")
@@ -109,10 +173,10 @@ def onboarding_complete():
 
 @app.route("/api/help")
 def help_content():
-    """Return the User Manual rendered as HTML."""
-    manual_path = BASE_DIR / "UserManual.md"
+    """Return the help guide rendered as HTML."""
+    manual_path = BASE_DIR / "documentation" / "help.md"
     if not manual_path.exists():
-        return jsonify({"error": "User manual not found."}), 404
+        return jsonify({"error": "Help file not found."}), 404
     md_text = manual_path.read_text(encoding="utf-8")
     html = markdown.markdown(md_text, extensions=["tables", "fenced_code"])
     return jsonify({"html": html})
@@ -301,7 +365,7 @@ def run_pipeline():
 
                 # Apply audio feature filters if configured
                 if audio_filters and found:
-                    from core.playlist import get_spotify_client as _get_sp
+                    from core.src.playlist import get_spotify_client as _get_sp
                     _sp = _get_sp()
                     found, af_filtered = filter_by_audio_features(_sp, found, audio_filters)
                     if af_filtered:
@@ -807,7 +871,7 @@ def get_runs():
 def undo_run():
     """Remove tracks added by the last run from the Spotify playlist."""
     try:
-        from core.playlist import get_spotify_client
+        from core.src.playlist import get_spotify_client
         sp = get_spotify_client()
         result = undo_last_run(sp)
         return jsonify(result)

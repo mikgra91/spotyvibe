@@ -1,0 +1,20 @@
+<!-- Settings gear -->
+<div class="settings-wrapper">
+    <button class="settings-btn" onclick="toggleSettingsMenu()" title="Settings">⚙️</button>
+    <div class="settings-dropdown" id="settingsDropdown">
+        <button onclick="openCredentials()">🔑 Credentials</button>
+        <button onclick="openSettings()">⚙️ Settings</button>
+        <button id="spotifyToggleBtn" onclick="toggleSpotifyConnection()">
+            {{ '🔌 Disconnect Spotify' if spotify_connected else '🔌 Connect Spotify' }}
+        </button>
+        <button onclick="openHelp()">❓ Help</button>
+        <div class="lang-picker-row">
+            🌐
+            <select id="langPicker" onchange="switchLanguage(this.value)" title="UI Language">
+                <option value="en" {% if current_language == 'en' %}selected{% endif %}>English</option>
+                <option value="de" {% if current_language == 'de' %}selected{% endif %}>Deutsch</option>
+                {# ... more as needed #}
+            </select>
+        </div>
+    </div>
+</div>

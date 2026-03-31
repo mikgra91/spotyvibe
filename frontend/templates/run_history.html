@@ -1,0 +1,32 @@
+<!-- ── Run History ── -->
+<div class="history-section" id="historySection">
+    <div class="train-header">
+        <div class="train-header-left">
+            <h2>🕓 Run History</h2>
+        </div>
+        <div class="train-header-actions">
+            <button class="btn-train" onclick="toggleHistoryBody()">Show history</button>
+            <button class="btn btn-dislike" id="undoLastRunBtn" onclick="undoLastRun()"
+                {% if not run_history %}style="display:none;"{% endif %}>↩ Undo last run</button>
+        </div>
+    </div>
+    <div class="train-body hidden" id="historyBody">
+        <div id="historyList">
+            {% if run_history %}
+                {% for run in run_history %}
+                <div class="history-run-item">
+                    <div class="history-run-date">{{ run.timestamp|datetimeformat if run.timestamp else '?' }}</div>
+                    <div class="history-run-info">
+                        {{ run.tracks|length if run.tracks else 0 }} track(s) added
+                        {% if run.playlist_url %}
+                        <a href="{{ run.playlist_url }}" target="_blank" rel="noopener" style="color:var(--primary)">Open playlist</a>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="color:var(--text-muted)">No runs yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>

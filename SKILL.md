@@ -95,3 +95,68 @@ Spotipy stores the OAuth token at `CACHE_FILE` (`%LOCALAPPDATA%\spotyvibe\.spoti
 - **Never use `user_playlist_create()`** — the `POST /v1/users/{user_id}/playlists` endpoint was removed in February 2026. Use `current_user_playlist_create()`.
 - **Search `limit` must be ≤ 10** after the February 2026 change.
 - Before adding any new Spotify API call, verify the endpoint exists in the [current Spotify Web API Reference](https://developer.spotify.com/documentation/web-api).
+
+---
+
+# Agent Operational Procedures
+
+## SKILL: git-commit-and-push
+
+When committing and pushing changes, follow this procedure in order:
+
+1. Stage the relevant changed files
+2. **Check if any context files need updating:**
+   - `.github/workflows/*.yml` changed → regenerate `context/workflows.md`
+   - Project structure changed significantly → consider updating `context/architecture.md`
+3. Stage any regenerated context files alongside the main changes
+4. Commit with a descriptive message following the style defined in `AGENTS.md`
+5. Push to remote
+
+Context file updates must be part of the **same commit** as the changes that caused them — never a separate "update context" commit.
+
+---
+
+## Context Files
+
+Context files live in `context/` and are **generated summaries** — do not hand-edit them.
+
+### File format
+
+Every context file must begin with this header block:
+
+```
+# <Title>
+# Generated: <YYYY-MM-DD>
+# Source files:
+#   - path/to/source1
+#   - path/to/source2
+```
+
+The `# Source files:` list is mandatory. It tells future agents exactly which files to re-read when regenerating the summary — without it, the context file is untrustworthy.
+
+### Known context files
+
+| File | Summarizes | Regenerate when |
+|---|---|---|
+| `context/workflows.md` | `.github/workflows/*.yml` | Any workflow file changes |
+
+### How to regenerate a context file
+
+1. Read all files listed under `# Source files:` in the existing context file
+2. Summarize into the format above
+3. Update the `# Generated:` date to today
+4. Stage and commit as part of the SKILL: git-commit-and-push procedure
+
+# SKILL: Python Project GitHub Release and Tagging Automation
+
+## Overview
+
+This skill describes how to manage automated version tagging and artifact releases for a Python project using GitHub Actions. It is suitable for projects where a version number is defined in a `version.py` file, and releases are organized through Pull Requests (PR), semantic versioning, and dedicated workflows.
+
+---
+
+## 1. Version Management   
+
+- The source of truth for the application version is a `version.py` file in the project root:
+  ```python
+  __version__ = "1.2.3"  # or "0.5-beta"

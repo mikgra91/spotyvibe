@@ -42,6 +42,9 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$PROJECT_ROOT"
 
+# Ensure all build-time dependencies (including pystray) are installed
+pip install -r requirements.txt --quiet
+
 # Ensure icon exists (idempotent)
 python build_assets/make_ico.py
 
