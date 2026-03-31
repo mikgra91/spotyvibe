@@ -1,0 +1,21 @@
+<!-- Spotify track preview overlay -->
+<div class="spotify-preview-overlay {% if preview_track %}visible{% endif %}" id="spotifyPreviewOverlay">
+    <div class="spotify-preview-panel">
+        <button class="spotify-preview-close" onclick="closePreviewOverlay()" title="Close">✕</button>
+        <div class="spotify-preview-title" id="spotifyPreviewTitle">
+            {% if preview_track %}{{ preview_track.artist|e }} — {{ preview_track.title|e }}{% endif %}
+        </div>
+        <iframe id="spotifyPreviewIframe"
+            style="border-radius:12px"
+            width="100%"
+            height="152"
+            frameborder="0"
+            allowfullscreen=""
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            loading="lazy"
+            {% if preview_track and preview_track.track_id %}
+            src="https://open.spotify.com/embed/track/{{ preview_track.track_id }}?utm_source=generator&theme=0"
+            {% endif %}>
+        </iframe>
+    </div>
+</div>

@@ -1,0 +1,87 @@
+<!-- Settings modal -->
+<div class="modal-overlay" id="settingsModal" onclick="if(event.target===this)closeModal('settingsModal')">
+    <div class="modal" style="position:relative;">
+        <div class="modal-loading" id="settingsLoading">
+            <div class="spinner"></div>
+        </div>
+        <h2>⚙️ Settings</h2>
+
+        <!-- Model -->
+        <div class="form-row">
+            <label for="settings-model">Used Model</label>
+            <select id="settings-model">
+                {% if available_models %}
+                    {% for model in available_models %}
+                    <option value="{{ model }}" {% if settings.model == model %}selected{% endif %}>{{ model }}</option>
+                    {% endfor %}
+                {% else %}
+                <option value="{{ settings.model if settings.model }}">{{ settings.model if settings.model else 'Loading models…' }}</option>
+                {% endif %}
+            </select>
+            <div class="cred-status" id="status-settings-model"></div>
+            <div style="font-size:0.72rem;color:var(--warning);margin-top:5px;">⚠️ Different models have different costs. Check <a href="https://platform.openai.com/docs/pricing" target="_blank" rel="noopener" style="color:var(--primary);">OpenAI Pricing</a> before switching.</div>
+        </div>
+
+        <!-- Playlist size -->
+        <div class="form-row">
+            <label for="settings-playlist-size" style="display:flex;align-items:center;gap:6px;">
+                Playlist Size
+                <span class="tooltip-trigger" data-tooltip="Tracks are fetched in blocks of 10 per GPT request. Large values will cause many requests and therefore higher token usage / cost.">?</span>
+            </label>
+            <input id="settings-playlist-size" type="number" min="10" step="10" style="width:100%;"
+                value="{{ settings.playlist_size if settings.playlist_size }}">
+            <div class="cred-status" id="status-settings-playlist-size"></div>
+        </div>
+
+        <!-- New artist % -->
+        <div class="form-row">
+            <label for="settings-new-artist-pct" style="display:flex;align-items:center;gap:6px;">
+                New Artist %
+                <span class="tooltip-trigger" data-tooltip="Minimum percentage of suggestions that must come from artists not yet in your history. Higher values push GPT to explore new territory; lower values let it revisit familiar artists more often.">?</span>
+            </label>
+            <input id="settings-new-artist-pct" type="number" min="1" max="100" step="1" style="width:100%;"
+                value="{{ settings.new_artist_pct if settings.new_artist_pct is not none }}">
+            <div class="cred-status" id="status-settings-new-artist-pct"></div>
+        </div>
+
+        <!-- GPT language -->
+        {% set gpt_languages = [
+            ('English',    'English'),
+            ('German',     'German (Deutsch)'),
+            ('French',     'French (Français)'),
+            ('Spanish',    'Spanish (Español)'),
+            ('Italian',    'Italian (Italiano)'),
+            ('Portuguese', 'Portuguese (Português)'),
+            ('Dutch',      'Dutch (Nederlands)'),
+            ('Polish',     'Polish (Polski)'),
+        ] %}
+        <div class="form-row">
+            <label for="settings-gpt-language">ChatGPT Language</label>
+            <select id="settings-gpt-language" style="width:100%;">
+                {% for value, label in gpt_languages %}
+                <option value="{{ value }}" {% if settings.gpt_language == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <div class="cred-status" id="status-settings-gpt-language"></div>
+        </div>
+
+        <!-- Debug mode (desktop-only) -->
+        <div class="form-row {% if not debug_controls_available %}hidden{% endif %}" id="debugModeRow">
+            <label>Debug Mode</label>
+            <div style="display:flex;align-items:center;gap:10px;">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:0.88rem;color:var(--text-secondary);font-weight:400;">
+                    <input type="checkbox" id="settings-debug"
+                        style="width:auto;accent-color:var(--primary);cursor:pointer;"
+                        {% if settings.debug_mode %}checked{% endif %}>
+                    Log GPT requests &amp; responses to debug file
+                </label>
+            </div>
+            <div class="cred-status" id="status-settings-debug" style="margin-top:4px;"></div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn btn-save" onclick="saveSettings()">Save</button>
+            <button class="btn btn-cancel" onclick="closeModal('settingsModal')">Cancel</button>
+        </div>
+    </div>
+</div>

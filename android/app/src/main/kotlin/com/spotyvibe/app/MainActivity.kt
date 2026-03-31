@@ -1,6 +1,7 @@
 package com.spotyvibe.app
 
 import android.app.DownloadManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -92,11 +93,16 @@ class MainActivity : AppCompatActivity() {
     // ── Flask server ────────────────────────────────────────────────
 
     private fun showWebView() {
+        val prefs = getSharedPreferences("spotyvibe", Context.MODE_PRIVATE)
+        val onboardingDone = prefs.getBoolean("onboardingCompleted", false)
         runOnUiThread {
             splashView.visibility = View.GONE
             errorView.visibility = View.GONE
             webView.visibility = View.VISIBLE
-            webView.loadUrl(FLASK_URL)  // Server handles onboarding redirect
+            // First-time users go to onboarding; returning users go straight to the app.
+            // The Flask / route also redirects when ONBOARDING_COMPLETED is not set,
+            // so both layers agree.
+            webView.loadUrl(if (onboardingDone) FLASK_URL else ONBOARDING_URL)
         }
     }
 
@@ -203,6 +209,13 @@ class MainActivity : AppCompatActivity() {
                 val url = request.url.toString()
                 // Keep localhost traffic inside the WebView
                 if (url.startsWith(FLASK_URL)) {
+                    // Detect onboarding completion: navigating from /onboarding to /
+                    val fromOnboarding = view.url?.contains("/onboarding") == true
+                    val toMain = !url.contains("/onboarding")
+                    if (fromOnboarding && toMain) {
+                        getSharedPreferences("spotyvibe", Context.MODE_PRIVATE)
+                            .edit().putBoolean("onboardingCompleted", true).apply()
+                    }
                     return false
                 }
                 // External URLs (Spotify auth etc.) → system browser

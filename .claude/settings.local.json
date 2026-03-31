@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C \"c:/git/spotyvibe\" show 96fc34d:templates/index.html)",
+      "Bash(git -C c:/git/spotyvibe show 96fc34d:templates/index.html)",
+      "Bash(git -C c:/git/spotyvibe diff 96fc34d dc3f07f -- templates/index.html)",
+      "Bash(git -C /c/git/spotyvibe show 96fc34d:templates/index.html)",
+      "Bash(for f:*)",
+      "Bash(do echo:*)",
+      "Read(//c/git/spotyvibe/**)",
+      "Bash(done)",
+      "Bash(pip install:*)"
+    ]
+  }
+}

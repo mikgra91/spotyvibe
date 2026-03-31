@@ -1,0 +1,95 @@
+<!-- ── Section 1: Train ── -->
+<p class="section-label">Step 1 — Taste Profile</p>
+<p class="section-desc">Teach the AI what you like (and dislike) so it can tailor suggestions to your taste.</p>
+
+<div class="train-section" id="trainSection">
+    <div class="train-header">
+        <div class="train-header-left">
+            <h2>🎯 Music Profile</h2>
+            <span class="train-status" id="trainStatus">
+                {% if profile_trained %}✓ Last trained: {{ profile.last_updated|datetimeformat }}{% else %}⚠ Not yet trained — describe your taste below.{% endif %}
+            </span>
+        </div>
+        <div class="train-header-actions">
+            <button class="btn-train" id="trainToggleBtn" onclick="toggleTrainBody()">
+                {{ 'Hide profile' if profile_edit_mode else 'Edit profile' }}
+            </button>
+            <div class="profile-io-row {% if not profile_edit_mode %}hidden{% endif %}" id="profileIoActions" aria-label="Profile import/export/reset">
+                <button class="btn btn-profile-io" id="profileImportBtn" onclick="startImportProfile()" title="Import profile JSON">⬆ Import</button>
+                <button class="btn btn-profile-io" id="profileExportBtn" onclick="exportProfile()" title="Export profile JSON">⬇ Export</button>
+                <button class="btn btn-profile-io" id="profileResetBtn" onclick="resetProfileToHistory()" title="Reset profile to previous saved version">↩ Reset to history</button>
+            </div>
+            <input id="profileImportInput" type="file" accept="application/json,.json" style="display:none;" />
+        </div>
+    </div>
+
+    <div id="trainWarn" class="hidden"></div>
+    <div class="train-body {% if not profile_edit_mode %}hidden{% endif %}" id="trainBody">
+
+        <!-- Core Description (required) -->
+        <div class="accordion-panel open" id="accCoreDesc">
+            <div class="accordion-header" onclick="toggleAccordion('accCoreDesc')">
+                <h3>🎵 Core Description <span class="acc-required">required</span></h3>
+                <span class="accordion-chevron">▼</span>
+            </div>
+            <div class="accordion-body">
+                <div class="accordion-body-inner">
+                    <p class="acc-hint">Describe your ideal sound in your own words — genre, mood, energy, reference artists. This is the foundation of your profile.</p>
+                    <textarea id="trainCoreDesc" placeholder='e.g. "Upbeat, theatrical rock with strong melodic hooks, rich harmonies, and constant momentum. Think Queen meets Bear Ghost."'>{{ profile.core_description if profile.core_description }}</textarea>
+                    <div class="acc-error-msg" id="errCoreDesc">Core description is required.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Must Have -->
+        <div class="accordion-panel" id="accMustHave">
+            <div class="accordion-header" onclick="toggleAccordion('accMustHave')">
+                <h3>✅ Must Have</h3>
+                <span class="accordion-chevron">▼</span>
+            </div>
+            <div class="accordion-body">
+                <div class="accordion-body-inner">
+                    <p class="acc-hint">Non-negotiable traits every suggestion <strong>must</strong> have. One per line. These are hard requirements — a track missing any one is rejected.</p>
+                    <textarea id="trainMustHave" placeholder='e.g.&#10;high energy&#10;strong memorable melodies&#10;vocals / singing (no instrumentals)'>{{ profile.must_have if profile.must_have }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Soft Preferences -->
+        <div class="accordion-panel" id="accSoftPrefs">
+            <div class="accordion-header" onclick="toggleAccordion('accSoftPrefs')">
+                <h3>💡 Soft Preferences</h3>
+                <span class="accordion-chevron">▼</span>
+            </div>
+            <div class="accordion-body">
+                <div class="accordion-body-inner">
+                    <p class="acc-hint">Nice-to-have traits that improve a suggestion but aren't required. One per line.</p>
+                    <textarea id="trainSoftPrefs" placeholder='e.g.&#10;slight prog influence&#10;playful and clever composition'>{{ profile.soft_preferences if profile.soft_preferences }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Avoid -->
+        <div class="accordion-panel" id="accAvoid">
+            <div class="accordion-header" onclick="toggleAccordion('accAvoid')">
+                <h3>🚫 Avoid</h3>
+                <span class="accordion-chevron">▼</span>
+            </div>
+            <div class="accordion-body">
+                <div class="accordion-body-inner">
+                    <p class="acc-hint">Traits that immediately disqualify a track. One per line. These are absolute dealbreakers.</p>
+                    <textarea id="trainAvoid" placeholder='e.g.&#10;electronic/synth-heavy production&#10;slow or mid-tempo songs&#10;80s production aesthetic'>{{ profile.avoid if profile.avoid }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="train-actions">
+            <button class="btn btn-save" id="trainSendBtn" onclick="sendTrainProfile()">AI Profile Update</button>
+            <div class="train-actions-right">
+                <button class="btn btn-save" id="trainSaveBtn" onclick="saveProfileDirect()">Save</button>
+                <button class="btn btn-cancel" onclick="toggleTrainBody()">Cancel</button>
+            </div>
+        </div>
+    </div>
+    <div id="trainSuccessIcon" class="hidden"></div>
+</div>
