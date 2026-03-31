@@ -116,6 +116,18 @@ Context file updates must be part of the **same commit** as the changes that cau
 
 ---
 
+## SKILL: create-pull-request
+
+To create a Pull Request from `develop` into `main`:
+
+```bash
+gh pr create --base main --head develop --fill
+```
+
+`--fill` uses the commit log to auto-populate the PR title and body.
+
+---
+
 ## Context Files
 
 Context files live in `context/` and are **generated summaries** — do not hand-edit them.
