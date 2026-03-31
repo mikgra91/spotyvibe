@@ -50,7 +50,7 @@ for item in app.py spotyvibe_bootstrap.py config.py core prompts data static tem
   if [ -d "$PROJECT_ROOT/$item" ]; then
     cp -r "$PROJECT_ROOT/$item" "$PYTHON_DEST/"
     find "$PYTHON_DEST/$item" -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
-  else
+  elif [ -f "$PROJECT_ROOT/$item" ]; then
     cp "$PROJECT_ROOT/$item" "$PYTHON_DEST/"
   fi
 done
