@@ -56,10 +56,9 @@ spotyvibe/
 │   └── feedback.py         # Like/dislike recording
 ├── prompts/                # AI prompt templates
 ├── data/                   # Template data
-├── static/css/styles.css
 ├── frontend/
 │   ├── templates/          # Flask templates (base.html + partials)
-│   └── static/js/          # Vanilla JS modules
+│   └── static/             # CSS, JS, and other static assets
 ├── context/                # Generated context summaries (do not hand-edit)
 └── tests/
 ```
