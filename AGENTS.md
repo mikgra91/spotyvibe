@@ -1,14 +1,13 @@
 # AGENTS.md
 
 Project-level instructions for AI coding agents working on this codebase.
+See [`SKILL.md`](SKILL.md) for operational procedures (git workflow, context file maintenance, Spotify API reference).
 
 ---
 
 ## Project Overview
 
-**SpotyVibe** is an AI-powered music discovery tool that creates personalised Spotify playlists. It is a Python web application built with Flask, using the OpenAI API for music suggestions and the Spotify Web API for playlist management.
-
----
+**SpotyVibe** is an AI-powered music discovery tool that creates personalised Spotify playlists via Flask + OpenAI + Spotify Web API.
 
 ## Tech Stack
 
@@ -17,81 +16,52 @@ Project-level instructions for AI coding agents working on this codebase.
 | Language | Python 3.10+ |
 | Web framework | Flask ≥3.0 |
 | AI | OpenAI API (direct HTTP via `core/openai_http.py`, no SDK) |
-| Spotify integration | Spotipy ≥2.23 (Spotify Web API wrapper) |
-| Credential storage | python-dotenv ≥1.0 |
-| Frontend | Vanilla HTML / CSS / JavaScript (single-page, no framework) |
+| Spotify | Spotipy ≥2.23 |
+| Credentials | python-dotenv ≥1.0 |
+| Frontend | Vanilla HTML/CSS/JS (single-page, no framework) |
 | Tests | pytest ≥7.0 |
-
----
 
 ## Build & Run
 
 ```bash
-# Install dependencies
-cd spotyvibe
 pip install -r requirements.txt
-
-# Start the app
-python app.py
-# Open http://127.0.0.1:5000
-
-# Run tests
+python app.py          # http://127.0.0.1:5000
 python -m pytest tests/ -v
 ```
 
-**Required credentials** (configured at runtime via the UI, stored in `%LOCALAPPDATA%\spotyvibe\.credentials`):
-- OpenAI API Key
-- Spotify Client ID & Client Secret
+Credentials (OpenAI key, Spotify Client ID/Secret) are configured via the UI and stored in `%LOCALAPPDATA%\spotyvibe\.credentials`.
+Spotify app must have `http://127.0.0.1:5000/callback` as a Redirect URI.
 
-The Spotify app must have `http://127.0.0.1:5000/callback` listed as a Redirect URI in the Spotify Developer Dashboard.
+## Android (Chaquopy) Constraints
 
----
+The Android APK uses Chaquopy. Pip pins in `android/app/build.gradle` intentionally differ from `requirements.txt` — avoid packages with native/Rust extensions.
 
-## Android (Chaquopy) dependency pinning
-
-The Android APK is built with **Chaquopy**, which installs Python packages from the `python { pip { ... } }` block in `android/app/build.gradle`.
-
-These pins are intentionally **not identical** to `requirements.txt` because Android builds must avoid packages (or transitive dependencies) which require compiling native extensions (especially **Rust**) from source.
-
-The OpenAI SDK (`openai`) has been **removed** — API calls now use `core/openai_http.py` (Python stdlib `urllib` + `json`). This eliminates the native/Rust transitive dependencies (`jiter`, `pydantic-core`) that previously blocked Chaquopy builds.
-
-Current known constraints (do not change without validating an Android build):
-
-- **`pydantic` must be `<2.0`** (if re-added)
-  - Pydantic v2 depends on **`pydantic-core`** (Rust). Chaquopy does not provide wheels for it, and source builds fail.
-- **Do not re-add `openai` to Android pip installs**
-  - OpenAI Python ≥1.35 depends on **`jiter`** (Rust). The direct HTTP client in `core/openai_http.py` replaces the SDK entirely.
-
-If you update any Android pip pins:
-- Check the full transitive dependency set for sdists / native builds.
-- Run `./build-tools/build_apk.sh debug` to confirm Chaquopy can install everything for all configured ABIs.
-
-
-
----
+- **Do not re-add `openai`** — replaced by `core/openai_http.py` to eliminate `jiter`/`pydantic-core` (Rust) deps
+- **`pydantic` must be `<2.0`** if re-added — v2 depends on `pydantic-core` (Rust)
+- After changing Android pip pins, run `./build-tools/build_apk.sh debug` to validate
 
 ## Project Structure
-
 
 ```
 spotyvibe/
 ├── app.py                  # Flask web server — all HTTP endpoints
-├── config.py               # Centralised configuration & credential management
-├── requirements.txt        # Python dependencies
-├── core/                   # Business logic modules
+├── config.py               # Configuration & credential management
+├── requirements.txt
+├── core/
 │   ├── openai_http.py      # Direct HTTP client for OpenAI API (no SDK)
-│   ├── utils.py            # Shared utilities (debug log, text helpers)
+│   ├── utils.py            # Shared utilities
 │   ├── profile.py          # Taste profile I/O and GPT-based training
 │   ├── suggestions.py      # GPT suggestion engine and deduplication
 │   ├── playlist.py         # Spotify playlist management and OAuth
 │   └── feedback.py         # Like/dislike recording
-├── prompts/                # AI prompt templates (editable without code changes)
-├── data/                   # Template data (empty profile seed)
-├── static/                 # Static assets served by Flask
-│   └── css/
-│       └── styles.css      # Main stylesheet
-├── templates/              # Flask templates (index.html — single-page UI)
-└── tests/                  # pytest unit tests
+├── prompts/                # AI prompt templates
+├── data/                   # Template data
+├── static/css/styles.css
+├── frontend/
+│   ├── templates/          # Flask templates (base.html + partials)
+│   └── static/js/          # Vanilla JS modules
+├── context/                # Generated context summaries (do not hand-edit)
+└── tests/
 ```
 
 ---
@@ -99,286 +69,55 @@ spotyvibe/
 ## Rules
 
 ### Task Planning
-
-- **If a task is big, always plan first.** Do not start implementing a large change without a plan.
-- If you assess a task as big (e.g. multiple files, new features, cross-cutting concerns), **inform the user** that the task is large and that you will create a plan before writing any code.
-- Present the plan to the user — including the list of files to change, the order of changes, and a summary of each step — and **wait for the user to confirm** before proceeding with implementation.
-- **Big tasks should be broken down and executed in sub-agents.** Each sub-agent handles one well-scoped piece of the plan (e.g. one module, one test file, one documentation update). This keeps changes focused, reviewable, and easier to roll back.
+- For large tasks (multiple files, new features, cross-cutting concerns): inform the user, present a plan with files/order/summary, and **wait for confirmation** before implementing.
+- Break large tasks into sub-agents, one scoped piece per agent.
 
 ### Spotify API
+- Consult [`SKILL.md`](SKILL.md) for endpoint reference, Feb 2026 breaking changes, OAuth requirements, and spotipy mappings.
+- Never use deprecated endpoints. Verify against the [Spotify Web API Reference](https://developer.spotify.com/documentation/web-api) before adding new calls.
 
-- **Always use the current Spotify Web API endpoints.** Do not use deprecated or removed endpoints. Before making Spotify API changes, verify the endpoint is supported by checking the [Spotify Web API Reference](https://developer.spotify.com/documentation/web-api).
-- **Consult [`SKILL.md`](SKILL.md) for a full summary of endpoints used by SpotyVibe, the February 2026 breaking changes, OAuth redirect URI requirements, and spotipy method mappings.**
-- Playlist creation must use `POST /v1/me/playlists` (via `spotipy.Spotify.current_user_playlist_create()`), not the removed `POST /v1/users/{user_id}/playlists`.
-- Playlist track reads/writes must use `GET/POST /playlists/{id}/items` (via `sp.playlist_items()` / `sp.playlist_add_items()`). The old `/tracks` endpoints were removed in February 2026.
-- Prefer `current_user_*` spotipy methods over the older `user_*` variants wherever available.
-- Search `limit` must be ≤ 10 (Spotify reduced the maximum in February 2026).
+### Agent Procedures & Context Files
+- Follow the git commit/push procedure in [`SKILL.md`](SKILL.md).
+- Context files in `context/` are generated summaries — regenerate them when their source files change, in the same commit.
 
 ### Documentation
-
-- **Every feature change must be documented in all three places:**
-  1. **`README.md`** — general overview of the feature for first-time visitors.
-  2. **`UserManual.md`** — end-user explanation: what the feature does, how to use it, and relevant troubleshooting.
-  3. **`TechnicalManual.md`** — technical details: architecture, API endpoints, data flow, and implementation notes.
-- Do not skip any of the three. If a change affects the UI, backend, or external API behaviour, all three documents must be updated in the same changeset.
+Every feature change must be reflected in all three:
+1. `README.md` — general overview
+2. `documentation/help.md` — end-user usage and troubleshooting (served via `/api/help`)
+3. `documentation/TechnicalManual.md` — architecture, API, data flow
 
 ### Code Style
+- Meaningful names, comments only where the "why" isn't obvious.
+- Follow existing conventions; check for duplicate logic before adding new code.
+- Only remove an import after verifying no usages remain.
+- After new features, create/update unit tests.
 
-- Write clear, readable code with meaningful names.
-- Add comments only where the "why" is not obvious.
-- Follow existing project conventions — do not rename things for external consistency.
-- Check for duplicate logic before adding new code; extract shared logic into helpers.
-- Only remove an import after verifying no usages remain in the entire file.
-- after new features always create/update the existing unit tests
+### Git
+- **No destructive commands**: no `git restore`, `git checkout -- <path>`, `git reset`, `git clean`. On unexpected state, inspect and ask the user.
+- **Commit message style** — sentence-case subject, no trailing period; bullet body for multi-file changes describing what changed and why:
+  ```
+  Add profile import/export and tighten Android WebView security
 
-### Git Safety
-
-- **Do not run destructive git commands** such as `git restore`, `git checkout -- <path>`, `git reset`, or `git clean`.
-- If the working tree contains unexpected changes, use non-destructive inspection (`git status`, diffs) and ask the user how to proceed.
-
-### Git Commit Message Style
-
-Follow the existing repository commit message style:
-
-- **Subject line:** short, sentence-case summary (no trailing period). Keep it descriptive (avoid placeholder commits like `"y"`).
-- **Body (recommended for multi-file changes):** blank line after the subject, then a bullet list using `- `.
-- Bullets should describe **what changed and why**, not just file names.
-
-Example:
-
-```
-Add profile import/export and tighten Android WebView security
-
-- Add profile import/export endpoints and UI controls
-- Enforce server-side import size limits
-- Restrict Android WebView downloads to trusted localhost endpoints
-- Update docs and tests for new behavior
-```
-
+  - Add profile import/export endpoints and UI controls
+  - Enforce server-side import size limits
+  ```
 
 ### Credentials & Security
-
-
-- Never hardcode API keys or secrets in source code.
-- All credentials are stored in `%LOCALAPPDATA%\spotyvibe\.credentials` (dotenv format), outside the project directory.
-- Never commit the `.credentials` file, `.spotify-cache`, or `personalized_music_profile.json`.
+- Never hardcode API keys or secrets.
+- Never commit `.credentials`, `.spotify-cache`, or `personalized_music_profile.json`.
 
 ### Tests
-
-- Run `python -m pytest tests/ -v` before completing any code or styling change (Python files, HTML templates, CSS).
-- **Do not run tests for documentation-only changes** (e.g. updates to `README.md`, `UserManual.md`, `TechnicalManual.md`, or `AGENTS.md`).
-- External API calls (OpenAI, Spotify) must be mocked in tests.
-
-# Token & Context Optimization Rules (Claude Code)
-
-## 1. Core Principle
-- Optimize for **tokens per successful task**, not per message.
-- Minimize tokens **without reducing correctness**.
-- Every token must provide value.
-- Prefer clarity over extreme brevity if it prevents retries.
+- Run `python -m pytest tests/ -v` before completing any code or styling change.
+- Skip for documentation-only changes.
+- Mock all external API calls (OpenAI, Spotify).
 
 ---
 
-## 2. Context Budget Management
+## Context & Token Efficiency
 
-### 2.1 Soft Context Limit (CRITICAL)
-- Do NOT exceed **60–70% of the model's max context window**.
-- Behavior:
-  - <50% → normal operation
-  - 50–70% → begin compaction
-  - >70% → aggressive compaction required
-  - >85% → critical, must reduce immediately
-
----
-
-### 2.2 Mandatory Compaction Thresholds
-- <300 tokens → never compact  
-- 300–800 tokens → avoid compaction  
-- 800–1,500 tokens → compact if reused  
-- >1,500 tokens → compact if reused once  
-- >3,000 tokens → compaction REQUIRED  
-
----
-
-### 2.3 Context Reuse Rule
-- If context will be reused ≥2 times → prefer summarization.
-- Avoid re-sending large raw context multiple times.
-
----
-
-## 3. Context Quality (More Important than Size)
-
-### 3.1 Context Dilution Rule
-- More context can reduce accuracy.
-- Always prefer **high-signal, relevant context** over large context.
-
----
-
-### 3.2 Relevance Filtering (MANDATORY)
-- Remove irrelevant content BEFORE summarizing.
-- Never compress irrelevant information — delete it.
-
----
-
-### 3.3 Information Density Rule
-- Preserve:
-  - constraints
-  - numbers
-  - code
-  - key facts
-- Remove:
-  - filler text
-  - explanations
-  - redundancy
-
----
-
-## 4. Context Structure (CRITICAL — Research-Based)
-
-### 4.1 Position-Aware Ordering
-- Place most important information at:
-  1. Beginning
-  2. End
-- Avoid placing critical information in the middle of long context.
-
----
-
-### 4.2 Lost-in-the-Middle Mitigation
-- Extract key facts and move them to the top.
-- Keep important constraints near the end when relevant.
-
----
-
-## 5. Compression Strategy
-
-### 5.1 Hierarchical Compression (REQUIRED)
-- Never summarize large context in one step.
-- Use:
-  1. Split into chunks
-  2. Summarize each chunk
-  3. Merge summaries
-
----
-
-### 5.2 Compression Ratios
-- General tasks → 30–60%
-- Code / technical → 50–80%
-- High precision → 70–90%
-- Avoid compression below 30% unless necessary
-
----
-
-### 5.3 Anti-Recompression Rule
-- NEVER summarize already summarized content.
-- Always summarize from the original source if available.
-- If only a summary exists → treat it as final.
-
----
-
-## 6. Agent Loop Optimization
-
-### 6.1 Minimize Reasoning Tokens
-- Keep reasoning short and structured.
-- Avoid verbose chain-of-thought.
-
----
-
-### 6.2 Avoid Re-Planning
-- Do NOT restate full plans every step.
-- Only update what changed.
-
----
-
-### 6.3 Early Convergence
-- Stop once the task is complete.
-- Avoid unnecessary exploration.
-
----
-
-## 7. Tool Usage Optimization
-
-### 7.1 Minimize Tool Calls
-- Prefer fewer, more complete tool calls.
-- Combine operations when possible.
-
----
-
-### 7.2 Reduce Tool Payload
-- Send only required parameters.
-- Avoid sending full files unless necessary.
-
----
-
-### 7.3 Avoid Duplication
-- Do not re-send identical tool results.
-- Store and reference instead.
-
----
-
-## 8. File & Code Context Management
-
-### 8.1 Partial Reads Only
-- Read only:
-  - relevant sections
-  - specific lines
-  - required symbols
-
----
-
-### 8.2 Summarize Large Files
-- Summarize after reading.
-- Discard raw content once summarized.
-
----
-
-### 8.3 Avoid Duplicate Context
-- Do not include the same code multiple times.
-- Reference instead of repeating.
-
----
-
-## 9. Multi-Step Task Optimization
-
-### 9.1 Merge Steps
-- Combine compatible operations.
-
----
-
-### 9.2 Avoid Backtracking
-- Validate before acting.
-
----
-
-### 9.3 Cache Results
-- Reuse intermediate results.
-
----
-
-## 10. Anti-Patterns (Avoid)
-
-- Re-reading the same file multiple times
-- Repeating full plans every step
-- Sending full file contents unnecessarily
-- Keeping outdated context
-- Verbose reasoning traces
-- Excessive tool calls
-- Large unfiltered retrieval results
-
----
-
-## 11. Heuristics
-
-- If it can be removed → remove it
-- If it repeats → deduplicate it
-- If it grows → summarize it
-- If it’s irrelevant → delete it
-- If output is long → constrain it
-
----
-
-## 12. Tradeoff Rule
-
-- Use more tokens only if it:
-  - prevents retries
-  - improves correctness
-  - reduces total steps
+- Prefer high-signal, relevant context over large context. Remove irrelevant content before summarizing.
+- Read only required sections/lines of files; summarize after reading; don't re-read the same file twice.
+- Keep reasoning short. Don't restate full plans every step — only update what changed.
+- Prefer fewer, more complete tool calls. Don't re-send identical results.
+- Place critical information at the beginning or end of context, not the middle.
+- Stop once the task is complete — avoid unnecessary exploration.

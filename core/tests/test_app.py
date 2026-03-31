@@ -53,7 +53,8 @@ class TestOnboarding:
 class TestHelpContent:
     @patch("app.BASE_DIR")
     def test_returns_html_from_manual(self, mock_base_dir, client, tmp_path):
-        manual = tmp_path / "UserManual.md"
+        (tmp_path / "documentation").mkdir()
+        manual = tmp_path / "documentation" / "help.md"
         manual.write_text("# Help\n\nSome **bold** text.")
         mock_base_dir.__truediv__ = lambda self, x: tmp_path / x
         # Need to patch the actual path resolution

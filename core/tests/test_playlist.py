@@ -27,14 +27,14 @@ class TestGetSpotifyAuthStatus:
     @patch("core.src.playlist.get_spotify_oauth")
     @patch.dict(os.environ, {"SPOTIPY_CLIENT_ID": "id", "SPOTIPY_CLIENT_SECRET": "secret"})
     def test_not_authenticated_when_no_token(self, mock_oauth):
-        mock_oauth.return_value.get_cached_token.return_value = None
+        mock_oauth.return_value.validate_token.return_value = None
         assert get_spotify_auth_status() == "not_authenticated"
 
     @patch("core.src.playlist.spotipy.Spotify")
     @patch("core.src.playlist.get_spotify_oauth")
     @patch.dict(os.environ, {"SPOTIPY_CLIENT_ID": "id", "SPOTIPY_CLIENT_SECRET": "secret"})
     def test_authenticated_when_valid_token(self, mock_oauth, mock_sp_cls):
-        mock_oauth.return_value.get_cached_token.return_value = {"access_token": "tok"}
+        mock_oauth.return_value.validate_token.return_value = {"access_token": "tok"}
         mock_sp_cls.return_value.current_user.return_value = {"id": "user1"}
         assert get_spotify_auth_status() == "authenticated"
         # Verify auth_manager is used (enables auto-refresh) rather than bare auth=
@@ -44,7 +44,7 @@ class TestGetSpotifyAuthStatus:
     @patch("core.src.playlist.get_spotify_oauth")
     @patch.dict(os.environ, {"SPOTIPY_CLIENT_ID": "id", "SPOTIPY_CLIENT_SECRET": "secret"})
     def test_not_authenticated_when_token_invalid(self, mock_oauth, mock_sp_cls):
-        mock_oauth.return_value.get_cached_token.return_value = {"access_token": "expired"}
+        mock_oauth.return_value.validate_token.return_value = {"access_token": "expired"}
         mock_sp_cls.return_value.current_user.side_effect = Exception("token expired")
         assert get_spotify_auth_status() == "not_authenticated"
 

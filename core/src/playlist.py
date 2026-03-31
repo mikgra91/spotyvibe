@@ -39,7 +39,7 @@ from spotipy.exceptions import SpotifyException
 # SpotifyOAuth implements the Authorization Code Flow — the user
 # authorises via browser, the app receives a code, exchanges it for
 # access + refresh tokens, and caches them locally.
-from spotipy.oauth2 import SpotifyOAuth
+from spotipy.oauth2 import SpotifyOAuth, CacheFileHandler
 from config import CACHE_FILE, IS_ANDROID
 
 # Name used for the managed playlist. If a playlist with this name
@@ -98,12 +98,13 @@ def get_spotify_oauth():
     - `open_browser=False`: The app controls when/how the browser opens
       (via the UI), rather than letting spotipy auto-launch it.
     """
+    cache_handler = CacheFileHandler(cache_path=str(CACHE_FILE))
     return SpotifyOAuth(
         client_id=os.getenv("SPOTIPY_CLIENT_ID"),
         client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
         redirect_uri=REDIRECT_URI,
         scope="playlist-modify-private playlist-read-private",
-        cache_path=str(CACHE_FILE),
+        cache_handler=cache_handler,
         open_browser=False,
     )
 
@@ -136,7 +137,7 @@ def get_spotify_auth_status():
 
     try:
         oauth = get_spotify_oauth()
-        token = oauth.get_cached_token()
+        token = oauth.validate_token(oauth.cache_handler.get_cached_token())
         if not token:
             return "not_authenticated"
 

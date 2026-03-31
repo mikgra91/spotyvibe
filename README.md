@@ -121,8 +121,8 @@ Notes:
 
 | Document | Description |
 |---|---|
-| **[User Manual](UserManual.md)** | Step-by-step setup guide and usage instructions for end users. |
-| **[Technical Manual](TechnicalManual.md)** | Architecture overview, component interactions, and developer reference. |
+| **[User Manual](documentation/UserManual.md)** | Step-by-step setup guide and usage instructions for end users. |
+| **[Technical Manual](documentation/TechnicalManual.md)** | Architecture overview, component interactions, and developer reference. |
 
 ---
 

@@ -7,7 +7,7 @@ Build (one-file):
 
 Notes:
 - Includes runtime asset folders (templates/, static/, prompts/, data/)
-- Includes UserManual.md for the in-app Help modal (/api/help)
+- Includes documentation/help.md for the in-app Help modal (/api/help)
 - Does NOT bundle credentials; those remain in %LOCALAPPDATA%\spotyvibe\
 - One-file builds have a slower cold start because PyInstaller extracts
   bundled files to a temporary directory on launch.
@@ -34,7 +34,7 @@ datas = [
     (os.path.join(project_root, "static"), "static"),
     (os.path.join(project_root, "prompts"), "prompts"),
     (os.path.join(project_root, "data"), "data"),
-    (os.path.join(project_root, "UserManual.md"), "."),
+    (os.path.join(project_root, "documentation", "help.md"), "documentation"),
 ]
 
 a = Analysis(

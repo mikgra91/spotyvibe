@@ -173,10 +173,10 @@ def onboarding_complete():
 
 @app.route("/api/help")
 def help_content():
-    """Return the User Manual rendered as HTML."""
-    manual_path = BASE_DIR / "UserManual.md"
+    """Return the help guide rendered as HTML."""
+    manual_path = BASE_DIR / "documentation" / "help.md"
     if not manual_path.exists():
-        return jsonify({"error": "User manual not found."}), 404
+        return jsonify({"error": "Help file not found."}), 404
     md_text = manual_path.read_text(encoding="utf-8")
     html = markdown.markdown(md_text, extensions=["tables", "fenced_code"])
     return jsonify({"html": html})
