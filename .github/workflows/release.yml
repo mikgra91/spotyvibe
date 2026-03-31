@@ -85,14 +85,11 @@ jobs:
           if [ ! -s changes.txt ]; then
             echo "No changes found for $TAG" > changes.txt
           fi
-      - id: get_changelog
-        run: echo "CHANGELOG<<EOF" >> $GITHUB_ENV && cat changes.txt >> $GITHUB_ENV && echo "EOF" >> $GITHUB_ENV
-
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          body: ${{ env.CHANGELOG }}
+          body_path: changes.txt
           draft: false
           prerelease: false
           files: |
