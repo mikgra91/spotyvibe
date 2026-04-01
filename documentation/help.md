@@ -7,47 +7,54 @@ This guide explains how to use the **SpotyVibe interface** to set up your prefer
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Before You Start](#before-you-start)
 - [Getting Started](#getting-started)
-- [Understanding the Main Screen](#understanding-the-main-screen)
-- [First-Time Setup](#first-time-setup)
+  - [Overview](#overview)
+  - [Before You Start](#before-you-start)
+  - [Understanding the Main Screen](#understanding-the-main-screen)
+- [Account Setup](#account-setup)
   - [Open the Menu](#open-the-menu)
   - [Enter Your Credentials](#enter-your-credentials)
-  - [Choose Your Settings](#choose-your-settings)
-  - [Choose Language](#choose-language)
-  - [Choose Theme](#choose-theme)
   - [Connect Your Spotify Account](#connect-your-spotify-account)
-- [Create Your Music Profile](#create-your-music-profile)
-  - [Core Description](#core-description)
-  - [Must Have](#must-have)
-  - [Soft Preferences](#soft-preferences)
-  - [Avoid](#avoid)
-  - [Save or AI Profile Update](#save-or-ai-profile-update)
-- [Import, Export, and Reset Your Profile](#import-export-and-reset-your-profile)
-- [Use Band/Song Analysis](#use-bandsong-analysis)
-- [Generate a Playlist](#generate-a-playlist)
+- [User Preferences](#user-preferences)
+  - [Settings](#settings)
+  - [Language](#language)
+  - [Theme](#theme)
+- [Music Profile](#music-profile)
+  - [Create Your Music Profile](#create-your-music-profile)
+    - [Core Description](#core-description)
+    - [Must Have](#must-have)
+    - [Soft Preferences](#soft-preferences)
+    - [Avoid](#avoid)
+    - [Save or AI Profile Update](#save-or-ai-profile-update)
+  - [Import, Export, and Reset Your Profile](#import-export-and-reset-your-profile)
+  - [Updating Your Taste Over Time](#updating-your-taste-over-time)
+- [Discovery & Analysis](#discovery--analysis)
+  - [Band/Song Analysis](#bandsong-analysis)
+- [Playlist Generation](#playlist-generation)
   - [Choose a Playlist Mode](#choose-a-playlist-mode)
   - [Use Audio Filters](#use-audio-filters)
   - [Start Generation](#start-generation)
   - [Stop Early or Use Current Tracks](#stop-early-or-use-current-tracks)
-- [Review and Manage Suggested Tracks](#review-and-manage-suggested-tracks)
+- [Track Review & Feedback](#track-review--feedback)
   - [Preview a Track](#preview-a-track)
   - [Open Spotify Links](#open-spotify-links)
   - [Like a Track](#like-a-track)
   - [Dislike a Track](#dislike-a-track)
   - [Remove a Track](#remove-a-track)
-- [Song List and Run History](#song-list-and-run-history)
+- [Song List & Run History](#song-list--run-history)
   - [Persistent Song List](#persistent-song-list)
   - [Run History](#run-history)
   - [Undo Last Run](#undo-last-run)
-- [Updating Your Taste Over Time](#updating-your-taste-over-time)
-- [Using SpotyVibe on Mobile](#using-spotyvibe-on-mobile)
-- [Troubleshooting](#troubleshooting)
+- [Mobile Usage](#mobile-usage)
+- [Troubleshooting & Tips](#troubleshooting--tips)
+  - [Troubleshooting](#troubleshooting)
+  - [Final Tips](#final-tips)
 
 ---
 
-## Overview
+## Getting Started
+
+### Overview
 
 SpotyVibe helps you discover music based on your personal taste.  
 You describe what you like, connect your Spotify account, and let the app generate playlist suggestions tailored to you.
@@ -58,7 +65,7 @@ The more feedback you give, the better the recommendations become.
 
 ---
 
-## Before You Start
+### Before You Start
 
 To use SpotyVibe, make sure you have:
 
@@ -73,7 +80,7 @@ You will enter these in the app during setup.
 
 ---
 
-## Getting Started
+### Understanding the Main Screen
 
 When you open SpotyVibe, you will see the main interface with two provider sections:
 
@@ -83,12 +90,6 @@ When you open SpotyVibe, you will see the main interface with two provider secti
 Status pills at the top of each section show whether your credentials are configured and connected.
 
 Each major component is **collapsible/expandable**. You can click the section header (anywhere in the title area) or the toggle button to expand or collapse it. A short description below each title explains what the component does.
-
-Before generating playlists, complete your setup and create your music profile.
-
----
-
-## Understanding the Main Screen
 
 The main screen is organised into collapsible components grouped under two provider sections:
 
@@ -119,7 +120,7 @@ At the top of the page, you can also access:
 
 ---
 
-## First-Time Setup
+## Account Setup
 
 ### Open the Menu
 
@@ -151,9 +152,29 @@ If the information is correct, you can proceed to connect Spotify.
 
 ---
 
-### Choose Your Settings
+### Connect Your Spotify Account
 
-Open **Settings** to customize how SpotyVibe works for you.
+After saving your credentials, SpotyVibe will prompt you to connect Spotify.
+
+Click **Connect to Spotify** and complete the sign-in flow.
+
+Once connected:
+
+- The connection banner disappears
+- You can start generating playlists
+- SpotyVibe can create and manage playlists for you
+
+If your session expires later, simply reconnect.
+
+> **Screenshot placeholder:** Connect to Spotify banner
+
+---
+
+## User Preferences
+
+### Settings
+
+Open **Settings** from the menu to customize how SpotyVibe works for you.
 
 Available settings include:
 
@@ -175,7 +196,7 @@ Click **Save** after making changes.
 
 ---
 
-### Choose Language
+### Language
 
 Use the **language picker** at the top of the page to switch the interface language.
 
@@ -190,7 +211,7 @@ This changes text such as:
 
 ---
 
-### Choose Theme
+### Theme
 
 SpotyVibe includes multiple visual themes.
 
@@ -202,25 +223,9 @@ Themes change the visual style of the interface but do not affect playlist resul
 
 ---
 
-### Connect Your Spotify Account
+## Music Profile
 
-After saving your credentials, SpotyVibe will prompt you to connect Spotify.
-
-Click **Connect to Spotify** and complete the sign-in flow.
-
-Once connected:
-
-- The connection banner disappears
-- You can start generating playlists
-- SpotyVibe can create and manage playlists for you
-
-If your session expires later, simply reconnect.
-
-> **Screenshot placeholder:** Connect to Spotify banner
-
----
-
-## Create Your Music Profile
+### Create Your Music Profile
 
 Before SpotyVibe can generate good recommendations, you need to teach it your taste.
 
@@ -232,7 +237,7 @@ You will see several sections that help describe your ideal music.
 
 ---
 
-### Core Description
+#### Core Description
 
 This is the most important part of your profile.
 
@@ -252,7 +257,7 @@ This field should clearly explain your overall taste.
 
 ---
 
-### Must Have
+#### Must Have
 
 Use this section for qualities that every recommendation should have.
 
@@ -269,7 +274,7 @@ Enter one preference per line.
 
 ---
 
-### Soft Preferences
+#### Soft Preferences
 
 Use this section for qualities that are welcome, but not required.
 
@@ -285,7 +290,7 @@ Enter one preference per line.
 
 ---
 
-### Avoid
+#### Avoid
 
 Use this section for sounds or traits you do **not** want.
 
@@ -302,7 +307,7 @@ Enter one item per line.
 
 ---
 
-### Save or AI Profile Update
+#### Save or AI Profile Update
 
 After editing your profile, you can choose one of two actions:
 
@@ -319,7 +324,7 @@ Use **AI Profile Update** when you want the app to help improve the profile.
 
 ---
 
-## Import, Export, and Reset Your Profile
+### Import, Export, and Reset Your Profile
 
 When the profile editor is open, profile management buttons appear below the **Last trained** status line in the section header:
 
@@ -338,7 +343,27 @@ This is useful if you want to back up your profile, move it to another device, o
 
 ---
 
-## Use Band/Song Analysis
+### Updating Your Taste Over Time
+
+Your taste may change, and SpotyVibe is designed to evolve with you.
+
+To update your preferences:
+
+1. Go back to the **OpenAI** section
+2. Click **Edit profile**
+3. Update your description or preference lists
+4. Save or run **AI Profile Update**
+5. Generate again
+
+The more accurately your profile reflects your current taste, the better your future playlists will be.
+
+> **Screenshot placeholder:** Editing an existing profile
+
+---
+
+## Discovery & Analysis
+
+### Band/Song Analysis
 
 In the **OpenAI** section, click **Open Analysis** or click anywhere on the **Band/Song Analysis** header to expand it.
 
@@ -358,8 +383,7 @@ This is especially helpful if you know what you like, but are not sure how to de
 
 ---
 
-
-## Generate a Playlist
+## Playlist Generation
 
 Once your profile is ready and Spotify is connected, go to the **Spotify** section and click **Show** on the **Spotify Playlist Creation** header (or click anywhere on the header) to expand it.
 
@@ -455,7 +479,7 @@ This is useful if you already like the results and do not want to wait longer.
 
 ---
 
-## Review and Manage Suggested Tracks
+## Track Review & Feedback
 
 After generation, SpotyVibe displays the suggested tracks as cards.
 
@@ -545,7 +569,7 @@ Use this for tracks you feel neutral about.
 
 ---
 
-## Song List and Run History
+## Song List & Run History
 
 ### Persistent Song List
 
@@ -591,25 +615,7 @@ Use this when you want to quickly reverse the last result.
 
 ---
 
-## Updating Your Taste Over Time
-
-Your taste may change, and SpotyVibe is designed to evolve with you.
-
-To update your preferences:
-
-1. Go back to the **OpenAI** section
-2. Click **Edit profile**
-3. Update your description or preference lists
-4. Save or run **AI Profile Update**
-5. Generate again
-
-The more accurately your profile reflects your current taste, the better your future playlists will be.
-
-> **Screenshot placeholder:** Editing an existing profile
-
----
-
-## Using SpotyVibe on Mobile
+## Mobile Usage
 
 SpotyVibe also works well on phones and tablets.
 
@@ -631,32 +637,34 @@ You can use the same main flow:
 
 ---
 
-## Troubleshooting
+## Troubleshooting & Tips
 
-### I cannot generate a playlist
+### Troubleshooting
+
+**I cannot generate a playlist**  
 Make sure you have:
 
 - entered all required credentials
 - connected your Spotify account
 - completed your music profile
 
-### Spotify connection does not work
+**Spotify connection does not work**  
 Try disconnecting and connecting Spotify again from the menu.
 
-### The recommendations are not matching my taste
+**The recommendations are not matching my taste**  
 Update your music profile with clearer descriptions and more specific likes/dislikes.
 
-### The app keeps suggesting similar songs
+**The app keeps suggesting similar songs**  
 Use more detailed profile edits, increase interest in new artists, and give direct feedback on tracks you do or do not like.
 
-### Too few tracks are being added
+**Too few tracks are being added**  
 Widen your audio filters or try again with fewer restrictions.
 
 > **Screenshot placeholder:** Example warning or error message
 
 ---
 
-## Final Tips
+### Final Tips
 
 To get the best results from SpotyVibe:
 
