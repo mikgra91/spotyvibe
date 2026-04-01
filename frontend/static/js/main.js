@@ -15,7 +15,7 @@ import { switchTheme, THEME_BACKGROUNDS, THEME_RENDERERS } from './modules/theme
 import './modules/theme-equalizer.js';
 import './modules/theme-pulse.js';
 import { switchLanguage, applyLanguage, i18n, _i18nStrings, initI18n } from './modules/i18n.js';
-import { toggleSpotifyMetadata, runSpotifyMetadata, renderProviderPills } from './modules/spotify-metadata.js';
+import { renderProviderPills } from './modules/spotify-metadata.js';
 
 // Expose globals for HTML onclick= attributes
 window.checkCredentialStatus = checkCredentialStatus;
@@ -86,8 +86,6 @@ window.switchTheme = switchTheme;
 window.switchLanguage = switchLanguage;
 window.applyLanguage = applyLanguage;
 window.i18n = i18n;
-window.toggleSpotifyMetadata = toggleSpotifyMetadata;
-window.runSpotifyMetadata = runSpotifyMetadata;
 window.renderProviderPills = renderProviderPills;
 
 // Listen for spotify auth popup callback

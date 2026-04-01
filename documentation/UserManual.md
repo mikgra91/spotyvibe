@@ -176,7 +176,7 @@ If your Spotify session expires or you need to re-authenticate, open the **☰ m
 Before generating suggestions, you need to tell the AI what kind of music you like. The UI is divided into two clearly labelled **provider sections**:
 
 - **OpenAI** — Everything powered by AI: your taste profile editor, AI profile updates, and AI Band/Song Analysis.
-- **Spotify** — Everything powered by Spotify: metadata lookup, playlist generation, and run history.
+- **Spotify** — Everything powered by Spotify: playlist generation and run history.
 
 Status pills at the top of each section show at a glance whether your credentials are configured and connected.
 
@@ -391,24 +391,6 @@ Inside the **OpenAI** section you will find a collapsible **AI Band/Song Analysi
 
 This is useful when you want to describe a sound but aren't sure of the right terminology — let the AI analyse a reference track and borrow its vocabulary.
 
-### Spotify Metadata Analysis
-
-Inside the **Spotify** section you will find a collapsible **Spotify Metadata Analysis** panel. Unlike the AI Band/Song Analysis (which uses GPT to interpret music), this tool queries Spotify's own database for factual metadata — no AI interpretation involved.
-
-1. Enter an **artist name**, a **track name**, or both. Spelling must be exact — there is no fuzzy/did-you-mean correction.
-2. Select a **market region** from the dropdown (US, AT, DE, JP, GB, KR). This determines which regional Spotify catalogue is searched — some tracks and availability data differ by market. The default is US.
-3. Click **Analyse**.
-4. Results appear in up to three blocks:
-
-   - **Match Summary** — which result Spotify matched, with a confidence score (green = high, amber = medium, red = low).
-   - **Track** — track name, artists, album, release date, duration, and a direct Spotify link.
-   - **Artist** — artist name, genres, and a direct Spotify link.
-
-> **Note:** Some fields (popularity, followers, audio features) were removed from the Spotify API in February 2026 and are no longer available. Use the AI Band/Song Analysis tool for GPT-estimated audio features instead.
-
-> **Note:** Spotify Metadata Analysis uses your Spotify **app credentials** (Client ID and Secret) only — no Spotify user login is required.
-
-> **Tip:** Use this tool alongside AI Band/Song Analysis: AI Analysis gives you GPT's interpretive take on a sound (including estimated audio features like energy and danceability), while Spotify Metadata gives you the raw factual data (album, release date, genres) you can cross-reference.
 
 ---
 

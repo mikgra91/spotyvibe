@@ -32,7 +32,7 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 - **Structured taste profile** — accordion-style editor with separate sections for core description, must-haves, soft preferences, and things to avoid. Existing profile data is pre-filled for easy editing. Save changes directly or use **AI Profile Update** to let GPT refine your input.
 - **Profile import/export** — import a full profile JSON (the current profile is automatically backed up to the history file) or export your current active profile as a JSON download. Import/Export/Reset controls appear below the "Last trained" status line when the profile editor is open.
 - **Reset to history** — revert your Music Profile to the previous saved version (one-step undo).
-- **Collapsible UI sections** — every major component (Music Profile, Band/Song Analysis, Spotify Metadata Analysis, Spotify Playlist Creation, Run History) is collapsible/expandable. Each section header includes a short description and the entire header area is clickable to toggle.
+- **Collapsible UI sections** — every major component (Music Profile, Band/Song Analysis, Audio Filters, Spotify Playlist Creation, Run History) is collapsible/expandable. Each section header includes a short description and the entire header area is clickable to toggle.
 
 - **Album artwork** displayed alongside each suggested track.
 - **Spotify integration** — auto-creates and manages a private playlist.
@@ -43,8 +43,7 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 - **Hardened GPT prompt** — Bear Ghost is set as the explicit primary style reference; a "Hard Negative Rules" section disqualifies generic or predictable tracks; GPT emits a self-validation block to force it to check its own output before finalising.
 - **Band/Song Analysis** — AI-powered analysis of any band or song, returning genre, style, characteristics, GPT-estimated audio features (energy, danceability, etc.), and copy-paste profile suggestions (`core/analysis.py`).
 - **Internationalization (i18n)** — full English and German UI with a language picker in the header; translations in `static/i18n/en.json` and `de.json`. A separate **ChatGPT Language** setting controls the language used for GPT communication.
-- **Spotify Metadata Analysis** — look up real Spotify data (genres, albums, release dates) for any artist or track, with a market region dropdown (US, AT, DE, JP, GB, KR).
-- **GPT Audio Feature Constraints** — optional audio filters (energy, valence, tempo, danceability, acousticness) are injected directly into the GPT prompt, guiding the AI to suggest tracks matching the desired mood and feel.
+- **GPT Audio Feature Constraints** — optional audio filters (energy, valence, tempo, danceability, acousticness) in the OpenAI section are injected directly into the GPT prompt, guiding the AI to suggest tracks matching the desired mood and feel.
 - **Feedback Reasons in prompts** — recent like/dislike reasons are summarized and sent to GPT so it can learn *why* you liked or disliked a track, not just which ones.
 - **Multiple Playlists / Playlist Naming** — create new, append, or replace playlists with custom name templates supporting `{date}` and `{style}` tokens.
 - **Run History and Rollback** — the last 5 generation runs are saved (`core/history.py`); undo the last run to remove its tracks from the playlist.

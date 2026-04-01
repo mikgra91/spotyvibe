@@ -26,7 +26,6 @@ This guide explains how to use the **SpotyVibe interface** to set up your prefer
   - [Save or AI Profile Update](#save-or-ai-profile-update)
 - [Import, Export, and Reset Your Profile](#import-export-and-reset-your-profile)
 - [Use Band/Song Analysis](#use-bandsong-analysis)
-- [Use Spotify Metadata Analysis](#use-spotify-metadata-analysis)
 - [Generate a Playlist](#generate-a-playlist)
   - [Choose a Playlist Mode](#choose-a-playlist-mode)
   - [Use Audio Filters](#use-audio-filters)
@@ -79,7 +78,7 @@ You will enter these in the app during setup.
 When you open SpotyVibe, you will see the main interface with two provider sections:
 
 - **OpenAI** — Taste profile editor, AI profile updates, and AI Band/Song Analysis.
-- **Spotify** — Spotify Metadata Analysis, playlist generation, and run history.
+- **Spotify** — Playlist generation and run history.
 
 Status pills at the top of each section show whether your credentials are configured and connected.
 
@@ -96,9 +95,9 @@ The main screen is organised into collapsible components grouped under two provi
 **OpenAI Section:**
 - **🎯 Music Profile** — Define your musical taste — genres, moods, must-haves, and things to avoid.
 - **🔍 Band/Song Analysis** — Get an AI-powered breakdown of any artist or track with ready-to-paste profile suggestions.
+- **🎚 Audio Filters** — Guide the AI to suggest tracks matching a specific mood and feel.
 
 **Spotify Section:**
-- **🔎 Spotify Metadata Analysis** — Look up real Spotify data — genres, albums, release dates — for any artist or track.
 - **🎧 Spotify Playlist Creation** — Generate AI-powered playlists and save them directly to your Spotify account. *(Collapsed by default.)*
 - **🕓 Run History** — View past generation runs and undo the last one if needed.
 
@@ -359,31 +358,6 @@ This is especially helpful if you know what you like, but are not sure how to de
 
 ---
 
-## Use Spotify Metadata Analysis
-
-In the **Spotify** section, click **Open** or click anywhere on the **Spotify Metadata Analysis** header to expand it.
-
-This tool queries Spotify's own database for factual metadata — no AI interpretation involved. Use it to look up genres, albums, release dates, and other details for any artist or track.
-
-How to use it:
-
-1. Enter an **artist name**, a **track name**, or both. Spelling must be exact — there is no fuzzy matching or "did you mean" correction.
-2. Select a **market region** from the dropdown. Available options are: **US**, **AT**, **DE**, **JP**, **GB**, **KR**. The market determines which regional Spotify catalogue is searched — some tracks differ by region. The default is US.
-3. Click **Analyse**.
-4. Results appear in up to three blocks:
-   - **Match Summary** — which result Spotify matched, with a confidence score (green = high, amber = medium, red = low).
-   - **Track** — track name, artists, album, release date, duration, and a direct Spotify link.
-   - **Artist** — artist name, genres, and a direct Spotify link.
-
-> **Note:** Some metadata fields (popularity, followers, audio features) were removed from the Spotify API in February 2026. For audio feature estimates, use the AI Band/Song Analysis tool instead.
-
-> **Note:** Spotify Metadata Analysis uses your Spotify app credentials (Client ID and Secret) only — no Spotify user login is required.
-
-> **Tip:** Use this tool alongside AI Band/Song Analysis. AI Analysis gives you GPT's interpretive take on a sound (including estimated audio features like energy and danceability), while Spotify Metadata gives you the raw factual data you can cross-reference.
-
-> **Screenshot placeholder:** Spotify Metadata Analysis with results
-
----
 
 ## Generate a Playlist
 

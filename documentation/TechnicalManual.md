@@ -27,8 +27,7 @@ SpotyVibe is a Python web application built with **Flask** that connects two ext
 │  /api/save-profile    /api/spotify/status   /api/remove            │
 │  /api/profile/status  /api/analyze          /api/playlists         │
 │  /api/spotify/auth    /api/spotify/disconnect  /api/cancel          │
-│  /api/spotify/metadata/analyze               /api/help             │
-│  /callback            /api/settings/*                              │
+│  /callback            /api/settings/*        /api/help             │
 │  /api/settings        /api/settings/debug-log                      │
 │  /api/runs            /api/runs/undo        /api/run/<run_id>/status│
 │  /api/onboarding/status  /api/onboarding/complete                  │
@@ -242,44 +241,9 @@ Manages all application settings and credentials.
 
 ---
 
-### `core/spotify_metadata.py` — Spotify Metadata Lookup (Client Credentials)
+### `core/spotify_metadata.py` — Spotify Metadata Lookup (deprecated)
 
-Provides public Spotify metadata lookups using the **Client Credentials Flow** — no user OAuth required.  Completely separate from `core/playlist.py`, which uses user OAuth for playlist management.
-
-**Authentication:** `get_client_credentials_token()` exchanges `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` for a bearer token via `POST https://accounts.spotify.com/api/token`. The token is cached in memory and refreshed 60 seconds before expiry; a threading lock prevents concurrent refresh races.
-
-**Search strategy:**
-- Both artist + track → fielded query `track:{track} artist:{artist}`, type=track
-- Track only → `track:{track}`, type=track
-- Artist only → `artist:{artist}`, type=artist
-- `limit=5`, configurable `market` (default `US`)
-
-**Scoring:** Top-5 candidates are scored — exact normalised track match +0.6, exact normalised artist match +0.3. If the best score is below 0.5 (track) or 0.9 (artist-only), a `"low_confidence_match"` warning is added. Note: popularity was previously used as a tie-breaker but was removed from the Spotify API in February 2026.
-
-**Text normalisation:** `normalize_compare_text()` lowercases, trims, and collapses whitespace. `strip_version_suffixes()` removes suffixes like `(remastered)`, `[2024 mix]`, `(live)`, `(deluxe edition)` before comparison only — displayed Spotify values are never altered.
-
-**Fetch flow (track):** `/v1/tracks/{id}` → `/v1/artists/{primaryArtistId}`. Note: the `/v1/audio-features/{id}` endpoint was removed by Spotify in February 2026 and is no longer called.
-
-**Fetch flow (artist-only):** `/v1/artists/{id}`.
-
-**Rate-limit handling:** 429 responses read the `Retry-After` header (capped at 10 s) and retry once.
-
-**Main entry point:** `analyze_metadata(artist, track, market)` — returns a canonical dict:
-```json
-{
-  "query": { "artist": "...", "track": "...", "market": "US" },
-  "match": { "provider": "spotify", "type": "track|artist", "confidence": 0.98,
-             "processed_at": "ISO8601", "spotify_track_id": "...", "spotify_artist_id": "..." },
-  "track": { "id", "name", "artists", "album", "release_date", "duration_ms",
-             "preview_url", "external_urls" },
-  "artist": { "id", "name", "genres", "external_urls" },
-  "warnings": []
-}
-```
-
-Note: `popularity`, `followers`, and `audio_features` were removed from the Spotify API in February 2026 and are no longer included in the response.
-
-**Endpoint:** `POST /api/spotify/metadata/analyze` — accepts `{ "artist"?, "track"?, "market"? }`. At least one of `artist`/`track` is required. Returns 400 on missing input or credential errors, 404 if no match, 200 with optional warnings otherwise.
+> **Note:** The Spotify Metadata Analysis UI feature was removed because Spotify's February 2026 API changes removed `popularity`, `followers`, and `audio_features` endpoints, making the returned data too sparse to be useful. The module still exists in the codebase but is no longer exposed via any endpoint.
 
 ---
 
@@ -525,17 +489,17 @@ When `/api/cancel` is called with `finalize: false`, the generator yields a `can
 A modular single-page application split across Jinja2 templates and vanilla JavaScript modules (no framework). Communicates with the Flask backend via `fetch` API calls. `base.html` is the root layout; UI sections are composed from partials under `frontend/templates/`. JavaScript logic lives in `frontend/static/js/modules/`.
 
 **Layout:** The UI is divided into two provider sections, each with a badge, subtitle, and live status pills:
-- **OpenAI** — Taste profile training, AI band/song analysis. Status pills: key configured, profile trained, selected model, GPT language.
-- **Spotify** — Spotify metadata analysis, playlist generation, and run history. Status pills: connection state.
+- **OpenAI** — Taste profile training, AI band/song analysis, and audio filters (GPT-prompt-based). Status pills: key configured, profile trained, selected model, GPT language.
+- **Spotify** — Playlist generation and run history. Status pills: connection state.
 
 Both sections are wrapped in styled provider cards (`.provider-section`) for visual consistency.
 
-**Collapsible sections:** All major UI components (Music Profile, Band/Song Analysis, Spotify Metadata Analysis, Spotify Playlist Creation, Run History) are collapsible/expandable. Each section header includes a descriptive subtitle and a toggle button. The entire header background area is clickable to expand/collapse the section (buttons inside the header use `event.stopPropagation()` to prevent double-toggling). The Spotify Playlist Creation section is collapsed by default; others start expanded or match their initial state (e.g., the profile editor starts collapsed unless the user was editing).
+**Collapsible sections:** All major UI components (Music Profile, Band/Song Analysis, Audio Filters, Spotify Playlist Creation, Run History) are collapsible/expandable. Each section header includes a descriptive subtitle and a toggle button. The entire header background area is clickable to expand/collapse the section (buttons inside the header use `event.stopPropagation()` to prevent double-toggling). The Spotify Playlist Creation section is collapsed by default; others start expanded or match their initial state (e.g., the profile editor starts collapsed unless the user was editing).
 
 **Key UI components:**
 - **Train Taste Profile** — accordion-style editor with four collapsible sections: Core Description (required, open by default), Must Have, Soft Preferences, and Avoid. Existing profile data is pre-filled via `GET /api/profile/data` when the form is opened. Core Description is validated client-side — submission is blocked with an error highlight if empty. Shows an inline warning and disables inputs if the OpenAI API key is missing.
 - **Profile import/export/reset** — when the user explicitly enters Edit Profile mode, the UI exposes **⬆ Import** (posts to `POST /api/profile/import`), **⬇ Export** (downloads from `GET /api/profile/export`), and **↩ Reset to history** (calls `POST /api/profile/reset-to-history`). These buttons appear below the "Last trained" status line in the section header. Import replaces the entire profile file; the previous profile is automatically backed up via `.history.json`.
-- **Spotify Metadata Analysis** — queries Spotify's public API via Client Credentials flow. Provides a **market region dropdown** (US, AT, DE, JP, GB, KR) that controls which regional Spotify catalogue is searched.
+- **Audio Filters** — collapsible section in the OpenAI provider area. Audio filter ranges (energy, valence, tempo, danceability, acousticness) are injected into the GPT prompt via `build_messages(audio_filters=...)`. Uses the same collapsible section pattern as other panels.
 
 
 - **Generate button** — triggers the pipeline with live progress updates. Shows an inline warning and disables the button if OpenAI key or Spotify credentials/authentication are missing.
