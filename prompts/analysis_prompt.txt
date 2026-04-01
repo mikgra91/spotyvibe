@@ -11,7 +11,8 @@ Given an artist name (and optionally a specific track), return:
 1. Genre classification (array of strings)
 2. Style tags (brief descriptors, array of strings)
 3. Key characteristics as an object
-4. Profile suggestions — 3 to 5 ready-to-paste sentences the user can add to their music taste profile
+4. Estimated audio features — numeric values on a 0.0–1.0 scale (except tempo in BPM) representing how you would classify this music. These help users set audio filters for playlist generation.
+5. Profile suggestions — 3 to 5 ready-to-paste sentences the user can add to their music taste profile
 
 OUTPUT FORMAT:
 Return ONLY directly parseable JSON. No markdown, no explanations, no code blocks.
@@ -29,9 +30,30 @@ JSON SCHEMA:
     "production": "Production style description",
     "structure": "Song/compositional structure notes"
   },
+  "audio_features": {
+    "energy": 0.0,
+    "valence": 0.0,
+    "danceability": 0.0,
+    "acousticness": 0.0,
+    "instrumentalness": 0.0,
+    "speechiness": 0.0,
+    "liveness": 0.0,
+    "tempo": 120.0
+  },
   "profile_suggestions": [
     "I enjoy [specific style trait] as heard in [artist]",
     "I like [another characteristic] with [quality]",
     "I prefer [trait] over [contrasting trait]"
   ]
 }
+
+AUDIO FEATURES GUIDE:
+- energy: 0.0 = very calm/quiet, 1.0 = very intense/loud
+- valence: 0.0 = very sad/dark, 1.0 = very happy/cheerful
+- danceability: 0.0 = not danceable at all, 1.0 = very danceable
+- acousticness: 0.0 = fully electronic/electric, 1.0 = fully acoustic
+- instrumentalness: 0.0 = mostly vocals, 1.0 = no vocals/instrumental
+- speechiness: 0.0 = no speech, 1.0 = spoken word/rap
+- liveness: 0.0 = studio recording feel, 1.0 = live performance feel
+- tempo: BPM (beats per minute), typically 60–200
+

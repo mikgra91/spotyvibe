@@ -3,14 +3,14 @@
     <div class="train-header" onclick="toggleSpotifyMetadata()">
         <div class="train-header-left">
             <h2>🔎 <span data-i18n="spotify_meta.title">Spotify Metadata Analysis</span></h2>
-            <span class="train-status train-subtitle">Look up real Spotify data — popularity, genres, audio features — for any artist or track.</span>
+            <span class="train-status train-subtitle">Look up real Spotify data — genres, albums, release dates — for any artist or track.</span>
         </div>
         <div class="train-header-actions">
             <button class="btn-train" id="spotifyMetaToggleBtn" onclick="event.stopPropagation(); toggleSpotifyMetadata()">Open</button>
         </div>
     </div>
     <div class="train-body hidden" id="spotifyMetadataBody">
-        <p class="acc-hint analysis-hint" data-i18n="spotify_meta.hint">Look up artist, track, popularity, genres, and audio features from Spotify metadata.</p>
+        <p class="acc-hint analysis-hint" data-i18n="spotify_meta.hint">Look up artist, track, genres, and album data from Spotify metadata.</p>
         <div class="analysis-inputs">
             <div class="analysis-input-row">
                 <input id="spotifyMetaArtist" type="text" placeholder="Artist / band name" maxlength="200" data-i18n-placeholder="analysis.artist_placeholder">

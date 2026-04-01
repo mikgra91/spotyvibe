@@ -207,7 +207,7 @@ class TestBuildMessages:
     def test_returns_two_messages(self, mock_load):
         mock_load.side_effect = [
             "You are a music bot. Generate {batch_size} tracks in {gpt_language}.",
-            "DENY:\n{deny_set_json}\nPROFILE:{profile_json}\nPROFILE:\n{profile_json}\nFEEDBACK:\n{recent_feedback}\nNeed {batch_size} songs.",
+            "DENY:\n{deny_set_json}\nPROFILE:{profile_json}\nPROFILE:\n{profile_json}\nFEEDBACK:\n{recent_feedback}\n{audio_filters_block}\nNeed {batch_size} songs.",
         ]
         profile = {
             "history": {"suggested_artists": [], "suggested_tracks": []},
@@ -226,7 +226,7 @@ class TestBuildMessages:
     def test_recently_filtered_tracks_end_up_in_deny_set(self, mock_load):
         mock_load.side_effect = [
             "System prompt {batch_size}.",
-            "DENY:\n{deny_set_json}\nPROFILE:\n{profile_json}\nNeed {batch_size} songs.",
+            "DENY:\n{deny_set_json}\nPROFILE:\n{profile_json}\n{audio_filters_block}\nNeed {batch_size} songs.",
         ]
         profile = {
             "history": {"suggested_artists": [], "suggested_tracks": []},
@@ -242,7 +242,7 @@ class TestBuildMessages:
     def test_accepted_tracks_appended(self, mock_load):
         mock_load.side_effect = [
             "System prompt {batch_size}.",
-            "DENY:\n{deny_set_json}\nPROFILE:\n{profile_json}\nNeed {batch_size} songs.",
+            "DENY:\n{deny_set_json}\nPROFILE:\n{profile_json}\n{audio_filters_block}\nNeed {batch_size} songs.",
         ]
         profile = {
             "history": {"suggested_artists": [], "suggested_tracks": []},
@@ -252,6 +252,38 @@ class TestBuildMessages:
         messages = build_messages(profile, accepted_tracks=accepted)
         assert "already accepted" in messages[1]["content"].lower()
         assert "A - B" in messages[1]["content"]
+
+    @patch("core.src.suggestions.load_text_file")
+    def test_audio_filters_injected_into_prompt(self, mock_load):
+        mock_load.side_effect = [
+            "System prompt {batch_size}.",
+            "DENY:\n{deny_set_json}\nPROFILE:\n{profile_json}\n{audio_filters_block}\nNeed {batch_size} songs.",
+        ]
+        profile = {
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {},
+        }
+        filters = {"energy": {"min": 0.6, "max": 1.0}, "tempo": {"min": 120}}
+        messages = build_messages(profile, audio_filters=filters)
+        content = messages[1]["content"]
+        assert "AUDIO FILTER CONSTRAINTS" in content
+        assert "energy" in content
+        assert "between 0.6 and 1.0" in content
+        assert "tempo" in content
+        assert "at least 120" in content
+
+    @patch("core.src.suggestions.load_text_file")
+    def test_no_audio_filters_no_block(self, mock_load):
+        mock_load.side_effect = [
+            "System prompt {batch_size}.",
+            "DENY:\n{deny_set_json}\nPROFILE:\n{profile_json}\n{audio_filters_block}\nNeed {batch_size} songs.",
+        ]
+        profile = {
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {},
+        }
+        messages = build_messages(profile, audio_filters=None)
+        assert "AUDIO FILTER CONSTRAINTS" not in messages[1]["content"]
 
 
 class TestNormalizeResponse:

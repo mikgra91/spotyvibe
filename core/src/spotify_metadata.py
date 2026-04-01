@@ -188,7 +188,9 @@ def score_track_candidate(candidate: dict, artist_query: str, track_query: str) 
     Scoring:
       +0.6  exact normalized track name match (after stripping version suffixes)
       +0.3  exact normalized artist name match for any artist on the track
-      +popularity/1000  tie-breaker
+
+    Note: popularity was previously used as a tie-breaker but was removed
+    from the Spotify API in Feb 2026.
     """
     score = 0.0
 
@@ -204,9 +206,6 @@ def score_track_candidate(candidate: dict, artist_query: str, track_query: str) 
                 score += 0.3
                 break
 
-    popularity = candidate.get("popularity", 0) or 0
-    score += popularity / 1000.0
-
     return score
 
 
@@ -215,7 +214,9 @@ def score_artist_candidate(candidate: dict, artist_query: str) -> float:
 
     Scoring:
       +1.0  exact normalized artist name match
-      +popularity/1000  tie-breaker
+
+    Note: popularity was previously used as a tie-breaker but was removed
+    from the Spotify API in Feb 2026.
     """
     score = 0.0
 
@@ -223,9 +224,6 @@ def score_artist_candidate(candidate: dict, artist_query: str) -> float:
     norm_name = normalize_compare_text(candidate.get("name", ""))
     if norm_name == norm_query:
         score += 1.0
-
-    popularity = candidate.get("popularity", 0) or 0
-    score += popularity / 1000.0
 
     return score
 
@@ -286,25 +284,16 @@ def get_artist_metadata(artist_id: str, token: str) -> dict:
     return _normalize_artist(data)
 
 
-def get_audio_features_safe(track_id: str, token: str) -> dict | None:
-    """Fetch /v1/audio-features/{id}. Returns None (not raises) on 403/404."""
-    try:
-        data = spotify_api_request(f"audio-features/{track_id}", token)
-        return _normalize_audio_features(data)
-    except SpotifyMetadataError as exc:
-        msg = str(exc)
-        # Treat 403 and 404 as graceful non-availability
-        if "HTTP 403" in msg or "HTTP 404" in msg:
-            return None
-        raise
-
 
 # ---------------------------------------------------------------------------
 # Normalization helpers
 # ---------------------------------------------------------------------------
 
 def _normalize_track(data: dict) -> dict:
-    """Extract the fields we care about from a raw Spotify track object."""
+    """Extract the fields we care about from a raw Spotify track object.
+
+    Note: 'popularity' was removed from the Spotify API in Feb 2026.
+    """
     album = data.get("album") or {}
     return {
         "id": data.get("id"),
@@ -313,35 +302,24 @@ def _normalize_track(data: dict) -> dict:
         "album": album.get("name"),
         "release_date": album.get("release_date"),
         "duration_ms": data.get("duration_ms"),
-        "popularity": data.get("popularity"),
         "preview_url": data.get("preview_url"),
         "external_urls": data.get("external_urls") or {},
     }
 
 
 def _normalize_artist(data: dict) -> dict:
-    """Extract the fields we care about from a raw Spotify artist object."""
-    followers = data.get("followers") or {}
+    """Extract the fields we care about from a raw Spotify artist object.
+
+    Note: 'followers' and 'popularity' were removed from the Spotify API
+    in Feb 2026.
+    """
     return {
         "id": data.get("id"),
         "name": data.get("name"),
         "genres": data.get("genres") or [],
-        "popularity": data.get("popularity"),
-        "followers": followers.get("total"),
         "external_urls": data.get("external_urls") or {},
     }
 
-
-_AUDIO_FEATURE_KEYS = {
-    "danceability", "energy", "key", "loudness", "mode",
-    "speechiness", "acousticness", "instrumentalness", "liveness",
-    "valence", "tempo", "duration_ms", "time_signature",
-}
-
-
-def _normalize_audio_features(data: dict) -> dict:
-    """Pass through the audio-features keys we care about."""
-    return {k: data[k] for k in _AUDIO_FEATURE_KEYS if k in data}
 
 
 # ---------------------------------------------------------------------------
@@ -368,9 +346,11 @@ def analyze_metadata(
         },
         "track": dict | None,
         "artist": dict,
-        "audio_features": dict | None,
         "warnings": [],
     }
+
+    Note: audio_features and popularity/followers were removed from the
+    Spotify Web API in February 2026 and are no longer available.
 
     Raises SpotifyMetadataError with an appropriate message on failure.
     """
@@ -427,10 +407,6 @@ def analyze_metadata(
                 primary_artist_name or artist or "", market, token, warnings
             )
 
-        audio_features = get_audio_features_safe(track_id, token)
-        if audio_features is None:
-            warnings.append("audio_features_unavailable")
-
         return {
             "query": {"artist": artist, "track": track, "market": market},
             "match": {
@@ -443,7 +419,6 @@ def analyze_metadata(
             },
             "track": track_data,
             "artist": artist_data,
-            "audio_features": audio_features,
             "warnings": warnings,
         }
 
@@ -464,7 +439,6 @@ def analyze_metadata(
         },
         "track": None,
         "artist": artist_data,
-        "audio_features": None,
         "warnings": warnings,
     }
 

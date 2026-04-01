@@ -87,7 +87,6 @@ function renderMetadataResult(data) {
                 <span class="meta-key">Album</span><span class="meta-val">${escHtml(t.album || '—')}</span>
                 <span class="meta-key">Released</span><span class="meta-val">${escHtml(t.release_date || '—')}</span>
                 <span class="meta-key">Duration</span><span class="meta-val">${escHtml(dur)}</span>
-                <span class="meta-key">Popularity</span><span class="meta-val">${t.popularity != null ? escHtml(String(t.popularity)) + '/100' : '—'}</span>
                 ${t.external_urls && t.external_urls.spotify ? `<span class="meta-key">Spotify</span><span class="meta-val"><a href="${escHtml(t.external_urls.spotify)}" target="_blank" rel="noopener" style="color:var(--primary)">Open ↗</a></span>` : ''}
             </div>
         </div>`);
@@ -97,37 +96,13 @@ function renderMetadataResult(data) {
     if (data.artist) {
         const a = data.artist;
         const genres = Array.isArray(a.genres) && a.genres.length ? a.genres.slice(0,5).join(', ') : '—';
-        const followers = a.followers != null ? Number(a.followers).toLocaleString() : '—';
         parts.push(`<div class="meta-block meta-artist">
             <div class="meta-block-title">Artist</div>
             <div class="meta-grid">
                 <span class="meta-key">Name</span><span class="meta-val">${escHtml(a.name || '—')}</span>
                 <span class="meta-key">Genres</span><span class="meta-val">${escHtml(genres)}</span>
-                <span class="meta-key">Popularity</span><span class="meta-val">${a.popularity != null ? escHtml(String(a.popularity)) + '/100' : '—'}</span>
-                <span class="meta-key">Followers</span><span class="meta-val">${escHtml(followers)}</span>
                 ${a.external_urls && a.external_urls.spotify ? `<span class="meta-key">Spotify</span><span class="meta-val"><a href="${escHtml(a.external_urls.spotify)}" target="_blank" rel="noopener" style="color:var(--primary)">Open ↗</a></span>` : ''}
             </div>
-        </div>`);
-    }
-
-    // Audio features
-    if (data.audio_features) {
-        const f = data.audio_features;
-        const featureRows = [
-            ['Energy', f.energy],
-            ['Valence', f.valence],
-            ['Danceability', f.danceability],
-            ['Acousticness', f.acousticness],
-            ['Instrumentalness', f.instrumentalness],
-            ['Speechiness', f.speechiness],
-            ['Liveness', f.liveness],
-            ['Tempo', f.tempo != null ? f.tempo.toFixed(1) + ' BPM' : null],
-        ].filter(([, v]) => v != null)
-         .map(([k, v]) => `<span class="meta-key">${escHtml(k)}</span><span class="meta-val">${escHtml(typeof v === 'number' && v <= 1 ? (v * 100).toFixed(0) + '%' : String(v))}</span>`)
-         .join('');
-        parts.push(`<div class="meta-block meta-audio">
-            <div class="meta-block-title">Audio Features</div>
-            <div class="meta-grid">${featureRows}</div>
         </div>`);
     }
 
@@ -151,7 +126,6 @@ function formatDuration(ms) {
 function warningLabel(w) {
     const labels = {
         'low_confidence_match': 'Low confidence match',
-        'audio_features_unavailable': 'Audio features unavailable',
     };
     return labels[w] || w;
 }

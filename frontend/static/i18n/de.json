@@ -83,7 +83,7 @@
   "pill.credentials_missing": "Zugangsdaten fehlen",
 
   "spotify_meta.title": "Spotify-Metadatenanalyse",
-  "spotify_meta.hint": "Künstler, Track, Popularität, Genres und Audio-Features aus Spotify-Metadaten abrufen.",
+  "spotify_meta.hint": "Künstler, Track, Genres und Album-Daten aus Spotify-Metadaten abrufen.",
   "spotify_meta.artist_placeholder": "Künstler / Bandname",
   "spotify_meta.track_placeholder": "Titelname (optional)",
   "spotify_meta.market_placeholder": "Markt (z.B. US)",
@@ -92,11 +92,9 @@
   "spotify_meta.match_summary": "Übereinstimmungsübersicht",
   "spotify_meta.track": "Track",
   "spotify_meta.artist": "Künstler",
-  "spotify_meta.audio_features": "Audio-Features",
   "spotify_meta.notices": "Hinweise",
 
   "warn.low_confidence_match": "Niedrige Übereinstimmungsgenauigkeit",
-  "warn.audio_features_unavailable": "Audio-Features nicht verfügbar",
   "warn.no_result": "Kein Ergebnis gefunden",
   "warn.credentials_missing": "Spotify-Zugangsdaten fehlen"
 }

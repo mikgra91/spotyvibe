@@ -82,7 +82,11 @@ body::after {
 @media (prefers-reduced-motion: reduce) {
     .btn-run,
     .btn-primary,
-    .btn {
+    .btn,
+    .status-pill,
+    .dep-chip,
+    .confidence-badge,
+    .warning-badge {
         animation: none !important;
         transition: none !important;
     }
@@ -190,18 +194,22 @@ h1 {
     color: var(--btn-cta-text);
 }
 
-/* Primary CTA */
-.btn-run {
-    background: linear-gradient(180deg, var(--primary-hover), var(--primary-dark));
-    color: var(--btn-cta-text);
+/* Primary CTA — shared base */
+.btn-run,
+.btn-run-cancel {
     border: none;
-    padding: 18px 40px;
     font-size: 16px;
     font-weight: 700;
     font-family: inherit;
     border-radius: var(--radius-pill);
     cursor: pointer;
     transition: all var(--transition);
+}
+
+.btn-run {
+    background: linear-gradient(180deg, var(--primary-hover), var(--primary-dark));
+    color: var(--btn-cta-text);
+    padding: 18px 40px;
     box-shadow:
         0 10px 30px rgba(30, 215, 96, 0.35),
         0 0 60px rgba(30, 215, 96, 0.12),
@@ -227,14 +235,7 @@ h1 {
 .btn-run-cancel {
     background: var(--error);
     color: var(--text-primary);
-    border: none;
     padding: 18px 32px;
-    font-size: 16px;
-    font-weight: 700;
-    font-family: inherit;
-    border-radius: var(--radius-pill);
-    cursor: pointer;
-    transition: all var(--transition);
     box-shadow: 0 6px 20px rgba(239,68,68,.25);
 }
 .btn-run-cancel:hover {
@@ -292,8 +293,11 @@ h1 {
     box-shadow: var(--shadow-card-hover);
 }
 
-/* --- Generate section --- */
-.generate-section {
+/* --- Shared section panel layout --- */
+.generate-section,
+.train-section,
+.analysis-section,
+.history-section {
     border-radius: var(--radius-lg);
     padding: 32px 28px;
     margin-bottom: 1.5rem;
@@ -430,13 +434,6 @@ h1 {
 }
 
 .hidden { display: none !important; }
-
-.empty-state {
-    text-align: center;
-    color: var(--text-muted);
-    padding: 4rem 1rem;
-    font-size: 1rem;
-}
 
 /* =============================================
    Header controls (language toggle + burger menu)
@@ -715,13 +712,6 @@ h1 {
 /* =============================================
    Train taste profile
    ============================================= */
-.train-section {
-    border-radius: var(--radius-lg);
-    padding: 32px 28px;
-    margin-bottom: 1.5rem;
-    box-shadow: var(--shadow-card);
-    transition: border-color var(--transition), box-shadow var(--transition);
-}
 .train-header {
     display: flex;
     align-items: flex-start;
@@ -1656,13 +1646,6 @@ h1 {
 
 
 /* ── Band/Song Analysis ─────────────────────────────────────────────── */
-.analysis-section {
-    border-radius: var(--radius-lg);
-    padding: 32px 28px;
-    margin-bottom: 1.5rem;
-    box-shadow: var(--shadow-card);
-    transition: border-color var(--transition), box-shadow var(--transition);
-}
 
 .analysis-inputs {
     display: flex;
@@ -1778,6 +1761,51 @@ input {
 }
 .btn-copy-suggestion:hover { opacity: 1; }
 
+/* ── Audio feature bars (GPT-estimated) ─────────────────────────────── */
+.af-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.af-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.af-label {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    width: 120px;
+    flex-shrink: 0;
+}
+
+.af-bar-track {
+    flex: 1;
+    height: 8px;
+    background: var(--bg-input);
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+.af-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-dark), var(--primary));
+    border-radius: 4px;
+    transition: width 0.4s ease;
+}
+
+.af-value {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    width: 50px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
 /* ── Richer track cards ─────────────────────────────────────────────── */
 .btn-preview {
     display: inline-flex;
@@ -1848,13 +1876,6 @@ input {
 }
 
 /* ── Run History ────────────────────────────────────────────────────── */
-.history-section {
-    border-radius: var(--radius-lg);
-    padding: 32px 28px;
-    margin-bottom: 1.5rem;
-    box-shadow: var(--shadow-card);
-    transition: border-color var(--transition), box-shadow var(--transition);
-}
 
 .history-run-item {
     padding: 10px 12px;
@@ -1875,8 +1896,6 @@ input {
     text-decoration: none;
 }
 .history-run-info a:hover { text-decoration: underline; }
-
-/* ── Language toggle (see header-controls above) ── */
 
 /* ── Audio feature filters ──────────────────────────────────────────── */
 /* Flat grid: all label/input children of every .audio-filter-row share
@@ -2180,12 +2199,6 @@ input {
     border-radius: 0;
 }
 
-.provider-badge-openai,
-.provider-badge-spotify {
-    background: none;
-    border: none;
-    color: var(--text-primary);
-}
 
 .provider-subtitle {
     font-size: 0.9rem;
@@ -2382,11 +2395,3 @@ input {
     }
 }
 
-@media (prefers-reduced-motion: reduce) {
-    .status-pill,
-    .dep-chip,
-    .confidence-badge,
-    .warning-badge {
-        transition: none !important;
-    }
-}

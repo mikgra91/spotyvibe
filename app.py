@@ -49,7 +49,7 @@ from core.src.spotify_metadata import analyze_metadata, SpotifyMetadataError
 from core.src.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist,
     get_spotify_auth_status, get_spotify_auth_url, handle_spotify_callback,
-    disconnect_spotify, get_user_playlists, filter_by_audio_features,
+    disconnect_spotify, get_user_playlists,
 )
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
@@ -299,6 +299,7 @@ def run_pipeline():
                     recently_filtered_tracks=last_filtered_tracks if last_filtered_tracks else None,
                     new_artist_percentage=effective_nap,
                     batch_num=batch_num,
+                    audio_filters=audio_filters or None,
                 )
                 gpt_call_count += 1
                 # Adaptive temperature: lower on retries for more deterministic output
@@ -364,16 +365,6 @@ def run_pipeline():
                 found, not_found = search_tracks(result["playlist"])
                 all_not_found.extend(not_found)
 
-                # Apply audio feature filters if configured
-                if audio_filters and found:
-                    from core.src.playlist import get_spotify_client as _get_sp
-                    _sp = _get_sp()
-                    found, af_filtered = filter_by_audio_features(_sp, found, audio_filters)
-                    if af_filtered:
-                        yield _sse(
-                            "progress",
-                            message=f"Batch {batch_num}: {len(af_filtered)} track(s) removed by audio filters.",
-                        )
 
                 for t in found:
                     if t["uri"] not in verified_uris:

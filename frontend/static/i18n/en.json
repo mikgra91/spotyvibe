@@ -83,7 +83,7 @@
   "pill.credentials_missing": "Credentials missing",
 
   "spotify_meta.title": "Spotify Metadata Analysis",
-  "spotify_meta.hint": "Look up artist, track, popularity, genres, and audio features from Spotify metadata.",
+  "spotify_meta.hint": "Look up artist, track, genres, and album data from Spotify metadata.",
   "spotify_meta.artist_placeholder": "Artist / band name",
   "spotify_meta.track_placeholder": "Track name (optional)",
   "spotify_meta.market_placeholder": "Market (e.g. US)",
@@ -92,11 +92,9 @@
   "spotify_meta.match_summary": "Match Summary",
   "spotify_meta.track": "Track",
   "spotify_meta.artist": "Artist",
-  "spotify_meta.audio_features": "Audio Features",
   "spotify_meta.notices": "Notices",
 
   "warn.low_confidence_match": "Low confidence match",
-  "warn.audio_features_unavailable": "Audio features unavailable",
   "warn.no_result": "No result found",
   "warn.credentials_missing": "Spotify credentials missing"
 }

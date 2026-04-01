@@ -88,6 +88,7 @@ class TestAnalyzeBandSong:
         assert result["genre"] == []
         assert result["style_tags"] == []
         assert result["characteristics"] == {}
+        assert result["audio_features"] == {}
         assert result["profile_suggestions"] == []
 
     @patch("core.src.analysis.debug_log")

@@ -79,7 +79,7 @@ You will enter these in the app during setup.
 When you open SpotyVibe, you will see the main interface with two provider sections:
 
 - **OpenAI** — Taste profile editor, AI profile updates, and AI Band/Song Analysis.
-- **Spotify** — Spotify Metadata Analysis, playlist generation, audio filters, and run history.
+- **Spotify** — Spotify Metadata Analysis, playlist generation, and run history.
 
 Status pills at the top of each section show whether your credentials are configured and connected.
 
@@ -98,7 +98,7 @@ The main screen is organised into collapsible components grouped under two provi
 - **🔍 Band/Song Analysis** — Get an AI-powered breakdown of any artist or track with ready-to-paste profile suggestions.
 
 **Spotify Section:**
-- **🔎 Spotify Metadata Analysis** — Look up real Spotify data — popularity, genres, audio features — for any artist or track.
+- **🔎 Spotify Metadata Analysis** — Look up real Spotify data — genres, albums, release dates — for any artist or track.
 - **🎧 Spotify Playlist Creation** — Generate AI-powered playlists and save them directly to your Spotify account. *(Collapsed by default.)*
 - **🕓 Run History** — View past generation runs and undo the last one if needed.
 
@@ -363,24 +363,23 @@ This is especially helpful if you know what you like, but are not sure how to de
 
 In the **Spotify** section, click **Open** or click anywhere on the **Spotify Metadata Analysis** header to expand it.
 
-This tool queries Spotify's own database for factual metadata — no AI interpretation involved. Use it to look up popularity, genres, audio features, and other details for any artist or track.
+This tool queries Spotify's own database for factual metadata — no AI interpretation involved. Use it to look up genres, albums, release dates, and other details for any artist or track.
 
 How to use it:
 
 1. Enter an **artist name**, a **track name**, or both. Spelling must be exact — there is no fuzzy matching or "did you mean" correction.
-2. Select a **market region** from the dropdown. Available options are: **US**, **AT**, **DE**, **JP**, **GB**, **KR**. The market determines which regional Spotify catalogue is searched — some tracks and popularity values differ by region. The default is US.
+2. Select a **market region** from the dropdown. Available options are: **US**, **AT**, **DE**, **JP**, **GB**, **KR**. The market determines which regional Spotify catalogue is searched — some tracks differ by region. The default is US.
 3. Click **Analyse**.
-4. Results appear in up to four blocks:
+4. Results appear in up to three blocks:
    - **Match Summary** — which result Spotify matched, with a confidence score (green = high, amber = medium, red = low).
-   - **Track** — track name, artists, album, release date, duration, popularity, and a direct Spotify link.
-   - **Artist** — artist name, genres, popularity, follower count, and a direct Spotify link.
-   - **Audio Features** — energy, valence, danceability, acousticness, instrumentalness, speechiness, liveness, and tempo (BPM).
+   - **Track** — track name, artists, album, release date, duration, and a direct Spotify link.
+   - **Artist** — artist name, genres, and a direct Spotify link.
 
-> **Note:** Audio features may be unavailable for some tracks. If that happens, a notice badge is shown and the rest of the result is still returned.
+> **Note:** Some metadata fields (popularity, followers, audio features) were removed from the Spotify API in February 2026. For audio feature estimates, use the AI Band/Song Analysis tool instead.
 
 > **Note:** Spotify Metadata Analysis uses your Spotify app credentials (Client ID and Secret) only — no Spotify user login is required.
 
-> **Tip:** Use this tool alongside AI Band/Song Analysis. AI Analysis gives you GPT's interpretive take on a sound, while Spotify Metadata gives you the raw factual signals (energy level, BPM, genres) you can cross-reference.
+> **Tip:** Use this tool alongside AI Band/Song Analysis. AI Analysis gives you GPT's interpretive take on a sound (including estimated audio features like energy and danceability), while Spotify Metadata gives you the raw factual data you can cross-reference.
 
 > **Screenshot placeholder:** Spotify Metadata Analysis with results
 
@@ -422,9 +421,9 @@ If you create a new playlist, you can usually enter a custom playlist name.
 
 ### Use Audio Filters
 
-The **Audio Filters** section lets you narrow down the mood and feel of the playlist.
+The **Audio Filters** section lets you narrow down the mood and feel of the playlist. When set, these constraints are sent directly to GPT as part of the prompt — the AI will only suggest tracks that match the specified ranges.
 
-Available filters may include:
+Available filters:
 
 - **Energy**
 - **Valence**
@@ -441,6 +440,8 @@ Examples:
 - More acousticness for organic sound
 
 If you are unsure, leave the filters unchanged.
+
+> **Tip:** Use the **Band/Song Analysis** tool to see how GPT classifies a song's audio features (energy, danceability, etc.). This helps you understand what filter values to set — for example, if a reference track shows 80% energy, you can use that as your minimum.
 
 > **Screenshot placeholder:** Audio Filters section expanded
 

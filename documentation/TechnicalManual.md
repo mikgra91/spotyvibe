@@ -254,11 +254,11 @@ Provides public Spotify metadata lookups using the **Client Credentials Flow** �
 - Artist only → `artist:{artist}`, type=artist
 - `limit=5`, configurable `market` (default `US`)
 
-**Scoring:** Top-5 candidates are scored — exact normalised track match +0.6, exact normalised artist match +0.3, popularity/1000 tie-breaker. If the best score is below 0.5 (track) or 0.9 (artist-only), a `"low_confidence_match"` warning is added.
+**Scoring:** Top-5 candidates are scored — exact normalised track match +0.6, exact normalised artist match +0.3. If the best score is below 0.5 (track) or 0.9 (artist-only), a `"low_confidence_match"` warning is added. Note: popularity was previously used as a tie-breaker but was removed from the Spotify API in February 2026.
 
 **Text normalisation:** `normalize_compare_text()` lowercases, trims, and collapses whitespace. `strip_version_suffixes()` removes suffixes like `(remastered)`, `[2024 mix]`, `(live)`, `(deluxe edition)` before comparison only — displayed Spotify values are never altered.
 
-**Fetch flow (track):** `/v1/tracks/{id}` → `/v1/artists/{primaryArtistId}` → `/v1/audio-features/{id}` (best-effort; 403/404 returns `None` + `"audio_features_unavailable"` warning).
+**Fetch flow (track):** `/v1/tracks/{id}` → `/v1/artists/{primaryArtistId}`. Note: the `/v1/audio-features/{id}` endpoint was removed by Spotify in February 2026 and is no longer called.
 
 **Fetch flow (artist-only):** `/v1/artists/{id}`.
 
@@ -270,13 +270,14 @@ Provides public Spotify metadata lookups using the **Client Credentials Flow** �
   "query": { "artist": "...", "track": "...", "market": "US" },
   "match": { "provider": "spotify", "type": "track|artist", "confidence": 0.98,
              "processed_at": "ISO8601", "spotify_track_id": "...", "spotify_artist_id": "..." },
-  "track": { "id", "name", "artists", "album", "release_date", "duration_ms", "popularity",
+  "track": { "id", "name", "artists", "album", "release_date", "duration_ms",
              "preview_url", "external_urls" },
-  "artist": { "id", "name", "genres", "popularity", "followers", "external_urls" },
-  "audio_features": { "energy", "valence", "danceability", ... } | null,
+  "artist": { "id", "name", "genres", "external_urls" },
   "warnings": []
 }
 ```
+
+Note: `popularity`, `followers`, and `audio_features` were removed from the Spotify API in February 2026 and are no longer included in the response.
 
 **Endpoint:** `POST /api/spotify/metadata/analyze` — accepts `{ "artist"?, "track"?, "market"? }`. At least one of `artist`/`track` is required. Returns 400 on missing input or credential errors, 404 if no match, 200 with optional warnings otherwise.
 
@@ -404,7 +405,7 @@ Manages all interactions with the Spotify Web API via the `spotipy` library.
 
 **Playlist modes:** `add_to_playlist()` supports three modes: **create** (always creates a new playlist), **append** (adds tracks to an existing playlist), and **replace** (clears an existing playlist before adding). Custom playlist name templates support `{date}` and `{style}` placeholders for dynamic naming.
 
-**Audio feature filtering:** `filter_by_audio_features(sp, tracks, filters)` performs post-verification filtering using `sp.audio_features()`. Accepts a dict of audio feature ranges (e.g., `{"energy": [0.5, 1.0], "danceability": [0.6, 0.9]}`) and removes tracks that fall outside the specified ranges.
+**Audio feature filtering (GPT-prompt-based):** Audio filters (energy, valence, tempo, danceability, acousticness) are injected directly into the GPT user prompt via `build_messages(audio_filters=...)`. The `_format_audio_filters()` helper in `suggestions.py` converts the filter dict (e.g., `{"energy": {"min": 0.6, "max": 1.0}}`) into a human-readable constraint block that GPT must respect when selecting tracks. This replaced the previous `filter_by_audio_features()` function which relied on the now-removed Spotify `audio_features` API endpoint.
 
 **Playlist listing:** `get_user_playlists(sp)` returns a list of the user's Spotify playlists (id, name, track count) for the playlist mode selector UI.
 
@@ -438,6 +439,7 @@ Provides AI-powered analysis of bands and songs using structured GPT output.
   - `genre[]` — list of genre classifications
   - `style_tags[]` — descriptive style tags
   - `characteristics{}` — detailed musical characteristics (structure, dynamics, instrumentation, etc.)
+  - `audio_features{}` — GPT-estimated numeric audio features on a 0.0–1.0 scale (energy, valence, danceability, acousticness, instrumentalness, speechiness, liveness) plus tempo in BPM. These show how GPT classifies the music and help users set audio filters for playlist generation.
   - `profile_suggestions[]` — suggested additions to the user's taste profile based on the analysis
 
 The prompt template (`analysis_prompt.txt`) includes a `{gpt_language}` placeholder so the analysis is returned in the user's configured language.
@@ -469,7 +471,7 @@ Exposes all functionality via HTTP endpoints.
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/` | Serves the single-page web UI. |
-| POST | `/api/run` | Runs the full generation pipeline. Returns an **SSE stream** with progress events. Accepts JSON body with `run_id`, `playlist_mode` (create/append/replace), `playlist_id`, `playlist_name`, and `audio_filters`. SSE track events include `preview_url`, `spotify_url`, `artist_url`, and `album_url`. Run state is persisted by `run_id` for SSE recovery. |
+| POST | `/api/run` | Runs the full generation pipeline. Returns an **SSE stream** with progress events. Accepts JSON body with `run_id`, `playlist_mode` (create/append/replace), `playlist_id`, `playlist_name`, and `audio_filters` (injected into the GPT prompt as constraints). SSE track events include `preview_url`, `spotify_url`, `artist_url`, and `album_url`. Run state is persisted by `run_id` for SSE recovery. |
 | POST | `/api/cancel` | Cancels an active generation run by `run_id`. Accepts `{"run_id": "...", "finalize": bool}`. When `finalize` is `true`, the playlist is created with however many tracks have been verified so far. |
 | POST | `/api/feedback` | Records a like or dislike. Dislikes also remove the track from Spotify. |
 | POST | `/api/remove` | Removes a track from Spotify without recording feedback. |
@@ -492,7 +494,7 @@ Exposes all functionality via HTTP endpoints.
 | GET | `/api/settings/models` | Returns available OpenAI chat models and the currently selected one. **Cached** with a 5-minute TTL (`_models_cache`) to reduce OpenAI API calls. |
 | DELETE | `/api/settings/debug-log` | Clears the debug log file (**desktop only**; returns 404 on Android). |
 
-| POST | `/api/analyze` | Band/song AI analysis. Accepts `{"artist": "...", "track": "..."}`, returns structured JSON with genre, style tags, characteristics, and profile suggestions. |
+| POST | `/api/analyze` | Band/song AI analysis. Accepts `{"artist": "...", "track": "..."}`, returns structured JSON with genre, style tags, characteristics, GPT-estimated audio features, and profile suggestions. |
 | GET | `/api/playlists` | Lists the user's Spotify playlists (id, name, track count) for the playlist mode selector. |
 | GET | `/api/runs` | Returns run history (newest-first) with run ID, timestamp, playlist info, and track list. |
 | POST | `/api/runs/undo` | Removes tracks from the most recent run's playlist and deletes the history entry. |
@@ -524,7 +526,7 @@ A modular single-page application split across Jinja2 templates and vanilla Java
 
 **Layout:** The UI is divided into two provider sections, each with a badge, subtitle, and live status pills:
 - **OpenAI** — Taste profile training, AI band/song analysis. Status pills: key configured, profile trained, selected model, GPT language.
-- **Spotify** — Spotify metadata analysis, playlist generation (with audio filters), and run history. Status pills: connection state.
+- **Spotify** — Spotify metadata analysis, playlist generation, and run history. Status pills: connection state.
 
 Both sections are wrapped in styled provider cards (`.provider-section`) for visual consistency.
 

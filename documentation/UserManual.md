@@ -176,7 +176,7 @@ If your Spotify session expires or you need to re-authenticate, open the **☰ m
 Before generating suggestions, you need to tell the AI what kind of music you like. The UI is divided into two clearly labelled **provider sections**:
 
 - **OpenAI** — Everything powered by AI: your taste profile editor, AI profile updates, and AI Band/Song Analysis.
-- **Spotify** — Everything powered by Spotify: metadata lookup, playlist generation, audio filters, and run history.
+- **Spotify** — Everything powered by Spotify: metadata lookup, playlist generation, and run history.
 
 Status pills at the top of each section show at a glance whether your credentials are configured and connected.
 
@@ -249,7 +249,7 @@ For example, a name template of `SpotyVibe {style} {date}` might produce `SpotyV
 
 ### Audio Feature Filters
 
-Below the playlist mode selector you will find a collapsible **Audio Filters** section. These optional filters let you constrain the generated playlist by Spotify audio features:
+Below the playlist mode selector you will find a collapsible **Audio Filters** section. These optional filters guide GPT to suggest tracks matching your desired mood and feel:
 
 - **Energy** — how intense / energetic the track feels (0–100)
 - **Valence** — how happy / positive the track sounds (0–100)
@@ -257,11 +257,11 @@ Below the playlist mode selector you will find a collapsible **Audio Filters** s
 - **Danceability** — how suitable the track is for dancing (0–100)
 - **Acousticness** — how acoustic (vs. electronic) the track is (0–100)
 
-Each filter has a **min** and **max** slider. Tracks that fall outside your ranges are removed after Spotify verification — the AI still suggests them, but they are filtered out before being added to the playlist.
+Each filter has a **min** and **max** input. When set, these constraints are sent directly to GPT as part of the prompt — the AI will only suggest tracks that match the specified ranges.
 
-Leave a filter's sliders at their default positions (empty) to skip that filter entirely. If all filters are empty, no filtering is applied.
+Leave a filter's inputs empty to skip that filter entirely. If all filters are empty, no filtering is applied.
 
-> **Tip:** If you find that filters are removing too many tracks, widen the ranges or disable some filters to let more tracks through.
+> **Tip:** Use the **Band/Song Analysis** tool to see how GPT classifies a song's audio features. This helps you understand what values to use when setting filters — for example, if a song you like shows 80% energy and 60% danceability, you can set those as your filter ranges to find similar tracks.
 
 ### Running a Generation
 
@@ -386,7 +386,8 @@ Inside the **OpenAI** section you will find a collapsible **AI Band/Song Analysi
 1. Enter an **artist name** and, optionally, a **track name**.
 2. Click **Analyze**.
 3. The AI returns detailed information about the music: genre, style tags, and characteristics such as energy, instrumentation, vocals, production, and structure.
-4. Below the analysis you will see **Profile Suggestions** — short phrases you can paste directly into your taste profile fields. Each suggestion has a **copy-to-clipboard** button so you can copy the text with one click and paste it into the Core Description, Must Have, Soft Preferences, or Avoid fields.
+4. Below the characteristics you will see **Audio Features** — GPT's estimated numeric values (energy, valence, danceability, acousticness, etc.) displayed as percentage bars. These show how GPT classifies the music and can guide you when setting audio filters for playlist generation.
+5. Below the audio features you will see **Profile Suggestions** — short phrases you can paste directly into your taste profile fields. Each suggestion has a **copy-to-clipboard** button so you can copy the text with one click and paste it into the Core Description, Must Have, Soft Preferences, or Avoid fields.
 
 This is useful when you want to describe a sound but aren't sure of the right terminology — let the AI analyse a reference track and borrow its vocabulary.
 
@@ -397,18 +398,17 @@ Inside the **Spotify** section you will find a collapsible **Spotify Metadata An
 1. Enter an **artist name**, a **track name**, or both. Spelling must be exact — there is no fuzzy/did-you-mean correction.
 2. Select a **market region** from the dropdown (US, AT, DE, JP, GB, KR). This determines which regional Spotify catalogue is searched — some tracks and availability data differ by market. The default is US.
 3. Click **Analyse**.
-4. Results appear in up to four blocks:
+4. Results appear in up to three blocks:
 
    - **Match Summary** — which result Spotify matched, with a confidence score (green = high, amber = medium, red = low).
-   - **Track** — track name, artists, album, release date, duration, popularity, and a direct Spotify link.
-   - **Artist** — artist name, genres, popularity, follower count, and a direct Spotify link.
-   - **Audio Features** — energy, valence, danceability, acousticness, instrumentalness, speechiness, liveness, and tempo (BPM) — sourced from Spotify's audio analysis.
+   - **Track** — track name, artists, album, release date, duration, and a direct Spotify link.
+   - **Artist** — artist name, genres, and a direct Spotify link.
 
-> **Note:** Audio features may be unavailable for some tracks (Spotify restricts this data for certain content). If that happens, a notice badge is shown and the rest of the result is still returned.
+> **Note:** Some fields (popularity, followers, audio features) were removed from the Spotify API in February 2026 and are no longer available. Use the AI Band/Song Analysis tool for GPT-estimated audio features instead.
 
 > **Note:** Spotify Metadata Analysis uses your Spotify **app credentials** (Client ID and Secret) only — no Spotify user login is required.
 
-> **Tip:** Use this tool alongside AI Band/Song Analysis: AI Analysis gives you GPT's interpretive take on a sound, while Spotify Metadata gives you the raw factual signals (energy level, BPM, genres) you can cross-reference.
+> **Tip:** Use this tool alongside AI Band/Song Analysis: AI Analysis gives you GPT's interpretive take on a sound (including estimated audio features like energy and danceability), while Spotify Metadata gives you the raw factual data (album, release date, genres) you can cross-reference.
 
 ---
 
