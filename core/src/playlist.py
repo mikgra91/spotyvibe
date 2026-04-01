@@ -30,6 +30,7 @@ import re
 # not CPU-bound. Threads share memory and have lower overhead than
 # processes for this use case.
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from itertools import zip_longest
 
 # spotipy is a lightweight Python wrapper for all Spotify Web API
 # endpoints. It handles OAuth token lifecycle, request serialization,
@@ -360,7 +361,9 @@ def filter_by_audio_features(sp, tracks: list, filters: dict) -> tuple:
     passing = []
     filtered_out = []
 
-    for track, features in zip(tracks, features_list or []):
+    for track, features in zip_longest(tracks, features_list or [], fillvalue=None):
+        if track is None:
+            continue
         if features is None:
             passing.append(track)
             continue
@@ -443,22 +446,6 @@ def add_to_playlist(verified_tracks, mode="default", playlist_id=None,
         profile: optional profile dict for name template tokens.
 
     Returns: {"url": str, "added": int}
-    """
-    """Add pre-verified tracks (must have a "uri" key) to the SpotyVibe Playlist.
-
-    **Idempotent design**: Checks for existing tracks in the playlist
-    before adding, so calling this function multiple times with the same
-    tracks won't create duplicates.
-
-    **Playlist creation**: Uses `current_user_playlist_create()` (maps to
-    `POST /v1/me/playlists`) — the modern endpoint. The deprecated
-    `POST /v1/users/{user_id}/playlists` is NOT used.
-
-    **Error recovery**: On a 403 Forbidden (expired/revoked token), the
-    token cache is cleared and a descriptive error is raised so the UI
-    can guide the user to re-authenticate.
-
-    Returns:  {"url": str, "added": int}
     """
     sp = get_spotify_client()
     playlist = None

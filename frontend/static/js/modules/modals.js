@@ -1,7 +1,8 @@
 import * as State from './state.js';
 import { showStatus, showToast, esc, sanitizeHtml } from './ui.js';
-import { checkCredentialStatus, checkSpotifyAuth } from './auth.js';
+import { checkCredentialStatus, checkSpotifyAuth, fetchSettingsState } from './auth.js';
 import { renderComponentWarnings } from './warnings.js';
+import { renderProviderPills } from './spotify-metadata.js';
 
 const CRED_KEYS = ['OPENAI_API_KEY', 'SPOTIPY_CLIENT_ID', 'SPOTIPY_CLIENT_SECRET'];
 
@@ -212,6 +213,7 @@ export async function saveSettings() {
         if (resp.ok) {
             closeModal('settingsModal');
             showStatus('✅ Settings saved.', 'success');
+            fetchSettingsState().then(() => renderProviderPills());
         } else {
             const d = await resp.json();
             alert('Error: ' + (d.error || 'unknown'));

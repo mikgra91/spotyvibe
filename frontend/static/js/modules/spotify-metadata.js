@@ -169,6 +169,12 @@ function renderOpenaiPills() {
     const pills = [];
     pills.push(pill(State.openaiKeySet ? 'ok' : 'err', State.openaiKeySet ? 'Key configured' : 'Key missing'));
     pills.push(pill(State.profileTrained ? 'ok' : 'warn', State.profileTrained ? 'Profile trained' : 'Not trained'));
+    if (State.selectedModel) {
+        pills.push(pill('ok', State.selectedModel));
+    }
+    if (State.gptLanguage) {
+        pills.push(pill('ok', State.gptLanguage));
+    }
     el.innerHTML = pills.join('');
 }
 

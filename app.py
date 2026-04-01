@@ -123,7 +123,7 @@ def index():
         "debug_mode": raw_settings.get("debug_mode", False),
     }
     debug_controls_available = raw_settings.get("debug_controls_available", True)
-    current_language = "de" if gpt_lang.lower().startswith("de") else "en"
+    current_language = "en"  # UI language is client-side (localStorage); server always sends 'en' as default
     credentials = get_credentials()
     return render_template(
         "base.html",
@@ -179,7 +179,7 @@ def help_content():
     if not manual_path.exists():
         return jsonify({"error": "Help file not found."}), 404
     md_text = manual_path.read_text(encoding="utf-8")
-    html = markdown.markdown(md_text, extensions=["tables", "fenced_code"])
+    html = markdown.markdown(md_text, extensions=["tables", "fenced_code", "toc"])
     return jsonify({"html": html})
 
 
@@ -582,8 +582,8 @@ def submit_feedback():
 def remove_track():
     """Remove a track from the Spotify playlist without recording feedback."""
     data   = request.get_json(force=True)
-    artist = data.get("artist")
-    track  = data.get("track")
+    artist = sanitize_text(str(data.get("artist") or ""))
+    track  = sanitize_text(str(data.get("track") or ""))
 
     if not artist or not track:
         return jsonify({"error": "Artist and track are required."}), 400

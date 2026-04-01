@@ -122,9 +122,9 @@ Click **Save**. Your credentials are stored securely outside the project folder 
 
 Open the **⚙️ gear menu** and select **⚙️ Settings**.
 
-The **Used Model** dropdown lists all available models from your OpenAI account. The default is `gpt-4.1-mini`.
+The **Used Model** dropdown lists all available models from your OpenAI account. The default is `gpt-4.1-mini`. Available models include `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-4o`, and various o-series models.
 
-You can switch to a different model at any time. More capable models (e.g., `gpt-4.1`, `gpt-4o`) may produce better recommendations but cost more per request.
+You can switch to a different model at any time. More capable models (e.g., `gpt-5.4`, `gpt-4.1`, `gpt-4o`) may produce better recommendations but cost more per request.
 
 > **⚠️ Cost warning:** Different models have very different prices — for example, `gpt-4.1` can cost 10× more per request than `gpt-4.1-mini`. Check [OpenAI Pricing](https://platform.openai.com/docs/pricing) to understand the costs before switching models.
 
@@ -179,6 +179,8 @@ Before generating suggestions, you need to tell the AI what kind of music you li
 - **Spotify** — Everything powered by Spotify: metadata lookup, playlist generation, audio filters, and run history.
 
 Status pills at the top of each section show at a glance whether your credentials are configured and connected.
+
+Each major component within a section is **collapsible/expandable**. Click anywhere on the section header (the title area with the description text) or the toggle button to expand or collapse it. A short description below each title explains what that component does. The **Spotify Playlist Creation** section starts collapsed by default to keep the page compact.
 
 To set up your profile:
 
@@ -300,7 +302,7 @@ Use this when the AI has found some good tracks but has started repeating sugges
 
 ## Run History and Undo
 
-Below the generation area you will find a collapsible **Run History** section. It records every playlist generation you perform, showing:
+Below the generation area you will find a collapsible **Run History** section. It records the **last 5** playlist generation runs, showing:
 
 - **Date and time** of the run
 - **Track count** — how many tracks were added
@@ -392,8 +394,8 @@ This is useful when you want to describe a sound but aren't sure of the right te
 
 Inside the **Spotify** section you will find a collapsible **Spotify Metadata Analysis** panel. Unlike the AI Band/Song Analysis (which uses GPT to interpret music), this tool queries Spotify's own database for factual metadata — no AI interpretation involved.
 
-1. Enter an **artist name**, a **track name**, or both.
-2. Optionally set a **market** (two-letter country code, default: `US`) to control which regional catalogue is searched.
+1. Enter an **artist name**, a **track name**, or both. Spelling must be exact — there is no fuzzy/did-you-mean correction.
+2. Select a **market region** from the dropdown (US, AT, DE, JP, GB, KR). This determines which regional Spotify catalogue is searched — some tracks and availability data differ by market. The default is US.
 3. Click **Analyse**.
 4. Results appear in up to four blocks:
 

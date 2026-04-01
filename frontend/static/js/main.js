@@ -1,9 +1,9 @@
-import { checkCredentialStatus, checkSpotifyAuth, connectSpotify, toggleSpotifyConnection } from './modules/auth.js';
+import { checkCredentialStatus, checkSpotifyAuth, connectSpotify, toggleSpotifyConnection, fetchSettingsState } from './modules/auth.js';
 import { renderComponentWarnings } from './modules/warnings.js';
 import { toggleAccordion, prefillTrainFields, updateTrainToggleLabel, toggleTrainBody, startImportProfile, exportProfile, submitProfile, sendTrainProfile, saveProfileDirect, resetProfileToHistory, bindProfileImportInput, checkProfileStatus } from './modules/profile.js';
 import { toggleHistoryBody, loadHistory, undoLastRun } from './modules/history.js';
 import { toggleAnalysisBody, runAnalysis, renderAnalysisResult, copySuggestion } from './modules/analysis.js';
-import { runPipeline, setGenerating, updateUseTracksButton, generateUUID, handleStreamEvent, showSseDisconnectBanner, resumeRun, cancelGeneration, useCurrentTracks, canGenerate } from './modules/pipeline.js';
+import { toggleGenerateBody, runPipeline, setGenerating, updateUseTracksButton, generateUUID, handleStreamEvent, showSseDisconnectBanner, resumeRun, cancelGeneration, useCurrentTracks, canGenerate } from './modules/pipeline.js';
 import { toggleAudioFilters, getAudioFilters } from './modules/audio-filters.js';
 import { getPlaylistMode, onPlaylistModeChange, getPlaylistModePayload } from './modules/playlist-mode.js';
 import { renderTracks } from './modules/tracklist.js';
@@ -22,6 +22,7 @@ window.checkCredentialStatus = checkCredentialStatus;
 window.checkSpotifyAuth = checkSpotifyAuth;
 window.connectSpotify = connectSpotify;
 window.toggleSpotifyConnection = toggleSpotifyConnection;
+window.fetchSettingsState = fetchSettingsState;
 window.renderComponentWarnings = renderComponentWarnings;
 window.toggleAccordion = toggleAccordion;
 window.prefillTrainFields = prefillTrainFields;
@@ -41,6 +42,7 @@ window.runAnalysis = runAnalysis;
 window.renderAnalysisResult = renderAnalysisResult;
 window.copySuggestion = copySuggestion;
 window.runPipeline = runPipeline;
+window.toggleGenerateBody = toggleGenerateBody;
 window.setGenerating = setGenerating;
 window.updateUseTracksButton = updateUseTracksButton;
 window.generateUUID = generateUUID;
@@ -99,7 +101,7 @@ window.addEventListener('message', async (e) => {
 
 // Close settings dropdown when clicking outside
 document.addEventListener('click', (e) => {
-    const wrapper = document.querySelector('.settings-wrapper');
+    const wrapper = document.querySelector('.header-controls');
     if (wrapper && !wrapper.contains(e.target)) {
         document.getElementById('settingsDropdown').classList.remove('open');
     }
@@ -124,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
     switchTheme(_pendingTheme || 'equalizer');
 
     // Auth and warnings
-    Promise.all([checkCredentialStatus(), checkSpotifyAuth()]).then(() => {
+    Promise.all([checkCredentialStatus(), checkSpotifyAuth(), fetchSettingsState()]).then(() => {
         renderComponentWarnings();
         renderProviderPills();
     });

@@ -1,13 +1,14 @@
 <!-- ── Run History ── -->
 <div class="history-section" id="historySection">
-    <div class="train-header">
+    <div class="train-header" onclick="toggleHistoryBody()" style="cursor:pointer;">
         <div class="train-header-left">
-            <h2>🕓 Run History</h2>
+            <h2>🕓 <span data-i18n="history.title">Run History</span></h2>
+            <span class="train-status" style="opacity:0.7;">View past generation runs and undo the last one if needed.</span>
         </div>
         <div class="train-header-actions">
-            <button class="btn-train" onclick="toggleHistoryBody()">Show history</button>
-            <button class="btn btn-dislike" id="undoLastRunBtn" onclick="undoLastRun()"
-                {% if not run_history %}style="display:none;"{% endif %}>↩ Undo last run</button>
+            <button class="btn-train" onclick="event.stopPropagation(); toggleHistoryBody()" data-i18n="history.show">Show history</button>
+            <button class="btn btn-dislike" id="undoLastRunBtn" onclick="event.stopPropagation(); undoLastRun()"
+                {% if not run_history %}style="display:none;"{% endif %}>↩ <span data-i18n="history.undo">Undo last run</span></button>
         </div>
     </div>
     <div class="train-body hidden" id="historyBody">

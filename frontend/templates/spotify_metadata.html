@@ -1,11 +1,12 @@
 <!-- ── Spotify Metadata Analysis ── -->
 <div class="analysis-section" id="spotifyMetadataSection">
-    <div class="train-header">
+    <div class="train-header" onclick="toggleSpotifyMetadata()" style="cursor:pointer;">
         <div class="train-header-left">
-            <h2>🔎 Spotify Metadata Analysis</h2>
+            <h2>🔎 <span data-i18n="spotify_meta.title">Spotify Metadata Analysis</span></h2>
+            <span class="train-status" style="opacity:0.7;">Look up real Spotify data — popularity, genres, audio features — for any artist or track.</span>
         </div>
         <div class="train-header-actions">
-            <button class="btn-train" id="spotifyMetaToggleBtn" onclick="toggleSpotifyMetadata()">Open</button>
+            <button class="btn-train" id="spotifyMetaToggleBtn" onclick="event.stopPropagation(); toggleSpotifyMetadata()">Open</button>
         </div>
     </div>
     <div class="train-body hidden" id="spotifyMetadataBody">
@@ -15,14 +16,22 @@
                 <input id="spotifyMetaArtist" type="text" placeholder="Artist / band name" maxlength="200" data-i18n-placeholder="analysis.artist_placeholder">
                 <input id="spotifyMetaTrack" type="text" placeholder="Track name (optional)" maxlength="200" data-i18n-placeholder="spotify_meta.track_placeholder">
             </div>
-            <div class="analysis-input-row" style="margin-top:8px;">
-                <input id="spotifyMetaMarket" type="text" placeholder="Market (e.g. US)" maxlength="2" value="US" style="max-width:120px;" data-i18n-placeholder="spotify_meta.market_placeholder">
+            <div class="analysis-input-row" style="margin-top:8px; align-items:center;">
+                <label for="spotifyMetaMarket" style="font-size:0.82rem; color:var(--text-muted); white-space:nowrap;">Market region — determines which Spotify catalogue to search</label>
+                <select id="spotifyMetaMarket" style="max-width:120px; min-height:30px; border-radius:15px; padding-left:10px; background:var(--bg-input); color:var(--text-primary); border:1px solid var(--border);">
+                    <option value="US" selected>US</option>
+                    <option value="AT">AT</option>
+                    <option value="DE">DE</option>
+                    <option value="JP">JP</option>
+                    <option value="GB">GB</option>
+                    <option value="KR">KR</option>
+                </select>
             </div>
         </div>
         <div class="run-section">
-            <button class="btn-run" id="spotifyMetaAnalyseBtn" style="width: 33%;" onclick="runSpotifyMetadata()">Analyse</button>
+            <button class="btn-run" id="spotifyMetaAnalyseBtn" style="width: 33%;" onclick="runSpotifyMetadata()" data-i18n="spotify_meta.btn_analyse">Analyse</button>
         </div>
-        <div id="spotifyMetaLoading" class="hidden" style="text-align:center;padding:16px;color:var(--text-muted);">Analyzing…</div>
+        <div id="spotifyMetaLoading" class="hidden" style="text-align:center;padding:16px;color:var(--text-muted);" data-i18n="spotify_meta.loading">Analyzing…</div>
         <div id="spotifyMetaError" class="hidden component-warn" style="margin-top:12px;"></div>
         <div id="spotifyMetaResult" class="hidden" style="margin-top:16px;"></div>
     </div>

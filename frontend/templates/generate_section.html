@@ -1,4 +1,14 @@
-<div class="generate-section">
+<div class="generate-section" id="generateSection">
+    <div class="train-header" onclick="toggleGenerateBody()" style="cursor:pointer;">
+        <div class="train-header-left">
+            <h2>🎧 <span data-i18n="generate.title">Spotify Playlist Creation</span></h2>
+            <span class="train-status" style="opacity:0.7;">Generate AI-powered playlists and save them directly to your Spotify account.</span>
+        </div>
+        <div class="train-header-actions">
+            <button class="btn-train" id="generateToggleBtn" onclick="event.stopPropagation(); toggleGenerateBody()">Show</button>
+        </div>
+    </div>
+    <div class="train-body hidden" id="generateBody">
     <!-- Audio feature filters (collapsible) -->
     <div class="playlist-mode-row" id="audioFiltersSection">
         <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleAudioFilters()">
@@ -77,13 +87,14 @@
     </div>
 
     <div class="run-section">
-        <button class="btn-run" id="runBtn" onclick="runPipeline()" {% if not can_generate %}disabled{% endif %}>▶ Generate &amp; Create Playlist</button>
-        <button class="btn-run-cancel hidden" id="cancelBtn" onclick="cancelGeneration()">⛔ Cancel</button>
+        <button class="btn-run" id="runBtn" onclick="runPipeline()" {% if not can_generate %}disabled{% endif %}>▶ <span data-i18n="btn.generate">Generate &amp; Create Playlist</span></button>
+        <button class="btn-run-cancel hidden" id="cancelBtn" onclick="cancelGeneration()">⛔ <span data-i18n="btn.cancel_generation">Cancel</span></button>
         <button class="btn-use-tracks hidden" id="useTracksBtn" onclick="useCurrentTracks()">▶ Use 0 tracks now</button>
     </div>
     <div id="runWarn" class="{% if not can_generate %}{% else %}hidden{% endif %}">
         {% if not can_generate %}
         <span class="component-warn">⚠️ Cannot generate — check credentials and Spotify connection.</span>
         {% endif %}
+    </div>
     </div>
 </div>

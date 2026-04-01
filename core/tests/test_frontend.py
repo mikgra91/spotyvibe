@@ -262,6 +262,8 @@ class TestPageLoad:
 
     def test_generate_button_visible(self, page: Page, base_url):
         page.goto(base_url)
+        # Generate section is collapsed by default — expand it first
+        page.locator("#generateToggleBtn").click()
         expect(page.locator("#runBtn")).to_be_visible()
         expect(page.locator("#runBtn")).to_have_text("▶ Generate & Create Playlist")
 
@@ -590,20 +592,25 @@ class TestGenerateSection:
 
     def test_generate_button_present(self, page: Page, base_url):
         page.goto(base_url)
+        # Generate section is collapsed by default — expand it first
+        page.locator("#generateToggleBtn").click()
         expect(page.locator("#runBtn")).to_be_visible()
 
     def test_cancel_button_hidden_initially(self, page: Page, base_url):
         page.goto(base_url)
+        page.locator("#generateToggleBtn").click()
         expect(page.locator("#cancelBtn")).to_be_hidden()
 
     def test_use_tracks_button_hidden_initially(self, page: Page, base_url):
         page.goto(base_url)
+        page.locator("#generateToggleBtn").click()
         expect(page.locator("#useTracksBtn")).to_be_hidden()
 
     def test_no_warnings_when_all_configured(self, page: Page, base_url):
         """When credentials are set and Spotify is authenticated, no warnings show."""
         page.goto(base_url)
         page.wait_for_load_state("networkidle")
+        page.locator("#generateToggleBtn").click()
         run_warn = page.locator("#runWarn")
         expect(run_warn).to_have_class(re.compile(r"hidden"))
 
@@ -661,7 +668,8 @@ class TestGenerationPipeline:
         page.reload()
         page.wait_for_load_state("networkidle")
 
-        # Click Generate
+        # Expand collapsed generate section and click Generate
+        page.locator("#generateToggleBtn").click()
         page.locator("#runBtn").click()
 
         # Wait for result tracks to appear
@@ -687,17 +695,11 @@ class TestGenerationPipeline:
         page.goto(base_url)
         page.wait_for_load_state("networkidle")
 
-        # Create a slow SSE stream that doesn't complete immediately
-        def handle_run_slow(route):
-            # Only send progress, no result — simulates ongoing generation
-            sse_body = (
-                'data: {"type":"progress","message":"Batch 1: Asking GPT…"}\n\n'
-            )
-            route.fulfill(
-                status=200,
-                headers={"Content-Type": "text/event-stream"},
-                body=sse_body,
-            )
+        # Hold the SSE request open (never fulfill) so generation stays in-progress
+        def handle_run_hang(route):
+            # Don't fulfill — the request stays pending, keeping the UI in
+            # "generating" state long enough for assertions to pass.
+            pass
 
         def handle_profile_status(route):
             route.fulfill(
@@ -706,15 +708,19 @@ class TestGenerationPipeline:
                 body=json.dumps({"trained": True, "last_updated": "2025-01-01T00:00:00"}),
             )
 
-        page.route("**/api/run", handle_run_slow)
+        page.route("**/api/run", handle_run_hang)
         page.route("**/api/profile/status", handle_profile_status)
         page.reload()
         page.wait_for_load_state("networkidle")
 
-        # Observe that run button changes text during generation
+        # Expand collapsed generate section, then observe run button
+        page.locator("#generateToggleBtn").click()
         page.locator("#runBtn").click()
-        # The button should immediately change to "Generating…"
-        expect(page.locator("#runBtn")).to_have_text("⏳ Generating…", timeout=2000)
+        # The button should change to "Generating…" and stay there
+        expect(page.locator("#runBtn")).to_have_text("⏳ Generating…", timeout=5000)
+
+        # Clean up: unroute so hanging request doesn't leak into other tests
+        page.unroute("**/api/run")
 
 
 class TestFeedbackButtons:

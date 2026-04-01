@@ -379,7 +379,7 @@ def analyze_metadata(
 
     warnings = []
     token = get_client_credentials_token()
-    processed_at = datetime.datetime.utcnow().isoformat() + "Z"
+    processed_at = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
 
     # ------------------------------------------------------------------
     # Track + artist search

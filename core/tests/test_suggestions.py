@@ -5,6 +5,7 @@ from core.src.suggestions import (
     _build_deny_set_json,
     _migrate_suggested_tracks,
     _normalize_key,
+    _strip_gpt_annotation,
     build_messages,
     call_gpt,
     filter_duplicate_suggestions,
@@ -277,6 +278,77 @@ class TestNormalizeResponse:
         }
         normalized = normalize_response(result)
         assert "validation" not in normalized
+
+    def test_drops_self_excluded_entries(self):
+        """GPT sometimes includes forbidden tracks as 'excluded' placeholders."""
+        result = {
+            "playlist": [
+                {"artist": "Good Artist", "track": "Good Song", "reason": "Fits the vibe."},
+                {
+                    "artist": "Boards of Canada (excluded due to forbidden tracks and history)",
+                    "track": "Dayvan Cowboy",
+                    "reason": "Forbidden track, excluded.",
+                },
+                {
+                    "artist": "Emancipator",
+                    "track": "Safe in the Steep Cliffs",
+                    "reason": "Not suggested due to deny list.",
+                },
+            ],
+        }
+        normalized = normalize_response(result)
+        assert len(normalized["playlist"]) == 1
+        assert normalized["playlist"][0]["artist"] == "good artist"
+
+    def test_strips_gpt_annotation_from_artist_names(self):
+        """Parenthetical annotations like '(different track)' are stripped."""
+        result = {
+            "playlist": [
+                {"artist": "Tycho (different track)", "track": "Hours", "reason": "Chill."},
+                {"artist": "Helios (different track)", "track": "Reprise", "reason": "Ambient."},
+                {"artist": "Nightmares on Wax (different from forbidden)", "track": "Les Nuits", "reason": "Classic."},
+            ],
+        }
+        normalized = normalize_response(result)
+        assert normalized["playlist"][0]["artist"] == "tycho"
+        assert normalized["playlist"][1]["artist"] == "helios"
+        assert normalized["playlist"][2]["artist"] == "nightmares on wax"
+
+    def test_preserves_legitimate_parentheticals(self):
+        """Artist names with non-annotation parentheticals are left intact."""
+        result = {
+            "playlist": [
+                {"artist": "Iron & Wine", "track": "Flightless Bird", "reason": "Calm."},
+                {"artist": "fun.", "track": "We Are Young", "reason": "Pop."},
+            ],
+        }
+        normalized = normalize_response(result)
+        assert normalized["playlist"][0]["artist"] == "iron & wine"
+        assert normalized["playlist"][1]["artist"] == "fun."
+
+
+class TestStripGptAnnotation:
+    _WORDS = {"different", "excluded", "forbidden", "not in",
+              "due to", "see above", "alternate version",
+              "from history", "other track", "previously"}
+
+    def test_strips_different_track(self):
+        assert _strip_gpt_annotation("Tycho (different track)", self._WORDS) == "Tycho"
+
+    def test_strips_excluded_annotation(self):
+        result = _strip_gpt_annotation(
+            "Boards of Canada (excluded due to forbidden tracks and history)", self._WORDS
+        )
+        assert result == "Boards of Canada"
+
+    def test_preserves_plain_artist(self):
+        assert _strip_gpt_annotation("Massive Attack", self._WORDS) == "Massive Attack"
+
+    def test_preserves_non_annotation_parens(self):
+        assert _strip_gpt_annotation("The Orb (feat. David Gilmour)", self._WORDS) == "The Orb (feat. David Gilmour)"
+
+    def test_preserves_empty_string(self):
+        assert _strip_gpt_annotation("", self._WORDS) == ""
 
 
 class TestUpdateProfile:

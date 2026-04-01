@@ -16,7 +16,7 @@
 <div class="container" style="position: relative;">
     {% include "settings_gear.html" %}
     <h1>SpotyVibe</h1>
-    <p class="subtitle">AI-powered music discovery &amp; playlist generation — discover, curate, refine.</p>
+    <p class="subtitle" data-i18n="app.subtitle">AI-powered music discovery &amp; playlist generation — discover, curate, refine.</p>
     {% include "theme_switcher.html" %}
 
     <!-- ── OpenAI Provider Section ── -->
@@ -24,7 +24,7 @@
         <div class="provider-header">
             <div class="provider-header-title">
                 <span class="provider-badge provider-badge-openai">OpenAI</span>
-                <p class="provider-subtitle">Define your taste profile and analyze reference music with AI.</p>
+                <p class="provider-subtitle" data-i18n="provider.openai_subtitle">Define your taste profile and analyze reference music with AI.</p>
             </div>
             <div class="provider-status-pills" id="openaiStatusPills"></div>
         </div>
@@ -37,7 +37,7 @@
         <div class="provider-header">
             <div class="provider-header-title">
                 <span class="provider-badge provider-badge-spotify">Spotify</span>
-                <p class="provider-subtitle">Inspect track metadata, control playlists, and save generated music to Spotify.</p>
+                <p class="provider-subtitle" data-i18n="provider.spotify_subtitle">Inspect track metadata, control playlists, and save generated music to Spotify.</p>
             </div>
             <div class="provider-status-pills" id="spotifyStatusPills"></div>
         </div>

@@ -452,7 +452,7 @@ Manages persistence and retrieval of playlist generation run history, enabling t
 
 | Function | Purpose |
 |---|---|
-| `save_run(run_id, playlist_id, playlist_url, tracks)` | Appends a run entry to `run_history.json`. Each entry includes the run ID, playlist ID, URL, tracks, and timestamp. The history file is capped at 50 entries (oldest entries are pruned). |
+| `save_run(run_id, playlist_id, playlist_url, tracks)` | Appends a run entry to `run_history.json`. Each entry includes the run ID, playlist ID, URL, tracks, and timestamp. The history file is capped at 5 entries (oldest entries are pruned). |
 | `load_runs()` | Returns all stored runs, newest-first. |
 | `undo_last_run(sp)` | Removes all tracks from the most recent run via `sp.playlist_remove_all_occurrences_of_items()`, then deletes the run entry from history. Returns the removed run for confirmation. |
 
@@ -522,15 +522,18 @@ When `/api/cancel` is called with `finalize: false`, the generator yields a `can
 
 A modular single-page application split across Jinja2 templates and vanilla JavaScript modules (no framework). Communicates with the Flask backend via `fetch` API calls. `base.html` is the root layout; UI sections are composed from partials under `frontend/templates/`. JavaScript logic lives in `frontend/static/js/modules/`.
 
-**Layout:** The UI is divided into two labelled sections with subheaders and short descriptions:
-- **Step 1 — Taste Profile:** Train the AI on your music preferences.
-- **Step 2 — Generate Playlist:** Create a Spotify playlist from the trained profile.
+**Layout:** The UI is divided into two provider sections, each with a badge, subtitle, and live status pills:
+- **OpenAI** — Taste profile training, AI band/song analysis. Status pills: key configured, profile trained, selected model, GPT language.
+- **Spotify** — Spotify metadata analysis, playlist generation (with audio filters), and run history. Status pills: connection state.
 
-Both sections are wrapped in styled cards (`.train-section` and `.generate-section`) for visual consistency.
+Both sections are wrapped in styled provider cards (`.provider-section`) for visual consistency.
+
+**Collapsible sections:** All major UI components (Music Profile, Band/Song Analysis, Spotify Metadata Analysis, Spotify Playlist Creation, Run History) are collapsible/expandable. Each section header includes a descriptive subtitle and a toggle button. The entire header background area is clickable to expand/collapse the section (buttons inside the header use `event.stopPropagation()` to prevent double-toggling). The Spotify Playlist Creation section is collapsed by default; others start expanded or match their initial state (e.g., the profile editor starts collapsed unless the user was editing).
 
 **Key UI components:**
 - **Train Taste Profile** — accordion-style editor with four collapsible sections: Core Description (required, open by default), Must Have, Soft Preferences, and Avoid. Existing profile data is pre-filled via `GET /api/profile/data` when the form is opened. Core Description is validated client-side — submission is blocked with an error highlight if empty. Shows an inline warning and disables inputs if the OpenAI API key is missing.
-- **Profile import/export/reset** — when the user explicitly enters Edit Profile mode, the UI exposes **⬆ Import** (posts to `POST /api/profile/import`), **⬇ Export** (downloads from `GET /api/profile/export`), and **↩ Reset to history** (calls `POST /api/profile/reset-to-history`). Import replaces the entire profile file; the previous profile is automatically backed up via `.history.json`.
+- **Profile import/export/reset** — when the user explicitly enters Edit Profile mode, the UI exposes **⬆ Import** (posts to `POST /api/profile/import`), **⬇ Export** (downloads from `GET /api/profile/export`), and **↩ Reset to history** (calls `POST /api/profile/reset-to-history`). These buttons appear below the "Last trained" status line in the section header. Import replaces the entire profile file; the previous profile is automatically backed up via `.history.json`.
+- **Spotify Metadata Analysis** — queries Spotify's public API via Client Credentials flow. Provides a **market region dropdown** (US, AT, DE, JP, GB, KR) that controls which regional Spotify catalogue is searched.
 
 
 - **Generate button** — triggers the pipeline with live progress updates. Shows an inline warning and disables the button if OpenAI key or Spotify credentials/authentication are missing.

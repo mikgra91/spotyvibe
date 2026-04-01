@@ -18,11 +18,13 @@ def client():
 
 
 class TestIndex:
-    def test_returns_html(self, client):
+    @patch("app.is_onboarding_completed", return_value=True)
+    def test_returns_html(self, _mock_onboarding, client):
         resp = client.get("/")
         assert resp.status_code == 200
 
-    def test_contains_theme_switcher(self, client):
+    @patch("app.is_onboarding_completed", return_value=True)
+    def test_contains_theme_switcher(self, _mock_onboarding, client):
         resp = client.get("/")
         html = resp.data.decode()
         assert 'id="styleSwitcher"' in html
@@ -30,6 +32,11 @@ class TestIndex:
             assert f'data-theme="{theme}"' in html
         for removed in ("aurora", "soundwave"):
             assert f'data-theme="{removed}"' not in html
+
+    def test_redirects_to_onboarding_when_not_completed(self, client):
+        resp = client.get("/")
+        assert resp.status_code == 302
+        assert "/onboarding" in resp.headers.get("Location", "")
 
 
 class TestOnboarding:

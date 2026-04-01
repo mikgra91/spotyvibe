@@ -433,12 +433,58 @@ h1 {
 }
 
 /* =============================================
-   Settings gear
+   Header controls (language toggle + settings gear)
    ============================================= */
-.settings-wrapper {
+.header-controls {
     position: absolute;
     top: 1.5rem;
     right: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* ── Language toggle (EN | DE) ── */
+.lang-toggle {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    padding: 2px 4px;
+}
+.lang-toggle-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--radius-pill);
+    transition: all var(--transition);
+    line-height: 1;
+    letter-spacing: 0.5px;
+}
+.lang-toggle-btn:hover {
+    color: var(--text-primary);
+}
+.lang-toggle-btn.active {
+    background: var(--primary);
+    color: #000;
+}
+.lang-toggle-sep {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    user-select: none;
+    opacity: 0.4;
+}
+
+/* ── Settings gear ── */
+.settings-wrapper {
+    position: relative;
 }
 .settings-btn {
     background: none;
@@ -1074,7 +1120,7 @@ h1 {
         width: 94%;
     }
 
-    .settings-wrapper {
+    .header-controls {
         top: 1rem;
         right: 0.6rem;
     }
@@ -1258,9 +1304,14 @@ h1 {
     }
 
     /* Settings gear */
-    .settings-wrapper {
+    .header-controls {
         top: 0.8rem;
         right: 0.4rem;
+        gap: 6px;
+    }
+    .lang-toggle-btn {
+        font-size: 0.72rem;
+        padding: 3px 6px;
     }
 
     .settings-dropdown {
@@ -1724,26 +1775,7 @@ input {
 
 .history-run-info { color: var(--text-secondary); }
 
-/* ── Language picker ────────────────────────────────────────────────── */
-.lang-picker-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 16px;
-    border-top: 1px solid var(--border);
-    margin-top: 4px;
-}
-
-.lang-picker-row select {
-    flex: 1;
-    background: var(--bg-input);
-    color: var(--text-primary);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 4px 8px;
-    font-size: 0.82rem;
-    cursor: pointer;
-}
+/* ── Language toggle (see header-controls above) ── */
 
 /* ── Audio feature filters ──────────────────────────────────────────── */
 /* Flat grid: all label/input children of every .audio-filter-row share

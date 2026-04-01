@@ -27,6 +27,7 @@ can later revert to the previous version.
 
 import json
 import shutil
+import threading
 from datetime import datetime, timezone
 
 from config import BASE_DIR, PROFILE_FILE, PROFILE_HISTORY_FILE, get_model, get_gpt_language
@@ -39,6 +40,11 @@ from .openai_http import chat_completions_create, extract_chat_content
 # without breaking file resolution.
 TEMPLATE_FILE = BASE_DIR / "data" / "music_profile.json"
 TRAINING_PROMPT_FILE = BASE_DIR / "prompts" / "profile_training_prompt.txt"
+
+# Guards all read-modify-write cycles on PROFILE_FILE so concurrent
+# requests (e.g. feedback during generation) cannot silently overwrite
+# each other's changes.
+_profile_lock = threading.Lock()
 
 
 # ── Profile I/O ─────────────────────────────────────────────────────
@@ -58,10 +64,14 @@ def ensure_profile():
 
 
 def load_profile():
-    """Load the personalized music profile from AppData."""
-    ensure_profile()
-    with open(PROFILE_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+    """Load the personalized music profile from AppData.
+
+    Thread-safe: acquires _profile_lock internally.
+    """
+    with _profile_lock:
+        ensure_profile()
+        with open(PROFILE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
 
 
 def save_profile(profile):
@@ -72,12 +82,15 @@ def save_profile(profile):
     provides a simple undo mechanism. More complex alternatives
     (git-like versioning, append-only log) were considered unnecessary
     for a single-user app with infrequent writes.
+
+    Thread-safe: acquires _profile_lock internally.
     """
-    # Back up the current file before overwriting
-    if PROFILE_FILE.exists():
-        shutil.copy2(str(PROFILE_FILE), str(PROFILE_HISTORY_FILE))
-    with open(PROFILE_FILE, "w", encoding="utf-8") as f:
-        json.dump(profile, f, indent=2)
+    with _profile_lock:
+        # Back up the current file before overwriting
+        if PROFILE_FILE.exists():
+            shutil.copy2(str(PROFILE_FILE), str(PROFILE_HISTORY_FILE))
+        with open(PROFILE_FILE, "w", encoding="utf-8") as f:
+            json.dump(profile, f, indent=2)
 
 
 def swap_profile_with_history():
@@ -431,9 +444,10 @@ def train_profile(sections):
         )
 
     # Start from the template to guarantee all required keys survive,
-    # then layer the GPT output on top.
+    # then deep-merge the GPT output on top (shallow .update() would lose
+    # nested template defaults if GPT omits sub-keys).
     updated_profile = _load_template()
-    updated_profile.update(gpt_profile)
+    updated_profile = _deep_merge(updated_profile, gpt_profile)
 
     # Safety: preserve history + feedback from the original (GPT might mangle them)
     for key in ("history", "feedback"):

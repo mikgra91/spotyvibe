@@ -7,6 +7,13 @@ import { getAudioFilters } from './audio-filters.js';
 import { renderTracks } from './tracklist.js';
 import { loadHistory } from './history.js';
 
+export function toggleGenerateBody() {
+    const body = document.getElementById('generateBody');
+    const btn = document.getElementById('generateToggleBtn');
+    const isHidden = body.classList.toggle('hidden');
+    if (btn) btn.textContent = isHidden ? 'Show' : 'Hide';
+}
+
 export function canGenerate() {
     return State.openaiKeySet && State.spotifyAuthStatus === 'authenticated' && State.profileTrained;
 }

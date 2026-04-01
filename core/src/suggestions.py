@@ -361,17 +361,68 @@ def normalize_response(result):
     Strips model-generated metadata fields — new_artists and profile_updates
     are computed code-side in filter_duplicate_suggestions() after truncation,
     so model output for these would be inaccurate anyway.
+
+    Also sanitizes GPT's output:
+    - Removes self-excluded placeholder entries (GPT sometimes includes tracks
+      with reasons like "Forbidden track, excluded." instead of omitting them).
+    - Strips parenthetical meta-commentary from artist names (e.g.
+      "Tycho (different track)" → "tycho") to prevent profile pollution.
     """
     result.pop("validation", None)
 
+    # Keywords that indicate GPT meta-commentary (not legitimate artist name parts)
+    _ANNOTATION_WORDS = {"different", "excluded", "forbidden", "not in",
+                         "due to", "see above", "alternate version",
+                         "from history", "other track", "previously"}
+
+    sanitized_playlist = []
     for entry in result.get("playlist", []):
-        entry["artist"] = entry.get("artist", "").lower().strip()
+        # Drop entries where GPT explicitly flagged them as excluded
+        reason = entry.get("reason", "").lower()
+        if any(phrase in reason for phrase in
+               ("forbidden track", "excluded", "not suggested", "deny list")):
+            artist_raw = entry.get("artist", "")
+            track_raw = entry.get("track", "")
+            # Only drop if the reason makes it clear this is NOT a real suggestion
+            if any(w in reason for w in ("excluded", "not suggested")):
+                print(f"Dropped GPT self-excluded entry: {artist_raw} - {track_raw}")
+                continue
+
+        # Strip parenthetical GPT annotations from artist names
+        artist = entry.get("artist", "")
+        artist = _strip_gpt_annotation(artist, _ANNOTATION_WORDS)
+        entry["artist"] = artist.lower().strip()
         entry["track"] = entry.get("track", "").lower().strip()
+        sanitized_playlist.append(entry)
+
+    result["playlist"] = sanitized_playlist
 
     # These are derived in code — initialize empty so downstream never fails
     result["new_artists"] = []
     result["profile_updates"] = {"suggested_artists": [], "suggested_tracks": []}
     return result
+
+
+def _strip_gpt_annotation(artist: str, annotation_words: set) -> str:
+    """Strip trailing parenthetical text from an artist name if it looks like
+    GPT meta-commentary rather than a legitimate part of the name.
+
+    Examples:
+        "Tycho (different track)"                              → "Tycho"
+        "Boards of Canada (excluded due to forbidden tracks)"  → "Boards of Canada"
+        "Nightmares on Wax (different track)"                  → "Nightmares on Wax"
+        "Emancipator (excluded due to forbidden tracks and history)" → "Emancipator"
+        "Iron & Wine"                                          → "Iron & Wine"  (unchanged)
+    """
+    # Match trailing (...) content
+    match = re.search(r'\s*\(([^)]+)\)\s*$', artist)
+    if not match:
+        return artist
+    paren_content = match.group(1).lower()
+    # Check if the parenthetical contains any annotation keywords
+    if any(word in paren_content for word in annotation_words):
+        return artist[:match.start()].strip()
+    return artist
 
 
 def call_gpt(messages, temperature=0.7):

@@ -26,6 +26,7 @@ This guide explains how to use the **SpotyVibe interface** to set up your prefer
   - [Save or AI Profile Update](#save-or-ai-profile-update)
 - [Import, Export, and Reset Your Profile](#import-export-and-reset-your-profile)
 - [Use Band/Song Analysis](#use-bandsong-analysis)
+- [Use Spotify Metadata Analysis](#use-spotify-metadata-analysis)
 - [Generate a Playlist](#generate-a-playlist)
   - [Choose a Playlist Mode](#choose-a-playlist-mode)
   - [Use Audio Filters](#use-audio-filters)
@@ -82,13 +83,26 @@ When you open SpotyVibe, you will see the main interface with two provider secti
 
 Status pills at the top of each section show whether your credentials are configured and connected.
 
+Each major component is **collapsible/expandable**. You can click the section header (anywhere in the title area) or the toggle button to expand or collapse it. A short description below each title explains what the component does.
+
 Before generating playlists, complete your setup and create your music profile.
 
 ---
 
 ## Understanding the Main Screen
 
-The main screen is designed around a simple flow:
+The main screen is organised into collapsible components grouped under two provider sections:
+
+**OpenAI Section:**
+- **🎯 Music Profile** — Define your musical taste — genres, moods, must-haves, and things to avoid.
+- **🔍 Band/Song Analysis** — Get an AI-powered breakdown of any artist or track with ready-to-paste profile suggestions.
+
+**Spotify Section:**
+- **🔎 Spotify Metadata Analysis** — Look up real Spotify data — popularity, genres, audio features — for any artist or track.
+- **🎧 Spotify Playlist Creation** — Generate AI-powered playlists and save them directly to your Spotify account. *(Collapsed by default.)*
+- **🕓 Run History** — View past generation runs and undo the last one if needed.
+
+The overall flow is:
 
 1. Open the menu and complete your setup
 2. Create or refine your music profile
@@ -211,7 +225,7 @@ If your session expires later, simply reconnect.
 
 Before SpotyVibe can generate good recommendations, you need to teach it your taste.
 
-In the **OpenAI** section, click **Edit profile**.
+In the **OpenAI** section, click **Edit profile** or click anywhere on the **Music Profile** header to expand it.
 
 You will see several sections that help describe your ideal music.
 
@@ -308,7 +322,7 @@ Use **AI Profile Update** when you want the app to help improve the profile.
 
 ## Import, Export, and Reset Your Profile
 
-Inside the profile editor, SpotyVibe also gives you profile management tools:
+When the profile editor is open, profile management buttons appear below the **Last trained** status line in the section header:
 
 - **Import**  
   Load a saved profile file
@@ -327,7 +341,7 @@ This is useful if you want to back up your profile, move it to another device, o
 
 ## Use Band/Song Analysis
 
-In the **OpenAI** section, you can open the **AI Band/Song Analysis** section.
+In the **OpenAI** section, click **Open Analysis** or click anywhere on the **Band/Song Analysis** header to expand it.
 
 This feature helps you analyze an artist or song and turn that into profile language.
 
@@ -345,13 +359,40 @@ This is especially helpful if you know what you like, but are not sure how to de
 
 ---
 
+## Use Spotify Metadata Analysis
+
+In the **Spotify** section, click **Open** or click anywhere on the **Spotify Metadata Analysis** header to expand it.
+
+This tool queries Spotify's own database for factual metadata — no AI interpretation involved. Use it to look up popularity, genres, audio features, and other details for any artist or track.
+
+How to use it:
+
+1. Enter an **artist name**, a **track name**, or both. Spelling must be exact — there is no fuzzy matching or "did you mean" correction.
+2. Select a **market region** from the dropdown. Available options are: **US**, **AT**, **DE**, **JP**, **GB**, **KR**. The market determines which regional Spotify catalogue is searched — some tracks and popularity values differ by region. The default is US.
+3. Click **Analyse**.
+4. Results appear in up to four blocks:
+   - **Match Summary** — which result Spotify matched, with a confidence score (green = high, amber = medium, red = low).
+   - **Track** — track name, artists, album, release date, duration, popularity, and a direct Spotify link.
+   - **Artist** — artist name, genres, popularity, follower count, and a direct Spotify link.
+   - **Audio Features** — energy, valence, danceability, acousticness, instrumentalness, speechiness, liveness, and tempo (BPM).
+
+> **Note:** Audio features may be unavailable for some tracks. If that happens, a notice badge is shown and the rest of the result is still returned.
+
+> **Note:** Spotify Metadata Analysis uses your Spotify app credentials (Client ID and Secret) only — no Spotify user login is required.
+
+> **Tip:** Use this tool alongside AI Band/Song Analysis. AI Analysis gives you GPT's interpretive take on a sound, while Spotify Metadata gives you the raw factual signals (energy level, BPM, genres) you can cross-reference.
+
+> **Screenshot placeholder:** Spotify Metadata Analysis with results
+
+---
+
 ## Generate a Playlist
 
-Once your profile is ready and Spotify is connected, go to the **Spotify** section and use the **Generate Playlist** area.
+Once your profile is ready and Spotify is connected, go to the **Spotify** section and click **Show** on the **Spotify Playlist Creation** header (or click anywhere on the header) to expand it.
 
-This is where SpotyVibe creates playlist suggestions based on your taste.
+This is where SpotyVibe creates playlist suggestions based on your taste. The section is collapsed by default to keep the page compact.
 
-> **Screenshot placeholder:** Generate Playlist section
+> **Screenshot placeholder:** Spotify Playlist Creation section expanded
 
 ---
 
@@ -549,15 +590,15 @@ If the list becomes too full, remove some tracks before generating more.
 
 ### Run History
 
-SpotyVibe keeps a history of playlist generation runs.
+SpotyVibe keeps the **last 5** playlist generation runs in the **Run History** section. Click **Show history** or click anywhere on the section header to expand it.
 
-In the **Run History** section, you can review:
+For each run you can see:
 
-- when a run happened
+- when the run happened
 - how many tracks were added
-- the playlist link
+- a link to the playlist (if it still exists on Spotify)
 
-This helps you keep track of previous sessions.
+Older runs beyond the most recent 5 are automatically removed to keep the list concise.
 
 > **Screenshot placeholder:** Run History section
 
