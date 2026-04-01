@@ -331,62 +331,6 @@ def search_tracks(tracks, on_progress=None):
     return found, not_found
 
 
-def filter_by_audio_features(sp, tracks: list, filters: dict) -> tuple:
-    """Filter tracks by Spotify audio features.
-
-    Parameters:
-        sp: authenticated spotipy.Spotify client
-        tracks: list of track dicts with "uri" key
-        filters: dict of {feature: {"min": float, "max": float}}
-                 Supported features: energy, tempo, valence, danceability,
-                 acousticness, instrumentalness, speechiness, loudness.
-                 Any feature can be omitted or set to None to skip it.
-
-    Returns (passing, filtered_out) — both are lists of track dicts.
-    """
-    if not filters or not tracks:
-        return tracks, []
-
-    uris = [t["uri"] for t in tracks]
-    if not uris:
-        return tracks, []
-
-    try:
-        features_list = sp.audio_features(uris)
-    except Exception as e:
-        print(f"audio_features call failed: {e}")
-        return tracks, []
-
-    passing = []
-    filtered_out = []
-
-    for track, features in zip(tracks, features_list or []):
-        if features is None:
-            passing.append(track)
-            continue
-
-        ok = True
-        for feature, bounds in filters.items():
-            if not bounds:
-                continue
-            val = features.get(feature)
-            if val is None:
-                continue
-            lo = bounds.get("min")
-            hi = bounds.get("max")
-            if lo is not None and val < lo:
-                ok = False; break
-            if hi is not None and val > hi:
-                ok = False; break
-
-        if ok:
-            passing.append(track)
-        else:
-            label = f"{track.get('artist','?')} - {track.get('track','?')}"
-            print(f"Audio-feature filtered: {label}")
-            filtered_out.append(track)
-
-    return passing, filtered_out
 
 
 def get_user_playlists():
@@ -443,22 +387,6 @@ def add_to_playlist(verified_tracks, mode="default", playlist_id=None,
         profile: optional profile dict for name template tokens.
 
     Returns: {"url": str, "added": int}
-    """
-    """Add pre-verified tracks (must have a "uri" key) to the SpotyVibe Playlist.
-
-    **Idempotent design**: Checks for existing tracks in the playlist
-    before adding, so calling this function multiple times with the same
-    tracks won't create duplicates.
-
-    **Playlist creation**: Uses `current_user_playlist_create()` (maps to
-    `POST /v1/me/playlists`) — the modern endpoint. The deprecated
-    `POST /v1/users/{user_id}/playlists` is NOT used.
-
-    **Error recovery**: On a 403 Forbidden (expired/revoked token), the
-    token cache is cleared and a descriptive error is raised so the UI
-    can guide the user to re-authenticate.
-
-    Returns:  {"url": str, "added": int}
     """
     sp = get_spotify_client()
     playlist = None

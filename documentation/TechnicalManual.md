@@ -27,8 +27,7 @@ SpotyVibe is a Python web application built with **Flask** that connects two ext
 │  /api/save-profile    /api/spotify/status   /api/remove            │
 │  /api/profile/status  /api/analyze          /api/playlists         │
 │  /api/spotify/auth    /api/spotify/disconnect  /api/cancel          │
-│  /api/spotify/metadata/analyze               /api/help             │
-│  /callback            /api/settings/*                              │
+│  /callback            /api/settings/*        /api/help             │
 │  /api/settings        /api/settings/debug-log                      │
 │  /api/runs            /api/runs/undo        /api/run/<run_id>/status│
 │  /api/onboarding/status  /api/onboarding/complete                  │
@@ -242,43 +241,9 @@ Manages all application settings and credentials.
 
 ---
 
-### `core/spotify_metadata.py` — Spotify Metadata Lookup (Client Credentials)
+### `core/spotify_metadata.py` — Spotify Metadata Lookup (deprecated)
 
-Provides public Spotify metadata lookups using the **Client Credentials Flow** — no user OAuth required.  Completely separate from `core/playlist.py`, which uses user OAuth for playlist management.
-
-**Authentication:** `get_client_credentials_token()` exchanges `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` for a bearer token via `POST https://accounts.spotify.com/api/token`. The token is cached in memory and refreshed 60 seconds before expiry; a threading lock prevents concurrent refresh races.
-
-**Search strategy:**
-- Both artist + track → fielded query `track:{track} artist:{artist}`, type=track
-- Track only → `track:{track}`, type=track
-- Artist only → `artist:{artist}`, type=artist
-- `limit=5`, configurable `market` (default `US`)
-
-**Scoring:** Top-5 candidates are scored — exact normalised track match +0.6, exact normalised artist match +0.3, popularity/1000 tie-breaker. If the best score is below 0.5 (track) or 0.9 (artist-only), a `"low_confidence_match"` warning is added.
-
-**Text normalisation:** `normalize_compare_text()` lowercases, trims, and collapses whitespace. `strip_version_suffixes()` removes suffixes like `(remastered)`, `[2024 mix]`, `(live)`, `(deluxe edition)` before comparison only — displayed Spotify values are never altered.
-
-**Fetch flow (track):** `/v1/tracks/{id}` → `/v1/artists/{primaryArtistId}` → `/v1/audio-features/{id}` (best-effort; 403/404 returns `None` + `"audio_features_unavailable"` warning).
-
-**Fetch flow (artist-only):** `/v1/artists/{id}`.
-
-**Rate-limit handling:** 429 responses read the `Retry-After` header (capped at 10 s) and retry once.
-
-**Main entry point:** `analyze_metadata(artist, track, market)` — returns a canonical dict:
-```json
-{
-  "query": { "artist": "...", "track": "...", "market": "US" },
-  "match": { "provider": "spotify", "type": "track|artist", "confidence": 0.98,
-             "processed_at": "ISO8601", "spotify_track_id": "...", "spotify_artist_id": "..." },
-  "track": { "id", "name", "artists", "album", "release_date", "duration_ms", "popularity",
-             "preview_url", "external_urls" },
-  "artist": { "id", "name", "genres", "popularity", "followers", "external_urls" },
-  "audio_features": { "energy", "valence", "danceability", ... } | null,
-  "warnings": []
-}
-```
-
-**Endpoint:** `POST /api/spotify/metadata/analyze` — accepts `{ "artist"?, "track"?, "market"? }`. At least one of `artist`/`track` is required. Returns 400 on missing input or credential errors, 404 if no match, 200 with optional warnings otherwise.
+> **Note:** The Spotify Metadata Analysis UI feature was removed because Spotify's February 2026 API changes removed `popularity`, `followers`, and `audio_features` endpoints, making the returned data too sparse to be useful. The module still exists in the codebase but is no longer exposed via any endpoint.
 
 ---
 
@@ -404,7 +369,7 @@ Manages all interactions with the Spotify Web API via the `spotipy` library.
 
 **Playlist modes:** `add_to_playlist()` supports three modes: **create** (always creates a new playlist), **append** (adds tracks to an existing playlist), and **replace** (clears an existing playlist before adding). Custom playlist name templates support `{date}` and `{style}` placeholders for dynamic naming.
 
-**Audio feature filtering:** `filter_by_audio_features(sp, tracks, filters)` performs post-verification filtering using `sp.audio_features()`. Accepts a dict of audio feature ranges (e.g., `{"energy": [0.5, 1.0], "danceability": [0.6, 0.9]}`) and removes tracks that fall outside the specified ranges.
+**Audio feature filtering (GPT-prompt-based):** Audio filters (energy, valence, tempo, danceability, acousticness) are injected directly into the GPT user prompt via `build_messages(audio_filters=...)`. The `_format_audio_filters()` helper in `suggestions.py` converts the filter dict (e.g., `{"energy": {"min": 0.6, "max": 1.0}}`) into a human-readable constraint block that GPT must respect when selecting tracks. This replaced the previous `filter_by_audio_features()` function which relied on the now-removed Spotify `audio_features` API endpoint.
 
 **Playlist listing:** `get_user_playlists(sp)` returns a list of the user's Spotify playlists (id, name, track count) for the playlist mode selector UI.
 
@@ -438,6 +403,7 @@ Provides AI-powered analysis of bands and songs using structured GPT output.
   - `genre[]` — list of genre classifications
   - `style_tags[]` — descriptive style tags
   - `characteristics{}` — detailed musical characteristics (structure, dynamics, instrumentation, etc.)
+  - `audio_features{}` — GPT-estimated numeric audio features on a 0.0–1.0 scale (energy, valence, danceability, acousticness, instrumentalness, speechiness, liveness) plus tempo in BPM. These show how GPT classifies the music and help users set audio filters for playlist generation.
   - `profile_suggestions[]` — suggested additions to the user's taste profile based on the analysis
 
 The prompt template (`analysis_prompt.txt`) includes a `{gpt_language}` placeholder so the analysis is returned in the user's configured language.
@@ -452,7 +418,7 @@ Manages persistence and retrieval of playlist generation run history, enabling t
 
 | Function | Purpose |
 |---|---|
-| `save_run(run_id, playlist_id, playlist_url, tracks)` | Appends a run entry to `run_history.json`. Each entry includes the run ID, playlist ID, URL, tracks, and timestamp. The history file is capped at 50 entries (oldest entries are pruned). |
+| `save_run(run_id, playlist_id, playlist_url, tracks)` | Appends a run entry to `run_history.json`. Each entry includes the run ID, playlist ID, URL, tracks, and timestamp. The history file is capped at 5 entries (oldest entries are pruned). |
 | `load_runs()` | Returns all stored runs, newest-first. |
 | `undo_last_run(sp)` | Removes all tracks from the most recent run via `sp.playlist_remove_all_occurrences_of_items()`, then deletes the run entry from history. Returns the removed run for confirmation. |
 
@@ -469,7 +435,7 @@ Exposes all functionality via HTTP endpoints.
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/` | Serves the single-page web UI. |
-| POST | `/api/run` | Runs the full generation pipeline. Returns an **SSE stream** with progress events. Accepts JSON body with `run_id`, `playlist_mode` (create/append/replace), `playlist_id`, `playlist_name`, and `audio_filters`. SSE track events include `preview_url`, `spotify_url`, `artist_url`, and `album_url`. Run state is persisted by `run_id` for SSE recovery. |
+| POST | `/api/run` | Runs the full generation pipeline. Returns an **SSE stream** with progress events. Accepts JSON body with `run_id`, `playlist_mode` (create/append/replace), `playlist_id`, `playlist_name`, and `audio_filters` (injected into the GPT prompt as constraints). SSE track events include `preview_url`, `spotify_url`, `artist_url`, and `album_url`. Run state is persisted by `run_id` for SSE recovery. |
 | POST | `/api/cancel` | Cancels an active generation run by `run_id`. Accepts `{"run_id": "...", "finalize": bool}`. When `finalize` is `true`, the playlist is created with however many tracks have been verified so far. |
 | POST | `/api/feedback` | Records a like or dislike. Dislikes also remove the track from Spotify. |
 | POST | `/api/remove` | Removes a track from Spotify without recording feedback. |
@@ -492,7 +458,7 @@ Exposes all functionality via HTTP endpoints.
 | GET | `/api/settings/models` | Returns available OpenAI chat models and the currently selected one. **Cached** with a 5-minute TTL (`_models_cache`) to reduce OpenAI API calls. |
 | DELETE | `/api/settings/debug-log` | Clears the debug log file (**desktop only**; returns 404 on Android). |
 
-| POST | `/api/analyze` | Band/song AI analysis. Accepts `{"artist": "...", "track": "..."}`, returns structured JSON with genre, style tags, characteristics, and profile suggestions. |
+| POST | `/api/analyze` | Band/song AI analysis. Accepts `{"artist": "...", "track": "..."}`, returns structured JSON with genre, style tags, characteristics, GPT-estimated audio features, and profile suggestions. |
 | GET | `/api/playlists` | Lists the user's Spotify playlists (id, name, track count) for the playlist mode selector. |
 | GET | `/api/runs` | Returns run history (newest-first) with run ID, timestamp, playlist info, and track list. |
 | POST | `/api/runs/undo` | Removes tracks from the most recent run's playlist and deletes the history entry. |
@@ -522,15 +488,18 @@ When `/api/cancel` is called with `finalize: false`, the generator yields a `can
 
 A modular single-page application split across Jinja2 templates and vanilla JavaScript modules (no framework). Communicates with the Flask backend via `fetch` API calls. `base.html` is the root layout; UI sections are composed from partials under `frontend/templates/`. JavaScript logic lives in `frontend/static/js/modules/`.
 
-**Layout:** The UI is divided into two labelled sections with subheaders and short descriptions:
-- **Step 1 — Taste Profile:** Train the AI on your music preferences.
-- **Step 2 — Generate Playlist:** Create a Spotify playlist from the trained profile.
+**Layout:** The UI is divided into two provider sections, each with a badge, subtitle, and live status pills:
+- **OpenAI** — Taste profile training, AI band/song analysis, and audio filters (GPT-prompt-based). Status pills: key configured, profile trained, selected model, GPT language.
+- **Spotify** — Playlist generation and run history. Status pills: connection state.
 
-Both sections are wrapped in styled cards (`.train-section` and `.generate-section`) for visual consistency.
+Both sections are wrapped in styled provider cards (`.provider-section`) for visual consistency.
+
+**Collapsible sections:** All major UI components (Music Profile, Band/Song Analysis, Audio Filters, Spotify Playlist Creation, Run History) are collapsible/expandable. Each section header includes a descriptive subtitle and a toggle button. The entire header background area is clickable to expand/collapse the section (buttons inside the header use `event.stopPropagation()` to prevent double-toggling). The Spotify Playlist Creation section is collapsed by default; others start expanded or match their initial state (e.g., the profile editor starts collapsed unless the user was editing).
 
 **Key UI components:**
 - **Train Taste Profile** — accordion-style editor with four collapsible sections: Core Description (required, open by default), Must Have, Soft Preferences, and Avoid. Existing profile data is pre-filled via `GET /api/profile/data` when the form is opened. Core Description is validated client-side — submission is blocked with an error highlight if empty. Shows an inline warning and disables inputs if the OpenAI API key is missing.
-- **Profile import/export/reset** — when the user explicitly enters Edit Profile mode, the UI exposes **⬆ Import** (posts to `POST /api/profile/import`), **⬇ Export** (downloads from `GET /api/profile/export`), and **↩ Reset to history** (calls `POST /api/profile/reset-to-history`). Import replaces the entire profile file; the previous profile is automatically backed up via `.history.json`.
+- **Profile import/export/reset** — when the user explicitly enters Edit Profile mode, the UI exposes **⬆ Import** (posts to `POST /api/profile/import`), **⬇ Export** (downloads from `GET /api/profile/export`), and **↩ Reset to history** (calls `POST /api/profile/reset-to-history`). These buttons appear below the "Last trained" status line in the section header. Import replaces the entire profile file; the previous profile is automatically backed up via `.history.json`.
+- **Audio Filters** — collapsible section in the OpenAI provider area. Audio filter ranges (energy, valence, tempo, danceability, acousticness) are injected into the GPT prompt via `build_messages(audio_filters=...)`. Uses the same collapsible section pattern as other panels.
 
 
 - **Generate button** — triggers the pipeline with live progress updates. Shows an inline warning and disables the button if OpenAI key or Spotify credentials/authentication are missing.

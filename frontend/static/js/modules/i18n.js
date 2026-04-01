@@ -5,6 +5,12 @@ export async function switchLanguage(lang) {
     await applyLanguage(lang);
 }
 
+function _syncToggle(lang) {
+    document.querySelectorAll('.lang-toggle-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.lang === lang);
+    });
+}
+
 export async function applyLanguage(lang) {
     try {
         const resp = await fetch(`/static/i18n/${lang}.json`);
@@ -20,9 +26,12 @@ export async function applyLanguage(lang) {
         const key = el.getAttribute('data-i18n-placeholder');
         if (_i18nStrings[key] !== undefined) el.placeholder = _i18nStrings[key];
     });
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        const key = el.getAttribute('data-i18n-title');
+        if (_i18nStrings[key] !== undefined) el.title = _i18nStrings[key];
+    });
 
-    const picker = document.getElementById('langPicker');
-    if (picker) picker.value = lang;
+    _syncToggle(lang);
 }
 
 export function i18n(key, fallback) {
@@ -30,8 +39,11 @@ export function i18n(key, fallback) {
 }
 
 export function initI18n() {
-    const saved = localStorage.getItem('svLang') || 'en';
+    let saved = localStorage.getItem('svLang');
+    if (!saved) {
+        const browserLang = (navigator.language || '').split('-')[0].toLowerCase();
+        saved = (browserLang === 'de') ? 'de' : 'en';
+    }
+    _syncToggle(saved);
     setTimeout(() => applyLanguage(saved), 0);
-    const picker = document.getElementById('langPicker');
-    if (picker) picker.value = saved;
 }

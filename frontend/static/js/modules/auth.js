@@ -12,6 +12,15 @@ export async function checkCredentialStatus() {
     }
 }
 
+export async function fetchSettingsState() {
+    try {
+        const resp = await fetch('/api/settings');
+        const data = await resp.json();
+        State.setSelectedModel(data.model || '');
+        State.setGptLanguage(data.gpt_language || '');
+    } catch (e) { /* ignore */ }
+}
+
 export async function checkSpotifyAuth() {
     try {
         const resp = await fetch('/api/spotify/status');

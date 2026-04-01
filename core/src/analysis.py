@@ -70,6 +70,7 @@ def analyze_band_song(artist: str, track: str = "") -> dict:
     result.setdefault("genre", [])
     result.setdefault("style_tags", [])
     result.setdefault("characteristics", {})
+    result.setdefault("audio_features", {})
     result.setdefault("profile_suggestions", [])
 
     return result

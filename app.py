@@ -45,11 +45,10 @@ from core.src.analysis import analyze_band_song
 from core.src.history import save_run, load_runs, undo_last_run
 from core.src.utils import get_openai_models, clear_debug_log, sanitize_text
 from core.src.openai_http import OpenAIConfigError, OpenAIError
-from core.src.spotify_metadata import analyze_metadata, SpotifyMetadataError
 from core.src.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist,
     get_spotify_auth_status, get_spotify_auth_url, handle_spotify_callback,
-    disconnect_spotify, get_user_playlists, filter_by_audio_features,
+    disconnect_spotify, get_user_playlists,
 )
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
@@ -123,7 +122,7 @@ def index():
         "debug_mode": raw_settings.get("debug_mode", False),
     }
     debug_controls_available = raw_settings.get("debug_controls_available", True)
-    current_language = "de" if gpt_lang.lower().startswith("de") else "en"
+    current_language = "en"  # UI language is client-side (localStorage); server always sends 'en' as default
     credentials = get_credentials()
     return render_template(
         "base.html",
@@ -179,8 +178,53 @@ def help_content():
     if not manual_path.exists():
         return jsonify({"error": "Help file not found."}), 404
     md_text = manual_path.read_text(encoding="utf-8")
-    html = markdown.markdown(md_text, extensions=["tables", "fenced_code"])
+    html = markdown.markdown(md_text, extensions=["tables", "fenced_code", "toc"])
     return jsonify({"html": html})
+
+
+def _extract_help_section(full_html, anchor):
+    """Extract a single section from rendered help HTML by heading anchor ID.
+
+    Returns everything from the matched heading up to (but not including)
+    the next heading of the same or higher level. Trailing ``<hr>`` tags
+    are stripped for cleaner display in the section-help popup.
+    """
+    import re as _re
+
+    heading_pat = _re.compile(
+        rf'<h([2-6])\s[^>]*id="{_re.escape(anchor)}"[^>]*>',
+        _re.IGNORECASE,
+    )
+    match = heading_pat.search(full_html)
+    if not match:
+        return None
+
+    heading_level = int(match.group(1))
+    start = match.start()
+
+    # Find the next heading at the same or higher level (lower number)
+    after = full_html[match.end():]
+    levels = "".join(str(i) for i in range(1, heading_level + 1))
+    next_match = _re.search(rf"<h[{levels}][\s>]", after, _re.IGNORECASE)
+
+    end = (match.end() + next_match.start()) if next_match else len(full_html)
+    section = full_html[start:end].strip()
+    section = _re.sub(r"\s*<hr\s*/?\s*>\s*$", "", section)
+    return section
+
+
+@app.route("/api/help/section/<anchor>")
+def help_section(anchor):
+    """Return a single help section by its heading anchor ID."""
+    manual_path = BASE_DIR / "documentation" / "help.md"
+    if not manual_path.exists():
+        return jsonify({"error": "Help file not found."}), 404
+    md_text = manual_path.read_text(encoding="utf-8")
+    full_html = markdown.markdown(md_text, extensions=["tables", "fenced_code", "toc"])
+    section_html = _extract_help_section(full_html, anchor)
+    if not section_html:
+        return jsonify({"error": "Section not found."}), 404
+    return jsonify({"html": section_html})
 
 
 def _sse(event_type, **data):
@@ -299,6 +343,7 @@ def run_pipeline():
                     recently_filtered_tracks=last_filtered_tracks if last_filtered_tracks else None,
                     new_artist_percentage=effective_nap,
                     batch_num=batch_num,
+                    audio_filters=audio_filters or None,
                 )
                 gpt_call_count += 1
                 # Adaptive temperature: lower on retries for more deterministic output
@@ -364,16 +409,6 @@ def run_pipeline():
                 found, not_found = search_tracks(result["playlist"])
                 all_not_found.extend(not_found)
 
-                # Apply audio feature filters if configured
-                if audio_filters and found:
-                    from core.src.playlist import get_spotify_client as _get_sp
-                    _sp = _get_sp()
-                    found, af_filtered = filter_by_audio_features(_sp, found, audio_filters)
-                    if af_filtered:
-                        yield _sse(
-                            "progress",
-                            message=f"Batch {batch_num}: {len(af_filtered)} track(s) removed by audio filters.",
-                        )
 
                 for t in found:
                     if t["uri"] not in verified_uris:
@@ -582,8 +617,8 @@ def submit_feedback():
 def remove_track():
     """Remove a track from the Spotify playlist without recording feedback."""
     data   = request.get_json(force=True)
-    artist = data.get("artist")
-    track  = data.get("track")
+    artist = sanitize_text(str(data.get("artist") or ""))
+    track  = sanitize_text(str(data.get("track") or ""))
 
     if not artist or not track:
         return jsonify({"error": "Artist and track are required."}), 400
@@ -805,13 +840,18 @@ def train_profile_endpoint():
     """Send the user's structured taste description to GPT and update the profile."""
     data = request.get_json(force=True)
 
+    vibe_description = sanitize_text((data.get("vibe_description") or "").strip())
     core_description = sanitize_text((data.get("core_description") or "").strip())
-    if not core_description:
-        return jsonify({"error": "Core description is required."}), 400
-    if len(core_description) > MAX_CORE_DESCRIPTION_LEN:
+
+    if not core_description and not vibe_description:
+        return jsonify({"error": "Either a vibe description or core description is required."}), 400
+    if core_description and len(core_description) > MAX_CORE_DESCRIPTION_LEN:
         return jsonify({"error": f"Core description too long (max {MAX_CORE_DESCRIPTION_LEN} chars)."}), 400
+    if vibe_description and len(vibe_description) > MAX_CORE_DESCRIPTION_LEN:
+        return jsonify({"error": f"Vibe description too long (max {MAX_CORE_DESCRIPTION_LEN} chars)."}), 400
 
     sections = {
+        "vibe_description": vibe_description,
         "core_description": core_description,
         "must_have": sanitize_text((data.get("must_have") or "").strip())[:MAX_PROFILE_SECTION_LEN],
         "soft_preferences": sanitize_text((data.get("soft_preferences") or "").strip())[:MAX_PROFILE_SECTION_LEN],
@@ -833,13 +873,20 @@ def save_profile_endpoint():
     """Save the user's profile preferences directly without AI processing."""
     data = request.get_json(force=True)
 
+    vibe_description = sanitize_text((data.get("vibe_description") or "").strip())
     core_description = sanitize_text((data.get("core_description") or "").strip())
+
+    # If only vibe_description is provided, use it as core_description for manual save
+    if not core_description and vibe_description:
+        core_description = vibe_description
+
     if not core_description:
-        return jsonify({"error": "Core description is required."}), 400
+        return jsonify({"error": "Either a vibe description or core description is required."}), 400
     if len(core_description) > MAX_CORE_DESCRIPTION_LEN:
         return jsonify({"error": f"Core description too long (max {MAX_CORE_DESCRIPTION_LEN} chars)."}), 400
 
     sections = {
+        "vibe_description": vibe_description,
         "core_description": core_description,
         "must_have": sanitize_text((data.get("must_have") or "").strip())[:MAX_PROFILE_SECTION_LEN],
         "soft_preferences": sanitize_text((data.get("soft_preferences") or "").strip())[:MAX_PROFILE_SECTION_LEN],
@@ -942,30 +989,6 @@ def spotify_auth():
     """Redirect the browser to Spotify's authorization page."""
     return redirect(get_spotify_auth_url())
 
-
-@app.route("/api/spotify/metadata/analyze", methods=["POST"])
-def spotify_metadata_analyze():
-    """Analyze artist/track metadata using Spotify Client Credentials."""
-    data = request.get_json(silent=True) or {}
-    artist = sanitize_text(data.get("artist", "").strip()) if data.get("artist") else None
-    track = sanitize_text(data.get("track", "").strip()) if data.get("track") else None
-    market = sanitize_text(data.get("market", "US").strip()[:2].upper()) or "US"
-
-    if not artist and not track:
-        return jsonify({"error": "At least one of 'artist' or 'track' is required"}), 400
-
-    try:
-        result = analyze_metadata(artist=artist, track=track, market=market)
-        return jsonify(result)
-    except SpotifyMetadataError as e:
-        msg = str(e)
-        if "not configured" in msg.lower() or "credentials" in msg.lower():
-            return jsonify({"error": msg}), 400
-        if "no match" in msg.lower() or "not found" in msg.lower():
-            return jsonify({"error": msg}), 404
-        return jsonify({"error": msg}), 500
-    except Exception:
-        return jsonify({"error": "Internal error"}), 500
 
 
 @app.route("/api/spotify/disconnect", methods=["POST"])

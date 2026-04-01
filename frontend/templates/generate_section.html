@@ -1,41 +1,14 @@
-<div class="generate-section">
-    <!-- Audio feature filters (collapsible) -->
-    <div class="playlist-mode-row" id="audioFiltersSection">
-        <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleAudioFilters()">
-            <span style="font-size:0.88rem;font-weight:600;color:var(--text-secondary);">🎚 Audio Filters <span style="font-size:0.75rem;color:var(--text-muted)">(optional)</span></span>
-            <span id="audioFilterChevron" style="color:var(--text-muted)">▼</span>
+<div class="generate-section" id="generateSection">
+    <div class="train-header" onclick="toggleGenerateBody()">
+        <div class="train-header-left">
+            <h2>🎧 <span data-i18n="generate.title">Spotify Playlist Creation</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('playlist-generation')" data-i18n-title="help.section_help_title" title="Open help for this section">?</button></h2>
+            <span class="train-status train-subtitle">Generate AI-powered playlists and save them directly to your Spotify account.</span>
         </div>
-        <div id="audioFiltersBody" class="hidden" style="margin-top:12px;">
-            <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:10px;">Filter tracks by Spotify audio features. Leave min/max blank to disable a filter.</p>
-            <div class="audio-filter-grid">
-                <div class="audio-filter-row">
-                    <label>Energy (0–1)</label>
-                    <input type="number" id="af-energy-min" placeholder="min" min="0" max="1" step="0.05" value="{{ audio_filters.energy.min if audio_filters.energy.min is not none }}">
-                    <input type="number" id="af-energy-max" placeholder="max" min="0" max="1" step="0.05" value="{{ audio_filters.energy.max if audio_filters.energy.max is not none }}">
-                </div>
-                <div class="audio-filter-row">
-                    <label>Valence (0–1)</label>
-                    <input type="number" id="af-valence-min" placeholder="min" min="0" max="1" step="0.05" value="{{ audio_filters.valence.min if audio_filters.valence.min is not none }}">
-                    <input type="number" id="af-valence-max" placeholder="max" min="0" max="1" step="0.05" value="{{ audio_filters.valence.max if audio_filters.valence.max is not none }}">
-                </div>
-                <div class="audio-filter-row">
-                    <label>Tempo (BPM)</label>
-                    <input type="number" id="af-tempo-min" placeholder="min" min="0" max="300" step="5" value="{{ audio_filters.tempo.min if audio_filters.tempo.min is not none }}">
-                    <input type="number" id="af-tempo-max" placeholder="max" min="0" max="300" step="5" value="{{ audio_filters.tempo.max if audio_filters.tempo.max is not none }}">
-                </div>
-                <div class="audio-filter-row">
-                    <label>Danceability (0–1)</label>
-                    <input type="number" id="af-danceability-min" placeholder="min" min="0" max="1" step="0.05" value="{{ audio_filters.danceability.min if audio_filters.danceability.min is not none }}">
-                    <input type="number" id="af-danceability-max" placeholder="max" min="0" max="1" step="0.05" value="{{ audio_filters.danceability.max if audio_filters.danceability.max is not none }}">
-                </div>
-                <div class="audio-filter-row">
-                    <label>Acousticness (0–1)</label>
-                    <input type="number" id="af-acousticness-min" placeholder="min" min="0" max="1" step="0.05" value="{{ audio_filters.acousticness.min if audio_filters.acousticness.min is not none }}">
-                    <input type="number" id="af-acousticness-max" placeholder="max" min="0" max="1" step="0.05" value="{{ audio_filters.acousticness.max if audio_filters.acousticness.max is not none }}">
-                </div>
-            </div>
+        <div class="train-header-actions">
+            <button class="btn-train" id="generateToggleBtn" onclick="event.stopPropagation(); toggleGenerateBody()">Show</button>
         </div>
     </div>
+    <div class="train-body hidden" id="generateBody">
 
     <!-- Playlist mode -->
     <div class="playlist-mode-row">
@@ -48,11 +21,11 @@
             </label>
             {% endfor %}
         </div>
-        <div id="playlistNameRow" class="{% if current_playlist_mode in ('create',) %}{% else %}hidden{% endif %}" style="margin-top:8px;">
-            <input id="playlistNameInput" type="text" placeholder="Playlist name (supports {date}, {style})" maxlength="200" style="width:100%; margin-top: 10px;" value="{{ playlist_name if playlist_name }}">
+        <div id="playlistNameRow" class="playlist-name-row {% if current_playlist_mode in ('create',) %}{% else %}hidden{% endif %}">
+            <input id="playlistNameInput" type="text" placeholder="Playlist name (supports {date}, {style})" maxlength="200" class="playlist-name-input" value="{{ playlist_name if playlist_name }}">
         </div>
-        <div id="playlistPickerRow" class="{% if current_playlist_mode in ('append', 'replace') %}{% else %}hidden{% endif %}" style="margin-top:8px;">
-            <select id="playlistPicker" style="width:100%; min-height: 30px; border-radius: 15px; padding-left: 15px;">
+        <div id="playlistPickerRow" class="playlist-picker-row {% if current_playlist_mode in ('append', 'replace') %}{% else %}hidden{% endif %}">
+            <select id="playlistPicker" class="playlist-picker-select">
                 {% if playlist_options %}
                     {% for pl in playlist_options %}
                     <option value="{{ pl.id }}">{{ pl.name }}</option>
@@ -77,13 +50,14 @@
     </div>
 
     <div class="run-section">
-        <button class="btn-run" id="runBtn" onclick="runPipeline()" {% if not can_generate %}disabled{% endif %}>▶ Generate &amp; Create Playlist</button>
-        <button class="btn-run-cancel hidden" id="cancelBtn" onclick="cancelGeneration()">⛔ Cancel</button>
+        <button class="btn-run" id="runBtn" onclick="runPipeline()" {% if not can_generate %}disabled{% endif %}>▶ <span data-i18n="btn.generate">Generate &amp; Create Playlist</span></button>
+        <button class="btn-run-cancel hidden" id="cancelBtn" onclick="cancelGeneration()">⛔ <span data-i18n="btn.cancel_generation">Cancel</span></button>
         <button class="btn-use-tracks hidden" id="useTracksBtn" onclick="useCurrentTracks()">▶ Use 0 tracks now</button>
     </div>
     <div id="runWarn" class="{% if not can_generate %}{% else %}hidden{% endif %}">
         {% if not can_generate %}
         <span class="component-warn">⚠️ Cannot generate — check credentials and Spotify connection.</span>
         {% endif %}
+    </div>
     </div>
 </div>

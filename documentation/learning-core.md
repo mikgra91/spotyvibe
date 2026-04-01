@@ -228,8 +228,8 @@ This is the most complex module and the heart of the application.
 
 | Decision | Why |
 |---|---|
-| **Append-only JSON array** | Same storage pattern as the profile — no database needed. Run history is small (max 50 entries x ~1KB each). |
-| **Max 50 entries** | Prevents unbounded growth. 50 runs is ample for review; older entries are automatically pruned. |
+| **Append-only JSON array** | Same storage pattern as the profile — no database needed. Run history is small (max 5 entries x ~1KB each). |
+| **Max 5 entries** | Keeps only the most recent runs for quick review and undo. Older entries are automatically pruned. |
 | **Newest-first for load** | The UI shows recent runs first. Reversing on load is cheaper than sorting by timestamp. |
 | **Undo via `playlist_remove_all_occurrences_of_items()`** | Spotify's bulk remove API handles the playlist modification atomically. The history entry is only deleted after successful removal. |
 | **Graceful error on missing file** | `_load_history()` returns `[]` on any error — same defensive pattern as profile loading. |

@@ -1,20 +1,23 @@
-<!-- Settings gear -->
-<div class="settings-wrapper">
-    <button class="settings-btn" onclick="toggleSettingsMenu()" title="Settings">⚙️</button>
-    <div class="settings-dropdown" id="settingsDropdown">
-        <button onclick="openCredentials()">🔑 Credentials</button>
-        <button onclick="openSettings()">⚙️ Settings</button>
-        <button id="spotifyToggleBtn" onclick="toggleSpotifyConnection()">
-            {{ '🔌 Disconnect Spotify' if spotify_connected else '🔌 Connect Spotify' }}
+<!-- Language toggle + Burger menu -->
+<div class="header-controls">
+    <div class="lang-toggle" id="langToggle">
+        <button class="lang-toggle-btn active" data-lang="en" onclick="switchLanguage('en')">EN</button>
+        <span class="lang-toggle-sep">|</span>
+        <button class="lang-toggle-btn" data-lang="de" onclick="switchLanguage('de')">DE</button>
+    </div>
+    <div class="burger-wrapper">
+        <button class="burger-btn" onclick="toggleSettingsMenu()" title="Menu" aria-label="Menu">
+            <span class="burger-icon"></span>
+            <span class="burger-icon"></span>
+            <span class="burger-icon"></span>
         </button>
-        <button onclick="openHelp()">❓ Help</button>
-        <div class="lang-picker-row">
-            🌐
-            <select id="langPicker" onchange="switchLanguage(this.value)" title="UI Language">
-                <option value="en" {% if current_language == 'en' %}selected{% endif %}>English</option>
-                <option value="de" {% if current_language == 'de' %}selected{% endif %}>Deutsch</option>
-                {# ... more as needed #}
-            </select>
+        <div class="settings-dropdown" id="settingsDropdown">
+            <button onclick="openCredentials()">🔑 <span data-i18n="nav.credentials">Credentials</span></button>
+            <button onclick="openSettings()">⚙️ <span data-i18n="nav.settings">Settings</span></button>
+            <button id="spotifyToggleBtn" onclick="toggleSpotifyConnection()">
+                {{ '🔌 Disconnect Spotify' if spotify_connected else '🔌 Connect Spotify' }}
+            </button>
+            <button onclick="openHelp()">❓ <span data-i18n="nav.help">Help</span></button>
         </div>
     </div>
 </div>

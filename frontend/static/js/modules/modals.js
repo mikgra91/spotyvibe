@@ -1,7 +1,8 @@
 import * as State from './state.js';
 import { showStatus, showToast, esc, sanitizeHtml } from './ui.js';
-import { checkCredentialStatus, checkSpotifyAuth } from './auth.js';
+import { checkCredentialStatus, checkSpotifyAuth, fetchSettingsState } from './auth.js';
 import { renderComponentWarnings } from './warnings.js';
+import { renderProviderPills } from './spotify-metadata.js';
 
 const CRED_KEYS = ['OPENAI_API_KEY', 'SPOTIPY_CLIENT_ID', 'SPOTIPY_CLIENT_SECRET'];
 
@@ -212,6 +213,7 @@ export async function saveSettings() {
         if (resp.ok) {
             closeModal('settingsModal');
             showStatus('✅ Settings saved.', 'success');
+            fetchSettingsState().then(() => renderProviderPills());
         } else {
             const d = await resp.json();
             alert('Error: ' + (d.error || 'unknown'));
@@ -241,6 +243,31 @@ export async function openHelp() {
         document.getElementById('helpContent').innerHTML =
             '<p style="color:#e74c3c;">Failed to load help: ' + esc(e.message) + '</p>';
     }
+}
+
+export async function openSectionHelp(anchor) {
+    const overlay = document.getElementById('sectionHelpOverlay');
+    const content = document.getElementById('sectionHelpContent');
+    content.innerHTML = '<p class="help-loading-text">Loading…</p>';
+    overlay.classList.add('open');
+
+    try {
+        const resp = await fetch('/api/help/section/' + encodeURIComponent(anchor));
+        const data = await resp.json();
+        if (data.html) {
+            content.innerHTML = sanitizeHtml(data.html);
+        } else {
+            content.innerHTML =
+                '<p style="color:#e74c3c;">Section not found.</p>';
+        }
+    } catch (e) {
+        content.innerHTML =
+            '<p style="color:#e74c3c;">Failed to load help: ' + esc(e.message) + '</p>';
+    }
+}
+
+export function closeSectionHelp() {
+    document.getElementById('sectionHelpOverlay').classList.remove('open');
 }
 
 export function closeModal(id) {

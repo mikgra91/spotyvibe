@@ -262,6 +262,8 @@ class TestPageLoad:
 
     def test_generate_button_visible(self, page: Page, base_url):
         page.goto(base_url)
+        # Generate section is collapsed by default — expand it first
+        page.locator("#generateToggleBtn").click()
         expect(page.locator("#runBtn")).to_be_visible()
         expect(page.locator("#runBtn")).to_have_text("▶ Generate & Create Playlist")
 
@@ -301,12 +303,12 @@ class TestThemeSwitcher:
         assert theme == "pulse"
 
 
-class TestSettingsGearMenu:
-    """Settings gear icon and dropdown menu."""
+class TestBurgerMenu:
+    """Burger menu icon and dropdown menu."""
 
-    def test_gear_button_visible(self, page: Page, base_url):
+    def test_burger_button_visible(self, page: Page, base_url):
         page.goto(base_url)
-        expect(page.locator(".settings-btn")).to_be_visible()
+        expect(page.locator(".burger-btn")).to_be_visible()
 
     def test_dropdown_hidden_initially(self, page: Page, base_url):
         page.goto(base_url)
@@ -314,12 +316,12 @@ class TestSettingsGearMenu:
 
     def test_dropdown_opens_on_click(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         expect(page.locator("#settingsDropdown")).to_have_class(re.compile(r"open"))
 
     def test_dropdown_has_all_options(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         dd = page.locator("#settingsDropdown")
         expect(dd.locator("text=Credentials")).to_be_visible()
         expect(dd.locator("text=Settings")).to_be_visible()
@@ -327,7 +329,7 @@ class TestSettingsGearMenu:
 
     def test_dropdown_closes_on_outside_click(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         expect(page.locator("#settingsDropdown")).to_have_class(re.compile(r"open"))
         # Click on the heading (outside the dropdown)
         page.locator("h1").click()
@@ -336,22 +338,22 @@ class TestSettingsGearMenu:
     def test_spotify_toggle_shows_disconnect_when_authenticated(self, page: Page, base_url):
         page.goto(base_url)
         page.wait_for_load_state("networkidle")
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         expect(page.locator("#spotifyToggleBtn")).to_contain_text("Disconnect Spotify")
 
 
 class TestCredentialsModal:
     """Credentials modal — entering API keys."""
 
-    def test_opens_from_gear_menu(self, page: Page, base_url):
+    def test_opens_from_burger_menu(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         page.locator("#settingsDropdown >> text=Credentials").click()
         expect(page.locator("#credentialsModal")).to_have_class(re.compile(r"open"))
 
     def test_shows_three_fields(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         page.locator("#settingsDropdown >> text=Credentials").click()
         expect(page.locator("#cred-OPENAI_API_KEY")).to_be_visible()
         expect(page.locator("#cred-SPOTIPY_CLIENT_ID")).to_be_visible()
@@ -359,7 +361,7 @@ class TestCredentialsModal:
 
     def test_shows_credential_status(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         page.locator("#settingsDropdown >> text=Credentials").click()
         # Our mock returns is_set=True for all keys
         expect(page.locator("#status-OPENAI_API_KEY")).to_contain_text("Set")
@@ -368,7 +370,7 @@ class TestCredentialsModal:
 
     def test_closes_on_cancel(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         page.locator("#settingsDropdown >> text=Credentials").click()
         expect(page.locator("#credentialsModal")).to_have_class(re.compile(r"open"))
         page.locator("#credentialsModal .btn-cancel").click()
@@ -376,7 +378,7 @@ class TestCredentialsModal:
 
     def test_closes_on_overlay_click(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         page.locator("#settingsDropdown >> text=Credentials").click()
         # Click the overlay (top-left corner, outside the modal)
         page.locator("#credentialsModal").click(position={"x": 5, "y": 5})
@@ -386,15 +388,15 @@ class TestCredentialsModal:
 class TestSettingsModal:
     """Settings modal — model selection, playlist size, new artist %, debug mode."""
 
-    def test_opens_from_gear_menu(self, page: Page, base_url):
+    def test_opens_from_burger_menu(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         page.locator("#settingsDropdown >> text=⚙️ Settings").click()
         expect(page.locator("#settingsModal")).to_have_class(re.compile(r"open"))
 
     def test_shows_model_dropdown(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         page.locator("#settingsDropdown >> text=⚙️ Settings").click()
         page.wait_for_load_state("networkidle")
         select = page.locator("#settings-model")
@@ -402,7 +404,7 @@ class TestSettingsModal:
 
     def test_model_dropdown_has_options(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         page.locator("#settingsDropdown >> text=⚙️ Settings").click()
         # Wait for the loading overlay to disappear, indicating models have loaded
         page.locator("#settingsLoading.active").wait_for(state="detached", timeout=5000)
@@ -412,7 +414,7 @@ class TestSettingsModal:
 
     def test_shows_playlist_size(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         page.locator("#settingsDropdown >> text=⚙️ Settings").click()
         page.wait_for_load_state("networkidle")
         expect(page.locator("#settings-playlist-size")).to_be_visible()
@@ -420,7 +422,7 @@ class TestSettingsModal:
 
     def test_shows_new_artist_percentage(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         page.locator("#settingsDropdown >> text=⚙️ Settings").click()
         page.wait_for_load_state("networkidle")
         expect(page.locator("#settings-new-artist-pct")).to_be_visible()
@@ -428,14 +430,14 @@ class TestSettingsModal:
 
     def test_shows_debug_mode_checkbox(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         page.locator("#settingsDropdown >> text=⚙️ Settings").click()
         page.wait_for_load_state("networkidle")
         expect(page.locator("#settings-debug")).to_be_visible()
 
     def test_closes_on_cancel(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         page.locator("#settingsDropdown >> text=⚙️ Settings").click()
         page.locator("#settingsModal .btn-cancel").click()
         expect(page.locator("#settingsModal")).not_to_have_class(re.compile(r"open"))
@@ -444,15 +446,15 @@ class TestSettingsModal:
 class TestHelpModal:
     """Help modal — loads and displays the user manual."""
 
-    def test_opens_from_gear_menu(self, page: Page, base_url):
+    def test_opens_from_burger_menu(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         page.locator("#settingsDropdown >> text=Help").click()
         expect(page.locator("#helpModal")).to_have_class(re.compile(r"open"))
 
     def test_loads_help_content(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         page.locator("#settingsDropdown >> text=Help").click()
         # Wait for help content to load (should contain the guide heading)
         page.locator("#helpContent >> text=SpotyVibe User Guide").wait_for(timeout=5000)
@@ -460,19 +462,19 @@ class TestHelpModal:
 
     def test_help_contains_key_sections(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         page.locator("#settingsDropdown >> text=Help").click()
         page.locator("#helpContent >> text=SpotyVibe User Guide").wait_for(timeout=5000)
         content = page.locator("#helpContent")
-        expect(content.locator("h2:has-text('Before You Start')").first).to_be_visible()
-        expect(content.locator("h2:has-text('Generate a Playlist')").first).to_be_visible()
+        expect(content.locator("h2:has-text('Getting Started')").first).to_be_visible()
+        expect(content.locator("h2:has-text('Playlist Generation')").first).to_be_visible()
 
     def test_closes_on_close_button(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".settings-btn").click()
+        page.locator(".burger-btn").click()
         page.locator("#settingsDropdown >> text=Help").click()
         expect(page.locator("#helpModal")).to_have_class(re.compile(r"open"))
-        page.locator("#helpModal .btn-cancel").click()
+        page.locator("#helpModal .help-close-btn").click()
         expect(page.locator("#helpModal")).not_to_have_class(re.compile(r"open"))
 
 
@@ -590,20 +592,25 @@ class TestGenerateSection:
 
     def test_generate_button_present(self, page: Page, base_url):
         page.goto(base_url)
+        # Generate section is collapsed by default — expand it first
+        page.locator("#generateToggleBtn").click()
         expect(page.locator("#runBtn")).to_be_visible()
 
     def test_cancel_button_hidden_initially(self, page: Page, base_url):
         page.goto(base_url)
+        page.locator("#generateToggleBtn").click()
         expect(page.locator("#cancelBtn")).to_be_hidden()
 
     def test_use_tracks_button_hidden_initially(self, page: Page, base_url):
         page.goto(base_url)
+        page.locator("#generateToggleBtn").click()
         expect(page.locator("#useTracksBtn")).to_be_hidden()
 
     def test_no_warnings_when_all_configured(self, page: Page, base_url):
         """When credentials are set and Spotify is authenticated, no warnings show."""
         page.goto(base_url)
         page.wait_for_load_state("networkidle")
+        page.locator("#generateToggleBtn").click()
         run_warn = page.locator("#runWarn")
         expect(run_warn).to_have_class(re.compile(r"hidden"))
 
@@ -661,7 +668,8 @@ class TestGenerationPipeline:
         page.reload()
         page.wait_for_load_state("networkidle")
 
-        # Click Generate
+        # Expand collapsed generate section and click Generate
+        page.locator("#generateToggleBtn").click()
         page.locator("#runBtn").click()
 
         # Wait for result tracks to appear
@@ -687,17 +695,11 @@ class TestGenerationPipeline:
         page.goto(base_url)
         page.wait_for_load_state("networkidle")
 
-        # Create a slow SSE stream that doesn't complete immediately
-        def handle_run_slow(route):
-            # Only send progress, no result — simulates ongoing generation
-            sse_body = (
-                'data: {"type":"progress","message":"Batch 1: Asking GPT…"}\n\n'
-            )
-            route.fulfill(
-                status=200,
-                headers={"Content-Type": "text/event-stream"},
-                body=sse_body,
-            )
+        # Hold the SSE request open (never fulfill) so generation stays in-progress
+        def handle_run_hang(route):
+            # Don't fulfill — the request stays pending, keeping the UI in
+            # "generating" state long enough for assertions to pass.
+            pass
 
         def handle_profile_status(route):
             route.fulfill(
@@ -706,15 +708,19 @@ class TestGenerationPipeline:
                 body=json.dumps({"trained": True, "last_updated": "2025-01-01T00:00:00"}),
             )
 
-        page.route("**/api/run", handle_run_slow)
+        page.route("**/api/run", handle_run_hang)
         page.route("**/api/profile/status", handle_profile_status)
         page.reload()
         page.wait_for_load_state("networkidle")
 
-        # Observe that run button changes text during generation
+        # Expand collapsed generate section, then observe run button
+        page.locator("#generateToggleBtn").click()
         page.locator("#runBtn").click()
-        # The button should immediately change to "Generating…"
-        expect(page.locator("#runBtn")).to_have_text("⏳ Generating…", timeout=2000)
+        # The button should change to "Generating…" and stay there
+        expect(page.locator("#runBtn")).to_have_text("⏳ Generating…", timeout=5000)
+
+        # Clean up: unroute so hanging request doesn't leak into other tests
+        page.unroute("**/api/run")
 
 
 class TestFeedbackButtons:
@@ -750,6 +756,8 @@ class TestFeedbackButtons:
         page.route("**/api/profile/status", handle_profile_status)
         page.reload()
         page.wait_for_load_state("networkidle")
+        # Generate section is collapsed by default — expand it first
+        page.locator("#generateToggleBtn").click()
         page.locator("#runBtn").click()
         page.locator(".track-item").first.wait_for(timeout=5000)
 
@@ -862,6 +870,9 @@ class TestWarningsWithMissingCredentials:
         expect(train_warn).to_be_visible()
         expect(train_warn).to_contain_text("OpenAI API key is missing")
 
+        # Generate section is collapsed — expand it to check warnings
+        page.locator("#generateToggleBtn").click()
+
         # Generate section should also warn
         run_warn = page.locator("#runWarn")
         expect(run_warn).to_be_visible()
@@ -886,6 +897,9 @@ class TestWarningsWithMissingCredentials:
         page.reload()
         page.wait_for_load_state("networkidle")
 
+        # Generate section is collapsed — expand it to check warnings
+        page.locator("#generateToggleBtn").click()
+
         run_warn = page.locator("#runWarn")
         expect(run_warn).to_be_visible()
         expect(run_warn).to_contain_text("Spotify login required")
@@ -904,6 +918,9 @@ class TestWarningsWithMissingCredentials:
         page.route("**/api/spotify/status", handle_spotify)
         page.reload()
         page.wait_for_load_state("networkidle")
+
+        # Generate section is collapsed — expand it to check warnings
+        page.locator("#generateToggleBtn").click()
 
         run_warn = page.locator("#runWarn")
         expect(run_warn).to_be_visible()
@@ -968,6 +985,8 @@ class TestToastNotifications:
         page.reload()
         page.wait_for_load_state("networkidle")
 
+        # Generate section is collapsed by default — expand it first
+        page.locator("#generateToggleBtn").click()
         page.locator("#runBtn").click()
         page.locator(".track-item").first.wait_for(timeout=5000)
 
@@ -988,11 +1007,11 @@ class TestResponsiveLayout:
         page.goto(base_url)
         # Main elements should still be visible
         expect(page.locator("h1")).to_be_visible()
-        expect(page.locator("#runBtn")).to_be_visible()
-        expect(page.locator(".settings-btn")).to_be_visible()
+        expect(page.locator("#generateToggleBtn")).to_be_visible()
+        expect(page.locator(".burger-btn")).to_be_visible()
 
     def test_tablet_viewport(self, page: Page, base_url):
         page.set_viewport_size({"width": 768, "height": 1024})
         page.goto(base_url)
         expect(page.locator("h1")).to_be_visible()
-        expect(page.locator("#runBtn")).to_be_visible()
+        expect(page.locator("#generateToggleBtn")).to_be_visible()

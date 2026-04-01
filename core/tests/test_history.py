@@ -26,15 +26,15 @@ class TestSaveRun:
         data = json.loads(hist_file.read_text())
         assert len(data) == 2
 
-    def test_caps_at_50_entries(self, tmp_path):
+    def test_caps_at_5_entries(self, tmp_path):
         hist_file = tmp_path / "run_history.json"
-        # Pre-populate with 50 entries
-        existing = [{"run_id": f"old-{i}", "timestamp": "", "playlist_id": "", "playlist_url": "", "tracks": []} for i in range(50)]
+        # Pre-populate with 5 entries
+        existing = [{"run_id": f"old-{i}", "timestamp": "", "playlist_id": "", "playlist_url": "", "tracks": []} for i in range(5)]
         hist_file.write_text(json.dumps(existing))
         with patch("core.src.history._HISTORY_FILE", hist_file):
             save_run("new", "pl", "url", [])
         data = json.loads(hist_file.read_text())
-        assert len(data) == 50
+        assert len(data) == 5
         assert data[-1]["run_id"] == "new"
         assert data[0]["run_id"] == "old-1"  # old-0 was dropped
 

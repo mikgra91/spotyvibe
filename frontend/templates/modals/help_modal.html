@@ -1,15 +1,15 @@
 <!-- Help modal -->
 <div class="modal-overlay" id="helpModal" onclick="if(event.target===this)closeModal('helpModal')">
-    <div class="modal" style="max-width:70vw; max-height:85vh; overflow-y:auto;">
-        <div id="helpContent" style="font-size:0.9rem; line-height:1.6;">
-            {% if help_html %}
-                {{ help_html }}
-            {% else %}
-                <p style="color:#b3b3b3;">Loading…</p>
-            {% endif %}
-        </div>
-        <div class="modal-actions">
-            <button class="btn btn-cancel" onclick="closeModal('helpModal')">Close</button>
+    <div class="help-modal-wrapper">
+        <button class="help-close-btn" onclick="closeModal('helpModal')" aria-label="Close">✕</button>
+        <div class="modal help-modal">
+            <div id="helpContent" class="help-content">
+                {% if help_html %}
+                    {{ help_html }}
+                {% else %}
+                    <p class="help-loading-text">Loading…</p>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>

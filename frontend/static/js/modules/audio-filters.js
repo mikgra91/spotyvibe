@@ -1,9 +1,9 @@
 export function toggleAudioFilters() {
     const body = document.getElementById('audioFiltersBody');
-    const chevron = document.getElementById('audioFilterChevron');
-    const open = !body.classList.contains('hidden');
-    body.classList.toggle('hidden', open);
-    chevron.textContent = open ? '▼' : '▲';
+    const btn = document.getElementById('audioFilterToggleBtn');
+    const isHidden = body.classList.contains('hidden');
+    body.classList.toggle('hidden', !isHidden);
+    if (btn) btn.textContent = isHidden ? 'Close' : 'Show';
 }
 
 export function getAudioFilters() {

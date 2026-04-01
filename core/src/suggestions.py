@@ -261,9 +261,52 @@ def _build_deny_set_json(profile, ephemeral_deny_tracks=None):
     return json.dumps(deny_set, indent=2)
 
 
+def _format_audio_filters(audio_filters):
+    """Convert audio filter dict to a human-readable prompt block.
+
+    Parameters:
+        audio_filters: dict like {"energy": {"min": 0.6, "max": 1.0}, "tempo": {"min": 120}}
+
+    Returns a string block for the prompt, or empty string if no filters.
+    """
+    if not audio_filters:
+        return ""
+
+    # Human-readable labels for each feature
+    labels = {
+        "energy": "energy (0=calm, 1=intense)",
+        "valence": "valence/mood (0=sad/dark, 1=happy/cheerful)",
+        "danceability": "danceability (0=not danceable, 1=very danceable)",
+        "acousticness": "acousticness (0=electronic, 1=acoustic)",
+        "instrumentalness": "instrumentalness (0=vocals, 1=instrumental)",
+        "speechiness": "speechiness (0=no speech, 1=spoken word)",
+        "liveness": "liveness (0=studio, 1=live feel)",
+        "tempo": "tempo in BPM",
+    }
+
+    lines = ["AUDIO FILTER CONSTRAINTS — only suggest tracks matching ALL of these:"]
+    for feature, bounds in audio_filters.items():
+        if not bounds:
+            continue
+        label = labels.get(feature, feature)
+        lo = bounds.get("min")
+        hi = bounds.get("max")
+        if lo is not None and hi is not None:
+            lines.append(f"  - {label}: between {lo} and {hi}")
+        elif lo is not None:
+            lines.append(f"  - {label}: at least {lo}")
+        elif hi is not None:
+            lines.append(f"  - {label}: at most {hi}")
+
+    if len(lines) == 1:
+        return ""  # no actual constraints
+    return "\n".join(lines)
+
+
 def build_messages(profile, accepted_tracks=None, batch_size=None,
                    recently_filtered_tracks=None,
-                   new_artist_percentage=30, batch_num=0):
+                   new_artist_percentage=30, batch_num=0,
+                   audio_filters=None):
     """Build the system + user message pair for the OpenAI API.
 
     Key design decisions:
@@ -317,12 +360,14 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
     profile_for_gpt.get("feedback", {}).pop("disliked_artists", None)
 
     feedback_summary = build_feedback_summary(profile)
+    audio_filters_block = _format_audio_filters(audio_filters)
 
     user_message = user_template.format(
         profile_json=json.dumps(profile_for_gpt, indent=2),
         deny_set_json=deny_set_json,
         batch_size=effective_batch_size,
         recent_feedback=feedback_summary,
+        audio_filters_block=audio_filters_block,
     )
 
     if accepted_tracks:
@@ -361,17 +406,68 @@ def normalize_response(result):
     Strips model-generated metadata fields — new_artists and profile_updates
     are computed code-side in filter_duplicate_suggestions() after truncation,
     so model output for these would be inaccurate anyway.
+
+    Also sanitizes GPT's output:
+    - Removes self-excluded placeholder entries (GPT sometimes includes tracks
+      with reasons like "Forbidden track, excluded." instead of omitting them).
+    - Strips parenthetical meta-commentary from artist names (e.g.
+      "Tycho (different track)" → "tycho") to prevent profile pollution.
     """
     result.pop("validation", None)
 
+    # Keywords that indicate GPT meta-commentary (not legitimate artist name parts)
+    _ANNOTATION_WORDS = {"different", "excluded", "forbidden", "not in",
+                         "due to", "see above", "alternate version",
+                         "from history", "other track", "previously"}
+
+    sanitized_playlist = []
     for entry in result.get("playlist", []):
-        entry["artist"] = entry.get("artist", "").lower().strip()
+        # Drop entries where GPT explicitly flagged them as excluded
+        reason = entry.get("reason", "").lower()
+        if any(phrase in reason for phrase in
+               ("forbidden track", "excluded", "not suggested", "deny list")):
+            artist_raw = entry.get("artist", "")
+            track_raw = entry.get("track", "")
+            # Only drop if the reason makes it clear this is NOT a real suggestion
+            if any(w in reason for w in ("excluded", "not suggested")):
+                print(f"Dropped GPT self-excluded entry: {artist_raw} - {track_raw}")
+                continue
+
+        # Strip parenthetical GPT annotations from artist names
+        artist = entry.get("artist", "")
+        artist = _strip_gpt_annotation(artist, _ANNOTATION_WORDS)
+        entry["artist"] = artist.lower().strip()
         entry["track"] = entry.get("track", "").lower().strip()
+        sanitized_playlist.append(entry)
+
+    result["playlist"] = sanitized_playlist
 
     # These are derived in code — initialize empty so downstream never fails
     result["new_artists"] = []
     result["profile_updates"] = {"suggested_artists": [], "suggested_tracks": []}
     return result
+
+
+def _strip_gpt_annotation(artist: str, annotation_words: set) -> str:
+    """Strip trailing parenthetical text from an artist name if it looks like
+    GPT meta-commentary rather than a legitimate part of the name.
+
+    Examples:
+        "Tycho (different track)"                              → "Tycho"
+        "Boards of Canada (excluded due to forbidden tracks)"  → "Boards of Canada"
+        "Nightmares on Wax (different track)"                  → "Nightmares on Wax"
+        "Emancipator (excluded due to forbidden tracks and history)" → "Emancipator"
+        "Iron & Wine"                                          → "Iron & Wine"  (unchanged)
+    """
+    # Match trailing (...) content
+    match = re.search(r'\s*\(([^)]+)\)\s*$', artist)
+    if not match:
+        return artist
+    paren_content = match.group(1).lower()
+    # Check if the parenthetical contains any annotation keywords
+    if any(word in paren_content for word in annotation_words):
+        return artist[:match.start()].strip()
+    return artist
 
 
 def call_gpt(messages, temperature=0.7):
