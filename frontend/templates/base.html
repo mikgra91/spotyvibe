@@ -94,6 +94,16 @@
     {% include "modals/credentials_modal.html" %}
     {% include "modals/settings_modal.html" %}
     {% include "modals/help_modal.html" %}
+
+    <!-- Section help popup (focused single-section view) -->
+    <div class="modal-overlay section-help-overlay" id="sectionHelpOverlay" onclick="if(event.target===this)closeSectionHelp()">
+        <div class="section-help-popup">
+            <button class="help-close-btn" onclick="closeSectionHelp()" aria-label="Close">✕</button>
+            <div id="sectionHelpContent" class="help-content">
+                <p class="help-loading-text">Loading…</p>
+            </div>
+        </div>
+    </div>
 </div>
 <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>

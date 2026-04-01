@@ -246,15 +246,28 @@ export async function openHelp() {
 }
 
 export async function openSectionHelp(anchor) {
-    await openHelp();
-    // Allow modal to render, then scroll to the section anchor
-    setTimeout(() => {
-        const container = document.getElementById('helpContent');
-        const target = container && container.querySelector('#' + anchor);
-        if (target) {
-            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const overlay = document.getElementById('sectionHelpOverlay');
+    const content = document.getElementById('sectionHelpContent');
+    content.innerHTML = '<p class="help-loading-text">Loading…</p>';
+    overlay.classList.add('open');
+
+    try {
+        const resp = await fetch('/api/help/section/' + encodeURIComponent(anchor));
+        const data = await resp.json();
+        if (data.html) {
+            content.innerHTML = sanitizeHtml(data.html);
+        } else {
+            content.innerHTML =
+                '<p style="color:#e74c3c;">Section not found.</p>';
         }
-    }, State.helpLoaded ? 50 : 300);
+    } catch (e) {
+        content.innerHTML =
+            '<p style="color:#e74c3c;">Failed to load help: ' + esc(e.message) + '</p>';
+    }
+}
+
+export function closeSectionHelp() {
+    document.getElementById('sectionHelpOverlay').classList.remove('open');
 }
 
 export function closeModal(id) {

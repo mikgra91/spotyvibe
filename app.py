@@ -182,6 +182,51 @@ def help_content():
     return jsonify({"html": html})
 
 
+def _extract_help_section(full_html, anchor):
+    """Extract a single section from rendered help HTML by heading anchor ID.
+
+    Returns everything from the matched heading up to (but not including)
+    the next heading of the same or higher level. Trailing ``<hr>`` tags
+    are stripped for cleaner display in the section-help popup.
+    """
+    import re as _re
+
+    heading_pat = _re.compile(
+        rf'<h([2-6])\s[^>]*id="{_re.escape(anchor)}"[^>]*>',
+        _re.IGNORECASE,
+    )
+    match = heading_pat.search(full_html)
+    if not match:
+        return None
+
+    heading_level = int(match.group(1))
+    start = match.start()
+
+    # Find the next heading at the same or higher level (lower number)
+    after = full_html[match.end():]
+    levels = "".join(str(i) for i in range(1, heading_level + 1))
+    next_match = _re.search(rf"<h[{levels}][\s>]", after, _re.IGNORECASE)
+
+    end = (match.end() + next_match.start()) if next_match else len(full_html)
+    section = full_html[start:end].strip()
+    section = _re.sub(r"\s*<hr\s*/?\s*>\s*$", "", section)
+    return section
+
+
+@app.route("/api/help/section/<anchor>")
+def help_section(anchor):
+    """Return a single help section by its heading anchor ID."""
+    manual_path = BASE_DIR / "documentation" / "help.md"
+    if not manual_path.exists():
+        return jsonify({"error": "Help file not found."}), 404
+    md_text = manual_path.read_text(encoding="utf-8")
+    full_html = markdown.markdown(md_text, extensions=["tables", "fenced_code", "toc"])
+    section_html = _extract_help_section(full_html, anchor)
+    if not section_html:
+        return jsonify({"error": "Section not found."}), 404
+    return jsonify({"html": section_html})
+
+
 def _sse(event_type, **data):
     """Format a single Server-Sent Event line."""
     return f"data: {json.dumps({'type': event_type, **data})}\n\n"

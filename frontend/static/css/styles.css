@@ -656,6 +656,25 @@ h1 {
     overflow-y: auto;
 }
 
+/* ── Section help popup (focused single-section view) ── */
+.section-help-popup {
+    position: relative;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 2rem 2.2rem;
+    max-width: 600px;
+    width: 90%;
+    max-height: 75vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-elevated);
+}
+.section-help-popup .help-close-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+}
+
 /* ── Custom scrollbar (soft & dark) — global ── */
 *::-webkit-scrollbar {
     width: 6px;
