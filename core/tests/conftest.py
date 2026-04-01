@@ -41,3 +41,9 @@ def _ensure_playwright_browsers():
             raise
 
 
+@pytest.fixture(scope="session")
+def browser_context_args(browser_context_args):
+    """Force English locale so i18n doesn't auto-switch to German."""
+    return {**browser_context_args, "locale": "en-US"}
+
+

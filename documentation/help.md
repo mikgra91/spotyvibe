@@ -124,7 +124,7 @@ At the top of the page, you can also access:
 
 ### Open the Menu
 
-Click the **gear icon** in the top-right corner to open the menu.
+Click the **☰ menu icon** (hamburger menu) in the top-right corner to open the menu.
 
 From here, you can access:
 
@@ -132,7 +132,7 @@ From here, you can access:
 - **Settings**
 - **Disconnect Spotify** (if already connected)
 
-> **Screenshot placeholder:** Gear menu open
+> **Screenshot placeholder:** Burger menu open
 
 ---
 

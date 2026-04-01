@@ -33,7 +33,8 @@ class TestIndex:
         for removed in ("aurora", "soundwave"):
             assert f'data-theme="{removed}"' not in html
 
-    def test_redirects_to_onboarding_when_not_completed(self, client):
+    @patch("app.is_onboarding_completed", return_value=False)
+    def test_redirects_to_onboarding_when_not_completed(self, _mock_onboarding, client):
         resp = client.get("/")
         assert resp.status_code == 302
         assert "/onboarding" in resp.headers.get("Location", "")

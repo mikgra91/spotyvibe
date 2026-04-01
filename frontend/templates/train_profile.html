@@ -1,8 +1,8 @@
 <div class="train-section" id="trainSection">
-    <div class="train-header" onclick="toggleTrainBody()" style="cursor:pointer;">
+    <div class="train-header" onclick="toggleTrainBody()">
         <div class="train-header-left">
             <h2>🎯 <span data-i18n="profile.title">Music Profile</span></h2>
-            <span class="train-status" style="opacity:0.7;">Define your musical taste — genres, moods, must-haves, and things to avoid.</span>
+            <span class="train-status train-subtitle">Define your musical taste — genres, moods, must-haves, and things to avoid.</span>
             <span class="train-status" id="trainStatus">
                 {% if profile_trained %}✓ Last trained: {{ profile.last_updated|datetimeformat }}{% else %}⚠ Not yet trained — describe your taste below.{% endif %}
             </span>
@@ -41,7 +41,6 @@
         <!-- Must Have -->
         <div class="accordion-panel" id="accMustHave">
             <div class="accordion-header" onclick="toggleAccordion('accMustHave')">
-                <h3>✅ Must Have</h3>
                 <h3>✅ <span data-i18n="profile.must_have">Must Have</span></h3>
             </div>
             <div class="accordion-body">
@@ -55,7 +54,6 @@
         <!-- Soft Preferences -->
         <div class="accordion-panel" id="accSoftPrefs">
             <div class="accordion-header" onclick="toggleAccordion('accSoftPrefs')">
-                <h3>💡 Soft Preferences</h3>
                 <h3>💡 <span data-i18n="profile.soft_preferences">Soft Preferences</span></h3>
             </div>
             <div class="accordion-body">
@@ -69,7 +67,6 @@
         <!-- Avoid -->
         <div class="accordion-panel" id="accAvoid">
             <div class="accordion-header" onclick="toggleAccordion('accAvoid')">
-                <h3>🚫 Avoid</h3>
                 <h3>🚫 <span data-i18n="profile.avoid">Avoid</span></h3>
             </div>
             <div class="accordion-body">

@@ -1,8 +1,8 @@
 <div class="generate-section" id="generateSection">
-    <div class="train-header" onclick="toggleGenerateBody()" style="cursor:pointer;">
+    <div class="train-header" onclick="toggleGenerateBody()">
         <div class="train-header-left">
             <h2>🎧 <span data-i18n="generate.title">Spotify Playlist Creation</span></h2>
-            <span class="train-status" style="opacity:0.7;">Generate AI-powered playlists and save them directly to your Spotify account.</span>
+            <span class="train-status train-subtitle">Generate AI-powered playlists and save them directly to your Spotify account.</span>
         </div>
         <div class="train-header-actions">
             <button class="btn-train" id="generateToggleBtn" onclick="event.stopPropagation(); toggleGenerateBody()">Show</button>
@@ -11,12 +11,12 @@
     <div class="train-body hidden" id="generateBody">
     <!-- Audio feature filters (collapsible) -->
     <div class="playlist-mode-row" id="audioFiltersSection">
-        <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleAudioFilters()">
-            <span style="font-size:0.88rem;font-weight:600;color:var(--text-secondary);">🎚 Audio Filters <span style="font-size:0.75rem;color:var(--text-muted)">(optional)</span></span>
-            <span id="audioFilterChevron" style="color:var(--text-muted)">▼</span>
+        <div class="audio-filter-toggle" onclick="toggleAudioFilters()">
+            <span class="audio-filter-label">🎚 Audio Filters <span class="audio-filter-optional">(optional)</span></span>
+            <span id="audioFilterChevron" class="audio-filter-chevron">▼</span>
         </div>
-        <div id="audioFiltersBody" class="hidden" style="margin-top:12px;">
-            <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:10px;">Filter tracks by Spotify audio features. Leave min/max blank to disable a filter.</p>
+        <div id="audioFiltersBody" class="hidden">
+            <p class="audio-filter-hint">Filter tracks by Spotify audio features. Leave min/max blank to disable a filter.</p>
             <div class="audio-filter-grid">
                 <div class="audio-filter-row">
                     <label>Energy (0–1)</label>
@@ -58,11 +58,11 @@
             </label>
             {% endfor %}
         </div>
-        <div id="playlistNameRow" class="{% if current_playlist_mode in ('create',) %}{% else %}hidden{% endif %}" style="margin-top:8px;">
-            <input id="playlistNameInput" type="text" placeholder="Playlist name (supports {date}, {style})" maxlength="200" style="width:100%; margin-top: 10px;" value="{{ playlist_name if playlist_name }}">
+        <div id="playlistNameRow" class="playlist-name-row {% if current_playlist_mode in ('create',) %}{% else %}hidden{% endif %}">
+            <input id="playlistNameInput" type="text" placeholder="Playlist name (supports {date}, {style})" maxlength="200" class="playlist-name-input" value="{{ playlist_name if playlist_name }}">
         </div>
-        <div id="playlistPickerRow" class="{% if current_playlist_mode in ('append', 'replace') %}{% else %}hidden{% endif %}" style="margin-top:8px;">
-            <select id="playlistPicker" style="width:100%; min-height: 30px; border-radius: 15px; padding-left: 15px;">
+        <div id="playlistPickerRow" class="playlist-picker-row {% if current_playlist_mode in ('append', 'replace') %}{% else %}hidden{% endif %}">
+            <select id="playlistPicker" class="playlist-picker-select">
                 {% if playlist_options %}
                     {% for pl in playlist_options %}
                     <option value="{{ pl.id }}">{{ pl.name }}</option>

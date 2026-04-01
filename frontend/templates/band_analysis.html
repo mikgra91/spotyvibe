@@ -1,23 +1,23 @@
 <!-- ── Band/Song Analysis ── -->
 <div class="analysis-section" id="analysisSection">
-    <div class="train-header" onclick="toggleAnalysisBody()" style="cursor:pointer;">
+    <div class="train-header" onclick="toggleAnalysisBody()">
         <div class="train-header-left">
             <h2>🔍 <span data-i18n="analysis.title">Band/Song Analysis</span></h2>
-            <span class="train-status" style="opacity:0.7;">Get an AI-powered breakdown of any artist or track with ready-to-paste profile suggestions.</span>
+            <span class="train-status train-subtitle">Get an AI-powered breakdown of any artist or track with ready-to-paste profile suggestions.</span>
         </div>
         <div class="train-header-actions">
             <button class="btn-train" id="analysisToggleBtn" onclick="event.stopPropagation(); toggleAnalysisBody()">Open Analysis</button>
         </div>
     </div>
     <div class="train-body {% if last_analysis_result %}{% else %}hidden{% endif %}" id="analysisBody">
-        <p class="acc-hint" style="margin-bottom:12px;" data-i18n="analysis.hint">Enter an artist (and optional track) to get an AI analysis with ready-to-paste profile suggestions.</p>
+        <p class="acc-hint analysis-hint" data-i18n="analysis.hint">Enter an artist (and optional track) to get an AI analysis with ready-to-paste profile suggestions.</p>
         <div class="analysis-inputs">
             <div class="analysis-input-row">
                 <input id="analysisArtist" type="text" placeholder="Artist / band name" maxlength="200" value="{{ artist_input if artist_input }}" data-i18n-placeholder="analysis.artist_placeholder">
                 <input id="analysisTrack" type="text" placeholder="Track name (optional)" maxlength="200" value="{{ track_input if track_input }}" data-i18n-placeholder="analysis.track_placeholder">
             </div>
         <div class="run-section">
-            <button class="btn-run" id="analysisSendBtn" style="width: 33%;" onclick="runAnalysis()" data-i18n="btn.analyse">Analyse</button>
+            <button class="btn-run btn-run-narrow" id="analysisSendBtn" onclick="runAnalysis()" data-i18n="btn.analyse">Analyse</button>
         </div>
         </div>
         <div id="analysisResult" class="{% if last_analysis_result %}{% else %}hidden{% endif %}">

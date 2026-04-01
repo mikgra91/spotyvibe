@@ -40,6 +40,8 @@
     --glass-hover-border: rgba(255,255,255,0.12);
     --shadow-card-hover: 0 16px 56px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.05), inset 0 1px 0 rgba(255,255,255,0.06);
     --focus-glow: 0 0 0 3px rgba(30,215,96,.15), 0 0 20px rgba(30,215,96,.06);
+    --btn-cta-text: #041108;
+    --error-hover: #DC2626;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -162,12 +164,12 @@ h1 {
 .btn-like,
 .btn-submit-like {
     background: var(--primary);
-    color: #041108;
+    color: var(--btn-cta-text);
 }
 .btn-dislike,
 .btn-submit-dislike {
     background: var(--error);
-    color: #fff;
+    color: var(--text-primary);
 }
 .btn-remove {
     background: rgba(27,33,42,0.8);
@@ -185,13 +187,13 @@ h1 {
 }
 .btn-save {
     background: var(--primary);
-    color: #041108;
+    color: var(--btn-cta-text);
 }
 
 /* Primary CTA */
 .btn-run {
-    background: linear-gradient(180deg, #24e86d, #18cf58);
-    color: #041108;
+    background: linear-gradient(180deg, var(--primary-hover), var(--primary-dark));
+    color: var(--btn-cta-text);
     border: none;
     padding: 18px 40px;
     font-size: 16px;
@@ -224,7 +226,7 @@ h1 {
 /* Cancel run */
 .btn-run-cancel {
     background: var(--error);
-    color: #fff;
+    color: var(--text-primary);
     border: none;
     padding: 18px 32px;
     font-size: 16px;
@@ -236,7 +238,7 @@ h1 {
     box-shadow: 0 6px 20px rgba(239,68,68,.25);
 }
 .btn-run-cancel:hover {
-    background: #DC2626;
+    background: var(--error-hover);
     transform: translateY(-2px);
     box-shadow: 0 10px 30px rgba(239,68,68,.35);
 }
@@ -267,6 +269,8 @@ h1 {
    ============================================= */
 .generate-section,
 .train-section,
+.analysis-section,
+.history-section,
 .track-item,
 .settings-dropdown,
 .modal,
@@ -281,6 +285,8 @@ h1 {
 
 .generate-section:hover,
 .train-section:hover,
+.analysis-section:hover,
+.history-section:hover,
 .track-item:hover {
     border-color: var(--glass-hover-border);
     box-shadow: var(--shadow-card-hover);
@@ -433,7 +439,7 @@ h1 {
 }
 
 /* =============================================
-   Header controls (language toggle + settings gear)
+   Header controls (language toggle + burger menu)
    ============================================= */
 .header-controls {
     position: absolute;
@@ -473,7 +479,7 @@ h1 {
 }
 .lang-toggle-btn.active {
     background: var(--primary);
-    color: #000;
+    color: var(--btn-cta-text);
 }
 .lang-toggle-sep {
     color: var(--text-muted);
@@ -482,23 +488,38 @@ h1 {
     opacity: 0.4;
 }
 
-/* ── Settings gear ── */
-.settings-wrapper {
+/* ── Burger menu ── */
+.burger-wrapper {
     position: relative;
 }
-.settings-btn {
+.burger-btn {
     background: none;
     border: none;
-    color: var(--text-secondary);
-    font-size: 1.5rem;
     cursor: pointer;
     padding: 8px 10px;
     border-radius: var(--radius-sm);
     transition: all var(--transition);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    width: 40px;
+    height: 40px;
 }
-.settings-btn:hover {
-    color: #fff;
+.burger-btn:hover {
     background: var(--bg-elevated);
+}
+.burger-icon {
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: var(--text-secondary);
+    border-radius: 1px;
+    transition: all var(--transition);
+}
+.burger-btn:hover .burger-icon {
+    background: var(--text-primary);
 }
 
 .settings-dropdown {
@@ -604,6 +625,61 @@ h1 {
     margin-top: 1.5rem;
 }
 
+/* ── Help modal ── */
+.help-modal-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    max-width: 70vw;
+    max-height: 85vh;
+    width: 90%;
+}
+.help-close-btn {
+    position: absolute;
+    top: -36px;
+    right: 0;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.4rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    line-height: 1;
+    transition: color var(--transition);
+    z-index: 1;
+}
+.help-close-btn:hover {
+    color: var(--text-primary);
+}
+.help-modal {
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+/* ── Custom scrollbar (soft & dark) — global ── */
+*::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 3px;
+}
+*::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.22);
+}
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
 /* --- Help section inside modals --- */
 .help-section { margin-bottom: 1rem; }
 .help-section h3 { font-size: 0.95rem; margin-bottom: 0.3rem; }
@@ -626,7 +702,7 @@ h1 {
     line-height: 1.5;
     background: rgba(245,158,11,.08);
     border: 1px solid rgba(245,158,11,.25);
-    color: #FBBF24;
+    color: var(--warning);
 }
 .component-warn a {
     color: var(--primary);
@@ -651,6 +727,7 @@ h1 {
     align-items: flex-start;
     justify-content: space-between;
     gap: 12px;
+    cursor: pointer;
 }
 
 .train-header-left {
@@ -659,6 +736,10 @@ h1 {
     align-items: flex-start;
     gap: 6px;
     min-width: 0;
+}
+
+.train-subtitle {
+    opacity: 0.7;
 }
 
 .train-header-actions {
@@ -896,7 +977,7 @@ h1 {
     padding: 2px 7px;
     border-radius: 5px;
     font-size: 0.85em;
-    color: #e0e0e0;
+    color: var(--text-secondary);
 }
 #helpContent pre {
     background: var(--bg-elevated);
@@ -1097,7 +1178,9 @@ h1 {
     }
 
     .generate-section,
-    .train-section {
+    .train-section,
+    .analysis-section,
+    .history-section {
         padding: 24px 20px;
     }
 
@@ -1154,7 +1237,7 @@ h1 {
 
     h1 {
         font-size: 1.8rem;
-        margin-right: 40px; /* avoid overlap with settings gear */
+        margin-right: 40px; /* avoid overlap with burger menu */
     }
 
     .subtitle {
@@ -1164,7 +1247,9 @@ h1 {
     }
 
     .generate-section,
-    .train-section {
+    .train-section,
+    .analysis-section,
+    .history-section {
         padding: 18px 14px;
         border-radius: var(--radius-md);
     }
@@ -1271,6 +1356,21 @@ h1 {
         align-items: flex-end;
     }
 
+    /* Help modal: full-width on mobile, X above modal */
+    .help-modal-wrapper {
+        max-width: 100%;
+        width: 100%;
+        max-height: 90vh;
+    }
+    .help-close-btn {
+        top: -32px;
+        right: 8px;
+    }
+    .help-modal {
+        max-height: 90vh;
+        border-radius: var(--radius-md) var(--radius-md) 0 0;
+    }
+
     .modal h2 {
         font-size: 1.15rem;
     }
@@ -1303,7 +1403,7 @@ h1 {
         font-size: 0.82rem;
     }
 
-    /* Settings gear */
+    /* Burger menu */
     .header-controls {
         top: 0.8rem;
         right: 0.4rem;
@@ -1373,7 +1473,7 @@ h1 {
     .btn-run,
     .btn-run-cancel,
     .btn-use-tracks,
-    .settings-btn,
+    .burger-btn,
     .settings-dropdown button,
     .style-switcher-btn {
         min-height: 44px;
@@ -1534,7 +1634,7 @@ h1 {
     width: 100%;
     padding: 14px 24px;
     background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-    color: #000;
+    color: var(--btn-cta-text);
     font-family: inherit;
     font-size: 16px;
     font-weight: 700;
@@ -1557,13 +1657,11 @@ h1 {
 
 /* ── Band/Song Analysis ─────────────────────────────────────────────── */
 .analysis-section {
-    background: var(--glass-bg);
-    backdrop-filter: var(--glass-blur);
-    border: var(--glass-border);
     border-radius: var(--radius-lg);
-    padding: 20px 24px;
-    margin-bottom: 16px;
+    padding: 32px 28px;
+    margin-bottom: 1.5rem;
     box-shadow: var(--shadow-card);
+    transition: border-color var(--transition), box-shadow var(--transition);
 }
 
 .analysis-inputs {
@@ -1589,7 +1687,7 @@ h1 {
 
 input {
     min-height: 30px;
-    border-radius: 15px;
+    border-radius: var(--radius-sm);
     padding-left: 15px;
 }
 
@@ -1689,7 +1787,7 @@ input {
     height: 26px;
     border-radius: 50%;
     background: var(--primary);
-    color: #000;
+    color: var(--btn-cta-text);
     border: none;
     cursor: pointer;
     font-size: 0.75rem;
@@ -1751,13 +1849,11 @@ input {
 
 /* ── Run History ────────────────────────────────────────────────────── */
 .history-section {
-    background: var(--glass-bg);
-    backdrop-filter: var(--glass-blur);
-    border: var(--glass-border);
     border-radius: var(--radius-lg);
-    padding: 20px 24px;
-    margin-top: 20px;
+    padding: 32px 28px;
+    margin-bottom: 1.5rem;
     box-shadow: var(--shadow-card);
+    transition: border-color var(--transition), box-shadow var(--transition);
 }
 
 .history-run-item {
@@ -1774,6 +1870,11 @@ input {
 }
 
 .history-run-info { color: var(--text-secondary); }
+.history-run-info a {
+    color: var(--primary);
+    text-decoration: none;
+}
+.history-run-info a:hover { text-decoration: underline; }
 
 /* ── Language toggle (see header-controls above) ── */
 
@@ -1815,7 +1916,7 @@ input {
 }
 .songlist-counter {
     font-size: 0.78rem;
-    color: var(--text-muted, #888);
+    color: var(--text-muted);
 }
 
 /* ---- Spotify Preview Overlay ---- */
@@ -1838,7 +1939,7 @@ input {
 
 .spotify-preview-panel {
     position: relative;
-    background: var(--bg-card, #1e1e1e);
+    background: var(--bg-card);
     border-radius: 16px 16px 0 0;
     padding: 16px;
     width: 100%;
@@ -1852,7 +1953,7 @@ input {
     right: 14px;
     background: none;
     border: none;
-    color: var(--text-secondary, #aaa);
+    color: var(--text-secondary);
     font-size: 1.5rem;
     cursor: pointer;
     line-height: 1;
@@ -1860,14 +1961,14 @@ input {
     border-radius: 4px;
 }
 .spotify-preview-close:hover {
-    color: var(--text-primary, #fff);
+    color: var(--text-primary);
     background: rgba(255, 255, 255, 0.1);
 }
 
 .spotify-preview-title {
     font-size: 0.9rem;
     font-weight: 500;
-    color: var(--text-primary, #fff);
+    color: var(--text-primary);
     margin-bottom: 12px;
     padding-right: 32px;
     white-space: nowrap;
@@ -1877,6 +1978,150 @@ input {
 
 .spotify-preview-panel iframe {
     display: block;
+    border-radius: var(--radius-sm);
+}
+
+/* ── Audio filter toggle header ─────────────────────────────────────── */
+.audio-filter-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+}
+
+.audio-filter-label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.audio-filter-optional {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.audio-filter-chevron {
+    color: var(--text-muted);
+}
+
+.audio-filter-hint {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+}
+
+/* ── Analysis / Metadata shared ─────────────────────────────────────── */
+.btn-run-narrow {
+    width: 33%;
+}
+
+.analysis-hint {
+    margin-bottom: 12px;
+}
+
+.analysis-loading {
+    text-align: center;
+    padding: 16px;
+    color: var(--text-muted);
+}
+
+.analysis-error {
+    margin-top: 12px;
+}
+
+.analysis-result-area {
+    margin-top: 16px;
+}
+
+/* ── Metadata market row ────────────────────────────────────────────── */
+.metadata-market-row {
+    margin-top: 8px;
+    align-items: center;
+}
+
+.metadata-market-label {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.metadata-market-select {
+    max-width: 120px;
+    min-height: 30px;
+    border-radius: var(--radius-sm);
+    padding-left: 10px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+/* ── Settings modal utilities ───────────────────────────────────────── */
+.modal-cost-warning {
+    font-size: 0.72rem;
+    color: var(--warning);
+    margin-top: 5px;
+}
+
+.modal-cost-warning a {
+    color: var(--primary);
+}
+
+.modal-label-with-tooltip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.modal-checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.modal-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
+.modal-checkbox-label input[type="checkbox"] {
+    width: auto;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+/* ── Playlist form utilities ────────────────────────────────────────── */
+.playlist-name-row,
+.playlist-picker-row {
+    margin-top: 8px;
+}
+
+.playlist-name-input {
+    width: 100%;
+    margin-top: 10px;
+}
+
+.playlist-picker-select {
+    width: 100%;
+    min-height: 30px;
+    border-radius: var(--radius-sm);
+    padding-left: 15px;
+}
+
+/* ── Help content loading ───────────────────────────────────────────── */
+.help-content {
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.help-loading-text {
+    color: var(--text-muted);
 }
 
 /* =============================================

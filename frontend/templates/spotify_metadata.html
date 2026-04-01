@@ -1,24 +1,24 @@
 <!-- ── Spotify Metadata Analysis ── -->
 <div class="analysis-section" id="spotifyMetadataSection">
-    <div class="train-header" onclick="toggleSpotifyMetadata()" style="cursor:pointer;">
+    <div class="train-header" onclick="toggleSpotifyMetadata()">
         <div class="train-header-left">
             <h2>🔎 <span data-i18n="spotify_meta.title">Spotify Metadata Analysis</span></h2>
-            <span class="train-status" style="opacity:0.7;">Look up real Spotify data — popularity, genres, audio features — for any artist or track.</span>
+            <span class="train-status train-subtitle">Look up real Spotify data — popularity, genres, audio features — for any artist or track.</span>
         </div>
         <div class="train-header-actions">
             <button class="btn-train" id="spotifyMetaToggleBtn" onclick="event.stopPropagation(); toggleSpotifyMetadata()">Open</button>
         </div>
     </div>
     <div class="train-body hidden" id="spotifyMetadataBody">
-        <p class="acc-hint" style="margin-bottom:12px;" data-i18n="spotify_meta.hint">Look up artist, track, popularity, genres, and audio features from Spotify metadata.</p>
+        <p class="acc-hint analysis-hint" data-i18n="spotify_meta.hint">Look up artist, track, popularity, genres, and audio features from Spotify metadata.</p>
         <div class="analysis-inputs">
             <div class="analysis-input-row">
                 <input id="spotifyMetaArtist" type="text" placeholder="Artist / band name" maxlength="200" data-i18n-placeholder="analysis.artist_placeholder">
                 <input id="spotifyMetaTrack" type="text" placeholder="Track name (optional)" maxlength="200" data-i18n-placeholder="spotify_meta.track_placeholder">
             </div>
-            <div class="analysis-input-row" style="margin-top:8px; align-items:center;">
-                <label for="spotifyMetaMarket" style="font-size:0.82rem; color:var(--text-muted); white-space:nowrap;">Market region — determines which Spotify catalogue to search</label>
-                <select id="spotifyMetaMarket" style="max-width:120px; min-height:30px; border-radius:15px; padding-left:10px; background:var(--bg-input); color:var(--text-primary); border:1px solid var(--border);">
+            <div class="analysis-input-row metadata-market-row">
+                <label for="spotifyMetaMarket" class="metadata-market-label">Market region — determines which Spotify catalogue to search</label>
+                <select id="spotifyMetaMarket" class="metadata-market-select">
                     <option value="US" selected>US</option>
                     <option value="AT">AT</option>
                     <option value="DE">DE</option>
@@ -29,10 +29,10 @@
             </div>
         </div>
         <div class="run-section">
-            <button class="btn-run" id="spotifyMetaAnalyseBtn" style="width: 33%;" onclick="runSpotifyMetadata()" data-i18n="spotify_meta.btn_analyse">Analyse</button>
+            <button class="btn-run btn-run-narrow" id="spotifyMetaAnalyseBtn" onclick="runSpotifyMetadata()" data-i18n="spotify_meta.btn_analyse">Analyse</button>
         </div>
-        <div id="spotifyMetaLoading" class="hidden" style="text-align:center;padding:16px;color:var(--text-muted);" data-i18n="spotify_meta.loading">Analyzing…</div>
-        <div id="spotifyMetaError" class="hidden component-warn" style="margin-top:12px;"></div>
-        <div id="spotifyMetaResult" class="hidden" style="margin-top:16px;"></div>
+        <div id="spotifyMetaLoading" class="hidden analysis-loading" data-i18n="spotify_meta.loading">Analyzing…</div>
+        <div id="spotifyMetaError" class="hidden component-warn analysis-error"></div>
+        <div id="spotifyMetaResult" class="hidden analysis-result-area"></div>
     </div>
 </div>

@@ -1,12 +1,16 @@
-<!-- Language toggle + Settings gear -->
+<!-- Language toggle + Burger menu -->
 <div class="header-controls">
     <div class="lang-toggle" id="langToggle">
         <button class="lang-toggle-btn active" data-lang="en" onclick="switchLanguage('en')">EN</button>
         <span class="lang-toggle-sep">|</span>
         <button class="lang-toggle-btn" data-lang="de" onclick="switchLanguage('de')">DE</button>
     </div>
-    <div class="settings-wrapper">
-        <button class="settings-btn" onclick="toggleSettingsMenu()" title="Settings">⚙️</button>
+    <div class="burger-wrapper">
+        <button class="burger-btn" onclick="toggleSettingsMenu()" title="Menu" aria-label="Menu">
+            <span class="burger-icon"></span>
+            <span class="burger-icon"></span>
+            <span class="burger-icon"></span>
+        </button>
         <div class="settings-dropdown" id="settingsDropdown">
             <button onclick="openCredentials()">🔑 <span data-i18n="nav.credentials">Credentials</span></button>
             <button onclick="openSettings()">⚙️ <span data-i18n="nav.settings">Settings</span></button>

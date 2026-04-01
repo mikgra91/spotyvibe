@@ -106,7 +106,7 @@ The executable starts the server and auto-opens your default browser to **http:/
 
 ### 1. Enter Your API Keys
 
-Click the **⚙️ gear icon** in the top-right corner and select **🔑 Credentials**.
+Click the **☰ menu icon** (hamburger menu) in the top-right corner and select **🔑 Credentials**.
 
 Enter the three values:
 
@@ -120,7 +120,7 @@ Click **Save**. Your credentials are stored securely outside the project folder 
 
 ### 2. Choose an AI Model
 
-Open the **⚙️ gear menu** and select **⚙️ Settings**.
+Open the **☰ menu** and select **⚙️ Settings**.
 
 The **Used Model** dropdown lists all available models from your OpenAI account. The default is `gpt-4.1-mini`. Available models include `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-4o`, and various o-series models.
 
@@ -167,7 +167,7 @@ After saving your credentials, a banner will appear asking you to **Connect to S
 
 #### Disconnecting / Reconnecting
 
-If your Spotify session expires or you need to re-authenticate, open the **⚙️ gear menu** and click **🔌 Disconnect Spotify**. This clears the cached token and the "Connect to Spotify" banner will reappear so you can log in again.
+If your Spotify session expires or you need to re-authenticate, open the **☰ menu** and click **🔌 Disconnect Spotify**. This clears the cached token and the "Connect to Spotify" banner will reappear so you can log in again.
 
 > **Tip:** If you see a `403 Forbidden` error during playlist generation, the app will automatically disconnect for you. Simply click **Connect to Spotify** in the warning banner to reconnect.
 
@@ -421,7 +421,7 @@ Inside the **Spotify** section you will find a collapsible **Spotify Metadata An
 If the AI's suggestions don't seem to match your preferences, you can enable **Debug Mode** (desktop only) to inspect the exact prompts being sent and the responses received:
 
 
-1. Open **⚙️ gear menu → ⚙️ Settings**.
+1. Open **☰ menu → ⚙️ Settings**.
 2. Check **"Log GPT requests & responses to debug file"**.
 3. Click **Save**.
 

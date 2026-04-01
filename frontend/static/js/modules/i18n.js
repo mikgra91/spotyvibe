@@ -39,7 +39,11 @@ export function i18n(key, fallback) {
 }
 
 export function initI18n() {
-    const saved = localStorage.getItem('svLang') || 'en';
+    let saved = localStorage.getItem('svLang');
+    if (!saved) {
+        const browserLang = (navigator.language || '').split('-')[0].toLowerCase();
+        saved = (browserLang === 'de') ? 'de' : 'en';
+    }
     _syncToggle(saved);
     setTimeout(() => applyLanguage(saved), 0);
 }
