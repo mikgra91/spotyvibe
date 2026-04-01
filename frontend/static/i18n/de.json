@@ -15,9 +15,13 @@
 
   "profile.title": "Musikprofil",
   "profile.edit_profile": "Profil bearbeiten",
+  "profile.vibe_description": "Beschreibe deinen Vibe",
+  "profile.vibe_description_hint": "Sag der KI in Alltagssprache, was du suchst — keine Struktur nötig. Die KI übersetzt das in dein Profil.",
+  "profile.vibe_description_placeholder": "z.B. \"Ich liebe energetischen Rock mit theatralischem Gesang wie Queen. Überrasche mich mit etwas Neuem, aber halte es energiegeladen und melodisch!\"",
   "profile.core_description": "Kernbeschreibung",
   "profile.core_description_required": "erforderlich",
   "profile.core_description_hint": "Beschreibe deinen idealen Sound in eigenen Worten — Genre, Stimmung, Energie, Referenzkünstler.",
+  "profile.core_description_error": "Kernbeschreibung ist erforderlich, wenn keine Vibe-Beschreibung angegeben ist.",
   "profile.must_have": "Muss vorhanden sein",
   "profile.must_have_hint": "Nicht verhandelbare Merkmale, die jeder Vorschlag haben muss. Eines pro Zeile.",
   "profile.soft_preferences": "Weiche Präferenzen",
@@ -82,21 +86,13 @@
   "pill.not_connected": "Nicht verbunden",
   "pill.credentials_missing": "Zugangsdaten fehlen",
 
-  "spotify_meta.title": "Spotify-Metadatenanalyse",
-  "spotify_meta.hint": "Künstler, Track, Popularität, Genres und Audio-Features aus Spotify-Metadaten abrufen.",
-  "spotify_meta.artist_placeholder": "Künstler / Bandname",
-  "spotify_meta.track_placeholder": "Titelname (optional)",
-  "spotify_meta.market_placeholder": "Markt (z.B. US)",
-  "spotify_meta.btn_analyse": "Analysieren",
-  "spotify_meta.loading": "Wird analysiert…",
-  "spotify_meta.match_summary": "Übereinstimmungsübersicht",
-  "spotify_meta.track": "Track",
-  "spotify_meta.artist": "Künstler",
-  "spotify_meta.audio_features": "Audio-Features",
-  "spotify_meta.notices": "Hinweise",
+  "audio_filters.title": "Audio-Filter",
+  "audio_filters.subtitle": "Die KI anleiten, Tracks mit einer bestimmten Stimmung und Atmosphäre vorzuschlagen.",
+  "audio_filters.hint": "Min/Max-Bereiche setzen, um GPT-Vorschläge einzuschränken. Leer lassen, um einen Filter zu deaktivieren. Verwende die Band-/Song-Analyse, um zu sehen, wie GPT einen Referenztrack einordnet.",
 
   "warn.low_confidence_match": "Niedrige Übereinstimmungsgenauigkeit",
-  "warn.audio_features_unavailable": "Audio-Features nicht verfügbar",
   "warn.no_result": "Kein Ergebnis gefunden",
-  "warn.credentials_missing": "Spotify-Zugangsdaten fehlen"
+  "warn.credentials_missing": "Spotify-Zugangsdaten fehlen",
+
+  "help.section_help_title": "Hilfe für diesen Bereich öffnen"
 }

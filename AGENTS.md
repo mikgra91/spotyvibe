@@ -26,8 +26,10 @@ See [`SKILL.md`](SKILL.md) for operational procedures (git workflow, context fil
 ```bash
 pip install -r requirements.txt
 python app.py          # http://127.0.0.1:5000
-python -m pytest tests/ -v
+python -m pytest tests/ core/tests/ -v
 ```
+
+Playwright's Chromium browser is auto-installed on the first test run (via `conftest.py`). No manual `playwright install` step is needed.
 
 Credentials (OpenAI key, Spotify Client ID/Secret) are configured via the UI and stored in `%LOCALAPPDATA%\spotyvibe\.credentials`.
 Spotify app must have `http://127.0.0.1:5000/callback` as a Redirect URI.
@@ -80,10 +82,18 @@ spotyvibe/
 - Context files in `context/` are generated summaries — regenerate them when their source files change, in the same commit.
 
 ### Documentation
-Every feature change must be reflected in all three:
+Every feature change must be reflected in all four:
 1. `README.md` — general overview
-2. `documentation/help.md` — end-user usage and troubleshooting (served via `/api/help`)
-3. `documentation/TechnicalManual.md` — architecture, API, data flow
+2. `documentation/UserManual.md` — detailed end-user manual (comprehensive walkthrough of all features)
+3. `documentation/help.md` — in-app user guide served via `/api/help` (see below)
+4. `documentation/TechnicalManual.md` — architecture, API, data flow
+
+#### `documentation/help.md` — In-App Help
+- **Served at runtime** by the `/api/help` endpoint, rendered as HTML inside the Help modal.
+- **Audience:** end users interacting with the SpotyVibe UI.
+- **Scope:** step-by-step usage guide covering first-time setup (credentials, settings, Spotify connection), music profile creation (core description, must-have, soft preferences, avoid), playlist generation (modes, audio filters, cancel/use-now), track review (preview, like, dislike, remove), song list persistence, run history, undo, mobile usage, and troubleshooting.
+- **Format:** Markdown with `> **Screenshot placeholder:**` markers for future screenshots. Keep sections self-contained and scannable — users jump directly to a section via the table of contents.
+- When adding a new user-facing feature, add a corresponding section to `help.md` with clear instructions and a screenshot placeholder.
 
 ### Code Style
 - Meaningful names, comments only where the "why" isn't obvious.
@@ -106,9 +116,10 @@ Every feature change must be reflected in all three:
 - Never commit `.credentials`, `.spotify-cache`, or `personalized_music_profile.json`.
 
 ### Tests
-- Run `python -m pytest tests/ -v` before completing any code or styling change.
+- Run `python -m pytest tests/ core/tests/ -v` before completing any code or styling change.
 - Skip for documentation-only changes.
 - Mock all external API calls (OpenAI, Spotify).
+- Playwright Chromium is auto-installed by `core/tests/conftest.py` on the first run — no manual step needed after `pip install -r requirements.txt`.
 
 ---
 

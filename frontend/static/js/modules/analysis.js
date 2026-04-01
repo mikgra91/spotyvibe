@@ -49,6 +49,32 @@ export function renderAnalysisResult(d) {
     const charRows = Object.entries(ch).map(([k, v]) =>
         `<tr><td class="analysis-ch-key">${escHtml(k)}</td><td>${escHtml(String(v))}</td></tr>`
     ).join('');
+
+    // Audio features — GPT-estimated values
+    const af = d.audio_features || {};
+    const featureLabels = {
+        energy: 'Energy', valence: 'Valence', danceability: 'Danceability',
+        acousticness: 'Acousticness', instrumentalness: 'Instrumentalness',
+        speechiness: 'Speechiness', liveness: 'Liveness', tempo: 'Tempo',
+    };
+    const afRows = Object.entries(featureLabels)
+        .filter(([k]) => af[k] != null)
+        .map(([k, label]) => {
+            const val = af[k];
+            if (k === 'tempo') {
+                return `<div class="af-row">
+                    <span class="af-label">${escHtml(label)}</span>
+                    <span class="af-value">${val.toFixed(0)} BPM</span>
+                </div>`;
+            }
+            const pct = Math.round(val * 100);
+            return `<div class="af-row">
+                <span class="af-label">${escHtml(label)}</span>
+                <div class="af-bar-track"><div class="af-bar-fill" style="width:${pct}%"></div></div>
+                <span class="af-value">${pct}%</span>
+            </div>`;
+        }).join('');
+
     const suggestions = (d.profile_suggestions || []).map((s, i) =>
         `<div class="analysis-suggestion">
             <span>${escHtml(s)}</span>
@@ -61,6 +87,7 @@ export function renderAnalysisResult(d) {
         <div class="analysis-row"><strong>Genre:</strong> ${escHtml(genres)}</div>
         <div class="analysis-row">${tags}</div>
         ${charRows ? `<table class="analysis-ch-table">${charRows}</table>` : ''}
+        ${afRows ? `<div class="analysis-suggestions-header">Audio Features (GPT estimate)</div><div class="af-grid">${afRows}</div>` : ''}
         ${suggestions ? `<div class="analysis-suggestions-header">Profile Suggestions (click 📋 to copy)</div>${suggestions}` : ''}
     </div>`;
 }

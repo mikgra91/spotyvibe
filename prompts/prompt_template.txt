@@ -10,4 +10,6 @@ Here is my music taste profile:
 
 {recent_feedback}
 
+{audio_filters_block}
+
 Suggest exactly {batch_size} tracks following all system instructions. Return only JSON.

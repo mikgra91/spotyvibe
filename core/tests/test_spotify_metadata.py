@@ -9,7 +9,6 @@ import pytest
 from core.src.spotify_metadata import (
     SpotifyMetadataError,
     analyze_metadata,
-    get_audio_features_safe,
     get_client_credentials_token,
     normalize_compare_text,
     score_artist_candidate,
@@ -47,23 +46,6 @@ def _make_artist(name="Queen", artist_id="a1", popularity=90):
     }
 
 
-def _make_audio_features(track_id="t1"):
-    return {
-        "danceability": 0.4,
-        "energy": 0.9,
-        "key": 5,
-        "loudness": -6.0,
-        "mode": 1,
-        "speechiness": 0.05,
-        "acousticness": 0.1,
-        "instrumentalness": 0.0,
-        "liveness": 0.2,
-        "valence": 0.6,
-        "tempo": 120.0,
-        "duration_ms": 354000,
-        "time_signature": 4,
-        "id": track_id,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -124,8 +106,8 @@ class TestScoreTrackCandidate:
     def test_exact_match_both_gives_high_score(self):
         candidate = _make_track(name="Bohemian Rhapsody", artist_name="Queen", popularity=80)
         score = score_track_candidate(candidate, "Queen", "Bohemian Rhapsody")
-        # +0.6 track, +0.3 artist, +0.08 popularity
-        assert score >= 0.9
+        # +0.6 track, +0.3 artist (popularity no longer a factor)
+        assert score == pytest.approx(0.9, abs=1e-9)
 
     def test_exact_track_no_artist_gives_0_6(self):
         candidate = _make_track(name="Bohemian Rhapsody", artist_name="Queen", popularity=0)
@@ -135,26 +117,19 @@ class TestScoreTrackCandidate:
     def test_partial_match_gives_lower_score(self):
         candidate = _make_track(name="Bohemian Rhapsody (Remastered)", artist_name="Queen", popularity=0)
         score = score_track_candidate(candidate, "Queen", "Bohemian Rhapsody")
-        # Strip suffixes should still find exact match — use approx due to IEEE 754 float precision
+        # Strip suffixes should still find exact match
         assert score == pytest.approx(0.9, abs=1e-9)
 
     def test_wrong_track_name_no_track_score(self):
         candidate = _make_track(name="We Will Rock You", artist_name="Queen", popularity=0)
         score = score_track_candidate(candidate, "Queen", "Bohemian Rhapsody")
-        # Only artist match (+0.3) at most
-        assert score < 0.6
+        # Only artist match (+0.3)
+        assert score == pytest.approx(0.3, abs=1e-9)
 
-    def test_popularity_tiebreaker(self):
-        c1 = _make_track(name="Song", artist_name="Artist", popularity=100)
-        c2 = _make_track(name="Song", artist_name="Artist", popularity=50)
-        s1 = score_track_candidate(c1, "Artist", "Song")
-        s2 = score_track_candidate(c2, "Artist", "Song")
-        assert s1 > s2
-
-    def test_no_match_gives_only_popularity(self):
+    def test_no_match_gives_zero(self):
         candidate = _make_track(name="Other Song", artist_name="Other Artist", popularity=500)
         score = score_track_candidate(candidate, "Queen", "Bohemian Rhapsody")
-        assert score == pytest.approx(0.5)
+        assert score == pytest.approx(0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -162,25 +137,20 @@ class TestScoreTrackCandidate:
 # ---------------------------------------------------------------------------
 
 class TestScoreArtistCandidate:
-    def test_exact_match_gives_1_plus(self):
+    def test_exact_match_gives_1(self):
         candidate = _make_artist(name="Queen", popularity=90)
         score = score_artist_candidate(candidate, "Queen")
-        assert score >= 1.0
+        assert score == pytest.approx(1.0)
 
     def test_case_insensitive_exact_match(self):
         candidate = _make_artist(name="queen", popularity=0)
         score = score_artist_candidate(candidate, "Queen")
         assert score == pytest.approx(1.0)
 
-    def test_no_match_gives_only_popularity(self):
+    def test_no_match_gives_zero(self):
         candidate = _make_artist(name="The Beatles", popularity=100)
         score = score_artist_candidate(candidate, "Queen")
-        assert score == pytest.approx(0.1)
-
-    def test_popularity_tiebreaker(self):
-        c1 = _make_artist(name="Queen", popularity=100)
-        c2 = _make_artist(name="Queen", popularity=50)
-        assert score_artist_candidate(c1, "Queen") > score_artist_candidate(c2, "Queen")
+        assert score == pytest.approx(0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -188,7 +158,6 @@ class TestScoreArtistCandidate:
 # ---------------------------------------------------------------------------
 
 class TestAnalyzeMetadataTrackAndArtist:
-    @patch("core.src.spotify_metadata.get_audio_features_safe")
     @patch("core.src.spotify_metadata.get_artist_metadata")
     @patch("core.src.spotify_metadata.get_track_metadata")
     @patch("core.src.spotify_metadata.search_track_candidates")
@@ -199,21 +168,19 @@ class TestAnalyzeMetadataTrackAndArtist:
         mock_search_tracks,
         mock_track_meta,
         mock_artist_meta,
-        mock_audio,
     ):
         mock_token.return_value = "fake-token"
         mock_search_tracks.return_value = [_make_track()]
         mock_track_meta.return_value = {
             "id": "t1", "name": "Bohemian Rhapsody", "artists": ["Queen"],
             "album": "A Night at the Opera", "release_date": "1975-10-31",
-            "duration_ms": 354000, "popularity": 80,
+            "duration_ms": 354000,
             "preview_url": None, "external_urls": {},
         }
         mock_artist_meta.return_value = {
             "id": "a1", "name": "Queen", "genres": ["rock"],
-            "popularity": 90, "followers": 1000000, "external_urls": {},
+            "external_urls": {},
         }
-        mock_audio.return_value = _make_audio_features()
 
         result = analyze_metadata(artist="Queen", track="Bohemian Rhapsody", market="US")
 
@@ -224,11 +191,9 @@ class TestAnalyzeMetadataTrackAndArtist:
         assert result["match"]["spotify_artist_id"] == "a1"
         assert result["track"] is not None
         assert result["artist"] is not None
-        assert result["audio_features"] is not None
         assert result["match"]["processed_at"].endswith("Z")
         assert "low_confidence_match" not in result["warnings"]
 
-    @patch("core.src.spotify_metadata.get_audio_features_safe")
     @patch("core.src.spotify_metadata.get_artist_metadata")
     @patch("core.src.spotify_metadata.get_track_metadata")
     @patch("core.src.spotify_metadata.search_track_candidates")
@@ -239,7 +204,6 @@ class TestAnalyzeMetadataTrackAndArtist:
         mock_search_tracks,
         mock_track_meta,
         mock_artist_meta,
-        mock_audio,
     ):
         mock_token.return_value = "fake-token"
         mock_search_tracks.return_value = []
@@ -261,7 +225,7 @@ class TestAnalyzeMetadataArtistOnly:
         mock_search.return_value = [_make_artist(name="Queen", popularity=90)]
         mock_artist_meta.return_value = {
             "id": "a1", "name": "Queen", "genres": ["rock"],
-            "popularity": 90, "followers": 1000000, "external_urls": {},
+            "external_urls": {},
         }
 
         result = analyze_metadata(artist="Queen", track=None)
@@ -269,7 +233,6 @@ class TestAnalyzeMetadataArtistOnly:
         assert result["match"]["type"] == "artist"
         assert result["match"]["spotify_track_id"] is None
         assert result["track"] is None
-        assert result["audio_features"] is None
         assert result["artist"]["name"] == "Queen"
 
     @patch("core.src.spotify_metadata.search_artist_candidates")
@@ -291,7 +254,6 @@ class TestAnalyzeMetadataArtistOnly:
 # ---------------------------------------------------------------------------
 
 class TestLowConfidenceWarning:
-    @patch("core.src.spotify_metadata.get_audio_features_safe")
     @patch("core.src.spotify_metadata.get_artist_metadata")
     @patch("core.src.spotify_metadata.get_track_metadata")
     @patch("core.src.spotify_metadata.search_track_candidates")
@@ -302,7 +264,6 @@ class TestLowConfidenceWarning:
         mock_search_tracks,
         mock_track_meta,
         mock_artist_meta,
-        mock_audio,
     ):
         mock_token.return_value = "fake-token"
         # Return a candidate whose name doesn't match the query at all
@@ -311,75 +272,18 @@ class TestLowConfidenceWarning:
         mock_track_meta.return_value = {
             "id": "t1", "name": "Completely Different Song", "artists": ["Other Artist"],
             "album": "Album", "release_date": "2000-01-01",
-            "duration_ms": 200000, "popularity": 0,
+            "duration_ms": 200000,
             "preview_url": None, "external_urls": {},
         }
         mock_artist_meta.return_value = {
             "id": "a2", "name": "Other Artist", "genres": [],
-            "popularity": 0, "followers": 0, "external_urls": {},
+            "external_urls": {},
         }
-        mock_audio.return_value = None
 
         result = analyze_metadata(artist="Queen", track="Bohemian Rhapsody")
 
         assert "low_confidence_match" in result["warnings"]
 
-
-# ---------------------------------------------------------------------------
-# Audio features 403 / 404 → None + warning
-# ---------------------------------------------------------------------------
-
-class TestAudioFeaturesUnavailable:
-    @patch("core.src.spotify_metadata.get_audio_features_safe")
-    @patch("core.src.spotify_metadata.get_artist_metadata")
-    @patch("core.src.spotify_metadata.get_track_metadata")
-    @patch("core.src.spotify_metadata.search_track_candidates")
-    @patch("core.src.spotify_metadata.get_client_credentials_token")
-    def test_audio_features_none_adds_warning(
-        self,
-        mock_token,
-        mock_search_tracks,
-        mock_track_meta,
-        mock_artist_meta,
-        mock_audio,
-    ):
-        mock_token.return_value = "fake-token"
-        mock_search_tracks.return_value = [_make_track()]
-        mock_track_meta.return_value = {
-            "id": "t1", "name": "Bohemian Rhapsody", "artists": ["Queen"],
-            "album": "A Night at the Opera", "release_date": "1975-10-31",
-            "duration_ms": 354000, "popularity": 80,
-            "preview_url": None, "external_urls": {},
-        }
-        mock_artist_meta.return_value = {
-            "id": "a1", "name": "Queen", "genres": ["rock"],
-            "popularity": 90, "followers": 1000000, "external_urls": {},
-        }
-        # Simulate audio features being unavailable (403/404)
-        mock_audio.return_value = None
-
-        result = analyze_metadata(artist="Queen", track="Bohemian Rhapsody")
-
-        assert result["audio_features"] is None
-        assert "audio_features_unavailable" in result["warnings"]
-
-    def test_get_audio_features_safe_returns_none_on_403(self):
-        with patch("core.src.spotify_metadata.spotify_api_request") as mock_req:
-            mock_req.side_effect = SpotifyMetadataError("Spotify API error: HTTP 403 for audio-features/t1")
-            result = get_audio_features_safe("t1", "fake-token")
-            assert result is None
-
-    def test_get_audio_features_safe_returns_none_on_404(self):
-        with patch("core.src.spotify_metadata.spotify_api_request") as mock_req:
-            mock_req.side_effect = SpotifyMetadataError("Spotify API error: HTTP 404 for audio-features/t1")
-            result = get_audio_features_safe("t1", "fake-token")
-            assert result is None
-
-    def test_get_audio_features_safe_re_raises_on_500(self):
-        with patch("core.src.spotify_metadata.spotify_api_request") as mock_req:
-            mock_req.side_effect = SpotifyMetadataError("Spotify API error: HTTP 500 for audio-features/t1")
-            with pytest.raises(SpotifyMetadataError):
-                get_audio_features_safe("t1", "fake-token")
 
 
 # ---------------------------------------------------------------------------

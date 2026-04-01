@@ -7,10 +7,10 @@ Stored as a JSON array in the app data directory.
 import json
 from datetime import datetime, timezone
 
-from config import BASE_DIR, _get_app_dir
+from config import _get_app_dir
 
 _HISTORY_FILE = _get_app_dir() / "run_history.json"
-_MAX_HISTORY_ENTRIES = 50
+_MAX_HISTORY_ENTRIES = 5
 
 
 def _load_history() -> list:

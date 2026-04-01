@@ -1,13 +1,14 @@
 <!-- ── Run History ── -->
 <div class="history-section" id="historySection">
-    <div class="train-header">
+    <div class="train-header" onclick="toggleHistoryBody()">
         <div class="train-header-left">
-            <h2>🕓 Run History</h2>
+            <h2>🕓 <span data-i18n="history.title">Run History</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('run-history')" data-i18n-title="help.section_help_title" title="Open help for this section">?</button></h2>
+            <span class="train-status train-subtitle">View past generation runs and undo the last one if needed.</span>
         </div>
         <div class="train-header-actions">
-            <button class="btn-train" onclick="toggleHistoryBody()">Show history</button>
-            <button class="btn btn-dislike" id="undoLastRunBtn" onclick="undoLastRun()"
-                {% if not run_history %}style="display:none;"{% endif %}>↩ Undo last run</button>
+            <button class="btn-train" onclick="event.stopPropagation(); toggleHistoryBody()" data-i18n="history.show">Show history</button>
+            <button class="btn btn-dislike" id="undoLastRunBtn" onclick="event.stopPropagation(); undoLastRun()"
+                {% if not run_history %}style="display:none;"{% endif %}>↩ <span data-i18n="history.undo">Undo last run</span></button>
         </div>
     </div>
     <div class="train-body hidden" id="historyBody">
@@ -19,13 +20,13 @@
                     <div class="history-run-info">
                         {{ run.tracks|length if run.tracks else 0 }} track(s) added
                         {% if run.playlist_url %}
-                        <a href="{{ run.playlist_url }}" target="_blank" rel="noopener" style="color:var(--primary)">Open playlist</a>
+                        <a href="{{ run.playlist_url }}" target="_blank" rel="noopener">Open playlist</a>
                         {% endif %}
                     </div>
                 </div>
                 {% endfor %}
             {% else %}
-                <p style="color:var(--text-muted)">No runs yet.</p>
+                <p class="help-loading-text">No runs yet.</p>
             {% endif %}
         </div>
     </div>

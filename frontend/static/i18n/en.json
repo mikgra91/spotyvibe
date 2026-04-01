@@ -15,9 +15,13 @@
 
   "profile.title": "Music Profile",
   "profile.edit_profile": "Edit profile",
+  "profile.vibe_description": "Describe Your Vibe",
+  "profile.vibe_description_hint": "Tell the AI what you're looking for in everyday language — no structure needed. The AI will translate this into your profile.",
+  "profile.vibe_description_placeholder": "e.g. \"I love energetic rock with theatrical vocals like Queen. Surprise me with something new but keep it high-energy and melodic!\"",
   "profile.core_description": "Core Description",
   "profile.core_description_required": "required",
   "profile.core_description_hint": "Describe your ideal sound in your own words — genre, mood, energy, reference artists. This is the foundation of your profile.",
+  "profile.core_description_error": "Core description is required when no vibe description is provided.",
   "profile.must_have": "Must Have",
   "profile.must_have_hint": "Non-negotiable traits every suggestion must have. One per line.",
   "profile.soft_preferences": "Soft Preferences",
@@ -82,21 +86,13 @@
   "pill.not_connected": "Not connected",
   "pill.credentials_missing": "Credentials missing",
 
-  "spotify_meta.title": "Spotify Metadata Analysis",
-  "spotify_meta.hint": "Look up artist, track, popularity, genres, and audio features from Spotify metadata.",
-  "spotify_meta.artist_placeholder": "Artist / band name",
-  "spotify_meta.track_placeholder": "Track name (optional)",
-  "spotify_meta.market_placeholder": "Market (e.g. US)",
-  "spotify_meta.btn_analyse": "Analyse",
-  "spotify_meta.loading": "Analyzing…",
-  "spotify_meta.match_summary": "Match Summary",
-  "spotify_meta.track": "Track",
-  "spotify_meta.artist": "Artist",
-  "spotify_meta.audio_features": "Audio Features",
-  "spotify_meta.notices": "Notices",
+  "audio_filters.title": "Audio Filters",
+  "audio_filters.subtitle": "Guide the AI to suggest tracks matching a specific mood and feel.",
+  "audio_filters.hint": "Set min/max ranges to constrain GPT suggestions. Leave blank to disable a filter. Use Band/Song Analysis to see how GPT classifies a reference track.",
 
   "warn.low_confidence_match": "Low confidence match",
-  "warn.audio_features_unavailable": "Audio features unavailable",
   "warn.no_result": "No result found",
-  "warn.credentials_missing": "Spotify credentials missing"
+  "warn.credentials_missing": "Spotify credentials missing",
+
+  "help.section_help_title": "Open help for this section"
 }

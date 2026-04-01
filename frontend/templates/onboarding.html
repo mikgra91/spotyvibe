@@ -23,13 +23,14 @@
         .ob-page {
             min-width: 100%;
             width: 100%;
-            height: 100%;
+            min-height: 100%;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: 32px 24px;
+            padding: 32px 24px 48px;
             box-sizing: border-box;
+            overflow-y: auto;
         }
         .ob-indicators {
             display: flex;
@@ -58,12 +59,13 @@
         .ob-btn-skip {
             background: none;
             border: none;
-            color: var(--text-muted);
-            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-size: 1.05rem;
+            font-weight: 500;
             cursor: pointer;
-            padding: 8px 0;
+            padding: 10px 4px;
         }
-        .ob-btn-skip:hover { color: var(--text-secondary); }
+        .ob-btn-skip:hover { color: var(--text-primary); text-decoration: underline; }
         .ob-logo { font-size: 3.5rem; margin-bottom: 12px; }
         .ob-title { font-size: 2rem; font-weight: 800; color: var(--text-primary); margin-bottom: 8px; }
         .ob-subtitle { color: var(--text-secondary); text-align: center; max-width: 320px; margin-bottom: 24px; }
@@ -155,6 +157,7 @@
                 <input class="ob-cred-input" id="ob-spotify-secret" type="password" placeholder="Enter client secret…" autocomplete="off">
                 <div id="ob-cred-status" class="ob-explain" style="margin-top:0;"></div>
                 <button class="ob-action-btn" onclick="saveObCredentials()">Save Credentials</button>
+                <button class="ob-btn-skip" style="display:block;margin:8px auto 0;text-align:center;" onclick="goPage(2)">Skip →</button>
             </div>
             <div class="ob-nav">
                 <button class="ob-btn-skip" onclick="skipOnboarding()">Skip</button>

@@ -11,7 +11,7 @@ build/
 .credentials
 .spotify-cache
 *.log
-../.idea/
+.idea/
 .vscode/
 *.iml
 .DS_Store

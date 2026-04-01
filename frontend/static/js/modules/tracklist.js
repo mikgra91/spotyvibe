@@ -13,7 +13,6 @@ export function renderTracks() {
     if (counterEl) counterEl.textContent = `${State.suggestions.length} / ${maxSize} songs`;
 
     if (State.suggestions.length === 0) {
-        list.innerHTML = '<li class="empty-state">No suggestions yet.</li>';
         return;
     }
 

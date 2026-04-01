@@ -66,6 +66,7 @@ DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
 # Maintained here so Android/Chaquopy builds never need to query the API
 # for the model list (avoids the openai SDK and its native deps entirely).
 OPENAI_SUPPORTED_MODELS_JSON = [
+    "gpt-5.4",
     "gpt-4.1",
     "gpt-4.1-mini",
     "gpt-4.1-nano",
