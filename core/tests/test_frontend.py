@@ -466,8 +466,8 @@ class TestHelpModal:
         page.locator("#settingsDropdown >> text=Help").click()
         page.locator("#helpContent >> text=SpotyVibe User Guide").wait_for(timeout=5000)
         content = page.locator("#helpContent")
-        expect(content.locator("h2:has-text('Before You Start')").first).to_be_visible()
-        expect(content.locator("h2:has-text('Generate a Playlist')").first).to_be_visible()
+        expect(content.locator("h2:has-text('Getting Started')").first).to_be_visible()
+        expect(content.locator("h2:has-text('Playlist Generation')").first).to_be_visible()
 
     def test_closes_on_close_button(self, page: Page, base_url):
         page.goto(base_url)

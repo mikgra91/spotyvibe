@@ -312,8 +312,9 @@ def get_profile_status():
 def save_profile_sections(sections):
     """Update the profile preferences directly from user input (no AI).
 
-    *sections* is a dict with keys: core_description, must_have,
-    soft_preferences, avoid — each a string (lines separated by newlines).
+    *sections* is a dict with keys: vibe_description, core_description,
+    must_have, soft_preferences, avoid — each a string (lines separated
+    by newlines).
 
     Design choice: This function provides a **manual save path** that
     bypasses GPT entirely. Users can edit their profile without consuming
@@ -325,6 +326,7 @@ def save_profile_sections(sections):
     """
     profile = load_profile()
 
+    profile["preferences"]["vibe_description"] = sections.get("vibe_description", "")
     profile["preferences"]["core_description"] = sections["core_description"]
     profile["preferences"]["must_have"] = [
         line.strip() for line in sections.get("must_have", "").splitlines() if line.strip()
@@ -347,8 +349,9 @@ def save_profile_sections(sections):
 def train_profile(sections):
     """Send the user's structured taste input to GPT and update the profile.
 
-    *sections* is a dict with keys: core_description, must_have,
-    soft_preferences, avoid — each a string (lines separated by newlines).
+    *sections* is a dict with keys: vibe_description, core_description,
+    must_have, soft_preferences, avoid — each a string (lines separated
+    by newlines).
 
     How it works:
     1. Loads the current profile and the training system prompt from disk.
@@ -380,10 +383,19 @@ def train_profile(sections):
         "Here is my updated taste input, broken into sections:\n"
     ]
 
-    parts.append(
-        f"\n## CORE DESCRIPTION (required — the foundation of my sound):\n"
-        f"{sections['core_description']}\n"
-    )
+    if sections.get("vibe_description"):
+        parts.append(
+            f"\n## VIBE DESCRIPTION (free-form natural language — the user describes "
+            f"what they want in their own words; interpret this and incorporate it "
+            f"into the structured profile sections below):\n"
+            f"{sections['vibe_description']}\n"
+        )
+
+    if sections.get("core_description"):
+        parts.append(
+            f"\n## CORE DESCRIPTION (the foundation of my sound):\n"
+            f"{sections['core_description']}\n"
+        )
 
     if sections.get("must_have"):
         parts.append(

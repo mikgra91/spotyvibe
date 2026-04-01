@@ -245,6 +245,18 @@ export async function openHelp() {
     }
 }
 
+export async function openSectionHelp(anchor) {
+    await openHelp();
+    // Allow modal to render, then scroll to the section anchor
+    setTimeout(() => {
+        const container = document.getElementById('helpContent');
+        const target = container && container.querySelector('#' + anchor);
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, State.helpLoaded ? 50 : 300);
+}
+
 export function closeModal(id) {
     document.getElementById(id).classList.remove('open');
 }

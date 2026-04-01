@@ -31,11 +31,21 @@ export async function prefillTrainFields() {
         const profile = await resp.json();
         const prefs = profile.preferences || {};
 
+        document.getElementById('trainVibeDesc').value = prefs.vibe_description || '';
         document.getElementById('trainCoreDesc').value = prefs.core_description || '';
         document.getElementById('trainMustHave').value = (prefs.must_have || []).join('\n');
         document.getElementById('trainSoftPrefs').value = (prefs.soft_preferences || []).join('\n');
         document.getElementById('trainAvoid').value = (prefs.avoid || []).join('\n');
+        updateCoreDescRequired();
     } catch (e) { /* ignore — fields stay empty */ }
+}
+
+function updateCoreDescRequired() {
+    const vibeDesc = (document.getElementById('trainVibeDesc').value || '').trim();
+    const badge = document.getElementById('coreDescRequired');
+    if (badge) {
+        badge.style.display = vibeDesc ? 'none' : '';
+    }
 }
 
 function updateProfileIoVisibility() {
@@ -147,6 +157,12 @@ export function bindProfileImportInput() {
         const file = input.files && input.files[0];
         handleProfileImportFile(file);
     });
+
+    // Update "required" badge on Core Description when vibe description changes
+    const vibeInput = document.getElementById('trainVibeDesc');
+    if (vibeInput) {
+        vibeInput.addEventListener('input', updateCoreDescRequired);
+    }
 }
 
 export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, successMsg, requireOpenAI) {
@@ -155,11 +171,13 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
         return;
     }
 
+    const vibeDesc = document.getElementById('trainVibeDesc').value.trim();
     const coreDesc = document.getElementById('trainCoreDesc').value.trim();
     const coreInput = document.getElementById('trainCoreDesc');
     const errMsg = document.getElementById('errCoreDesc');
 
-    if (!coreDesc) {
+    // Core description is required only if vibe description is empty
+    if (!coreDesc && !vibeDesc) {
         coreInput.classList.add('input-error');
         errMsg.style.display = 'block';
         document.getElementById('accCoreDesc').classList.add('open');
@@ -182,6 +200,7 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                vibe_description: vibeDesc,
                 core_description: coreDesc,
                 must_have: mustHave,
                 soft_preferences: softPrefs,

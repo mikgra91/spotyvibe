@@ -21,6 +21,7 @@ This guide explains how to use the **SpotyVibe interface** to set up your prefer
   - [Theme](#theme)
 - [Music Profile](#music-profile)
   - [Create Your Music Profile](#create-your-music-profile)
+    - [Describe Your Vibe](#describe-your-vibe)
     - [Core Description](#core-description)
     - [Must Have](#must-have)
     - [Soft Preferences](#soft-preferences)
@@ -90,6 +91,8 @@ When you open SpotyVibe, you will see the main interface with two provider secti
 Status pills at the top of each section show whether your credentials are configured and connected.
 
 Each major component is **collapsible/expandable**. You can click the section header (anywhere in the title area) or the toggle button to expand or collapse it. A short description below each title explains what the component does.
+
+Each section header also has a small **?** help icon. Click it to open this guide scrolled directly to the relevant section.
 
 The main screen is organised into collapsible components grouped under two provider sections:
 
@@ -234,6 +237,24 @@ In the **OpenAI** section, click **Edit profile** or click anywhere on the **Mus
 You will see several sections that help describe your ideal music.
 
 > **Screenshot placeholder:** Music Profile editor open
+
+---
+
+#### Describe Your Vibe
+
+This is the quickest way to tell SpotyVibe what you are looking for.
+
+Write in everyday language — like chatting with a friend — what kind of music you want. For example:
+
+- "I love energetic rock with theatrical vocals like Queen. Surprise me with something new but keep it high-energy and melodic!"
+- "More jazz influence, less electronic. Think Snarky Puppy meets Radiohead."
+- "Make my profile darker and heavier, but keep the melodies."
+
+When you use **AI Profile Update**, SpotyVibe translates your words into a structured profile automatically.
+
+If you fill in this field, the **Core Description** below becomes optional — the AI will generate one for you.
+
+> **Screenshot placeholder:** Describe Your Vibe field
 
 ---
 

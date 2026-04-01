@@ -795,13 +795,18 @@ def train_profile_endpoint():
     """Send the user's structured taste description to GPT and update the profile."""
     data = request.get_json(force=True)
 
+    vibe_description = sanitize_text((data.get("vibe_description") or "").strip())
     core_description = sanitize_text((data.get("core_description") or "").strip())
-    if not core_description:
-        return jsonify({"error": "Core description is required."}), 400
-    if len(core_description) > MAX_CORE_DESCRIPTION_LEN:
+
+    if not core_description and not vibe_description:
+        return jsonify({"error": "Either a vibe description or core description is required."}), 400
+    if core_description and len(core_description) > MAX_CORE_DESCRIPTION_LEN:
         return jsonify({"error": f"Core description too long (max {MAX_CORE_DESCRIPTION_LEN} chars)."}), 400
+    if vibe_description and len(vibe_description) > MAX_CORE_DESCRIPTION_LEN:
+        return jsonify({"error": f"Vibe description too long (max {MAX_CORE_DESCRIPTION_LEN} chars)."}), 400
 
     sections = {
+        "vibe_description": vibe_description,
         "core_description": core_description,
         "must_have": sanitize_text((data.get("must_have") or "").strip())[:MAX_PROFILE_SECTION_LEN],
         "soft_preferences": sanitize_text((data.get("soft_preferences") or "").strip())[:MAX_PROFILE_SECTION_LEN],
@@ -823,13 +828,20 @@ def save_profile_endpoint():
     """Save the user's profile preferences directly without AI processing."""
     data = request.get_json(force=True)
 
+    vibe_description = sanitize_text((data.get("vibe_description") or "").strip())
     core_description = sanitize_text((data.get("core_description") or "").strip())
+
+    # If only vibe_description is provided, use it as core_description for manual save
+    if not core_description and vibe_description:
+        core_description = vibe_description
+
     if not core_description:
-        return jsonify({"error": "Core description is required."}), 400
+        return jsonify({"error": "Either a vibe description or core description is required."}), 400
     if len(core_description) > MAX_CORE_DESCRIPTION_LEN:
         return jsonify({"error": f"Core description too long (max {MAX_CORE_DESCRIPTION_LEN} chars)."}), 400
 
     sections = {
+        "vibe_description": vibe_description,
         "core_description": core_description,
         "must_have": sanitize_text((data.get("must_have") or "").strip())[:MAX_PROFILE_SECTION_LEN],
         "soft_preferences": sanitize_text((data.get("soft_preferences") or "").strip())[:MAX_PROFILE_SECTION_LEN],

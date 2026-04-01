@@ -15,9 +15,13 @@
 
   "profile.title": "Music Profile",
   "profile.edit_profile": "Edit profile",
+  "profile.vibe_description": "Describe Your Vibe",
+  "profile.vibe_description_hint": "Tell the AI what you're looking for in everyday language — no structure needed. The AI will translate this into your profile.",
+  "profile.vibe_description_placeholder": "e.g. \"I love energetic rock with theatrical vocals like Queen. Surprise me with something new but keep it high-energy and melodic!\"",
   "profile.core_description": "Core Description",
   "profile.core_description_required": "required",
   "profile.core_description_hint": "Describe your ideal sound in your own words — genre, mood, energy, reference artists. This is the foundation of your profile.",
+  "profile.core_description_error": "Core description is required when no vibe description is provided.",
   "profile.must_have": "Must Have",
   "profile.must_have_hint": "Non-negotiable traits every suggestion must have. One per line.",
   "profile.soft_preferences": "Soft Preferences",
@@ -88,5 +92,7 @@
 
   "warn.low_confidence_match": "Low confidence match",
   "warn.no_result": "No result found",
-  "warn.credentials_missing": "Spotify credentials missing"
+  "warn.credentials_missing": "Spotify credentials missing",
+
+  "help.section_help_title": "Open help for this section"
 }

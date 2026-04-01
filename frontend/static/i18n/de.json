@@ -15,9 +15,13 @@
 
   "profile.title": "Musikprofil",
   "profile.edit_profile": "Profil bearbeiten",
+  "profile.vibe_description": "Beschreibe deinen Vibe",
+  "profile.vibe_description_hint": "Sag der KI in Alltagssprache, was du suchst — keine Struktur nötig. Die KI übersetzt das in dein Profil.",
+  "profile.vibe_description_placeholder": "z.B. \"Ich liebe energetischen Rock mit theatralischem Gesang wie Queen. Überrasche mich mit etwas Neuem, aber halte es energiegeladen und melodisch!\"",
   "profile.core_description": "Kernbeschreibung",
   "profile.core_description_required": "erforderlich",
   "profile.core_description_hint": "Beschreibe deinen idealen Sound in eigenen Worten — Genre, Stimmung, Energie, Referenzkünstler.",
+  "profile.core_description_error": "Kernbeschreibung ist erforderlich, wenn keine Vibe-Beschreibung angegeben ist.",
   "profile.must_have": "Muss vorhanden sein",
   "profile.must_have_hint": "Nicht verhandelbare Merkmale, die jeder Vorschlag haben muss. Eines pro Zeile.",
   "profile.soft_preferences": "Weiche Präferenzen",
@@ -88,5 +92,7 @@
 
   "warn.low_confidence_match": "Niedrige Übereinstimmungsgenauigkeit",
   "warn.no_result": "Kein Ergebnis gefunden",
-  "warn.credentials_missing": "Spotify-Zugangsdaten fehlen"
+  "warn.credentials_missing": "Spotify-Zugangsdaten fehlen",
+
+  "help.section_help_title": "Hilfe für diesen Bereich öffnen"
 }

@@ -1,7 +1,7 @@
 <div class="train-section" id="trainSection">
     <div class="train-header" onclick="toggleTrainBody()">
         <div class="train-header-left">
-            <h2>🎯 <span data-i18n="profile.title">Music Profile</span></h2>
+            <h2>🎯 <span data-i18n="profile.title">Music Profile</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('music-profile')" data-i18n-title="help.section_help_title" title="Open help for this section">?</button></h2>
             <span class="train-status train-subtitle">Define your musical taste — genres, moods, must-haves, and things to avoid.</span>
             <span class="train-status" id="trainStatus">
                 {% if profile_trained %}✓ Last trained: {{ profile.last_updated|datetimeformat }}{% else %}⚠ Not yet trained — describe your taste below.{% endif %}
@@ -23,17 +23,31 @@
     <div id="trainWarn" class="hidden"></div>
     <div class="train-body {% if not profile_edit_mode %}hidden{% endif %}" id="trainBody">
 
-        <!-- Core Description (required) -->
+        <!-- Describe Your Vibe (free-form natural language) -->
+        <div class="accordion-panel open" id="accVibeDesc">
+            <div class="accordion-header" onclick="toggleAccordion('accVibeDesc')">
+                <h3>💬 <span data-i18n="profile.vibe_description">Describe Your Vibe</span></h3>
+                <span class="accordion-chevron">▼</span>
+            </div>
+            <div class="accordion-body">
+                <div class="accordion-body-inner">
+                    <p class="acc-hint" data-i18n="profile.vibe_description_hint">Tell the AI what you're looking for in everyday language — no structure needed. The AI will translate this into your profile.</p>
+                    <textarea id="trainVibeDesc" data-i18n-placeholder="profile.vibe_description_placeholder" placeholder='e.g. "I love energetic rock with theatrical vocals like Queen. Surprise me with something new but keep it high-energy and melodic!"'>{{ profile.vibe_description if profile.vibe_description }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Core Description (required if no vibe description) -->
         <div class="accordion-panel open" id="accCoreDesc">
             <div class="accordion-header" onclick="toggleAccordion('accCoreDesc')">
-                <h3>🎵 <span data-i18n="profile.core_description">Core Description</span> <span class="acc-required" data-i18n="profile.core_description_required">required</span></h3>
+                <h3>🎵 <span data-i18n="profile.core_description">Core Description</span> <span class="acc-required" id="coreDescRequired" data-i18n="profile.core_description_required">required</span></h3>
                 <span class="accordion-chevron">▼</span>
             </div>
             <div class="accordion-body">
                 <div class="accordion-body-inner">
                     <p class="acc-hint" data-i18n="profile.core_description_hint">Describe your ideal sound in your own words — genre, mood, energy, reference artists. This is the foundation of your profile.</p>
                     <textarea id="trainCoreDesc" placeholder='e.g. "Upbeat, theatrical rock with strong melodic hooks, rich harmonies, and constant momentum. Think Queen meets Bear Ghost."'>{{ profile.core_description if profile.core_description }}</textarea>
-                    <div class="acc-error-msg" id="errCoreDesc">Core description is required.</div>
+                    <div class="acc-error-msg" id="errCoreDesc" data-i18n="profile.core_description_error">Core description is required when no vibe description is provided.</div>
                 </div>
             </div>
         </div>
