@@ -1,12 +1,14 @@
 import html
 import math
 import os
+import re
 import sys
 import json
 import threading
 import time
 import traceback
 import uuid
+from datetime import datetime
 
 
 # Ensure the spotyvibe package directory is on sys.path so all
@@ -48,7 +50,7 @@ from core.src.openai_http import OpenAIConfigError, OpenAIError
 from core.src.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist,
     get_spotify_auth_status, get_spotify_auth_url, handle_spotify_callback,
-    disconnect_spotify, get_user_playlists,
+    disconnect_spotify, get_user_playlists, get_spotify_client,
 )
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
@@ -61,7 +63,6 @@ def _datetimeformat(value):
     if not value:
         return ""
     try:
-        from datetime import datetime
         dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         return dt.strftime("%Y-%m-%d %H:%M")
     except Exception:
@@ -189,11 +190,9 @@ def _extract_help_section(full_html, anchor):
     the next heading of the same or higher level. Trailing ``<hr>`` tags
     are stripped for cleaner display in the section-help popup.
     """
-    import re as _re
-
-    heading_pat = _re.compile(
-        rf'<h([2-6])\s[^>]*id="{_re.escape(anchor)}"[^>]*>',
-        _re.IGNORECASE,
+    heading_pat = re.compile(
+        rf'<h([2-6])\s[^>]*id="{re.escape(anchor)}"[^>]*>',
+        re.IGNORECASE,
     )
     match = heading_pat.search(full_html)
     if not match:
@@ -205,11 +204,11 @@ def _extract_help_section(full_html, anchor):
     # Find the next heading at the same or higher level (lower number)
     after = full_html[match.end():]
     levels = "".join(str(i) for i in range(1, heading_level + 1))
-    next_match = _re.search(rf"<h[{levels}][\s>]", after, _re.IGNORECASE)
+    next_match = re.search(rf"<h[{levels}][\s>]", after, re.IGNORECASE)
 
     end = (match.end() + next_match.start()) if next_match else len(full_html)
     section = full_html[start:end].strip()
-    section = _re.sub(r"\s*<hr\s*/?\s*>\s*$", "", section)
+    section = re.sub(r"\s*<hr\s*/?\s*>\s*$", "", section)
     return section
 
 
@@ -876,18 +875,16 @@ def save_profile_endpoint():
     vibe_description = sanitize_text((data.get("vibe_description") or "").strip())
     core_description = sanitize_text((data.get("core_description") or "").strip())
 
-    # If only vibe_description is provided, use it as core_description for manual save
-    if not core_description and vibe_description:
-        core_description = vibe_description
-
-    if not core_description:
+    if not core_description and not vibe_description:
         return jsonify({"error": "Either a vibe description or core description is required."}), 400
-    if len(core_description) > MAX_CORE_DESCRIPTION_LEN:
+    if core_description and len(core_description) > MAX_CORE_DESCRIPTION_LEN:
         return jsonify({"error": f"Core description too long (max {MAX_CORE_DESCRIPTION_LEN} chars)."}), 400
+    if vibe_description and len(vibe_description) > MAX_CORE_DESCRIPTION_LEN:
+        return jsonify({"error": f"Vibe description too long (max {MAX_CORE_DESCRIPTION_LEN} chars)."}), 400
 
     sections = {
         "vibe_description": vibe_description,
-        "core_description": core_description,
+        "core_description": core_description or vibe_description,
         "must_have": sanitize_text((data.get("must_have") or "").strip())[:MAX_PROFILE_SECTION_LEN],
         "soft_preferences": sanitize_text((data.get("soft_preferences") or "").strip())[:MAX_PROFILE_SECTION_LEN],
         "avoid": sanitize_text((data.get("avoid") or "").strip())[:MAX_PROFILE_SECTION_LEN],
@@ -919,7 +916,6 @@ def get_runs():
 def undo_run():
     """Remove tracks added by the last run from the Spotify playlist."""
     try:
-        from core.src.playlist import get_spotify_client
         sp = get_spotify_client()
         result = undo_last_run(sp)
         return jsonify(result)

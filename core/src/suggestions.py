@@ -680,3 +680,4 @@ def filter_duplicate_suggestions(profile, result):
     result["new_artists"] = [a for a in filtered_artists if a not in existing_artists]
 
     return result
+

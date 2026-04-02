@@ -9,3 +9,4 @@ pyinstaller>=6.0,<7.0
 pillow>=10.0,<12.0
 # System tray icon for the Windows desktop build (desktop_launcher.py)
 pystray>=0.19,<1.0
+
