@@ -598,10 +598,8 @@ h1 {
 .cred-status {
     font-size: 0.75rem;
     margin-top: 3px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     max-width: 100%;
+    overflow-wrap: break-word;
 }
 .cred-status.set   { color: var(--success); }
 .cred-status.unset { color: var(--error); }
@@ -2225,7 +2223,8 @@ input {
     gap: 10px;
 }
 
-.modal-checkbox-label {
+.modal-checkbox-label,
+.form-row .modal-checkbox-label {
     display: flex;
     align-items: center;
     gap: 8px;
