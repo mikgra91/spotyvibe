@@ -450,6 +450,7 @@ class TestRunPipeline:
         data = resp.data.decode()
         assert "spotify is not connected" in data.lower()
 
+    @patch("app.save_run")
     @patch("app.add_to_playlist")
     @patch("app.search_tracks")
     @patch("app.filter_duplicate_suggestions")
@@ -466,7 +467,8 @@ class TestRunPipeline:
     def test_successful_run(
         self, mock_trained, mock_spotify, mock_debug, mock_size,
         mock_percentage, mock_load, mock_norm, mock_update,
-        mock_save, mock_gpt, mock_filter, mock_search, mock_add, client
+        mock_save, mock_gpt, mock_filter, mock_search, mock_add,
+        mock_save_run, client
     ):
         mock_load.return_value = {
             "history": {"suggested_artists": [], "suggested_tracks": []},
@@ -630,6 +632,27 @@ class TestPlaylistsEndpoint:
         resp = client.get("/api/playlists")
         assert resp.status_code == 500
         assert "error" in resp.get_json()
+
+
+class TestPlaylistTracksEndpoint:
+    @patch("app.get_playlist_tracks")
+    def test_returns_tracks(self, mock_tracks, client):
+        mock_tracks.return_value = [
+            {"artist": "A", "track": "T", "uri": "spotify:track:1", "track_id": "1",
+             "cover_url": None, "spotify_url": None, "artist_url": None, "album_url": None},
+        ]
+        resp = client.get("/api/playlist/pl1/tracks")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data["tracks"]) == 1
+        assert data["tracks"][0]["artist"] == "A"
+
+    @patch("app.get_playlist_tracks", side_effect=Exception("Not authenticated"))
+    def test_returns_error_on_failure(self, mock_tracks, client):
+        resp = client.get("/api/playlist/pl1/tracks")
+        assert resp.status_code == 500
+        assert "error" in resp.get_json()
+        assert data["tracks"] == [] if (data := resp.get_json()) else True
 
 
 class TestRunStatusEndpoint:
