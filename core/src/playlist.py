@@ -199,10 +199,11 @@ def get_existing_track_uris(sp, playlist_id):
     existing = set()
     # playlist_items() maps to GET /playlists/{id}/items (the current endpoint
     # after Spotify removed /tracks in February 2026).
-    results = sp.playlist_items(playlist_id, fields="items(track(uri)),next", limit=100)
+    # Feb 2026: each playlist item uses the key "item" instead of "track".
+    results = sp.playlist_items(playlist_id, fields="items(item(uri)),next", limit=100)
     while True:
         for entry in results.get("items", []):
-            track = entry.get("track")
+            track = entry.get("item") or entry.get("track")
             if track and track.get("uri"):
                 existing.add(track["uri"])
         if results.get("next") is None:
@@ -356,6 +357,47 @@ def get_user_playlists():
             break
         offset += 50
     return result
+
+
+def get_playlist_tracks(playlist_id):
+    """Return all tracks in a playlist with enriched metadata.
+
+    Returns: list of dicts with keys: artist, track, uri, track_id,
+    cover_url, spotify_url, artist_url, album_url.
+    """
+    sp = get_spotify_client()
+    tracks = []
+    # Feb 2026: Spotify renamed the inner key from "track" to "item".
+    results = sp.playlist_items(
+        playlist_id,
+        fields="items(item(uri,name,artists(name,external_urls),album(images,external_urls),external_urls)),next",
+        limit=100,
+    )
+    while True:
+        for entry in results.get("items", []):
+            t = entry.get("item") or entry.get("track")
+            if not t or not t.get("uri"):
+                continue
+            uri = t["uri"]
+            track_id = uri.split(":")[-1] if uri else None
+            artists = t.get("artists", [])
+            artist_name = artists[0]["name"] if artists else "Unknown"
+            images = t.get("album", {}).get("images", [])
+            cover_url = images[-1]["url"] if images else None
+            tracks.append({
+                "artist": artist_name,
+                "track": t.get("name", ""),
+                "uri": uri,
+                "track_id": track_id,
+                "cover_url": cover_url,
+                "spotify_url": t.get("external_urls", {}).get("spotify"),
+                "artist_url": artists[0].get("external_urls", {}).get("spotify") if artists else None,
+                "album_url": t.get("album", {}).get("external_urls", {}).get("spotify"),
+            })
+        if results.get("next") is None:
+            break
+        results = sp.next(results)
+    return tracks
 
 
 def _render_playlist_name(name_template, profile=None):

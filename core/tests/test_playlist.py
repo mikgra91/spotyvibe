@@ -8,6 +8,7 @@ from core.src.playlist import (
     find_existing_playlist,
     get_existing_track_uris,
     get_user_playlists,
+    get_playlist_tracks,
     remove_from_playlist,
     search_tracks,
     add_to_playlist,
@@ -124,8 +125,8 @@ class TestGetExistingTrackUris:
         sp = MagicMock()
         sp.playlist_items.return_value = {
             "items": [
-                {"track": {"uri": "spotify:track:1"}},
-                {"track": {"uri": "spotify:track:2"}},
+                {"item": {"uri": "spotify:track:1"}},
+                {"item": {"uri": "spotify:track:2"}},
             ],
             "next": None,
         }
@@ -135,11 +136,11 @@ class TestGetExistingTrackUris:
     def test_paginates(self):
         sp = MagicMock()
         sp.playlist_items.return_value = {
-            "items": [{"track": {"uri": "spotify:track:1"}}],
+            "items": [{"item": {"uri": "spotify:track:1"}}],
             "next": "more",
         }
         sp.next.return_value = {
-            "items": [{"track": {"uri": "spotify:track:2"}}],
+            "items": [{"item": {"uri": "spotify:track:2"}}],
             "next": None,
         }
         uris = get_existing_track_uris(sp, "pl123")
@@ -149,14 +150,24 @@ class TestGetExistingTrackUris:
         sp = MagicMock()
         sp.playlist_items.return_value = {
             "items": [
-                {"track": {"uri": "spotify:track:1"}},
-                {"track": None},
-                {"track": {"uri": None}},
+                {"item": {"uri": "spotify:track:1"}},
+                {"item": None},
+                {"item": {"uri": None}},
             ],
             "next": None,
         }
         uris = get_existing_track_uris(sp, "pl123")
         assert uris == {"spotify:track:1"}
+
+    def test_fallback_to_legacy_track_key(self):
+        """Older Spotify API responses used 'track' instead of 'item'."""
+        sp = MagicMock()
+        sp.playlist_items.return_value = {
+            "items": [{"track": {"uri": "spotify:track:legacy"}}],
+            "next": None,
+        }
+        uris = get_existing_track_uris(sp, "pl123")
+        assert uris == {"spotify:track:legacy"}
 
 
 class TestRemoveFromPlaylist:
@@ -409,5 +420,74 @@ class TestGetUserPlaylists:
             from core.src.playlist import get_spotify_oauth
             oauth = get_spotify_oauth()
             assert oauth.redirect_uri == REDIRECT_URI
+
+
+class TestGetPlaylistTracks:
+    """Tests for get_playlist_tracks() — fetches tracks with enriched metadata."""
+
+    @patch("core.src.playlist.get_spotify_client")
+    def test_returns_enriched_tracks(self, mock_client_fn):
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        sp.playlist_items.return_value = {
+            "items": [{
+                "item": {
+                    "uri": "spotify:track:abc123",
+                    "name": "Test Song",
+                    "artists": [{"name": "Test Artist", "external_urls": {"spotify": "https://open.spotify.com/artist/1"}}],
+                    "album": {
+                        "images": [{"url": "https://img/lg.jpg"}, {"url": "https://img/sm.jpg"}],
+                        "external_urls": {"spotify": "https://open.spotify.com/album/1"},
+                    },
+                    "external_urls": {"spotify": "https://open.spotify.com/track/abc123"},
+                },
+            }],
+            "next": None,
+        }
+        result = get_playlist_tracks("pl1")
+        assert len(result) == 1
+        t = result[0]
+        assert t["artist"] == "Test Artist"
+        assert t["track"] == "Test Song"
+        assert t["uri"] == "spotify:track:abc123"
+        assert t["track_id"] == "abc123"
+        assert t["cover_url"] == "https://img/sm.jpg"
+        assert t["spotify_url"] == "https://open.spotify.com/track/abc123"
+        assert t["artist_url"] == "https://open.spotify.com/artist/1"
+        assert t["album_url"] == "https://open.spotify.com/album/1"
+
+    @patch("core.src.playlist.get_spotify_client")
+    def test_skips_entries_without_track(self, mock_client_fn):
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        sp.playlist_items.return_value = {
+            "items": [
+                {"item": None},
+                {"item": {"uri": "spotify:track:ok", "name": "Good", "artists": [{"name": "A"}], "album": {}, "external_urls": {}}},
+            ],
+            "next": None,
+        }
+        result = get_playlist_tracks("pl1")
+        assert len(result) == 1
+        assert result[0]["track"] == "Good"
+
+    @patch("core.src.playlist.get_spotify_client")
+    def test_paginates(self, mock_client_fn):
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        page1 = {
+            "items": [{"item": {"uri": "spotify:track:1", "name": "T1", "artists": [{"name": "A1"}], "album": {}, "external_urls": {}}}],
+            "next": "page2",
+        }
+        page2 = {
+            "items": [{"item": {"uri": "spotify:track:2", "name": "T2", "artists": [{"name": "A2"}], "album": {}, "external_urls": {}}}],
+            "next": None,
+        }
+        sp.playlist_items.return_value = page1
+        sp.next.return_value = page2
+        result = get_playlist_tracks("pl1")
+        assert len(result) == 2
+        assert result[0]["track"] == "T1"
+        assert result[1]["track"] == "T2"
 
 
