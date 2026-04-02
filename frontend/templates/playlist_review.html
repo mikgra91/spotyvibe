@@ -1,0 +1,29 @@
+<!-- ── Refine Playlist ── -->
+<div class="review-section" id="reviewSection">
+    <div class="train-header" onclick="toggleReviewBody()">
+        <div class="train-header-left">
+            <h2>🔄 <span data-i18n="review.title">Refine Playlist</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('refine-playlist')" data-i18n-title="help.section_help_title" title="Open help for this section">?</button></h2>
+            <span class="train-status train-subtitle" data-i18n="review.subtitle">Load an existing playlist and give track-by-track feedback to refine your taste profile.</span>
+        </div>
+        <div class="train-header-actions">
+            <button class="btn-train" id="reviewToggleBtn" onclick="event.stopPropagation(); toggleReviewBody()">Show</button>
+        </div>
+    </div>
+    <div class="train-body hidden" id="reviewBody">
+        <div class="playlist-picker-row">
+            <select id="reviewPlaylistPicker" class="playlist-picker-select">
+                <option value="">Select a playlist…</option>
+            </select>
+        </div>
+        <div class="run-section">
+            <button class="btn-run" onclick="loadPlaylistTracks()">🔄 <span data-i18n="btn.load_playlist">Load Playlist</span></button>
+        </div>
+    </div>
+</div>
+
+<!-- Review track list (rendered by JS) -->
+<div class="songlist-counter-row">
+    <span id="reviewTrackCounter" class="songlist-counter"></span>
+</div>
+<ul id="reviewTrackList" class="track-list"></ul>
+

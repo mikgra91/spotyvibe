@@ -14,6 +14,8 @@ export let currentAbortController = null;
 export let isGenerating = false;
 export let partialTrackCount = 0;
 export let helpLoaded = false;
+export let reviewTracks = [];
+export let cachedPlaylists = null;
 
 export function setSuggestions(val) { suggestions = val; }
 export function spliceSuggestion(idx) {
@@ -38,3 +40,11 @@ export function setCurrentAbortController(val) { currentAbortController = val; }
 export function setIsGenerating(val) { isGenerating = val; }
 export function setPartialTrackCount(val) { partialTrackCount = val; }
 export function setHelpLoaded(val) { helpLoaded = val; }
+export function setReviewTracks(val) { reviewTracks = val; }
+export function spliceReviewTrack(idx) {
+    reviewTracks[idx] = null;
+    const count = reviewTracks.filter(Boolean).length;
+    const counterEl = document.getElementById('reviewTrackCounter');
+    if (counterEl) counterEl.textContent = `${count} track(s)`;
+}
+export function setCachedPlaylists(val) { cachedPlaylists = val; }

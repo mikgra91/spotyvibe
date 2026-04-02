@@ -1,5 +1,73 @@
 import * as State from './state.js';
-import { showToast } from './ui.js';
+import { showToast, esc, attr } from './ui.js';
+
+/**
+ * Build the inner HTML for a track card (shared by discover and review lists).
+ * @param {Object} track - Track object with artist, track, cover_url, track_id, etc.
+ * @param {number} idx - Index in the source array.
+ * @param {string} source - 'discover' or 'review' — determines which JS functions to call.
+ */
+export function buildTrackCardHtml(track, idx, source = 'discover') {
+    const feedbackFn = source === 'review' ? 'toggleReviewFeedback' : 'toggleFeedback';
+    const removeFn = source === 'review' ? 'dismissReviewTrack' : 'removeTrack';
+    const submitFn = source === 'review' ? 'submitReviewFeedback' : 'submitFeedback';
+    const closeFn = source === 'review' ? 'closeReviewFeedback' : 'closeFeedback';
+    const prefix = source === 'review' ? 'review' : '';
+    const formId = prefix ? `review-form-${idx}` : `form-${idx}`;
+    const artistId = prefix ? `review-artist-${idx}` : `artist-${idx}`;
+    const titleId = prefix ? `review-title-${idx}` : `title-${idx}`;
+    const reasonId = prefix ? `review-reason-${idx}` : `reason-${idx}`;
+    const submitBtnId = prefix ? `review-submitBtn-${idx}` : `submitBtn-${idx}`;
+
+    const coverHtml = track.cover_url
+        ? (track.track_id
+            ? `<div class="track-cover-wrap" onclick="openPreviewOverlay('${attr(track.track_id)}','${attr(track.artist)} — ${attr(track.track)}','${source}')" title="Preview on Spotify">
+                   <img class="track-cover" src="${attr(track.cover_url)}" alt="Album cover">
+                   <span class="cover-play">▶</span>
+               </div>`
+            : `<img class="track-cover" src="${attr(track.cover_url)}" alt="Album cover">`)
+        : '';
+    const noPreviewHtml = !track.track_id ? '<span class="track-no-preview">No preview</span>' : '';
+    const spotifyLinks = [
+        track.spotify_url ? `<a class="track-link" href="${attr(track.spotify_url)}" target="_blank" rel="noopener" title="Open track on Spotify">🎵</a>` : '',
+        track.artist_url ? `<a class="track-link" href="${attr(track.artist_url)}" target="_blank" rel="noopener" title="Open artist on Spotify">🎤</a>` : '',
+        track.album_url ? `<a class="track-link" href="${attr(track.album_url)}" target="_blank" rel="noopener" title="Open album on Spotify">💿</a>` : '',
+    ].join('');
+
+    return `
+        <div class="track-header">
+            ${coverHtml}
+            <div class="track-info">
+                <div class="track-name">${esc(track.artist)} — ${esc(track.track)}${spotifyLinks ? `<span class="track-links">${spotifyLinks}</span>` : ''}</div>
+                ${track.reason ? `<div class="track-reason">${esc(track.reason)}</div>` : ''}
+                ${noPreviewHtml}
+            </div>
+            <div class="track-actions">
+                <button class="btn btn-like"    onclick="${feedbackFn}(${idx},'like')">👍 Like</button>
+                <button class="btn btn-dislike" onclick="${feedbackFn}(${idx},'dislike')">👎 Dislike</button>
+                <button class="btn btn-remove"  onclick="${removeFn}(${idx})">✕</button>
+            </div>
+        </div>
+        <div class="feedback-form" id="${formId}">
+            <div class="form-row">
+                <label for="${artistId}">Artist</label>
+                <input id="${artistId}" type="text" value="${attr(track.artist)}">
+            </div>
+            <div class="form-row">
+                <label for="${titleId}">Track</label>
+                <input id="${titleId}" type="text" value="${attr(track.track)}">
+                <div class="form-hint">Leave empty to apply feedback to the artist in general.</div>
+            </div>
+            <div class="form-row">
+                <label for="${reasonId}">Reason (optional)</label>
+                <input id="${reasonId}" type="text" placeholder="e.g. perfect energy, boring melody…">
+            </div>
+            <div class="form-actions">
+                <button class="btn" id="${submitBtnId}" onclick="${submitFn}(${idx})">Submit</button>
+                <button class="btn btn-cancel" onclick="${closeFn}(${idx})">Cancel</button>
+            </div>
+        </div>`;
+}
 
 export function toggleFeedback(idx, action) {
     if (State.openFormIndex !== null && State.openFormIndex !== idx) {

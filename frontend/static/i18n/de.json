@@ -60,6 +60,13 @@
   "history.no_runs": "Noch keine Läufe.",
   "history.tracks_added": "Track(s) hinzugefügt",
 
+  "generate.title": "Musik entdecken",
+
+  "review.title": "Playlist verfeinern",
+  "review.subtitle": "Lade eine bestehende Playlist und gib Track-für-Track-Feedback, um dein Geschmacksprofil zu verfeinern.",
+
+  "btn.load_playlist": "Playlist laden",
+
   "feedback.like": "Gefällt mir",
   "feedback.dislike": "Gefällt mir nicht",
   "feedback.artist_label": "Künstler",

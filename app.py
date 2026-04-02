@@ -50,7 +50,7 @@ from core.src.openai_http import OpenAIConfigError, OpenAIError
 from core.src.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist,
     get_spotify_auth_status, get_spotify_auth_url, handle_spotify_callback,
-    disconnect_spotify, get_user_playlists,
+    disconnect_spotify, get_user_playlists, get_playlist_tracks,
 )
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
@@ -988,6 +988,16 @@ def list_playlists():
         return jsonify({"playlists": playlists})
     except Exception as e:
         return jsonify({"error": str(e), "playlists": []}), 500
+
+
+@app.route("/api/playlist/<playlist_id>/tracks")
+def playlist_tracks(playlist_id):
+    """Return all tracks in a Spotify playlist with enriched metadata."""
+    try:
+        tracks = get_playlist_tracks(playlist_id)
+        return jsonify({"tracks": tracks})
+    except Exception as e:
+        return jsonify({"error": str(e), "tracks": []}), 500
 
 
 @app.route("/api/spotify/status")
