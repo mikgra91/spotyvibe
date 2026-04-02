@@ -270,6 +270,18 @@ export function closeSectionHelp() {
     document.getElementById('sectionHelpOverlay').classList.remove('open');
 }
 
+export async function openDataDir() {
+    try {
+        const resp = await fetch('/api/settings/open-data-dir', { method: 'POST' });
+        const data = await resp.json();
+        if (!resp.ok) {
+            showToast(data.error || 'Could not open folder.', 'error');
+        }
+    } catch (e) {
+        showToast('Network error: ' + e.message, 'error');
+    }
+}
+
 export function closeModal(id) {
     document.getElementById(id).classList.remove('open');
 }

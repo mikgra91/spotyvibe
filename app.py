@@ -702,6 +702,34 @@ def write_settings():
     return jsonify({"status": "ok"})
 
 
+@app.route("/api/settings/open-data-dir", methods=["POST"])
+def open_data_dir():
+    """Open the app data directory in the OS file explorer.
+
+    Desktop-only — on Android this is a no-op (returns 404).
+    Uses platform-appropriate commands: os.startfile (Windows),
+    xdg-open (Linux), open (macOS).
+    """
+    if IS_ANDROID:
+        return jsonify({"error": "Not available on Android."}), 404
+
+    import subprocess
+    import platform
+
+    data_dir = str(_get_app_dir())
+    system = platform.system()
+
+    try:
+        if system == "Windows":
+            os.startfile(data_dir)
+        elif system == "Darwin":
+            subprocess.Popen(["open", data_dir])
+        else:
+            subprocess.Popen(["xdg-open", data_dir])
+        return jsonify({"status": "ok", "path": data_dir})
+    except Exception as e:
+        return jsonify({"error": f"Could not open directory: {e}", "path": data_dir}), 500
+
 
 @app.route("/api/settings/debug-log", methods=["DELETE"])
 def clear_debug_log_endpoint():

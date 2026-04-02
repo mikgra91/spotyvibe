@@ -52,6 +52,7 @@
   "settings.gpt_language": "ChatGPT-Sprache",
   "settings.debug_mode": "Debug-Modus",
   "settings.debug_mode_hint": "GPT-Anfragen & -Antworten in Datei protokollieren",
+  "settings.open_data_dir": "📂 Zu lokalen Dateien",
 
   "history.title": "Verlauf",
   "history.show": "Verlauf anzeigen",

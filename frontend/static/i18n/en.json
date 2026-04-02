@@ -52,6 +52,7 @@
   "settings.gpt_language": "ChatGPT Language",
   "settings.debug_mode": "Debug Mode",
   "settings.debug_mode_hint": "Log GPT requests & responses to debug file",
+  "settings.open_data_dir": "📂 To local files",
 
   "history.title": "Run History",
   "history.show": "Show history",
