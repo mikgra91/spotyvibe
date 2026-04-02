@@ -31,6 +31,7 @@ export function setGenerating(generating) {
     const runBtn    = document.getElementById('runBtn');
     const cancelBtn = document.getElementById('cancelBtn');
     const useBtn    = document.getElementById('useTracksBtn');
+    const loadArea  = document.getElementById('generateLoadingArea');
 
     runBtn.disabled  = generating;
     runBtn.textContent = generating ? '⏳ Generating…' : '▶ Generate & Create Playlist';
@@ -38,6 +39,14 @@ export function setGenerating(generating) {
     cancelBtn.classList.toggle('hidden', !generating);
 
     useBtn.classList.toggle('hidden', !generating || State.partialTrackCount === 0);
+
+    if (loadArea) {
+        loadArea.classList.toggle('hidden', !generating);
+        if (!generating) {
+            const msg = document.getElementById('generateLoadingMsg');
+            if (msg) msg.textContent = '';
+        }
+    }
 }
 
 export function updateUseTracksButton(count) {

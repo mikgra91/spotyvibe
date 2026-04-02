@@ -348,6 +348,9 @@ Manages all interactions with the Spotify Web API via the `spotipy` library.
 | `add_to_playlist(tracks)` | Finds or creates the "SpotyVibe Playlist" and adds verified tracks. Catches 403 errors, auto-disconnects, and raises a clear `RuntimeError`. |
 | `remove_from_playlist(artist, track)` | Searches for a track and removes all occurrences from the playlist. |
 | `find_existing_playlist(sp)` | Paginates through the user's playlists to find one matching the playlist name. |
+| `get_user_playlists()` | Returns all user playlists as `[{id, name, track_count}]` for the playlist picker UI. |
+| `get_playlist_tracks(playlist_id)` | Fetches all tracks from a playlist with enriched metadata (artist, track, URI, cover URL, Spotify/artist/album URLs). Used by the Refine Playlist feature. |
+| `get_existing_track_uris(sp, playlist_id)` | Loads all track URIs already in a playlist to avoid duplicates when adding tracks. |
 
 **OAuth flow:**
 1. User clicks "Connect to Spotify" → browser opens Spotify's authorisation page.
@@ -363,6 +366,8 @@ Manages all interactions with the Spotify Web API via the `spotipy` library.
 **Spotify API compatibility (February 2026 changes):**
 - Playlist creation uses `POST /v1/me/playlists` (`current_user_playlist_create()`). The `POST /v1/users/{user_id}/playlists` endpoint was removed.
 - Playlist track reads use `GET /playlists/{id}/items` (`sp.playlist_items()`). The old `GET /playlists/{id}/tracks` endpoint (`sp.playlist_tracks()`) was removed in February 2026 and must not be used.
+- Each playlist item entry now uses the key `"item"` instead of `"track"` for the inner track object. SpotyVibe uses the defensive pattern `entry.get("item") or entry.get("track")` for backward compatibility. The `fields` parameter must use `items(item(...))` — using the old `items(track(...))` silently returns empty objects.
+- The playlist summary field on `GET /me/playlists` was renamed from `"tracks"` to `"items"`. SpotyVibe uses `pl.get("items") or pl.get("tracks")`.
 - Spotify reduced the search `limit` maximum to 10 (default 5). SpotyVibe uses `limit=1` for all track lookups.
 
 **Parallelised search:** `search_tracks()` uses `ThreadPoolExecutor` with 10 workers to verify tracks on Spotify concurrently, reducing the search time from ~15s (sequential) to ~2s for typical playlist sizes (e.g., 10–30 tracks).
@@ -489,11 +494,11 @@ A modular single-page application split across Jinja2 templates and vanilla Java
 
 **Layout:** The UI is divided into two provider sections, each with a badge, subtitle, and live status pills:
 - **OpenAI** — Taste profile training, AI band/song analysis, and audio filters (GPT-prompt-based). Status pills: key configured, profile trained, selected model, GPT language.
-- **Spotify** — Playlist generation and run history. Status pills: connection state.
+- **Spotify** — Discover Music (playlist generation), Refine Playlist (review existing playlists), and History. Status pills: connection state.
 
 Both sections are wrapped in styled provider cards (`.provider-section`) for visual consistency.
 
-**Collapsible sections:** All major UI components (Music Profile, Band/Song Analysis, Audio Filters, Spotify Playlist Creation, Run History) are collapsible/expandable. Each section header includes a descriptive subtitle and a toggle button. The entire header background area is clickable to expand/collapse the section (buttons inside the header use `event.stopPropagation()` to prevent double-toggling). The Spotify Playlist Creation section is collapsed by default; others start expanded or match their initial state (e.g., the profile editor starts collapsed unless the user was editing).
+**Collapsible sections:** All major UI components (Music Profile, Band/Song Analysis, Audio Filters, Discover Music, Refine Playlist, History) are collapsible/expandable. Each section header includes a descriptive subtitle and a toggle button. The entire header background area is clickable to expand/collapse the section (buttons inside the header use `event.stopPropagation()` to prevent double-toggling). The Discover Music and Refine Playlist sections are collapsed by default; others start expanded or match their initial state.
 
 **Key UI components:**
 - **Train Taste Profile** — accordion-style editor with four collapsible sections: Core Description (required, open by default), Must Have, Soft Preferences, and Avoid. Existing profile data is pre-filled via `GET /api/profile/data` when the form is opened. Core Description is validated client-side — submission is blocked with an error highlight if empty. Shows an inline warning and disables inputs if the OpenAI API key is missing.
@@ -501,11 +506,13 @@ Both sections are wrapped in styled provider cards (`.provider-section`) for vis
 - **Audio Filters** — collapsible section in the OpenAI provider area. Audio filter ranges (energy, valence, tempo, danceability, acousticness) are injected into the GPT prompt via `build_messages(audio_filters=...)`. Uses the same collapsible section pattern as other panels.
 
 
-- **Generate button** — triggers the pipeline with live progress updates. Shows an inline warning and disables the button if OpenAI key or Spotify credentials/authentication are missing.
+- **Generate button** — triggers the pipeline with live progress updates. An inline loading spinner (57px / ~1.5 cm) appears below the button inside the Discover Music section, with progress messages displayed underneath it. The old standalone status box is hidden during generation to avoid duplication and shown only for terminal states (success, error). Shows an inline warning and disables the button if OpenAI key or Spotify credentials/authentication are missing.
 - **⛔ Cancel button** — visible only during generation. Calls `POST /api/cancel` with `finalize: false` and aborts the SSE reader via `AbortController`. Stops the generation without creating or modifying any playlist.
 - **▶ Use X tracks now button** — visible during generation once at least one track has been verified. Calls `POST /api/cancel` with `finalize: true` (does NOT abort the SSE reader). The server stops the loop and emits a `result` event with the partial playlist. Label updates in real time via `batch_verified` SSE events.
-- **Track list** — displays suggestions with album cover thumbnails (48×48px, sourced from Spotify), like/dislike/remove actions.
-- **Feedback form** — expandable per-track form with artist, track, and reason fields.
+- **Track list (Discover)** — generated tracks appear inside the Discover Music section, below the Generate button, separated by an `<hr class="inline-divider">`. The `#discoverTrackArea` wrapper is hidden when empty and revealed by `renderTracks()` or `showStatus()`/`showPlaylistLink()` for terminal events. Displays suggestions with album cover thumbnails, like/dislike/remove actions. Track cards glow green on hover via `box-shadow`.
+- **Refine Playlist** — collapsible section with a playlist dropdown (lazy-loaded on first expand via `populateReviewPlaylistPicker()`), a "Load Playlist" button with an inline loading spinner, and a review track list inside the section. The `#reviewTrackArea` wrapper is hidden until tracks are loaded. Each track card supports like, dislike, and dismiss (✕) actions. Dislike removes the track from the Spotify playlist; dismiss removes without recording feedback.
+- **Preview overlay** — bottom-sheet three-zone layout: (1) Spotify embed player (centered, responsive width 50vw / min 420px / max 700px), (2) file-cabinet register-tab action buttons (👍 👎 ✕) with rounded-right-edge shape, (3) sliding feedback form that fills remaining space to the right screen edge via `flex: 1`. Like/dislike tabs toggle: clicking the same tab again closes the form. Active tabs glow green (like) or red (dislike) via CSS `box-shadow`. The ✕ button triggers dismiss directly without a form.
+- **Feedback form** — expandable per-track form with artist, track, and reason fields. In the preview overlay, it slides in from the right as part of the three-zone layout.
 - **Gear dropdown menu** — Credentials, Settings, Disconnect Spotify (visible only when connected), and Help.
 - **Credentials modal** (`🔑 Credentials`) — manages API keys (OpenAI, Spotify). Secrets only.
 - **Settings modal** (`⚙️ Settings`) — model selection ("Used Model" dropdown) and debug mode toggle. Non-secret configuration.

@@ -27,7 +27,13 @@ export async function loadPlaylistTracks() {
     const playlistId = picker.value;
     const listEl = document.getElementById('reviewTrackList');
     const counterEl = document.getElementById('reviewTrackCounter');
-    listEl.innerHTML = '<p style="color:var(--text-muted)">Loading tracks…</p>';
+    const loadArea = document.getElementById('reviewLoadingArea');
+    const loadBtn = document.getElementById('reviewLoadBtn');
+
+    // Show inline loading spinner
+    if (loadArea) loadArea.classList.remove('hidden');
+    if (loadBtn) { loadBtn.disabled = true; loadBtn.textContent = '⏳ Loading…'; }
+    listEl.innerHTML = '';
 
     try {
         const resp = await fetch(`/api/playlist/${encodeURIComponent(playlistId)}/tracks`);
@@ -42,18 +48,25 @@ export async function loadPlaylistTracks() {
         renderReviewTracks();
     } catch (e) {
         listEl.innerHTML = '<p style="color:var(--error)">Failed to load playlist tracks.</p>';
+    } finally {
+        if (loadArea) loadArea.classList.add('hidden');
+        if (loadBtn) { loadBtn.disabled = false; loadBtn.textContent = '🔄 Load Playlist'; }
     }
 }
 
 export function renderReviewTracks() {
     const list = document.getElementById('reviewTrackList');
+    const trackArea = document.getElementById('reviewTrackArea');
     list.innerHTML = '';
     const tracks = State.reviewTracks;
 
     if (!tracks || tracks.filter(Boolean).length === 0) {
         list.innerHTML = '<p style="color:var(--text-muted)">No tracks loaded.</p>';
+        if (trackArea) trackArea.classList.add('hidden');
         return;
     }
+
+    if (trackArea) trackArea.classList.remove('hidden');
 
     tracks.forEach((track, idx) => {
         if (!track) return;
@@ -87,10 +100,10 @@ export function toggleReviewFeedback(idx, action) {
 
     const submitBtn = document.getElementById(`review-submitBtn-${idx}`);
     if (action === 'like') {
-        submitBtn.textContent = '👍 Submit Like';
+        submitBtn.textContent = '👍 Submit';
         submitBtn.className = 'btn btn-submit-like';
     } else {
-        submitBtn.textContent = '👎 Submit Dislike';
+        submitBtn.textContent = '👎 Submit';
         submitBtn.className = 'btn btn-submit-dislike';
     }
 }

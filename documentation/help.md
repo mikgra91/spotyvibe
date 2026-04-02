@@ -476,17 +476,15 @@ If you are unsure, leave the filters unchanged.
 
 Click **Generate & Create Playlist** to begin.
 
-SpotyVibe will:
+A loading spinner appears below the button inside the Discover Music section. Progress messages are displayed underneath the spinner as SpotyVibe works:
 
 1. Generate song suggestions
-2. Check them
+2. Check them on Spotify
 3. Build the playlist
-4. Show the results in the app
+4. Show the results inside the section (below a divider)
 5. Provide a link to open the playlist in Spotify
 
-During generation, you will see progress updates.
-
-> **Screenshot placeholder:** Generation in progress
+> **Screenshot placeholder:** Generation in progress with inline spinner
 
 ---
 
@@ -508,7 +506,7 @@ This is useful if you already like the results and do not want to wait longer.
 
 ## Track Review & Feedback
 
-After generation, SpotyVibe displays the suggested tracks as cards **between the Discover Music area and Refine Playlist**, inside the Spotify section. A completion banner and playlist link appear first, followed by the track cards.
+After generation, SpotyVibe displays the suggested tracks **inside the Discover Music section**, below the Generate button, separated by a divider. A completion banner and playlist link appear first, followed by the track cards. Track cards glow green on hover.
 
 Each card may show:
 
@@ -526,9 +524,17 @@ You can review each song and decide what to do next.
 
 ### Preview a Track
 
-Use the **Preview** button on a song card to listen inside the app.
+Click the album art on a song card to open the preview overlay at the bottom of the screen.
 
-A player opens in an overlay so you can quickly sample the song without leaving SpotyVibe.
+The preview uses a three-zone layout:
+
+1. **Spotify player** — the embedded player (centered, wide)
+2. **Action tabs** — a vertical column of file-cabinet register-tab buttons (👍 👎 ✕) to the right of the player
+3. **Feedback form** — slides in to fill the remaining space when you click 👍 or 👎
+
+Clicking the same tab again closes the feedback form. The ✕ button dismisses the track immediately without opening a form. Active tabs glow green (like) or red (dislike).
+
+Use the ‹ and › arrows to navigate between tracks without closing the overlay.
 
 > **Screenshot placeholder:** Preview player open
 
@@ -618,7 +624,7 @@ To open it, click **Show** on the **🔄 Refine Playlist** header (or click anyw
 2. Select a playlist from the **dropdown**
 3. Click **🔄 Load Playlist**
 
-SpotyVibe fetches all tracks from the selected playlist and displays them as cards, similar to the Discover suggestion list.
+A loading spinner appears below the button while SpotyVibe fetches the tracks. Once loaded, the tracks appear inside the section, below the button, separated by a divider. Track cards look similar to the Discover suggestion list.
 
 > **Screenshot placeholder:** Playlist dropdown with playlists loaded
 
@@ -702,7 +708,7 @@ Older runs beyond the most recent 5 are automatically removed to keep the list c
 
 ### Persistent Song List
 
-Your generated song list is kept between the Discover Music area and Refine Playlist so you can return to it later.
+Your generated song list is saved inside the Discover Music section and restored when you reload the page — you never lose your track cards between sessions.
 
 This means:
 

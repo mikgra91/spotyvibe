@@ -227,7 +227,7 @@ The AI Profile Update merges with what the AI already knows — your feedback hi
 
 ## Generating a Playlist
 
-Once your profile is trained and Spotify is connected, go to the **Spotify** section and use the **Generate Playlist** area.
+Once your profile is trained and Spotify is connected, go to the **Spotify** section and expand the **Discover Music** area.
 
 ### Playlist Mode
 
@@ -266,13 +266,13 @@ Leave a filter's inputs empty to skip that filter entirely. If all filters are e
 ### Running a Generation
 
 1. Click **▶ Generate & Create Playlist**.
-2. Watch the progress updates as the AI works:
+2. A loading spinner appears below the button inside the Discover Music section, with progress messages updating underneath it as the AI works:
    - It asks GPT for track suggestions based on your taste until it reaches your configured **Playlist Size** (default: 10).
    - It verifies each track exists on Spotify.
    - If some tracks aren't found, it automatically retries with new suggestions.
 
-3. When finished, the suggested tracks appear in a list — each shown with its **album cover artwork** — and are added to a private Spotify playlist called **"SpotyVibe Playlist"**.
-4. A link to the playlist is shown — click it to open it in Spotify.
+3. When finished, the suggested tracks appear inside the Discover Music section — below the button, separated by a divider — each shown with its **album cover artwork**. The tracks are added to a private Spotify playlist called **"SpotyVibe Playlist"**.
+4. A link to the playlist is shown above the track list — click it to open it in Spotify.
 
 ---
 
@@ -302,7 +302,7 @@ Use this when the AI has found some good tracks but has started repeating sugges
 
 ## Run History
 
-Below the Playlist Creation area — still inside the **Spotify** section — you will find a collapsible **Run History** panel. It records the **last 5** playlist generation runs, showing:
+Below the Discover Music area — still inside the **Spotify** section — you will find a collapsible **History** panel. It records the **last 5** playlist generation runs, showing:
 
 - **Date and time** of the run
 - **Track count** — how many tracks were added
@@ -316,10 +316,10 @@ Each history entry is **expandable** — click it to reveal the full list of tra
 
 ## Reviewing Suggestions
 
-After a generation completes, the suggested tracks appear **between the Playlist Creation area and Run History**, inside the **Spotify** section. A completion banner and playlist link are shown first, followed by a song counter (e.g. *10 / 100 songs*) and the track cards themselves. Each track shows the **artist**, **track name**, and a short **reason** explaining why the AI picked it. Cards include:
+After a generation completes, the suggested tracks appear **inside the Discover Music section**, below the Generate button, separated by a divider. A completion banner and playlist link are shown first, followed by a song counter (e.g. *10 / 100 songs*) and the track cards themselves. Each track shows the **artist**, **track name**, and a short **reason** explaining why the AI picked it. Track cards glow green on hover. Cards include:
 
 - **Album artwork** — the album cover is shown on each track card.
-- **Preview** — every track shows a **Preview** button. Clicking it opens a bottom-sheet overlay with the embedded Spotify player so you can listen right in the app. Click the **✕** in the overlay or tap the dark backdrop to close it.
+- **Preview** — clicking the album art opens a bottom-sheet preview overlay with the embedded Spotify player. The overlay uses a three-zone layout: the **Spotify player** (centered), a vertical column of **file-cabinet register-tab action buttons** (👍 👎 ✕) to its right, and a **sliding feedback form** that expands to fill the remaining space when you click like or dislike. Clicking the same tab again closes the form. Active tabs glow green (like) or red (dislike). The ✕ dismiss button removes the track immediately without a form.
 - **Quick links** — icon links open the track (🎵), artist (🎤), and album (💿) pages on Spotify so you can explore further.
 
 ### Persistent Song List
@@ -335,7 +335,7 @@ You have three options for each track:
 
 ### 👍 Like
 
-Click the **👍 Like** button to open the feedback form. The artist and track are pre-filled. You can optionally add a **reason** (e.g., *"perfect energy and melody"*). Click **Submit Like** to save.
+Click the **👍 Like** button to open the feedback form. The artist and track are pre-filled. You can optionally add a **reason** (e.g., *"perfect energy and melody"*). Click **Submit** to save.
 
 - The track is recorded as a positive signal.
 - The artist is added to your confirmed favourites.
@@ -343,7 +343,7 @@ Click the **👍 Like** button to open the feedback form. The artist and track a
 
 ### 👎 Dislike
 
-Click the **👎 Dislike** button. The feedback form opens with the same fields. Add a reason if you want (e.g., *"too slow"*, *"boring melody"*). Click **Submit Dislike** to save.
+Click the **👎 Dislike** button. The feedback form opens with the same fields. Add a reason if you want (e.g., *"too slow"*, *"boring melody"*). Click **Submit** to save.
 
 - The track is recorded as a negative signal and removed from your Spotify playlist.
 - The AI will avoid suggesting similar tracks in the future.
@@ -363,6 +363,29 @@ Every time you click **Generate & Create Playlist**, the AI produces a fresh bat
 
 
 The more feedback you give, the better the suggestions become.
+
+---
+
+## Refine Playlist
+
+The **Refine Playlist** section lets you load an existing Spotify playlist and review its tracks one by one. This is useful for going through playlists you created earlier and giving retroactive feedback to teach SpotyVibe more about your taste.
+
+### Loading a Playlist
+
+1. Expand the **🔄 Refine Playlist** section inside the Spotify provider area.
+2. Your Spotify playlists load automatically into the dropdown on first expand.
+3. Select a playlist and click **🔄 Load Playlist**.
+4. A loading spinner appears below the button while tracks are fetched. Once loaded, the tracks appear inside the section, separated by a divider.
+
+### Reviewing Tracks
+
+Each track card shows album artwork, artist/track name, Spotify links, and three action buttons:
+
+- **👍 Like** — opens a feedback form. After submitting, the track stays in the Spotify playlist and the like is recorded in your taste profile.
+- **👎 Dislike** — opens a feedback form. After submitting, the track is removed from the Spotify playlist and the dislike is recorded.
+- **✕ Dismiss** — removes the track from the Spotify playlist without recording any taste profile feedback. Use this for tracks you feel neutral about.
+
+Clicking the album art opens the preview player (same three-zone layout as Discover Music). Track cards animate out after feedback is submitted.
 
 ---
 

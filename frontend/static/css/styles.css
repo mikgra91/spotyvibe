@@ -137,6 +137,12 @@ h1 {
     margin-top: 80px;
 }
 
+.inline-divider {
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin: 15px 0;
+}
+
 /* =============================================
    Buttons
    ============================================= */
@@ -367,6 +373,7 @@ h1 {
 }
 .track-item:hover {
     transform: translateY(-2px);
+    box-shadow: 0 0 14px rgba(30, 215, 96, 0.25), 0 0 4px rgba(30, 215, 96, 0.15);
 }
 
 .track-header {
@@ -1267,6 +1274,34 @@ h1 {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* =============================================
+   Inline loading area (spinner + optional message)
+   ============================================= */
+.loading-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 0;
+}
+
+.loading-spinner {
+    width: 57px;    /* ≈ 1.5 cm */
+    height: 57px;
+    border: 3px solid rgba(255, 255, 255, 0.08);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+
+.loading-message {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-align: center;
+    min-height: 1.3em;
+    transition: opacity 0.15s ease;
+}
+
+/* =============================================
    Style switcher
    ============================================= */
 .style-switcher {
@@ -2164,8 +2199,7 @@ input {
 /* Horizontal layout: [player] [tabs] [form] */
 .preview-layout {
     display: flex;
-    align-items: stretch;
-    justify-content: center;
+    align-items: flex-start;      /* top-align all items flush */
     margin-bottom: 0;
 }
 
@@ -2173,9 +2207,11 @@ input {
     position: relative;
     background: #121212;
     border-radius: 16px 0 0 0;
-    padding: 20px;
-    width: 100%;
-    max-width: 520px;
+    padding: 20px 24px;
+    width: 42vw;
+    min-width: 400px;
+    max-width: 620px;
+    flex-shrink: 0;
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.6);
 }
 
@@ -2256,72 +2292,73 @@ input {
     margin-top: 8px;
 }
 
-/* ── Action tabs — file-cabinet register style ── */
+/* ── Action tabs — rounded icon strip ── */
 .preview-tab-actions {
     display: flex;
     flex-direction: column;
-    gap: 0;
-    align-self: flex-start;
-    margin-top: 48px;            /* vertically center-ish against the player */
+    gap: 8px;
+    flex-shrink: 0;
+    background: #121212;          /* same colour as the preview panel */
+    border-radius: 0 14px 14px 0;
+    padding: 12px 8px;
 }
 
 .preview-tab {
     position: relative;
     width: 44px;
-    height: 48px;
+    height: 44px;
     border: none;
-    background: rgba(255, 255, 255, 0.06);
+    background: transparent;      /* sits on the container bg */
     color: #fff;
-    font-size: 1.2rem;
+    font-size: 1.3rem;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.15s, transform 0.1s;
-    /* Register-tab shape: rounded on right side only */
-    border-radius: 0 10px 10px 0;
-    margin-bottom: 4px;
+    transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+    border-radius: 12px;
 }
 .preview-tab:hover {
-    background: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.12);
 }
 
-/* Active tab state — visually connects to the feedback panel */
+/* Active tab state */
 .preview-tab.active {
     z-index: 2;
 }
 .preview-tab-like.active {
-    background: rgba(29, 185, 84, 0.25);
-    box-shadow: 2px 0 8px rgba(29, 185, 84, 0.15);
+    background: rgba(29, 185, 84, 0.35);
+    box-shadow: 0 0 12px rgba(29, 185, 84, 0.3);
 }
 .preview-tab-dislike.active {
-    background: rgba(231, 76, 60, 0.25);
-    box-shadow: 2px 0 8px rgba(231, 76, 60, 0.15);
+    background: rgba(231, 76, 60, 0.35);
+    box-shadow: 0 0 12px rgba(231, 76, 60, 0.3);
 }
 
 /* Hover colours per type */
-.preview-tab-like:hover { background: rgba(29, 185, 84, 0.2); }
-.preview-tab-dislike:hover { background: rgba(231, 76, 60, 0.2); }
-.preview-tab-dismiss:hover { background: rgba(255, 255, 255, 0.18); }
+.preview-tab-like:hover { background: rgba(29, 185, 84, 0.22); }
+.preview-tab-dislike:hover { background: rgba(231, 76, 60, 0.22); }
+.preview-tab-dismiss:hover { background: rgba(255, 255, 255, 0.15); }
 
 .preview-tab-icon {
-    font-size: 1.15rem;
+    font-size: 1.25rem;
     line-height: 1;
 }
 
 /* ── Sliding feedback panel ── */
 .preview-feedback-panel {
-    width: 0;
+    flex: 0 0 0px;                /* collapsed: zero width */
     overflow: hidden;
     opacity: 0;
-    background: #1a1a1a;
-    border-radius: 0 16px 0 0;
+    background: #121212;          /* same colour as the preview panel */
+    border-radius: 0 14px 0 0;
     box-shadow: 4px -4px 16px rgba(0, 0, 0, 0.4);
-    transition: width 0.25s ease, opacity 0.2s ease;
-    align-self: stretch;
+    transition: flex-basis 0.25s ease, opacity 0.2s ease, max-width 0.25s ease;
+    max-width: 0;
 }
 .preview-feedback-panel.visible {
-    width: 280px;
+    flex: 0 0 auto;
+    max-width: 450px;
     opacity: 1;
 }
 /* Green top border for like, red for dislike */
@@ -2333,8 +2370,8 @@ input {
 }
 
 .preview-feedback-form {
-    width: 280px;
-    padding: 16px 14px;
+    min-width: 260px;
+    padding: 18px 20px;
 }
 .preview-feedback-form .form-row {
     margin-bottom: 8px;

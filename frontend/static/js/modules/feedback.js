@@ -88,10 +88,10 @@ export function toggleFeedback(idx, action) {
 
     const submitBtn = document.getElementById(`submitBtn-${idx}`);
     if (action === 'like') {
-        submitBtn.textContent = '👍 Submit Like';
+        submitBtn.textContent = '👍 Submit';
         submitBtn.className = 'btn btn-submit-like';
     } else {
-        submitBtn.textContent = '👎 Submit Dislike';
+        submitBtn.textContent = '👎 Submit';
         submitBtn.className = 'btn btn-submit-dislike';
     }
 }

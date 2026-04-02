@@ -3,6 +3,7 @@ import { buildTrackCardHtml } from './feedback.js';
 
 export function renderTracks() {
     const list = document.getElementById('trackList');
+    const trackArea = document.getElementById('discoverTrackArea');
     list.innerHTML = '';
     State.setOpenFormIndex(null);
     State.setOpenFormAction(null);
@@ -13,8 +14,11 @@ export function renderTracks() {
     if (counterEl) counterEl.textContent = `${State.suggestions.length} / ${maxSize} songs`;
 
     if (State.suggestions.length === 0) {
+        if (trackArea) trackArea.classList.add('hidden');
         return;
     }
+
+    if (trackArea) trackArea.classList.remove('hidden');
 
     State.suggestions.forEach((track, idx) => {
         const li = document.createElement('li');

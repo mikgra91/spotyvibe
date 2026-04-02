@@ -32,7 +32,7 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 - **Structured taste profile** — accordion-style editor with separate sections for core description, must-haves, soft preferences, and things to avoid. Existing profile data is pre-filled for easy editing. Save changes directly or use **AI Profile Update** to let GPT refine your input.
 - **Profile import/export** — import a full profile JSON (the current profile is automatically backed up to the history file) or export your current active profile as a JSON download. Import/Export/Reset controls appear below the "Last trained" status line when the profile editor is open.
 - **Reset to history** — revert your Music Profile to the previous saved version (one-step undo).
-- **Collapsible UI sections** — every major component (Music Profile, Band/Song Analysis, Audio Filters, Spotify Playlist Creation, Run History) is collapsible/expandable. Each section header includes a short description and the entire header area is clickable to toggle.
+- **Collapsible UI sections** — every major component (Music Profile, Band/Song Analysis, Audio Filters, Discover Music, Refine Playlist, History) is collapsible/expandable. Each section header includes a short description and the entire header area is clickable to toggle.
 
 - **Album artwork** displayed alongside each suggested track.
 - **Spotify integration** — auto-creates and manages a private playlist.
@@ -46,8 +46,10 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 - **GPT Audio Feature Constraints** — optional audio filters (energy, valence, tempo, danceability, acousticness) in the OpenAI section are injected directly into the GPT prompt, guiding the AI to suggest tracks matching the desired mood and feel.
 - **Feedback Reasons in prompts** — recent like/dislike reasons are summarized and sent to GPT so it can learn *why* you liked or disliked a track, not just which ones.
 - **Multiple Playlists / Playlist Naming** — create new, append, or replace playlists with custom name templates supporting `{date}` and `{style}` tokens.
+- **Refine Playlist** — load an existing Spotify playlist and review tracks one-by-one with like, dislike, or dismiss actions to refine your taste profile and clean up the playlist.
+- **Inline loading spinners** — both playlist generation and playlist loading show a centered spinner with live progress messages inside the section, keeping the UI clean and focused.
 - **Run History** — the last 5 generation runs are saved (`core/history.py`); each entry shows date/time, track count, and a playlist link. Expand any entry to see the full list of tracks added.
-- **Previews and Richer Track Cards** — album art, inline Spotify preview playback, and direct links to track, artist, and album on Spotify.
+- **Previews and Richer Track Cards** — album art, inline Spotify preview playback, and direct links to track, artist, and album on Spotify. Track cards glow green on hover. The preview player uses a three-zone bottom-bar layout: Spotify player (centered), file-cabinet register-tab action buttons (👍 👎 ✕), and a sliding feedback form that expands to the right screen edge.
 - **Hard Cost Guardrails** — max 20 GPT calls per run, max 3 consecutive empty batches, and field-level character limits to prevent runaway usage.
 - **Better SSE Resilience** — run state is persisted by `run_id`; a recovery endpoint lets the client reconnect after a network drop.
 - **Cached Model List** — `/api/settings/models` is cached with a 5-minute TTL to reduce API calls.
