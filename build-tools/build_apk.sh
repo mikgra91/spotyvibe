@@ -46,7 +46,7 @@ rm -rf "$PYTHON_DEST"
 mkdir -p "$PYTHON_DEST"
 
 # 2. Copy Python files (preserving directory structure, excluding __pycache__)
-for item in app.py spotyvibe_bootstrap.py config.py core prompts data frontend; do
+for item in app.py spotyvibe_bootstrap.py config.py core prompts data frontend documentation; do
   if [ -d "$PROJECT_ROOT/$item" ]; then
     cp -r "$PROJECT_ROOT/$item" "$PYTHON_DEST/"
     find "$PYTHON_DEST/$item" -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true

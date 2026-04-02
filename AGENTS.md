@@ -74,8 +74,16 @@ spotyvibe/
 - Break large tasks into sub-agents, one scoped piece per agent.
 
 ### Spotify API
-- Consult [`SKILL.md`](SKILL.md) for endpoint reference, Feb 2026 breaking changes, OAuth requirements, and spotipy mappings.
+- **Primary reference:** [`SKILL.md`](SKILL.md) — contains the full endpoint table, Feb 2026 breaking changes, OAuth flow, field filtering syntax, and spotipy method mappings. Read it before making any Spotify-related code change.
 - Never use deprecated endpoints. Verify against the [Spotify Web API Reference](https://developer.spotify.com/documentation/web-api) before adding new calls.
+- **Key Feb 2026 gotchas:**
+  - Playlist item inner key is `"item"`, not `"track"`. Use the defensive pattern: `entry.get("item") or entry.get("track")`.
+  - Playlist summary field on `GET /me/playlists` is `"items"`, not `"tracks"`. Use: `pl.get("items") or pl.get("tracks")`.
+  - `fields` parameter must match the new key names — e.g. `items(item(uri,name,...))` not `items(track(...))`. Mismatched filters return empty objects silently (no error).
+  - Search `limit` max is 10 (down from 50). Always pass `limit` explicitly.
+  - Use `sp.playlist_items()`, never `sp.playlist_tracks()`.
+  - Use `sp.current_user_playlist_create()`, never `sp.user_playlist_create()`.
+- **All Spotify interactions** live in `core/src/playlist.py`. Do not scatter Spotify API calls across other modules.
 
 ### Agent Procedures & Context Files
 - Follow the git commit/push procedure in [`SKILL.md`](SKILL.md).

@@ -59,7 +59,7 @@ MAX_GPT_CALLS_PER_RUN = 20
 DEFAULT_NEW_ARTIST_PERCENTAGE = 30
 
 # Default OpenAI model used when none is configured
-DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
+DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
 
 # Curated list of known-good OpenAI model IDs for chat completions.
 # Order determines display order in the Settings dropdown.
@@ -67,19 +67,10 @@ DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
 # for the model list (avoids the openai SDK and its native deps entirely).
 OPENAI_SUPPORTED_MODELS_JSON = [
     "gpt-5.4",
+    "gpt-5.4-mini",
     "gpt-4.1",
     "gpt-4.1-mini",
     "gpt-4.1-nano",
-    "gpt-4o",
-    "gpt-4o-mini",
-    "gpt-4-turbo",
-    "gpt-3.5-turbo",
-    "o1",
-    "o1-mini",
-    "o1-preview",
-    "o3",
-    "o3-mini",
-    "o4-mini",
 ]
 
 # Optional additional model IDs beyond the curated list.

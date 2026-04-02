@@ -766,14 +766,14 @@ class TestFeedbackButtons:
         page.locator("#track-0 .btn-like").click()
         form = page.locator("#form-0")
         expect(form).to_have_class(re.compile(r"open"))
-        expect(page.locator("#submitBtn-0")).to_contain_text("Submit Like")
+        expect(page.locator("#submitBtn-0")).to_contain_text("Submit")
 
     def test_dislike_button_opens_feedback_form(self, page: Page, base_url):
         self._setup_with_tracks(page, base_url)
         page.locator("#track-0 .btn-dislike").click()
         form = page.locator("#form-0")
         expect(form).to_have_class(re.compile(r"open"))
-        expect(page.locator("#submitBtn-0")).to_contain_text("Submit Dislike")
+        expect(page.locator("#submitBtn-0")).to_contain_text("Submit")
 
     def test_feedback_form_prefills_artist_and_track(self, page: Page, base_url):
         self._setup_with_tracks(page, base_url)

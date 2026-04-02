@@ -44,6 +44,32 @@ Always pass `limit` explicitly. SpotyVibe uses `limit=1` for all track searches 
 | Show / Audiobook | `available_markets`, `publisher` |
 | User | `country`, `email`, `explicit_content`, `followers`, `product` |
 
+### Renamed response fields
+
+| Object | Old field | New field | Notes |
+|---|---|---|---|
+| Playlist (simplified, from `GET /me/playlists`) | `tracks` | `items` | Summary object `{"href": "...", "total": N}`. Old `tracks` field is now `null`. |
+| Playlist item (each entry in `GET /playlists/{id}/items`) | `track` | `item` | The inner key holding the track object. Old `track` key is absent. |
+
+### Playlist item inner key: `track` → `item`
+
+Before February 2026, each entry returned by `sp.playlist_items()` looked like:
+```json
+{"track": {"uri": "...", "name": "...", ...}}
+```
+After February 2026, the key is `item`:
+```json
+{"item": {"uri": "...", "name": "...", ...}}
+```
+
+**Impact on field filtering:** When using the `fields` parameter, use `items(item(...))` — not `items(track(...))`. The old filter silently returns empty objects `{}` instead of an error.
+
+**Defensive pattern used in SpotyVibe:**
+```python
+t = entry.get("item") or entry.get("track")
+```
+This fallback handles both the current and any cached/legacy responses.
+
 ---
 
 ## OAuth 2.0 — Authorization Code Flow

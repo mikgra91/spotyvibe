@@ -2,20 +2,48 @@ export function showStatus(msg, type) {
     const box = document.getElementById('statusBox');
     box.className = `status ${type}`;
     box.textContent = msg;
-    box.classList.remove('hidden');
+    // During generation, only the inline loading area shows progress;
+    // the statusBox is hidden to avoid duplication.  Show it for
+    // terminal states (success, error) so the final message persists.
+    const loadArea = document.getElementById('generateLoadingArea');
+    const isGenerating = loadArea && !loadArea.classList.contains('hidden');
+    if (isGenerating && type === 'info') {
+        box.classList.add('hidden');
+    } else {
+        box.classList.remove('hidden');
+        // Ensure track area is visible so the status box can be seen
+        const trackArea = document.getElementById('discoverTrackArea');
+        if (trackArea) trackArea.classList.remove('hidden');
+    }
+    // Mirror into inline loading message area if visible
+    const loadMsg = document.getElementById('generateLoadingMsg');
+    if (loadMsg) loadMsg.textContent = msg;
 }
 
 export function showStatusHtml(html, type) {
     const box = document.getElementById('statusBox');
     box.className = `status ${type}`;
     box.innerHTML = html;
-    box.classList.remove('hidden');
+    const loadArea = document.getElementById('generateLoadingArea');
+    const isGenerating = loadArea && !loadArea.classList.contains('hidden');
+    if (isGenerating && type === 'info') {
+        box.classList.add('hidden');
+    } else {
+        box.classList.remove('hidden');
+        const trackArea = document.getElementById('discoverTrackArea');
+        if (trackArea) trackArea.classList.remove('hidden');
+    }
+    const loadMsg = document.getElementById('generateLoadingMsg');
+    if (loadMsg) loadMsg.innerHTML = html;
 }
 
 export function showPlaylistLink(url) {
     const box = document.getElementById('playlistLinkBox');
     box.innerHTML = `🎶 <strong>Playlist:</strong> <a href="${attr(url)}" target="_blank" rel="noopener">${esc(url)}</a>`;
     box.classList.remove('hidden');
+    // Ensure track area is visible
+    const trackArea = document.getElementById('discoverTrackArea');
+    if (trackArea) trackArea.classList.remove('hidden');
 }
 
 export function hidePlaylistLink() {

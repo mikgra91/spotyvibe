@@ -90,9 +90,9 @@ def get_spotify_oauth():
     """Create a SpotifyOAuth instance with the token cache in AppData.
 
     Configuration choices:
-    - `scope="playlist-modify-private playlist-read-private"`: Minimal
-      scopes — only requests the permissions actually needed. This is a
-      security best practice (principle of least privilege).
+    - Scopes: ``playlist-modify-private`` and ``playlist-read-private`` for
+      playlist management; ``user-read-private`` so Spotify can resolve the
+      user's country when ``market="from_token"`` is used in search calls.
     - `cache_path`: Token is stored in AppData alongside credentials,
       keeping secrets out of the project directory.
     - `open_browser=False`: The app controls when/how the browser opens
@@ -103,7 +103,7 @@ def get_spotify_oauth():
         client_id=os.getenv("SPOTIPY_CLIENT_ID"),
         client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
         redirect_uri=REDIRECT_URI,
-        scope="playlist-modify-private playlist-read-private",
+        scope="playlist-modify-private playlist-read-private user-read-private",
         cache_handler=cache_handler,
         open_browser=False,
     )
@@ -199,10 +199,11 @@ def get_existing_track_uris(sp, playlist_id):
     existing = set()
     # playlist_items() maps to GET /playlists/{id}/items (the current endpoint
     # after Spotify removed /tracks in February 2026).
-    results = sp.playlist_items(playlist_id, fields="items(track(uri)),next", limit=100)
+    # Feb 2026: each playlist item uses the key "item" instead of "track".
+    results = sp.playlist_items(playlist_id, fields="items(item(uri)),next", limit=100)
     while True:
         for entry in results.get("items", []):
-            track = entry.get("track")
+            track = entry.get("item") or entry.get("track")
             if track and track.get("uri"):
                 existing.add(track["uri"])
         if results.get("next") is None:
@@ -344,15 +345,59 @@ def get_user_playlists():
     while True:
         playlists = sp.current_user_playlists(limit=50, offset=offset)
         for pl in playlists.get("items", []):
+            # Feb 2026: Spotify renamed the summary field from "tracks" to
+            # "items".  Try the new key first, fall back to old.
+            summary = pl.get("items") or pl.get("tracks") or {}
             result.append({
                 "id": pl["id"],
                 "name": pl["name"],
-                "track_count": pl.get("tracks", {}).get("total", 0),
+                "track_count": summary.get("total", 0) if isinstance(summary, dict) else 0,
             })
         if playlists.get("next") is None:
             break
         offset += 50
     return result
+
+
+def get_playlist_tracks(playlist_id):
+    """Return all tracks in a playlist with enriched metadata.
+
+    Returns: list of dicts with keys: artist, track, uri, track_id,
+    cover_url, spotify_url, artist_url, album_url.
+    """
+    sp = get_spotify_client()
+    tracks = []
+    # Feb 2026: Spotify renamed the inner key from "track" to "item".
+    results = sp.playlist_items(
+        playlist_id,
+        fields="items(item(uri,name,artists(name,external_urls),album(images,external_urls),external_urls)),next",
+        limit=100,
+    )
+    while True:
+        for entry in results.get("items", []):
+            t = entry.get("item") or entry.get("track")
+            if not t or not t.get("uri"):
+                continue
+            uri = t["uri"]
+            track_id = uri.split(":")[-1] if uri else None
+            artists = t.get("artists", [])
+            artist_name = artists[0]["name"] if artists else "Unknown"
+            images = t.get("album", {}).get("images", [])
+            cover_url = images[-1]["url"] if images else None
+            tracks.append({
+                "artist": artist_name,
+                "track": t.get("name", ""),
+                "uri": uri,
+                "track_id": track_id,
+                "cover_url": cover_url,
+                "spotify_url": t.get("external_urls", {}).get("spotify"),
+                "artist_url": artists[0].get("external_urls", {}).get("spotify") if artists else None,
+                "album_url": t.get("album", {}).get("external_urls", {}).get("spotify"),
+            })
+        if results.get("next") is None:
+            break
+        results = sp.next(results)
+    return tracks
 
 
 def _render_playlist_name(name_template, profile=None):

@@ -2,27 +2,37 @@
 <div class="history-section" id="historySection">
     <div class="train-header" onclick="toggleHistoryBody()">
         <div class="train-header-left">
-            <h2>🕓 <span data-i18n="history.title">Run History</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('run-history')" data-i18n-title="help.section_help_title" title="Open help for this section">?</button></h2>
-            <span class="train-status train-subtitle">View past generation runs and undo the last one if needed.</span>
+            <h2>🕓 <span data-i18n="history.title">History</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('run-history')" data-i18n-title="help.section_help_title" title="Open help for this section">?</button></h2>
+            <span class="train-status train-subtitle">View past generation runs.</span>
         </div>
         <div class="train-header-actions">
             <button class="btn-train" onclick="event.stopPropagation(); toggleHistoryBody()" data-i18n="history.show">Show history</button>
-            <button class="btn btn-dislike" id="undoLastRunBtn" onclick="event.stopPropagation(); undoLastRun()"
-                {% if not run_history %}style="display:none;"{% endif %}>↩ <span data-i18n="history.undo">Undo last run</span></button>
         </div>
     </div>
     <div class="train-body hidden" id="historyBody">
         <div id="historyList">
             {% if run_history %}
                 {% for run in run_history %}
-                <div class="history-run-item">
-                    <div class="history-run-date">{{ run.timestamp|datetimeformat if run.timestamp else '?' }}</div>
-                    <div class="history-run-info">
-                        {{ run.tracks|length if run.tracks else 0 }} track(s) added
-                        {% if run.playlist_url %}
-                        <a href="{{ run.playlist_url }}" target="_blank" rel="noopener">Open playlist</a>
-                        {% endif %}
+                <div class="history-run-item" onclick="this.classList.toggle('expanded')">
+                    <div class="history-run-header">
+                        <div>
+                            <div class="history-run-date">{{ run.timestamp|datetimeformat if run.timestamp else '?' }}</div>
+                            <div class="history-run-info">
+                                {{ run.tracks|length if run.tracks else 0 }} track(s) added
+                                {% if run.playlist_url %}
+                                <a href="{{ run.playlist_url }}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Open playlist</a>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <span class="history-run-chevron">▸</span>
                     </div>
+                    {% if run.tracks %}
+                    <ul class="history-run-tracks">
+                        {% for t in run.tracks %}
+                        <li>{{ t.artist|e }} — {{ t.track|e }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
                 </div>
                 {% endfor %}
             {% else %}

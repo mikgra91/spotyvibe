@@ -119,7 +119,7 @@ export async function openSettings() {
         }
 
         const modelStatus = document.getElementById('status-settings-model');
-        modelStatus.textContent = '✓ Using: ' + (data.model || 'gpt-4.1-mini');
+        modelStatus.textContent = '✓ Using: ' + (data.model || 'gpt-5.4-mini');
         modelStatus.className = 'cred-status set';
 
         const playlistSize = data.playlist_size || 10;
@@ -268,6 +268,18 @@ export async function openSectionHelp(anchor) {
 
 export function closeSectionHelp() {
     document.getElementById('sectionHelpOverlay').classList.remove('open');
+}
+
+export async function openDataDir() {
+    try {
+        const resp = await fetch('/api/settings/open-data-dir', { method: 'POST' });
+        const data = await resp.json();
+        if (!resp.ok) {
+            showToast(data.error || 'Could not open folder.', 'error');
+        }
+    } catch (e) {
+        showToast('Network error: ' + e.message, 'error');
+    }
 }
 
 export function closeModal(id) {

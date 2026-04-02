@@ -26,7 +26,7 @@ You will also need two sets of API keys (free to obtain):
 >
 > Without the matching URI for your platform, Spotify authentication will fail with "redirect_uri: No matching configuration".
 
-> **💰 Cost note:** The OpenAI API is a **paid service**. Each playlist generation and profile training uses API credits. The default model (`gpt-4.1-mini`) is very affordable, but larger models cost significantly more. See [OpenAI Pricing](https://platform.openai.com/docs/pricing) for details.
+> **💰 Cost note:** The OpenAI API is a **paid service**. Each playlist generation and profile training uses API credits. The default model (`gpt-5.4-mini`) is very affordable, but larger models cost significantly more. See [OpenAI Pricing](https://platform.openai.com/docs/pricing) for details.
 
 ---
 
@@ -122,9 +122,9 @@ Click **Save**. Your credentials are stored securely outside the project folder 
 
 Open the **☰ menu** and select **⚙️ Settings**.
 
-The **Used Model** dropdown lists all available models from your OpenAI account. The default is `gpt-4.1-mini`. Available models include `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-4o`, and various o-series models.
+The **Used Model** dropdown lists all available models. The default is `gpt-5.4-mini`. Available models are `gpt-5.4`, `gpt-5.4-mini`, `gpt-4.1`, `gpt-4.1-mini`, and `gpt-4.1-nano`.
 
-You can switch to a different model at any time. More capable models (e.g., `gpt-5.4`, `gpt-4.1`, `gpt-4o`) may produce better recommendations but cost more per request.
+You can switch to a different model at any time. More capable models (e.g., `gpt-5.4`, `gpt-4.1`) may produce better recommendations but cost more per request.
 
 > **⚠️ Cost warning:** Different models have very different prices — for example, `gpt-4.1` can cost 10× more per request than `gpt-4.1-mini`. Check [OpenAI Pricing](https://platform.openai.com/docs/pricing) to understand the costs before switching models.
 
@@ -227,7 +227,7 @@ The AI Profile Update merges with what the AI already knows — your feedback hi
 
 ## Generating a Playlist
 
-Once your profile is trained and Spotify is connected, go to the **Spotify** section and use the **Generate Playlist** area.
+Once your profile is trained and Spotify is connected, go to the **Spotify** section and expand the **Discover Music** area.
 
 ### Playlist Mode
 
@@ -266,13 +266,13 @@ Leave a filter's inputs empty to skip that filter entirely. If all filters are e
 ### Running a Generation
 
 1. Click **▶ Generate & Create Playlist**.
-2. Watch the progress updates as the AI works:
+2. A loading spinner appears below the button inside the Discover Music section, with progress messages updating underneath it as the AI works:
    - It asks GPT for track suggestions based on your taste until it reaches your configured **Playlist Size** (default: 10).
    - It verifies each track exists on Spotify.
    - If some tracks aren't found, it automatically retries with new suggestions.
 
-3. When finished, the suggested tracks appear in a list — each shown with its **album cover artwork** — and are added to a private Spotify playlist called **"SpotyVibe Playlist"**.
-4. A link to the playlist is shown — click it to open it in Spotify.
+3. When finished, the suggested tracks appear inside the Discover Music section — below the button, separated by a divider — each shown with its **album cover artwork**. The tracks are added to a private Spotify playlist called **"SpotyVibe Playlist"**.
+4. A link to the playlist is shown above the track list — click it to open it in Spotify.
 
 ---
 
@@ -300,17 +300,15 @@ Use this when the AI has found some good tracks but has started repeating sugges
 
 ---
 
-## Run History and Undo
+## Run History
 
-Below the generation area you will find a collapsible **Run History** section. It records the **last 5** playlist generation runs, showing:
+Below the Discover Music area — still inside the **Spotify** section — you will find a collapsible **History** panel. It records the **last 5** playlist generation runs, showing:
 
 - **Date and time** of the run
 - **Track count** — how many tracks were added
 - **Playlist link** — click to open the playlist in Spotify
 
-At the top of the history list is an **Undo last run** button. Clicking it removes all tracks that were added by the most recent generation run from the corresponding Spotify playlist. This is useful if a run produced poor results and you want to revert quickly without manually deleting tracks.
-
-> **Note:** Undo only affects the most recent run. If the playlist has been deleted on Spotify, or if the run history is empty, the undo operation will fail with an explanatory message.
+Each history entry is **expandable** — click it to reveal the full list of tracks (Artist — Track) that were added during that run. Click again to collapse.
 
 > **Tip:** If the history panel is open when a new generation completes, the list refreshes automatically — no need to close and reopen it.
 
@@ -318,15 +316,15 @@ At the top of the history list is an **Undo last run** button. Clicking it remov
 
 ## Reviewing Suggestions
 
-Each suggested track shows the **artist**, **track name**, and a short **reason** explaining why the AI picked it. Tracks are displayed as rich cards with the following details:
+After a generation completes, the suggested tracks appear **inside the Discover Music section**, below the Generate button, separated by a divider. A completion banner and playlist link are shown first, followed by a song counter (e.g. *10 / 100 songs*) and the track cards themselves. Each track shows the **artist**, **track name**, and a short **reason** explaining why the AI picked it. Track cards glow green on hover. Cards include:
 
 - **Album artwork** — the album cover is shown on each track card.
-- **Preview** — every track shows a **Preview** button. Clicking it opens a bottom-sheet overlay with the embedded Spotify player so you can listen right in the app. Click the **✕** in the overlay or tap the dark backdrop to close it.
+- **Preview** — clicking the album art opens a bottom-sheet preview overlay with the embedded Spotify player. The overlay uses a three-zone layout: the **Spotify player** (centered), a vertical column of **file-cabinet register-tab action buttons** (👍 👎 ✕) to its right, and a **sliding feedback form** that expands to fill the remaining space when you click like or dislike. Clicking the same tab again closes the form. Active tabs glow green (like) or red (dislike). The ✕ dismiss button removes the track immediately without a form.
 - **Quick links** — icon links open the track (🎵), artist (🎤), and album (💿) pages on Spotify so you can explore further.
 
 ### Persistent Song List
 
-The song list is **saved automatically** after each generation and restored when you reload the page — you never lose your track cards between sessions. A counter below the Generate button shows how many songs are currently in the list (max 100).
+The song list is **saved automatically** after each generation and restored when you reload the page — you never lose your track cards between sessions. A counter above the track list shows how many songs are currently in the list (max 100).
 
 - When you **like, dislike, or remove** a track it is permanently deleted from the saved list.
 - If the list has too many songs to fit another batch, generation is **blocked** with a warning. Review and remove some songs first to make room.
@@ -337,7 +335,7 @@ You have three options for each track:
 
 ### 👍 Like
 
-Click the **👍 Like** button to open the feedback form. The artist and track are pre-filled. You can optionally add a **reason** (e.g., *"perfect energy and melody"*). Click **Submit Like** to save.
+Click the **👍 Like** button to open the feedback form. The artist and track are pre-filled. You can optionally add a **reason** (e.g., *"perfect energy and melody"*). Click **Submit** to save.
 
 - The track is recorded as a positive signal.
 - The artist is added to your confirmed favourites.
@@ -345,7 +343,7 @@ Click the **👍 Like** button to open the feedback form. The artist and track a
 
 ### 👎 Dislike
 
-Click the **👎 Dislike** button. The feedback form opens with the same fields. Add a reason if you want (e.g., *"too slow"*, *"boring melody"*). Click **Submit Dislike** to save.
+Click the **👎 Dislike** button. The feedback form opens with the same fields. Add a reason if you want (e.g., *"too slow"*, *"boring melody"*). Click **Submit** to save.
 
 - The track is recorded as a negative signal and removed from your Spotify playlist.
 - The AI will avoid suggesting similar tracks in the future.
@@ -358,12 +356,36 @@ Click the **✕** button to dismiss a track from the list and remove it from the
 
 ---
 
+
 ## Running Again
 
 Every time you click **Generate & Create Playlist**, the AI produces a fresh batch of suggestions sized to your configured **Playlist Size**. It never repeats tracks from previous runs — your history is remembered automatically.
 
 
 The more feedback you give, the better the suggestions become.
+
+---
+
+## Refine Playlist
+
+The **Refine Playlist** section lets you load an existing Spotify playlist and review its tracks one by one. This is useful for going through playlists you created earlier and giving retroactive feedback to teach SpotyVibe more about your taste.
+
+### Loading a Playlist
+
+1. Expand the **🔄 Refine Playlist** section inside the Spotify provider area.
+2. Your Spotify playlists load automatically into the dropdown on first expand.
+3. Select a playlist and click **🔄 Load Playlist**.
+4. A loading spinner appears below the button while tracks are fetched. Once loaded, the tracks appear inside the section, separated by a divider.
+
+### Reviewing Tracks
+
+Each track card shows album artwork, artist/track name, Spotify links, and three action buttons:
+
+- **👍 Like** — opens a feedback form. After submitting, the track stays in the Spotify playlist and the like is recorded in your taste profile.
+- **👎 Dislike** — opens a feedback form. After submitting, the track is removed from the Spotify playlist and the dislike is recorded.
+- **✕ Dismiss** — removes the track from the Spotify playlist without recording any taste profile feedback. Use this for tracks you feel neutral about.
+
+Clicking the album art opens the preview player (same three-zone layout as Discover Music). Track cards animate out after feedback is submitted.
 
 ---
 
@@ -480,7 +502,7 @@ All your personal data is stored outside the project in your system's app data f
 | Taste profile | `%LOCALAPPDATA%\spotyvibe\personalized_music_profile.json` | Your trained taste profile + history. |
 | Spotify token | `%LOCALAPPDATA%\spotyvibe\.spotify-cache` | Cached Spotify authentication token. |
 | Debug log | `%LOCALAPPDATA%\spotyvibe\debug.log` | GPT request/response log (desktop only, only when debug mode is enabled). |
-| Run history | `%LOCALAPPDATA%\spotyvibe\run_history.json` | Past generation run metadata (used for undo). |
+| Run history | `%LOCALAPPDATA%\spotyvibe\run_history.json` | Past generation run metadata (last 5 runs). |
 
 This means you can safely update or reinstall the app without losing your profile or credentials.
 

@@ -29,7 +29,7 @@ SpotyVibe is a Python web application built with **Flask** that connects two ext
 │  /api/spotify/auth    /api/spotify/disconnect  /api/cancel          │
 │  /callback            /api/settings/*        /api/help             │
 │  /api/settings        /api/settings/debug-log                      │
-│  /api/runs            /api/runs/undo        /api/run/<run_id>/status│
+│  /api/runs            /api/run/<run_id>/status                      │
 │  /api/onboarding/status  /api/onboarding/complete                  │
 │  /api/settings/language                                            │
 └──────┬───────────────────┬──────────────┬──────────┬────────────────┘
@@ -58,7 +58,6 @@ SpotyVibe is a Python web application built with **Flask** that connects two ext
 │              │
 │ - save_run   │
 │ - load_runs  │
-│ - undo_last  │
 └──────────────┘
 ```
 
@@ -86,10 +85,12 @@ spotyvibe/
 │   ├── playlist.py         # Spotify playlist management and OAuth
 │   ├── feedback.py         # Like/dislike recording
 │   ├── analysis.py         # Band/song AI analysis (structured GPT output)
-│   └── history.py          # Run history persistence and undo
+│   └── history.py          # Run history persistence
 │
 ├── prompts/                # AI prompt templates (editable without code changes)
-│   ├── system_prompt.txt          # System message: rules, matching, output format
+│   ├── system_prompt.txt          # Default system message: rules, matching, output format
+│   ├── system_prompt_gpt-4-1.txt  # GPT-4.1-specific system prompt (step-by-step reasoning)
+│   ├── system_prompt_gpt-5-4.txt  # GPT-5.4-specific system prompt (candidate-pool reasoning)
 │   ├── prompt_template.txt        # User message: embeds the profile JSON
 │   ├── profile_training_prompt.txt # System message for taste profile training
 │   └── analysis_prompt.txt        # Band/song analysis prompt template
@@ -200,7 +201,7 @@ Manages all application settings and credentials.
 | `GPT_HISTORY_LIMIT` | Max history entries sent to GPT to bound token usage (default: 200). |
 | `EXHAUSTED_ARTIST_THRESHOLD` | An artist with this many tracks in history is marked [EXHAUSTED] in the exclusion block (default: 4). |
 | `MAX_CONSECUTIVE_EMPTY_BATCHES` | How many consecutive all-filtered batches are allowed before the loop breaks and the playlist is created with whatever was found (default: 3). |
-| `DEFAULT_OPENAI_MODEL` | Fallback model when none is configured (default: `gpt-4.1-mini`). |
+| `DEFAULT_OPENAI_MODEL` | Fallback model when none is configured (default: `gpt-5.4-mini`). |
 | `IS_ANDROID` | `True` when running under Chaquopy (detected via `sys.getandroidapilevel`). All Android-specific logic is gated behind this flag; desktop behaviour is unaffected. |
 | `CREDENTIALS_FILE` | Path to `%LOCALAPPDATA%\spotyvibe\.credentials`. |
 | `PROFILE_FILE` | Path to the personalised taste profile in AppData. |
@@ -290,7 +291,7 @@ Handles loading, saving, and training the user's music taste profile.
 **History backup:** Every save creates a `.history.json` backup of the previous version, allowing one-step revert.
 
 **GPT interaction for training:**
-- Model: Configurable via Settings (default: `gpt-4.1-mini`)
+- Model: Configurable via Settings (default: `gpt-5.4-mini`)
 - Temperature: `0.3` (low creativity — profile updates should be deterministic)
 - Response format: `json_object` (guaranteed valid JSON)
 
@@ -304,8 +305,8 @@ The core recommendation logic. Generates track suggestions by sending the user's
 
 1. `normalize_history()` — Lowercases and deduplicates history lists.
 2. `build_messages()` — Builds the system + user message pair:
-   - Loads the system prompt from `prompts/system_prompt.txt`.
-   - Fills in three per-run placeholders: `{batch_size}`, `{new_artist_percentage}`, and `{min_new_artists}` (derived as `ceil(batch_size × new_artist_percentage / 100)`). This makes the "minimum new artists" instruction in the system prompt a hard, numerically precise requirement that changes with the user's setting.
+   - Selects the system prompt via **model-specific routing**: converts the active model name to a slug (e.g. `gpt-5.4` → `gpt-5-4`) and checks for `prompts/system_prompt_{slug}.txt`. Falls back to `prompts/system_prompt.txt` if no model-specific file exists. Currently: `gpt-5.4` uses `system_prompt_gpt-5-4.txt` (candidate-pool reasoning), `gpt-4.1` uses `system_prompt_gpt-4-1.txt` (step-by-step reasoning), all others use the default.
+   - Fills in per-run placeholders: `{batch_size}`, `{new_artist_percentage}`, `{min_new_artists}`, and `{gpt_language}`.
    - Embeds a **truncated** copy of the profile (history capped at `GPT_HISTORY_LIMIT` entries).
    - On retries with accepted tracks, appends an addendum listing already-accepted tracks.
    - **On all-filtered retries**, appends a strongly-worded retry warning that lists the exact tracks from the previous batch that were filtered, making it impossible for GPT to plausibly overlook them. The warning escalates with the attempt number and is passed via the `recently_filtered_tracks` / `consecutive_empty` parameters.
@@ -315,7 +316,7 @@ The core recommendation logic. Generates track suggestions by sending the user's
 6. `update_profile()` — Merges new suggestions into the profile's history.
 
 **GPT interaction for suggestions:**
-- Model: Configurable via Settings (default: `gpt-4.1-mini`)
+- Model: Configurable via Settings (default: `gpt-5.4-mini`)
 - Temperature: `0.7` (higher creativity for diverse suggestions)
 - Response format: `json_object`
 
@@ -347,6 +348,9 @@ Manages all interactions with the Spotify Web API via the `spotipy` library.
 | `add_to_playlist(tracks)` | Finds or creates the "SpotyVibe Playlist" and adds verified tracks. Catches 403 errors, auto-disconnects, and raises a clear `RuntimeError`. |
 | `remove_from_playlist(artist, track)` | Searches for a track and removes all occurrences from the playlist. |
 | `find_existing_playlist(sp)` | Paginates through the user's playlists to find one matching the playlist name. |
+| `get_user_playlists()` | Returns all user playlists as `[{id, name, track_count}]` for the playlist picker UI. |
+| `get_playlist_tracks(playlist_id)` | Fetches all tracks from a playlist with enriched metadata (artist, track, URI, cover URL, Spotify/artist/album URLs). Used by the Refine Playlist feature. |
+| `get_existing_track_uris(sp, playlist_id)` | Loads all track URIs already in a playlist to avoid duplicates when adding tracks. |
 
 **OAuth flow:**
 1. User clicks "Connect to Spotify" → browser opens Spotify's authorisation page.
@@ -362,6 +366,8 @@ Manages all interactions with the Spotify Web API via the `spotipy` library.
 **Spotify API compatibility (February 2026 changes):**
 - Playlist creation uses `POST /v1/me/playlists` (`current_user_playlist_create()`). The `POST /v1/users/{user_id}/playlists` endpoint was removed.
 - Playlist track reads use `GET /playlists/{id}/items` (`sp.playlist_items()`). The old `GET /playlists/{id}/tracks` endpoint (`sp.playlist_tracks()`) was removed in February 2026 and must not be used.
+- Each playlist item entry now uses the key `"item"` instead of `"track"` for the inner track object. SpotyVibe uses the defensive pattern `entry.get("item") or entry.get("track")` for backward compatibility. The `fields` parameter must use `items(item(...))` — using the old `items(track(...))` silently returns empty objects.
+- The playlist summary field on `GET /me/playlists` was renamed from `"tracks"` to `"items"`. SpotyVibe uses `pl.get("items") or pl.get("tracks")`.
 - Spotify reduced the search `limit` maximum to 10 (default 5). SpotyVibe uses `limit=1` for all track lookups.
 
 **Parallelised search:** `search_tracks()` uses `ThreadPoolExecutor` with 10 workers to verify tracks on Spotify concurrently, reducing the search time from ~15s (sequential) to ~2s for typical playlist sizes (e.g., 10–30 tracks).
@@ -410,9 +416,9 @@ The prompt template (`analysis_prompt.txt`) includes a `{gpt_language}` placehol
 
 ---
 
-### `core/history.py` — Run History & Undo
+### `core/history.py` — Run History
 
-Manages persistence and retrieval of playlist generation run history, enabling the user to review past runs and undo the most recent one.
+Manages persistence and retrieval of playlist generation run history, enabling the user to review past runs.
 
 **Key functions:**
 
@@ -420,7 +426,6 @@ Manages persistence and retrieval of playlist generation run history, enabling t
 |---|---|
 | `save_run(run_id, playlist_id, playlist_url, tracks)` | Appends a run entry to `run_history.json`. Each entry includes the run ID, playlist ID, URL, tracks, and timestamp. The history file is capped at 5 entries (oldest entries are pruned). |
 | `load_runs()` | Returns all stored runs, newest-first. |
-| `undo_last_run(sp)` | Removes all tracks from the most recent run via `sp.playlist_remove_all_occurrences_of_items()`, then deletes the run entry from history. Returns the removed run for confirmation. |
 
 **Storage:** Run history is stored in `run_history.json` in the AppData directory alongside other persistent data files.
 
@@ -461,7 +466,6 @@ Exposes all functionality via HTTP endpoints.
 | POST | `/api/analyze` | Band/song AI analysis. Accepts `{"artist": "...", "track": "..."}`, returns structured JSON with genre, style tags, characteristics, GPT-estimated audio features, and profile suggestions. |
 | GET | `/api/playlists` | Lists the user's Spotify playlists (id, name, track count) for the playlist mode selector. |
 | GET | `/api/runs` | Returns run history (newest-first) with run ID, timestamp, playlist info, and track list. |
-| POST | `/api/runs/undo` | Removes tracks from the most recent run's playlist and deletes the history entry. |
 | GET | `/api/run/<run_id>/status` | Returns current state of a generation run for SSE recovery after disconnect. |
 | GET | `/api/onboarding/status` | Returns whether the onboarding flow has been completed. |
 | POST | `/api/onboarding/complete` | Marks onboarding as done (persisted via config). |
@@ -490,11 +494,11 @@ A modular single-page application split across Jinja2 templates and vanilla Java
 
 **Layout:** The UI is divided into two provider sections, each with a badge, subtitle, and live status pills:
 - **OpenAI** — Taste profile training, AI band/song analysis, and audio filters (GPT-prompt-based). Status pills: key configured, profile trained, selected model, GPT language.
-- **Spotify** — Playlist generation and run history. Status pills: connection state.
+- **Spotify** — Discover Music (playlist generation), Refine Playlist (review existing playlists), and History. Status pills: connection state.
 
 Both sections are wrapped in styled provider cards (`.provider-section`) for visual consistency.
 
-**Collapsible sections:** All major UI components (Music Profile, Band/Song Analysis, Audio Filters, Spotify Playlist Creation, Run History) are collapsible/expandable. Each section header includes a descriptive subtitle and a toggle button. The entire header background area is clickable to expand/collapse the section (buttons inside the header use `event.stopPropagation()` to prevent double-toggling). The Spotify Playlist Creation section is collapsed by default; others start expanded or match their initial state (e.g., the profile editor starts collapsed unless the user was editing).
+**Collapsible sections:** All major UI components (Music Profile, Band/Song Analysis, Audio Filters, Discover Music, Refine Playlist, History) are collapsible/expandable. Each section header includes a descriptive subtitle and a toggle button. The entire header background area is clickable to expand/collapse the section (buttons inside the header use `event.stopPropagation()` to prevent double-toggling). The Discover Music and Refine Playlist sections are collapsed by default; others start expanded or match their initial state.
 
 **Key UI components:**
 - **Train Taste Profile** — accordion-style editor with four collapsible sections: Core Description (required, open by default), Must Have, Soft Preferences, and Avoid. Existing profile data is pre-filled via `GET /api/profile/data` when the form is opened. Core Description is validated client-side — submission is blocked with an error highlight if empty. Shows an inline warning and disables inputs if the OpenAI API key is missing.
@@ -502,11 +506,13 @@ Both sections are wrapped in styled provider cards (`.provider-section`) for vis
 - **Audio Filters** — collapsible section in the OpenAI provider area. Audio filter ranges (energy, valence, tempo, danceability, acousticness) are injected into the GPT prompt via `build_messages(audio_filters=...)`. Uses the same collapsible section pattern as other panels.
 
 
-- **Generate button** — triggers the pipeline with live progress updates. Shows an inline warning and disables the button if OpenAI key or Spotify credentials/authentication are missing.
+- **Generate button** — triggers the pipeline with live progress updates. An inline loading spinner (57px / ~1.5 cm) appears below the button inside the Discover Music section, with progress messages displayed underneath it. The old standalone status box is hidden during generation to avoid duplication and shown only for terminal states (success, error). Shows an inline warning and disables the button if OpenAI key or Spotify credentials/authentication are missing.
 - **⛔ Cancel button** — visible only during generation. Calls `POST /api/cancel` with `finalize: false` and aborts the SSE reader via `AbortController`. Stops the generation without creating or modifying any playlist.
 - **▶ Use X tracks now button** — visible during generation once at least one track has been verified. Calls `POST /api/cancel` with `finalize: true` (does NOT abort the SSE reader). The server stops the loop and emits a `result` event with the partial playlist. Label updates in real time via `batch_verified` SSE events.
-- **Track list** — displays suggestions with album cover thumbnails (48×48px, sourced from Spotify), like/dislike/remove actions.
-- **Feedback form** — expandable per-track form with artist, track, and reason fields.
+- **Track list (Discover)** — generated tracks appear inside the Discover Music section, below the Generate button, separated by an `<hr class="inline-divider">`. The `#discoverTrackArea` wrapper is hidden when empty and revealed by `renderTracks()` or `showStatus()`/`showPlaylistLink()` for terminal events. Displays suggestions with album cover thumbnails, like/dislike/remove actions. Track cards glow green on hover via `box-shadow`.
+- **Refine Playlist** — collapsible section with a playlist dropdown (lazy-loaded on first expand via `populateReviewPlaylistPicker()`), a "Load Playlist" button with an inline loading spinner, and a review track list inside the section. The `#reviewTrackArea` wrapper is hidden until tracks are loaded. Each track card supports like, dislike, and dismiss (✕) actions. Dislike removes the track from the Spotify playlist; dismiss removes without recording feedback.
+- **Preview overlay** — bottom-sheet three-zone layout: (1) Spotify embed player (centered, responsive width 50vw / min 420px / max 700px), (2) file-cabinet register-tab action buttons (👍 👎 ✕) with rounded-right-edge shape, (3) sliding feedback form that fills remaining space to the right screen edge via `flex: 1`. Like/dislike tabs toggle: clicking the same tab again closes the form. Active tabs glow green (like) or red (dislike) via CSS `box-shadow`. The ✕ button triggers dismiss directly without a form.
+- **Feedback form** — expandable per-track form with artist, track, and reason fields. In the preview overlay, it slides in from the right as part of the three-zone layout.
 - **Gear dropdown menu** — Credentials, Settings, Disconnect Spotify (visible only when connected), and Help.
 - **Credentials modal** (`🔑 Credentials`) — manages API keys (OpenAI, Spotify). Secrets only.
 - **Settings modal** (`⚙️ Settings`) — model selection ("Used Model" dropdown) and debug mode toggle. Non-secret configuration.
@@ -575,9 +581,9 @@ The `android/` directory contains a complete Android project that packages Spoty
 
 **Build script (`build-tools/build_apk.sh`):** A one-command script that:
 
-1. Copies `app.py`, `config.py`, `core/`, `prompts/`, `data/`, `templates/`, `static/` into `android/app/src/main/python/` using `find` + `cpio`, skipping `__pycache__` directories during the copy itself (avoids copying then cleaning)
-2. Copies `requirements.txt` for Chaquopy's pip integration
-3. Runs `./gradlew assembleDebug` to produce the APK
+1. Cleans previous build artifacts and stops running Gradle daemons
+2. Copies `app.py`, `spotyvibe_bootstrap.py`, `config.py`, `core/`, `prompts/`, `data/`, `frontend/`, and `documentation/` into `android/app/src/main/python/`, stripping `__pycache__` directories
+3. Runs `./gradlew assembleDebug` (or `assembleRelease`) to produce the APK
 
 **MainActivity lifecycle (`MainActivity.kt`):**
 1. Sets `SPOTYVIBE_FILES_DIR` environment variable pointing to the app's internal files directory.
@@ -631,24 +637,14 @@ The AI's behaviour is controlled by text files in the `prompts/` directory. Thes
 
 | File | Used by | Purpose |
 |---|---|---|
-| `system_prompt.txt` | `suggestions.py` | Defines all rules for music recommendation. Contains: profile section guide, **Bear Ghost primary-reference section**, exclusion rules, discovery rules, **hard negative disqualification rules**, selection criteria, self-verification checklist, output JSON schema (including `validation` block), recent feedback instructions, and `{gpt_language}` placeholder. |
-| `prompt_template.txt` | `suggestions.py` | Template for the user message. Embeds the profile JSON via `{profile_json}`, the exclusion block via `{exclusion_block}`, and recent feedback via `{recent_feedback}`. |
+| `system_prompt.txt` | `suggestions.py` | Default system prompt for music recommendation. Defines hard constraints (batch size, deny-list enforcement, must-have/avoid filters, new-artist minimum, per-artist cap), style guidance, profile field explanations, and output JSON schema. Used by models without a dedicated prompt file (e.g., `gpt-5.4-mini`, `gpt-4.1-mini`, `gpt-4.1-nano`). |
+| `system_prompt_gpt-5-4.txt` | `suggestions.py` | GPT-5.4-specific system prompt. Same constraints as the default but uses a **candidate-pool reasoning** strategy: instructs GPT to build an internal candidate pool larger than the batch size, verify each candidate against all constraints, then select the best subset for fit and diversity. Adds a geographic/temporal diversity hint. |
+| `system_prompt_gpt-4-1.txt` | `suggestions.py` | GPT-4.1-specific system prompt. Same constraints as the default but uses **step-by-step reasoning**: instructs GPT to silently reason through each candidate checking (a) deny-list, (b) must-have traits, (c) avoid traits before including it. Slightly more concise wording suited to GPT-4.1's instruction-following strengths. |
+| `prompt_template.txt` | `suggestions.py` | Template for the user message. Embeds the deny-list JSON via `{deny_set_json}`, the profile JSON via `{profile_json}`, recent feedback via `{recent_feedback}`, and optional audio filters via `{audio_filters_block}`. |
 | `profile_training_prompt.txt` | `profile.py` | System message for the taste profile training. Explains the structured input format (CORE DESCRIPTION, MUST HAVE, SOFT PREFERENCES, AVOID), how each section maps to profile JSON fields, and which sections to preserve. Includes `{gpt_language}` placeholder. |
 | `analysis_prompt.txt` | `analysis.py` | Structured band/song analysis. Instructs GPT to return JSON with genre, style_tags, characteristics, and profile_suggestions. Includes `{gpt_language}` placeholder. |
 
-**Bear Ghost primary reference:** The system prompt contains an explicit "BEAR GHOST IS YOUR PRIMARY STYLE REFERENCE" section that lists concrete Bear Ghost characteristics (theatrical structure, extreme dynamic range, non-obvious hooks, controlled chaos) and instructs GPT to use these as the primary filter — weighted more heavily than The Beatles or Queen.
-
-**Hard negative rules:** A dedicated "HARD NEGATIVE RULES" section lists concrete disqualifiers: predictable melody, basic verse/chorus structure with no variation, non-evolving chorus, generic pub-rock sound. These are framed as immediate disqualifications, not soft preferences.
-
-**Validation block:** The JSON schema includes a `validation` object that GPT must fill in:
-```json
-"validation": {
-  "new_artist_count": 4,
-  "exclusion_violations": [],
-  "must_have_check_passed": true
-}
-```
-This forces GPT to perform chain-of-thought verification before finalising output. The `validation` key is stripped by `normalize_response()` before any data reaches the application logic or the UI — it is purely a prompt-engineering technique to improve output quality.
+**Model-specific prompt routing:** `build_messages()` converts the active model name to a slug (e.g. `gpt-5.4` → `gpt-5-4`) and checks for `prompts/system_prompt_{slug}.txt`. If found, it is used; otherwise the default `system_prompt.txt` is loaded. This allows each model family to receive a prompt optimised for its strengths without affecting other models.
 
 ---
 
@@ -694,8 +690,8 @@ User clicks "Generate"
           ▼
  ┌─────────────────┐     ┌──────────────┐
  │  Build messages  │────►│  OpenAI API  │
- │  (profile JSON   │     │  GPT-4.1     │
- │   + system rules)│◄────│  (JSON mode) │
+ │  (profile JSON   │     │  (configured │
+ │   + system rules)│◄────│   model)     │
  └────────┬────────┘     └──────────────┘
                     │ N suggestions (until playlist_size is reached)
 

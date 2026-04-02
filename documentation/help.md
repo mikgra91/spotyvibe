@@ -42,10 +42,15 @@ This guide explains how to use the **SpotyVibe interface** to set up your prefer
   - [Like a Track](#like-a-track)
   - [Dislike a Track](#dislike-a-track)
   - [Remove a Track](#remove-a-track)
+- [Refine Playlist](#refine-playlist)
+  - [Select and Load a Playlist](#select-and-load-a-playlist)
+  - [Review Tracks](#review-tracks)
+  - [Like a Track (Refine)](#like-a-track-refine)
+  - [Dislike a Track (Refine)](#dislike-a-track-refine)
+  - [Dismiss a Track](#dismiss-a-track)
 - [Song List & Run History](#song-list--run-history)
   - [Persistent Song List](#persistent-song-list)
   - [Run History](#run-history)
-  - [Undo Last Run](#undo-last-run)
 - [Mobile Usage](#mobile-usage)
 - [Troubleshooting & Tips](#troubleshooting--tips)
   - [Troubleshooting](#troubleshooting)
@@ -86,7 +91,7 @@ You will enter these in the app during setup.
 When you open SpotyVibe, you will see the main interface with two provider sections:
 
 - **OpenAI** — Taste profile editor, AI profile updates, and AI Band/Song Analysis.
-- **Spotify** — Playlist generation and run history.
+- **Spotify** — Playlist generation, playlist refinement, and run history.
 
 Status pills at the top of each section show whether your credentials are configured and connected.
 
@@ -102,8 +107,9 @@ The main screen is organised into collapsible components grouped under two provi
 - **🎚 Audio Filters** — Guide the AI to suggest tracks matching a specific mood and feel.
 
 **Spotify Section:**
-- **🎧 Spotify Playlist Creation** — Generate AI-powered playlists and save them directly to your Spotify account. *(Collapsed by default.)*
-- **🕓 Run History** — View past generation runs and undo the last one if needed.
+- **🎧 Discover Music** — Generate AI-powered playlists and save them directly to your Spotify account. *(Collapsed by default.)*
+- **🔄 Refine Playlist** — Load an existing playlist and give track-by-track feedback to refine your taste profile. *(Collapsed by default.)*
+- **🕓 History** — View past generation runs.
 
 The overall flow is:
 
@@ -406,11 +412,11 @@ This is especially helpful if you know what you like, but are not sure how to de
 
 ## Playlist Generation
 
-Once your profile is ready and Spotify is connected, go to the **Spotify** section and click **Show** on the **Spotify Playlist Creation** header (or click anywhere on the header) to expand it.
+Once your profile is ready and Spotify is connected, go to the **Spotify** section and click **Show** on the **Discover Music** header (or click anywhere on the header) to expand it.
 
 This is where SpotyVibe creates playlist suggestions based on your taste. The section is collapsed by default to keep the page compact.
 
-> **Screenshot placeholder:** Spotify Playlist Creation section expanded
+> **Screenshot placeholder:** Discover Music section expanded
 
 ---
 
@@ -470,17 +476,15 @@ If you are unsure, leave the filters unchanged.
 
 Click **Generate & Create Playlist** to begin.
 
-SpotyVibe will:
+A loading spinner appears below the button inside the Discover Music section. Progress messages are displayed underneath the spinner as SpotyVibe works:
 
 1. Generate song suggestions
-2. Check them
+2. Check them on Spotify
 3. Build the playlist
-4. Show the results in the app
+4. Show the results inside the section (below a divider)
 5. Provide a link to open the playlist in Spotify
 
-During generation, you will see progress updates.
-
-> **Screenshot placeholder:** Generation in progress
+> **Screenshot placeholder:** Generation in progress with inline spinner
 
 ---
 
@@ -502,7 +506,7 @@ This is useful if you already like the results and do not want to wait longer.
 
 ## Track Review & Feedback
 
-After generation, SpotyVibe displays the suggested tracks as cards.
+After generation, SpotyVibe displays the suggested tracks **inside the Discover Music section**, below the Generate button, separated by a divider. A completion banner and playlist link appear first, followed by the track cards. Track cards glow green on hover.
 
 Each card may show:
 
@@ -520,9 +524,17 @@ You can review each song and decide what to do next.
 
 ### Preview a Track
 
-Use the **Preview** button on a song card to listen inside the app.
+Click the album art on a song card to open the preview overlay at the bottom of the screen.
 
-A player opens in an overlay so you can quickly sample the song without leaving SpotyVibe.
+The preview uses a three-zone layout:
+
+1. **Spotify player** — the embedded player (centered, wide)
+2. **Action tabs** — a vertical column of file-cabinet register-tab buttons (👍 👎 ✕) to the right of the player
+3. **Feedback form** — slides in to fill the remaining space when you click 👍 or 👎
+
+Clicking the same tab again closes the feedback form. The ✕ button dismisses the track immediately without opening a form. Active tabs glow green (like) or red (dislike).
+
+Use the ‹ and › arrows to navigate between tracks without closing the overlay.
 
 > **Screenshot placeholder:** Preview player open
 
@@ -590,11 +602,113 @@ Use this for tracks you feel neutral about.
 
 ---
 
+## Refine Playlist
+
+The **Refine Playlist** section lets you load an existing Spotify playlist and review its tracks one by one. You can like, dislike, or dismiss each track to refine your taste profile and clean up the playlist at the same time.
+
+This is useful when you want to:
+
+- Go through a playlist you created earlier and give retroactive feedback
+- Clean up a playlist by removing tracks that no longer fit
+- Teach SpotyVibe more about your taste based on real listening experience
+
+To open it, click **Show** on the **🔄 Refine Playlist** header (or click anywhere on the header) inside the Spotify section.
+
+> **Screenshot placeholder:** Refine Playlist section expanded
+
+---
+
+### Select and Load a Playlist
+
+1. Expand the **Refine Playlist** section — your Spotify playlists load automatically into the dropdown
+2. Select a playlist from the **dropdown**
+3. Click **🔄 Load Playlist**
+
+A loading spinner appears below the button while SpotyVibe fetches the tracks. Once loaded, the tracks appear inside the section, below the button, separated by a divider. Track cards look similar to the Discover suggestion list.
+
+> **Screenshot placeholder:** Playlist dropdown with playlists loaded
+
+---
+
+### Review Tracks
+
+Each track card shows:
+
+- Album artwork (click to preview)
+- Artist and track name
+- Spotify links (track, artist, album)
+- Action buttons: **👍 Like**, **👎 Dislike**, **✕ Dismiss**
+
+You can also click the album art to open the Spotify preview player. When previewing from the Refine list, the prev/next navigation operates within the review track list.
+
+> **Screenshot placeholder:** Review track cards
+
+---
+
+### Like a Track (Refine)
+
+Click **👍 Like** to record positive feedback for a track.
+
+A feedback form opens where you can optionally edit the artist, track name, and add a reason.
+
+After submitting, the track animates out of the review list. The track **stays in the Spotify playlist** — only your taste profile is updated.
+
+> **Screenshot placeholder:** Like feedback form in Refine section
+
+---
+
+### Dislike a Track (Refine)
+
+Click **👎 Dislike** to record negative feedback.
+
+A feedback form opens where you can optionally edit the artist, track name, and add a reason.
+
+After submitting, the track is:
+
+1. **Recorded as a dislike** in your taste profile
+2. **Removed from the Spotify playlist**
+
+The card animates out of the review list.
+
+> **Screenshot placeholder:** Dislike feedback form in Refine section
+
+---
+
+### Dismiss a Track
+
+Click **✕ (Dismiss)** to remove a track from the Spotify playlist **without** recording any taste profile feedback.
+
+Use this for tracks you feel neutral about but want to remove from the playlist.
+
+The card animates out of the review list.
+
+> **Screenshot placeholder:** Dismiss button on review track card
+
+---
+
 ## Song List & Run History
+
+### Run History
+
+SpotyVibe keeps the **last 5** playlist generation runs in the **History** section, located inside the Spotify panel below Refine Playlist. Click **Show history** or click anywhere on the section header to expand it.
+
+For each run you can see:
+
+- when the run happened
+- how many tracks were added
+- a link to the playlist (if it still exists on Spotify)
+
+**Click any history entry** to expand it and reveal the full list of tracks (Artist — Track) that were added during that run. Click again to collapse.
+
+Older runs beyond the most recent 5 are automatically removed to keep the list concise.
+
+> **Screenshot placeholder:** Run History section with expanded entry
+
+---
 
 ### Persistent Song List
 
-Your generated song list is kept in the app so you can return to it later.
+Your generated song list is saved inside the Discover Music section and restored when you reload the page — you never lose your track cards between sessions.
 
 This means:
 
@@ -605,34 +719,6 @@ This means:
 If the list becomes too full, remove some tracks before generating more.
 
 > **Screenshot placeholder:** Song list with saved tracks
-
----
-
-### Run History
-
-SpotyVibe keeps the **last 5** playlist generation runs in the **Run History** section. Click **Show history** or click anywhere on the section header to expand it.
-
-For each run you can see:
-
-- when the run happened
-- how many tracks were added
-- a link to the playlist (if it still exists on Spotify)
-
-Older runs beyond the most recent 5 are automatically removed to keep the list concise.
-
-> **Screenshot placeholder:** Run History section
-
----
-
-### Undo Last Run
-
-If the most recent playlist run did not turn out well, use **Undo last run**.
-
-This removes the tracks from the latest run from the related playlist.
-
-Use this when you want to quickly reverse the last result.
-
-> **Screenshot placeholder:** Undo Last Run button
 
 ---
 
@@ -693,7 +779,7 @@ To get the best results from SpotyVibe:
 - Give feedback often
 - Update your profile when your taste changes
 - Use audio filters only when you want tighter control
-- Use run history and undo when experimenting
+- Use run history to review past generations
 
 The app improves as you interact with it, so regular feedback leads to better discoveries.
 

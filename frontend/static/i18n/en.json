@@ -52,13 +52,20 @@
   "settings.gpt_language": "ChatGPT Language",
   "settings.debug_mode": "Debug Mode",
   "settings.debug_mode_hint": "Log GPT requests & responses to debug file",
+  "settings.open_data_dir": "📂 To local files",
 
-  "history.title": "Run History",
+  "history.title": "History",
   "history.show": "Show history",
-  "history.undo": "Undo last run",
   "history.open_playlist": "Open playlist",
   "history.no_runs": "No runs yet.",
   "history.tracks_added": "track(s) added",
+
+  "generate.title": "Discover Music",
+
+  "review.title": "Refine Playlist",
+  "review.subtitle": "Load an existing playlist and give track-by-track feedback to refine your taste profile.",
+
+  "btn.load_playlist": "Load Playlist",
 
   "feedback.like": "Like",
   "feedback.dislike": "Dislike",
