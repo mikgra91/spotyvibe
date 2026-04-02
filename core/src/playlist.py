@@ -90,9 +90,9 @@ def get_spotify_oauth():
     """Create a SpotifyOAuth instance with the token cache in AppData.
 
     Configuration choices:
-    - `scope="playlist-modify-private playlist-read-private"`: Minimal
-      scopes — only requests the permissions actually needed. This is a
-      security best practice (principle of least privilege).
+    - Scopes: ``playlist-modify-private`` and ``playlist-read-private`` for
+      playlist management; ``user-read-private`` so Spotify can resolve the
+      user's country when ``market="from_token"`` is used in search calls.
     - `cache_path`: Token is stored in AppData alongside credentials,
       keeping secrets out of the project directory.
     - `open_browser=False`: The app controls when/how the browser opens
@@ -103,7 +103,7 @@ def get_spotify_oauth():
         client_id=os.getenv("SPOTIPY_CLIENT_ID"),
         client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
         redirect_uri=REDIRECT_URI,
-        scope="playlist-modify-private playlist-read-private",
+        scope="playlist-modify-private playlist-read-private user-read-private",
         cache_handler=cache_handler,
         open_browser=False,
     )
