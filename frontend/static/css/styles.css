@@ -284,6 +284,7 @@ h1 {
 .train-section,
 .analysis-section,
 .history-section,
+.review-section,
 .track-item,
 .settings-dropdown,
 .modal,
@@ -300,6 +301,7 @@ h1 {
 .train-section:hover,
 .analysis-section:hover,
 .history-section:hover,
+.review-section:hover,
 .track-item:hover {
     border-color: var(--glass-hover-border);
     box-shadow: var(--shadow-card-hover);
@@ -309,7 +311,8 @@ h1 {
 .generate-section,
 .train-section,
 .analysis-section,
-.history-section {
+.history-section,
+.review-section {
     border-radius: var(--radius-lg);
     padding: 32px 28px;
     margin-bottom: 1.5rem;
@@ -1338,7 +1341,8 @@ h1 {
     .generate-section,
     .train-section,
     .analysis-section,
-    .history-section {
+    .history-section,
+    .review-section {
         padding: 24px 20px;
     }
 
@@ -1407,7 +1411,8 @@ h1 {
     .generate-section,
     .train-section,
     .analysis-section,
-    .history-section {
+    .history-section,
+    .review-section {
         padding: 18px 14px;
         border-radius: var(--radius-md);
     }
@@ -2156,13 +2161,21 @@ input {
     pointer-events: auto;
 }
 
+/* Horizontal layout: [player] [tabs] [form] */
+.preview-layout {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    margin-bottom: 0;
+}
+
 .spotify-preview-panel {
     position: relative;
     background: #121212;
-    border-radius: 16px 16px 0 0;
-    padding: 16px;
+    border-radius: 16px 0 0 0;
+    padding: 20px;
     width: 100%;
-    max-width: 600px;
+    max-width: 520px;
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.6);
 }
 
@@ -2178,6 +2191,7 @@ input {
     line-height: 1;
     padding: 4px 8px;
     border-radius: 4px;
+    z-index: 2;
 }
 .spotify-preview-close:hover {
     color: #fff;
@@ -2240,6 +2254,116 @@ input {
     font-size: 0.78rem;
     color: #b3b3b3;
     margin-top: 8px;
+}
+
+/* ── Action tabs — file-cabinet register style ── */
+.preview-tab-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    align-self: flex-start;
+    margin-top: 48px;            /* vertically center-ish against the player */
+}
+
+.preview-tab {
+    position: relative;
+    width: 44px;
+    height: 48px;
+    border: none;
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, transform 0.1s;
+    /* Register-tab shape: rounded on right side only */
+    border-radius: 0 10px 10px 0;
+    margin-bottom: 4px;
+}
+.preview-tab:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+/* Active tab state — visually connects to the feedback panel */
+.preview-tab.active {
+    z-index: 2;
+}
+.preview-tab-like.active {
+    background: rgba(29, 185, 84, 0.25);
+    box-shadow: 2px 0 8px rgba(29, 185, 84, 0.15);
+}
+.preview-tab-dislike.active {
+    background: rgba(231, 76, 60, 0.25);
+    box-shadow: 2px 0 8px rgba(231, 76, 60, 0.15);
+}
+
+/* Hover colours per type */
+.preview-tab-like:hover { background: rgba(29, 185, 84, 0.2); }
+.preview-tab-dislike:hover { background: rgba(231, 76, 60, 0.2); }
+.preview-tab-dismiss:hover { background: rgba(255, 255, 255, 0.18); }
+
+.preview-tab-icon {
+    font-size: 1.15rem;
+    line-height: 1;
+}
+
+/* ── Sliding feedback panel ── */
+.preview-feedback-panel {
+    width: 0;
+    overflow: hidden;
+    opacity: 0;
+    background: #1a1a1a;
+    border-radius: 0 16px 0 0;
+    box-shadow: 4px -4px 16px rgba(0, 0, 0, 0.4);
+    transition: width 0.25s ease, opacity 0.2s ease;
+    align-self: stretch;
+}
+.preview-feedback-panel.visible {
+    width: 280px;
+    opacity: 1;
+}
+/* Green top border for like, red for dislike */
+.preview-feedback-panel.action-like {
+    border-top: 3px solid #1DB954;
+}
+.preview-feedback-panel.action-dislike {
+    border-top: 3px solid #e74c3c;
+}
+
+.preview-feedback-form {
+    width: 280px;
+    padding: 16px 14px;
+}
+.preview-feedback-form .form-row {
+    margin-bottom: 8px;
+}
+.preview-feedback-form label {
+    display: block;
+    color: #b3b3b3;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+}
+.preview-feedback-form input[type="text"] {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: var(--radius-sm);
+    background: rgba(255,255,255,0.06);
+    color: #fff;
+    font-size: 0.85rem;
+}
+.preview-feedback-form .form-hint {
+    font-size: 0.7rem;
+    color: #888;
+    margin-top: 2px;
+}
+.preview-feedback-form .form-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
 }
 
 /* ── Audio filter toggle header ─────────────────────────────────────── */
@@ -2374,6 +2498,12 @@ input {
     min-height: 30px;
     border-radius: var(--radius-sm);
     padding-left: 15px;
+    padding-right: 30px;
+}
+
+/* ── Review section (Refine Playlist) ─────────────────────────────── */
+.review-section .btn-run {
+    margin-top: 10px;
 }
 
 /* ── Help content loading ───────────────────────────────────────────── */
