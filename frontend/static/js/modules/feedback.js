@@ -66,11 +66,22 @@ export async function submitFeedback(idx) {
             return;
         }
 
-        const label = State.openFormAction === 'like' ? '👍 Liked' : '👎 Disliked';
-        showToast(`${label}: ${artist}` + (track ? ` — ${track}` : ''));
-        animateRemove(idx);
+        const data = await resp.json();
+        const trackLabel = track ? ` — ${track}` : '';
+
+        if (State.openFormAction === 'dislike') {
+            const removed = data.removal && data.removal.removed;
+            const msg = removed
+                ? `👎 Disliked & removed from playlist: ${artist}${trackLabel}`
+                : `👎 Disliked: ${artist}${trackLabel}`;
+            showToast(msg);
+        } else {
+            showToast(`👍 Liked: ${artist}${trackLabel}`);
+        }
 
         const fbTrack = State.suggestions[idx];
+        animateRemove(idx);
+
         if (fbTrack) {
             fetch('/api/songlist/track', {
                 method: 'DELETE',
@@ -90,12 +101,16 @@ export async function removeTrack(idx) {
     if (!track) { animateRemove(idx); return; }
 
     try {
-        await fetch('/api/remove', {
+        const resp = await fetch('/api/remove', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ artist: track.artist, track: track.track }),
         });
-        showToast(`Removed: ${track.artist} — ${track.track}`);
+        const data = await resp.json();
+        const msg = data.removed
+            ? `Removed from playlist: ${track.artist} — ${track.track}`
+            : `Removed: ${track.artist} — ${track.track}`;
+        showToast(msg);
     } catch (e) {
         /* Network error — still remove from UI */
     }
@@ -117,6 +132,8 @@ export function animateRemove(idx) {
     el.style.opacity = '0';
     el.style.transform = 'translateX(40px)';
     setTimeout(() => el.remove(), 300);
+
+    State.spliceSuggestion(idx);
 
     if (State.openFormIndex === idx) {
         State.setOpenFormIndex(null);

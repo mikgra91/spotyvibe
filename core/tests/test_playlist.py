@@ -7,6 +7,7 @@ from unittest.mock import patch, MagicMock
 from core.src.playlist import (
     find_existing_playlist,
     get_existing_track_uris,
+    get_user_playlists,
     remove_from_playlist,
     search_tracks,
     add_to_playlist,
@@ -350,6 +351,54 @@ class TestRedirectUri:
         """On regular desktop Python, REDIRECT_URI is the localhost callback."""
         assert not hasattr(sys, "getandroidapilevel")
         assert REDIRECT_URI == "http://127.0.0.1:5000/callback"
+
+
+class TestGetUserPlaylists:
+    """get_user_playlists must read track count from the 'items' or 'tracks' summary."""
+
+    @patch("core.src.playlist.get_spotify_client")
+    def test_reads_count_from_items_field(self, mock_client_fn):
+        """Feb 2026: Spotify moved the summary from 'tracks' to 'items'."""
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        sp.current_user_playlists.return_value = {
+            "items": [
+                {"id": "pl1", "name": "My List", "tracks": None,
+                 "items": {"href": "...", "total": 42}},
+            ],
+            "next": None,
+        }
+        result = get_user_playlists()
+        assert result == [{"id": "pl1", "name": "My List", "track_count": 42}]
+
+    @patch("core.src.playlist.get_spotify_client")
+    def test_falls_back_to_tracks_field(self, mock_client_fn):
+        """Pre-Feb 2026 responses use 'tracks' for the summary."""
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        sp.current_user_playlists.return_value = {
+            "items": [
+                {"id": "pl1", "name": "Old List",
+                 "tracks": {"href": "...", "total": 10}},
+            ],
+            "next": None,
+        }
+        result = get_user_playlists()
+        assert result == [{"id": "pl1", "name": "Old List", "track_count": 10}]
+
+    @patch("core.src.playlist.get_spotify_client")
+    def test_handles_both_null(self, mock_client_fn):
+        """When both 'tracks' and 'items' are null, track_count defaults to 0."""
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        sp.current_user_playlists.return_value = {
+            "items": [
+                {"id": "pl1", "name": "Empty", "tracks": None},
+            ],
+            "next": None,
+        }
+        result = get_user_playlists()
+        assert result == [{"id": "pl1", "name": "Empty", "track_count": 0}]
 
     def test_redirect_uri_used_in_oauth(self):
         """get_spotify_oauth() must use the module-level REDIRECT_URI."""

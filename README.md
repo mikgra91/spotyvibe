@@ -28,7 +28,7 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 
 ## Features
 
-- **AI-powered suggestions** with configurable OpenAI model selection (includes GPT 5.4, GPT 4.1 family, GPT 4o, o-series, and more).
+- **AI-powered suggestions** with configurable OpenAI model selection (GPT-5.4, GPT-5.4-mini, GPT-4.1, GPT-4.1-mini, GPT-4.1-nano).
 - **Structured taste profile** — accordion-style editor with separate sections for core description, must-haves, soft preferences, and things to avoid. Existing profile data is pre-filled for easy editing. Save changes directly or use **AI Profile Update** to let GPT refine your input.
 - **Profile import/export** — import a full profile JSON (the current profile is automatically backed up to the history file) or export your current active profile as a JSON download. Import/Export/Reset controls appear below the "Last trained" status line when the profile editor is open.
 - **Reset to history** — revert your Music Profile to the previous saved version (one-step undo).
@@ -40,13 +40,13 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 - **Use tracks now** — if GPT gets stuck repeating songs, use the "▶ Use X tracks now" button to create the playlist immediately with however many tracks have already been verified.
 - **Automatic loop protection** — if GPT ignores the exclusion list for 3 consecutive batches, the loop stops automatically and creates the playlist with whatever was found. Each retry sends an explicit warning listing the exact tracks GPT suggested that were already known.
 - **New Artist % setting** — configurable percentage (1–100, default 30%) of each batch that must come from artists not yet in your history, pushing GPT to explore new territory.
-- **Hardened GPT prompt** — Bear Ghost is set as the explicit primary style reference; a "Hard Negative Rules" section disqualifies generic or predictable tracks; GPT emits a self-validation block to force it to check its own output before finalising.
+- **Model-specific GPT prompts** — each model family gets a tailored system prompt optimised for its strengths (e.g., candidate-pool reasoning for GPT-5.4, step-by-step validation for GPT-4.1). A consolidated JSON deny list ensures exclusion accuracy across all models.
 - **Band/Song Analysis** — AI-powered analysis of any band or song, returning genre, style, characteristics, GPT-estimated audio features (energy, danceability, etc.), and copy-paste profile suggestions (`core/analysis.py`).
 - **Internationalization (i18n)** — full English and German UI with a language picker in the header; translations in `static/i18n/en.json` and `de.json`. A separate **ChatGPT Language** setting controls the language used for GPT communication.
 - **GPT Audio Feature Constraints** — optional audio filters (energy, valence, tempo, danceability, acousticness) in the OpenAI section are injected directly into the GPT prompt, guiding the AI to suggest tracks matching the desired mood and feel.
 - **Feedback Reasons in prompts** — recent like/dislike reasons are summarized and sent to GPT so it can learn *why* you liked or disliked a track, not just which ones.
 - **Multiple Playlists / Playlist Naming** — create new, append, or replace playlists with custom name templates supporting `{date}` and `{style}` tokens.
-- **Run History and Rollback** — the last 5 generation runs are saved (`core/history.py`); undo the last run to remove its tracks from the playlist.
+- **Run History** — the last 5 generation runs are saved (`core/history.py`); each entry shows date/time, track count, and a playlist link. Expand any entry to see the full list of tracks added.
 - **Previews and Richer Track Cards** — album art, inline Spotify preview playback, and direct links to track, artist, and album on Spotify.
 - **Hard Cost Guardrails** — max 20 GPT calls per run, max 3 consecutive empty batches, and field-level character limits to prevent runaway usage.
 - **Better SSE Resilience** — run state is persisted by `run_id`; a recovery endpoint lets the client reconnect after a network drop.
@@ -65,7 +65,7 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 |---|---|
 | `app.py` | Flask application entry point |
 | `core/analysis.py` | Band/song analysis logic |
-| `core/history.py` | Run history tracking and rollback |
+| `core/history.py` | Run history tracking |
 | `prompts/analysis_prompt.txt` | GPT prompt template for band/song analysis |
 | `static/i18n/en.json`, `de.json` | UI translation files |
 | `.github/workflows/ci.yml` | GitHub Actions CI pipeline |

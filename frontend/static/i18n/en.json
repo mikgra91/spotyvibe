@@ -56,7 +56,6 @@
 
   "history.title": "Run History",
   "history.show": "Show history",
-  "history.undo": "Undo last run",
   "history.open_playlist": "Open playlist",
   "history.no_runs": "No runs yet.",
   "history.tracks_added": "track(s) added",

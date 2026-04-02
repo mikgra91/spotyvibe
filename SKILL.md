@@ -44,6 +44,12 @@ Always pass `limit` explicitly. SpotyVibe uses `limit=1` for all track searches 
 | Show / Audiobook | `available_markets`, `publisher` |
 | User | `country`, `email`, `explicit_content`, `followers`, `product` |
 
+### Renamed response fields
+
+| Object | Old field | New field | Notes |
+|---|---|---|---|
+| Playlist (simplified, from `GET /me/playlists`) | `tracks` | `items` | Summary object `{"href": "...", "total": N}`. Old `tracks` field is now `null`. |
+
 ---
 
 ## OAuth 2.0 — Authorization Code Flow

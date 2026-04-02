@@ -1,4 +1,4 @@
-"""Run history — saves metadata about each generation run for undo/review.
+"""Run history — saves metadata about each generation run for review.
 
 Each entry records: run_id, timestamp, playlist_id, playlist_url, tracks added.
 Stored as a JSON array in the app data directory.
@@ -58,29 +58,3 @@ def load_runs() -> list:
     """Return run history newest-first."""
     return list(reversed(_load_history()))
 
-
-def undo_last_run(sp) -> dict:
-    """Remove tracks added by the most recent run from the Spotify playlist.
-
-    Returns {"undone": True, "removed": N, "run_id": "..."} or raises ValueError.
-    """
-    history = _load_history()
-    if not history:
-        raise ValueError("No run history to undo.")
-
-    last = history[-1]
-    playlist_id = last.get("playlist_id")
-    uris = [t["uri"] for t in last.get("tracks", []) if t.get("uri")]
-
-    if not playlist_id:
-        raise ValueError("Last run has no playlist ID — cannot undo.")
-    if not uris:
-        raise ValueError("Last run has no track URIs recorded — cannot undo.")
-
-    sp.playlist_remove_all_occurrences_of_items(playlist_id, uris)
-
-    # Remove the last entry
-    history = history[:-1]
-    _save_history(history)
-
-    return {"undone": True, "removed": len(uris), "run_id": last.get("run_id")}

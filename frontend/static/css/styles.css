@@ -372,12 +372,57 @@ h1 {
     gap: 14px;
 }
 
+.track-cover-wrap {
+    position: relative;
+    width: 62px;
+    height: 62px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    background: var(--bg-elevated);
+}
+
+.track-cover-wrap .cover-play {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    transition: opacity var(--transition);
+    pointer-events: none;
+    font-size: 0;
+    color: transparent;
+}
+.track-cover-wrap .cover-play::before {
+    content: '';
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, var(--primary-hover), var(--primary-dark));
+    box-shadow: 0 4px 14px rgba(30, 215, 96, 0.45), 0 0 24px rgba(30, 215, 96, 0.15);
+    position: absolute;
+}
+.track-cover-wrap .cover-play::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 7px 0 7px 12px;
+    border-color: transparent transparent transparent #fff;
+    margin-left: 2px;
+}
+.track-item:hover .cover-play { opacity: 1; }
+
 .track-cover {
-    width: 52px;
-    height: 52px;
+    width: 62px;
+    height: 62px;
     border-radius: 10px;
     object-fit: cover;
-    flex-shrink: 0;
+    display: block;
     background: var(--bg-elevated);
 }
 
@@ -388,6 +433,13 @@ h1 {
     font-size: 0.85rem;
     margin-top: 4px;
     line-height: 1.4;
+}
+
+.track-no-preview {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: var(--error);
+    margin-top: 4px;
 }
 
 .track-actions {
@@ -1426,9 +1478,14 @@ h1 {
         border-radius: var(--radius-md);
     }
 
+    .track-cover-wrap {
+        width: 53px;
+        height: 53px;
+        border-radius: 8px;
+    }
     .track-cover {
-        width: 44px;
-        height: 44px;
+        width: 53px;
+        height: 53px;
         border-radius: 8px;
     }
 
@@ -1933,25 +1990,6 @@ input {
 }
 
 /* ── Richer track cards ─────────────────────────────────────────────── */
-.btn-preview {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    background: var(--primary);
-    color: var(--btn-cta-text);
-    border: none;
-    cursor: pointer;
-    font-size: 0.75rem;
-    font-weight: 700;
-    margin-right: 6px;
-    vertical-align: middle;
-    flex-shrink: 0;
-    transition: background var(--transition);
-}
-.btn-preview:hover { background: var(--primary-hover); }
 
 .track-links {
     margin-left: 8px;
@@ -2007,8 +2045,28 @@ input {
     padding: 10px 12px;
     border-bottom: 1px solid var(--border);
     font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s;
 }
 .history-run-item:last-child { border-bottom: none; }
+.history-run-item:hover { background: rgba(255, 255, 255, 0.03); }
+
+.history-run-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.history-run-chevron {
+    color: var(--text-muted);
+    font-size: 1rem;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+    margin-left: 12px;
+}
+.history-run-item.expanded .history-run-chevron {
+    transform: rotate(90deg);
+}
 
 .history-run-date {
     font-weight: 600;
@@ -2022,6 +2080,22 @@ input {
     text-decoration: none;
 }
 .history-run-info a:hover { text-decoration: underline; }
+
+.history-run-tracks {
+    display: none;
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 8px 0 0;
+    border-top: 1px solid var(--border);
+}
+.history-run-item.expanded .history-run-tracks {
+    display: block;
+}
+.history-run-tracks li {
+    padding: 3px 0;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+}
 
 /* ── Audio feature filters ──────────────────────────────────────────── */
 /* Flat grid: all label/input children of every .audio-filter-row share
@@ -2084,12 +2158,12 @@ input {
 
 .spotify-preview-panel {
     position: relative;
-    background: var(--bg-card);
+    background: #121212;
     border-radius: 16px 16px 0 0;
     padding: 16px;
     width: 100%;
-    max-width: 480px;
-    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);
+    max-width: 600px;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.6);
 }
 
 .spotify-preview-close {
@@ -2098,7 +2172,7 @@ input {
     right: 14px;
     background: none;
     border: none;
-    color: var(--text-secondary);
+    color: #b3b3b3;
     font-size: 1.5rem;
     cursor: pointer;
     line-height: 1;
@@ -2106,14 +2180,14 @@ input {
     border-radius: 4px;
 }
 .spotify-preview-close:hover {
-    color: var(--text-primary);
+    color: #fff;
     background: rgba(255, 255, 255, 0.1);
 }
 
 .spotify-preview-title {
     font-size: 0.9rem;
     font-weight: 500;
-    color: var(--text-primary);
+    color: #fff;
     margin-bottom: 12px;
     padding-right: 32px;
     white-space: nowrap;
@@ -2121,9 +2195,51 @@ input {
     text-overflow: ellipsis;
 }
 
-.spotify-preview-panel iframe {
+/* Slider layout: arrows flanking the iframe */
+.spotify-preview-slider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.spotify-preview-slider iframe {
+    flex: 1;
+    min-width: 0;
     display: block;
     border-radius: var(--radius-sm);
+}
+
+.spotify-preview-nav {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    font-size: 1.4rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, opacity 0.15s;
+    line-height: 1;
+    padding: 0;
+}
+.spotify-preview-nav:hover {
+    background: rgba(255, 255, 255, 0.18);
+}
+.spotify-preview-nav:disabled {
+    opacity: 0.25;
+    cursor: default;
+    pointer-events: none;
+}
+
+.spotify-preview-counter {
+    text-align: center;
+    font-size: 0.78rem;
+    color: #b3b3b3;
+    margin-top: 8px;
 }
 
 /* ── Audio filter toggle header ─────────────────────────────────────── */

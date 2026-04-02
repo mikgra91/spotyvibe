@@ -44,13 +44,13 @@ from core.src.suggestions import (
 )
 from core.src.feedback import like_track, dislike_track
 from core.src.analysis import analyze_band_song
-from core.src.history import save_run, load_runs, undo_last_run
+from core.src.history import save_run, load_runs
 from core.src.utils import get_openai_models, clear_debug_log, sanitize_text
 from core.src.openai_http import OpenAIConfigError, OpenAIError
 from core.src.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist,
     get_spotify_auth_status, get_spotify_auth_url, handle_spotify_callback,
-    disconnect_spotify, get_user_playlists, get_spotify_client,
+    disconnect_spotify, get_user_playlists,
 )
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
@@ -939,18 +939,6 @@ def get_runs():
     except Exception as e:
         return jsonify({"error": str(e), "runs": []}), 500
 
-
-@app.route("/api/runs/undo", methods=["POST"])
-def undo_run():
-    """Remove tracks added by the last run from the Spotify playlist."""
-    try:
-        sp = get_spotify_client()
-        result = undo_last_run(sp)
-        return jsonify(result)
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 
 _SONGLIST_FILE = _get_app_dir() / "songlist.json"

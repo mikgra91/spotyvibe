@@ -14,13 +14,17 @@
         <li class="track-item" id="track-{{ idx }}">
             <div class="track-header">
                 {% if track.cover_url %}
+                {% if track.track_id %}
+                <div class="track-cover-wrap" onclick="openPreviewOverlay('{{ track.track_id }}','{{ track.artist|e }} — {{ track.title|e }}')" title="Preview on Spotify">
+                    <img class="track-cover" src="{{ track.cover_url }}" alt="Album cover">
+                    <span class="cover-play">▶</span>
+                </div>
+                {% else %}
                 <img class="track-cover" src="{{ track.cover_url }}" alt="Album cover">
+                {% endif %}
                 {% endif %}
                 <div class="track-info">
                     <div class="track-name">
-                        {% if track.track_id %}
-                        <button class="btn-preview" onclick="openPreviewOverlay({{ idx }})">Preview</button>
-                        {% endif %}
                         {{ track.artist|e }} — {{ track.title|e }}
                         {% set has_links = track.spotify_url or track.artist_url or track.album_url %}
                         {% if has_links %}
@@ -33,6 +37,9 @@
                     </div>
                     {% if track.reason %}
                     <div class="track-reason">{{ track.reason|e }}</div>
+                    {% endif %}
+                    {% if not track.track_id %}
+                    <span class="track-no-preview">No preview</span>
                     {% endif %}
                 </div>
                 <div class="track-actions">

@@ -20,9 +20,15 @@ export function renderTracks() {
         const li = document.createElement('li');
         li.className = 'track-item';
         li.id = `track-${idx}`;
-        const previewBtn = track.preview_url
-            ? `<button class="btn-preview" id="preview-${idx}" onclick="togglePreview(${idx})" title="Preview">▶</button>`
+        const coverHtml = track.cover_url
+            ? (track.track_id
+                ? `<div class="track-cover-wrap" onclick="openPreviewOverlay('${attr(track.track_id)}','${attr(track.artist)} — ${attr(track.track)}')" title="Preview on Spotify">
+                       <img class="track-cover" src="${attr(track.cover_url)}" alt="Album cover">
+                       <span class="cover-play">▶</span>
+                   </div>`
+                : `<img class="track-cover" src="${attr(track.cover_url)}" alt="Album cover">`)
             : '';
+        const noPreviewHtml = !track.track_id ? '<span class="track-no-preview">No preview</span>' : '';
         const spotifyLinks = [
             track.spotify_url ? `<a class="track-link" href="${attr(track.spotify_url)}" target="_blank" rel="noopener" title="Open track on Spotify">🎵</a>` : '',
             track.artist_url ? `<a class="track-link" href="${attr(track.artist_url)}" target="_blank" rel="noopener" title="Open artist on Spotify">🎤</a>` : '',
@@ -30,12 +36,12 @@ export function renderTracks() {
         ].join('');
 
         li.innerHTML = `
-            ${track.preview_url ? `<audio id="audio-${idx}" src="${attr(track.preview_url)}" preload="none"></audio>` : ''}
             <div class="track-header">
-                ${track.cover_url ? `<img class="track-cover" src="${attr(track.cover_url)}" alt="Album cover">` : ''}
+                ${coverHtml}
                 <div class="track-info">
-                    <div class="track-name">${previewBtn}${esc(track.artist)} — ${esc(track.track)}${spotifyLinks ? `<span class="track-links">${spotifyLinks}</span>` : ''}</div>
+                    <div class="track-name">${esc(track.artist)} — ${esc(track.track)}${spotifyLinks ? `<span class="track-links">${spotifyLinks}</span>` : ''}</div>
                     ${track.reason ? `<div class="track-reason">${esc(track.reason)}</div>` : ''}
+                    ${noPreviewHtml}
                 </div>
                 <div class="track-actions">
                     <button class="btn btn-like"    onclick="toggleFeedback(${idx},'like')">👍 Like</button>

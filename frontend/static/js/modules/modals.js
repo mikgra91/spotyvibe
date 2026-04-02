@@ -119,7 +119,7 @@ export async function openSettings() {
         }
 
         const modelStatus = document.getElementById('status-settings-model');
-        modelStatus.textContent = '✓ Using: ' + (data.model || 'gpt-4.1-mini');
+        modelStatus.textContent = '✓ Using: ' + (data.model || 'gpt-5.4-mini');
         modelStatus.className = 'cred-status set';
 
         const playlistSize = data.playlist_size || 10;

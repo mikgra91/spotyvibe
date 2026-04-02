@@ -26,7 +26,7 @@ You will also need two sets of API keys (free to obtain):
 >
 > Without the matching URI for your platform, Spotify authentication will fail with "redirect_uri: No matching configuration".
 
-> **💰 Cost note:** The OpenAI API is a **paid service**. Each playlist generation and profile training uses API credits. The default model (`gpt-4.1-mini`) is very affordable, but larger models cost significantly more. See [OpenAI Pricing](https://platform.openai.com/docs/pricing) for details.
+> **💰 Cost note:** The OpenAI API is a **paid service**. Each playlist generation and profile training uses API credits. The default model (`gpt-5.4-mini`) is very affordable, but larger models cost significantly more. See [OpenAI Pricing](https://platform.openai.com/docs/pricing) for details.
 
 ---
 
@@ -122,9 +122,9 @@ Click **Save**. Your credentials are stored securely outside the project folder 
 
 Open the **☰ menu** and select **⚙️ Settings**.
 
-The **Used Model** dropdown lists all available models from your OpenAI account. The default is `gpt-4.1-mini`. Available models include `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-4o`, and various o-series models.
+The **Used Model** dropdown lists all available models. The default is `gpt-5.4-mini`. Available models are `gpt-5.4`, `gpt-5.4-mini`, `gpt-4.1`, `gpt-4.1-mini`, and `gpt-4.1-nano`.
 
-You can switch to a different model at any time. More capable models (e.g., `gpt-5.4`, `gpt-4.1`, `gpt-4o`) may produce better recommendations but cost more per request.
+You can switch to a different model at any time. More capable models (e.g., `gpt-5.4`, `gpt-4.1`) may produce better recommendations but cost more per request.
 
 > **⚠️ Cost warning:** Different models have very different prices — for example, `gpt-4.1` can cost 10× more per request than `gpt-4.1-mini`. Check [OpenAI Pricing](https://platform.openai.com/docs/pricing) to understand the costs before switching models.
 
@@ -300,17 +300,15 @@ Use this when the AI has found some good tracks but has started repeating sugges
 
 ---
 
-## Run History and Undo
+## Run History
 
-Below the generation area you will find a collapsible **Run History** section. It records the **last 5** playlist generation runs, showing:
+Below the Playlist Creation area — still inside the **Spotify** section — you will find a collapsible **Run History** panel. It records the **last 5** playlist generation runs, showing:
 
 - **Date and time** of the run
 - **Track count** — how many tracks were added
 - **Playlist link** — click to open the playlist in Spotify
 
-At the top of the history list is an **Undo last run** button. Clicking it removes all tracks that were added by the most recent generation run from the corresponding Spotify playlist. This is useful if a run produced poor results and you want to revert quickly without manually deleting tracks.
-
-> **Note:** Undo only affects the most recent run. If the playlist has been deleted on Spotify, or if the run history is empty, the undo operation will fail with an explanatory message.
+Each history entry is **expandable** — click it to reveal the full list of tracks (Artist — Track) that were added during that run. Click again to collapse.
 
 > **Tip:** If the history panel is open when a new generation completes, the list refreshes automatically — no need to close and reopen it.
 
@@ -318,7 +316,7 @@ At the top of the history list is an **Undo last run** button. Clicking it remov
 
 ## Reviewing Suggestions
 
-Each suggested track shows the **artist**, **track name**, and a short **reason** explaining why the AI picked it. Tracks are displayed as rich cards with the following details:
+After a generation completes, the suggested tracks appear **between the Playlist Creation area and Run History**, inside the **Spotify** section. A completion banner and playlist link are shown first, followed by a song counter (e.g. *10 / 100 songs*) and the track cards themselves. Each track shows the **artist**, **track name**, and a short **reason** explaining why the AI picked it. Cards include:
 
 - **Album artwork** — the album cover is shown on each track card.
 - **Preview** — every track shows a **Preview** button. Clicking it opens a bottom-sheet overlay with the embedded Spotify player so you can listen right in the app. Click the **✕** in the overlay or tap the dark backdrop to close it.
@@ -326,7 +324,7 @@ Each suggested track shows the **artist**, **track name**, and a short **reason*
 
 ### Persistent Song List
 
-The song list is **saved automatically** after each generation and restored when you reload the page — you never lose your track cards between sessions. A counter below the Generate button shows how many songs are currently in the list (max 100).
+The song list is **saved automatically** after each generation and restored when you reload the page — you never lose your track cards between sessions. A counter above the track list shows how many songs are currently in the list (max 100).
 
 - When you **like, dislike, or remove** a track it is permanently deleted from the saved list.
 - If the list has too many songs to fit another batch, generation is **blocked** with a warning. Review and remove some songs first to make room.
@@ -357,6 +355,7 @@ Click the **👎 Dislike** button. The feedback form opens with the same fields.
 Click the **✕** button to dismiss a track from the list and remove it from the Spotify playlist — without recording any feedback. Use this for tracks you're neutral about but don't want in the playlist.
 
 ---
+
 
 ## Running Again
 
@@ -480,7 +479,7 @@ All your personal data is stored outside the project in your system's app data f
 | Taste profile | `%LOCALAPPDATA%\spotyvibe\personalized_music_profile.json` | Your trained taste profile + history. |
 | Spotify token | `%LOCALAPPDATA%\spotyvibe\.spotify-cache` | Cached Spotify authentication token. |
 | Debug log | `%LOCALAPPDATA%\spotyvibe\debug.log` | GPT request/response log (desktop only, only when debug mode is enabled). |
-| Run history | `%LOCALAPPDATA%\spotyvibe\run_history.json` | Past generation run metadata (used for undo). |
+| Run history | `%LOCALAPPDATA%\spotyvibe\run_history.json` | Past generation run metadata (last 5 runs). |
 
 This means you can safely update or reinstall the app without losing your profile or credentials.
 

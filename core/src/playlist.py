@@ -344,10 +344,13 @@ def get_user_playlists():
     while True:
         playlists = sp.current_user_playlists(limit=50, offset=offset)
         for pl in playlists.get("items", []):
+            # Feb 2026: Spotify renamed the summary field from "tracks" to
+            # "items".  Try the new key first, fall back to old.
+            summary = pl.get("items") or pl.get("tracks") or {}
             result.append({
                 "id": pl["id"],
                 "name": pl["name"],
-                "track_count": pl.get("tracks", {}).get("total", 0),
+                "track_count": summary.get("total", 0) if isinstance(summary, dict) else 0,
             })
         if playlists.get("next") is None:
             break

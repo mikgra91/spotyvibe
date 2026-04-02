@@ -1,8 +1,8 @@
-"""Tests for core/history.py — Run History & Undo."""
+"""Tests for core/history.py — Run History."""
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import pytest
-from core.src.history import save_run, load_runs, undo_last_run, _HISTORY_FILE
+from core.src.history import save_run, load_runs, _HISTORY_FILE
 
 
 class TestSaveRun:
@@ -64,45 +64,3 @@ class TestLoadRuns:
             assert load_runs() == []
 
 
-class TestUndoLastRun:
-    def test_removes_tracks_and_entry(self, tmp_path):
-        hist_file = tmp_path / "run_history.json"
-        data = [{
-            "run_id": "r1",
-            "timestamp": "2026-01-01",
-            "playlist_id": "pl1",
-            "playlist_url": "url",
-            "tracks": [{"artist": "a", "track": "t", "uri": "spotify:track:1"}]
-        }]
-        hist_file.write_text(json.dumps(data))
-        sp = MagicMock()
-        with patch("core.src.history._HISTORY_FILE", hist_file):
-            result = undo_last_run(sp)
-        assert result["undone"] is True
-        assert result["removed"] == 1
-        sp.playlist_remove_all_occurrences_of_items.assert_called_once_with("pl1", ["spotify:track:1"])
-        remaining = json.loads(hist_file.read_text())
-        assert len(remaining) == 0
-
-    def test_raises_when_empty(self, tmp_path):
-        hist_file = tmp_path / "run_history.json"
-        hist_file.write_text("[]")
-        with patch("core.src.history._HISTORY_FILE", hist_file):
-            with pytest.raises(ValueError, match="No run history"):
-                undo_last_run(MagicMock())
-
-    def test_raises_when_no_playlist_id(self, tmp_path):
-        hist_file = tmp_path / "run_history.json"
-        data = [{"run_id": "r1", "playlist_id": "", "playlist_url": "", "tracks": [{"uri": "x"}]}]
-        hist_file.write_text(json.dumps(data))
-        with patch("core.src.history._HISTORY_FILE", hist_file):
-            with pytest.raises(ValueError, match="no playlist ID"):
-                undo_last_run(MagicMock())
-
-    def test_raises_when_no_uris(self, tmp_path):
-        hist_file = tmp_path / "run_history.json"
-        data = [{"run_id": "r1", "playlist_id": "pl1", "playlist_url": "", "tracks": [{"artist": "a", "track": "t"}]}]
-        hist_file.write_text(json.dumps(data))
-        with patch("core.src.history._HISTORY_FILE", hist_file):
-            with pytest.raises(ValueError, match="no track URIs"):
-                undo_last_run(MagicMock())

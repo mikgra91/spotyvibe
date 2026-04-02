@@ -45,7 +45,6 @@ This guide explains how to use the **SpotyVibe interface** to set up your prefer
 - [Song List & Run History](#song-list--run-history)
   - [Persistent Song List](#persistent-song-list)
   - [Run History](#run-history)
-  - [Undo Last Run](#undo-last-run)
 - [Mobile Usage](#mobile-usage)
 - [Troubleshooting & Tips](#troubleshooting--tips)
   - [Troubleshooting](#troubleshooting)
@@ -103,7 +102,7 @@ The main screen is organised into collapsible components grouped under two provi
 
 **Spotify Section:**
 - **🎧 Spotify Playlist Creation** — Generate AI-powered playlists and save them directly to your Spotify account. *(Collapsed by default.)*
-- **🕓 Run History** — View past generation runs and undo the last one if needed.
+- **🕓 Run History** — View past generation runs.
 
 The overall flow is:
 
@@ -502,7 +501,7 @@ This is useful if you already like the results and do not want to wait longer.
 
 ## Track Review & Feedback
 
-After generation, SpotyVibe displays the suggested tracks as cards.
+After generation, SpotyVibe displays the suggested tracks as cards **between the Playlist Creation area and Run History**, inside the Spotify section. A completion banner and playlist link appear first, followed by the track cards.
 
 Each card may show:
 
@@ -592,9 +591,27 @@ Use this for tracks you feel neutral about.
 
 ## Song List & Run History
 
+### Run History
+
+SpotyVibe keeps the **last 5** playlist generation runs in the **Run History** section, located inside the Spotify panel below Playlist Creation. Click **Show history** or click anywhere on the section header to expand it.
+
+For each run you can see:
+
+- when the run happened
+- how many tracks were added
+- a link to the playlist (if it still exists on Spotify)
+
+**Click any history entry** to expand it and reveal the full list of tracks (Artist — Track) that were added during that run. Click again to collapse.
+
+Older runs beyond the most recent 5 are automatically removed to keep the list concise.
+
+> **Screenshot placeholder:** Run History section with expanded entry
+
+---
+
 ### Persistent Song List
 
-Your generated song list is kept in the app so you can return to it later.
+Your generated song list is kept between the Playlist Creation area and Run History so you can return to it later.
 
 This means:
 
@@ -605,34 +622,6 @@ This means:
 If the list becomes too full, remove some tracks before generating more.
 
 > **Screenshot placeholder:** Song list with saved tracks
-
----
-
-### Run History
-
-SpotyVibe keeps the **last 5** playlist generation runs in the **Run History** section. Click **Show history** or click anywhere on the section header to expand it.
-
-For each run you can see:
-
-- when the run happened
-- how many tracks were added
-- a link to the playlist (if it still exists on Spotify)
-
-Older runs beyond the most recent 5 are automatically removed to keep the list concise.
-
-> **Screenshot placeholder:** Run History section
-
----
-
-### Undo Last Run
-
-If the most recent playlist run did not turn out well, use **Undo last run**.
-
-This removes the tracks from the latest run from the related playlist.
-
-Use this when you want to quickly reverse the last result.
-
-> **Screenshot placeholder:** Undo Last Run button
 
 ---
 
@@ -693,7 +682,7 @@ To get the best results from SpotyVibe:
 - Give feedback often
 - Update your profile when your taste changes
 - Use audio filters only when you want tighter control
-- Use run history and undo when experimenting
+- Use run history to review past generations
 
 The app improves as you interact with it, so regular feedback leads to better discoveries.
 

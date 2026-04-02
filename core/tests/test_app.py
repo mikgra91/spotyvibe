@@ -593,20 +593,6 @@ class TestRunHistoryEndpoints:
         assert resp.status_code == 200
         assert resp.get_json()["runs"] == []
 
-    @patch("app.undo_last_run")
-    @patch("core.src.playlist.get_spotify_client")
-    def test_undo_run(self, mock_sp, mock_undo, client):
-        mock_undo.return_value = {"undone": True, "removed": 3, "run_id": "r1"}
-        resp = client.post("/api/runs/undo")
-        assert resp.status_code == 200
-        assert resp.get_json()["undone"] is True
-
-    @patch("app.undo_last_run", side_effect=ValueError("No run history"))
-    @patch("core.src.playlist.get_spotify_client")
-    def test_undo_run_empty_history(self, mock_sp, mock_undo, client):
-        resp = client.post("/api/runs/undo")
-        assert resp.status_code == 400
-        assert "error" in resp.get_json()
 
 
 class TestOnboardingEndpoints:

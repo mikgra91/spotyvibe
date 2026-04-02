@@ -14,9 +14,15 @@ export let currentAbortController = null;
 export let isGenerating = false;
 export let partialTrackCount = 0;
 export let helpLoaded = false;
-export let _currentPreviewIdx = null;
 
 export function setSuggestions(val) { suggestions = val; }
+export function spliceSuggestion(idx) {
+    suggestions[idx] = null;
+    const maxSize = window._maxSongListSize || 100;
+    const count = suggestions.filter(Boolean).length;
+    const counterEl = document.getElementById('songlistCounter');
+    if (counterEl) counterEl.textContent = `${count} / ${maxSize} songs`;
+}
 export function setOpenFormIndex(val) { openFormIndex = val; }
 export function setOpenFormAction(val) { openFormAction = val; }
 export function setSpotifyAuthStatus(val) { spotifyAuthStatus = val; }
@@ -32,4 +38,3 @@ export function setCurrentAbortController(val) { currentAbortController = val; }
 export function setIsGenerating(val) { isGenerating = val; }
 export function setPartialTrackCount(val) { partialTrackCount = val; }
 export function setHelpLoaded(val) { helpLoaded = val; }
-export function setCurrentPreviewIdx(val) { _currentPreviewIdx = val; }
