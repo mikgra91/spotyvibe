@@ -541,6 +541,8 @@ Clicking the same tab again closes the feedback form. The ✕ button dismisses t
 
 Use the ‹ and › arrows to navigate between tracks without closing the overlay.
 
+> **Note:** The embedded Spotify player provides **~30-second previews**. Full-length playback is not available because the embed runs in an isolated iframe that cannot access your Spotify session due to browser third-party cookie restrictions. To listen to the full track, click the Spotify icon inside the player or use the Spotify links on the song card.
+
 > **Screenshot placeholder:** Preview player open
 
 ---
