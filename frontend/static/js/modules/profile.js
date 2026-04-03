@@ -235,17 +235,12 @@ export async function prefillTrainFields() {
         document.getElementById('trainMustHave').value = (prefs.must_have || []).join('\n');
         document.getElementById('trainSoftPrefs').value = (prefs.soft_preferences || []).join('\n');
         document.getElementById('trainAvoid').value = (prefs.avoid || []).join('\n');
-        _updateAiWarning();
     } catch (e) { /* ignore — fields stay empty */ }
 }
 
-function _updateAiWarning() {
-    const vibeDesc = (document.getElementById('trainVibeDesc').value || '').trim();
-    const coreDesc = (document.getElementById('trainCoreDesc').value || '').trim();
+function _hideAiWarning() {
     const warning = document.getElementById('trainAiWarning');
-    if (warning) {
-        warning.classList.toggle('hidden', !!(vibeDesc || coreDesc));
-    }
+    if (warning) warning.classList.add('hidden');
 }
 
 function updateProfileIoVisibility() {
@@ -364,12 +359,6 @@ export function bindProfileImportInput() {
         const file = input.files && input.files[0];
         handleProfileImportFile(file);
     });
-
-    // Update AI warning when description fields change
-    const vibeInput = document.getElementById('trainVibeDesc');
-    const coreInput = document.getElementById('trainCoreDesc');
-    if (vibeInput) vibeInput.addEventListener('input', _updateAiWarning);
-    if (coreInput) coreInput.addEventListener('input', _updateAiWarning);
 }
 
 export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, successMsg, requireOpenAI) {
@@ -380,19 +369,14 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
 
     const vibeDesc = document.getElementById('trainVibeDesc').value.trim();
     const coreDesc = document.getElementById('trainCoreDesc').value.trim();
-    const coreInput = document.getElementById('trainCoreDesc');
-    const errMsg = document.getElementById('errCoreDesc');
 
     // For AI training, require at least one description
     if (requireOpenAI && !coreDesc && !vibeDesc) {
-        coreInput.classList.add('input-error');
-        errMsg.style.display = 'block';
-        document.getElementById('accCoreDesc').classList.add('open');
-        coreInput.focus();
+        const warning = document.getElementById('trainAiWarning');
+        if (warning) warning.classList.remove('hidden');
         return;
     }
-    coreInput.classList.remove('input-error');
-    errMsg.style.display = 'none';
+    _hideAiWarning();
 
     const mustHave = document.getElementById('trainMustHave').value.trim();
     const softPrefs = document.getElementById('trainSoftPrefs').value.trim();
