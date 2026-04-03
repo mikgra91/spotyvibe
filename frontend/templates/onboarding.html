@@ -353,8 +353,9 @@
                 const hintEl = document.getElementById(ids.hint);
                 const inputEl = document.getElementById(ids.input);
                 if (info && info.is_set) {
-                    hintEl.textContent = '✓ Already set (' + info.masked + ')';
-                    inputEl.placeholder = info.masked;
+                    const short = info.masked.length > 20 ? info.masked.slice(0, 17) + '…' + info.masked.slice(-4) : info.masked;
+                    hintEl.textContent = '✓ Already set (' + short + ')';
+                    inputEl.placeholder = short;
                 }
             }
         } catch (e) { /* ignore — fields stay empty */ }

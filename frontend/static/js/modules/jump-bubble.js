@@ -16,14 +16,14 @@ let spotifyHeader = null;
 
 /**
  * Determine direction based on whether the Spotify header is still
- * below the viewport.  If its top edge is below the visible area
- * the user hasn't reached Spotify yet → show "jump down".
+ * below the viewport.  If its top edge is in the bottom half of the
+ * viewport or below, the user hasn't reached Spotify yet → show "jump down".
  */
 function shouldJumpDown() {
     if (!spotifyHeader) return true;
     const rect = spotifyHeader.getBoundingClientRect();
-    // Header's top is below the viewport → user is still in the OpenAI area
-    return rect.top > window.innerHeight;
+    // Header's top is in the lower half or below the viewport → user is still in the OpenAI area
+    return rect.top > window.innerHeight * 0.5;
 }
 
 function update() {
@@ -69,5 +69,12 @@ export function initJumpBubble() {
     }, { passive: true });
 
     // Initial state
+    update();
+}
+
+export function refreshJumpBubble() {
+    openaiSection = document.querySelector('.provider-openai');
+    spotifySection = document.querySelector('.provider-spotify');
+    spotifyHeader = spotifySection ? spotifySection.querySelector('.provider-header') : null;
     update();
 }
