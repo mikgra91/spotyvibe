@@ -45,7 +45,7 @@ from core.src.suggestions import (
 from core.src.feedback import like_track, dislike_track
 from core.src.analysis import analyze_band_song
 from core.src.history import save_run, load_runs
-from core.src.utils import get_openai_models, clear_debug_log, sanitize_text
+from core.src.utils import get_openai_models, clear_debug_log, sanitize_text, app_log
 from core.src.openai_http import OpenAIConfigError, OpenAIError
 from core.src.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist,
@@ -271,6 +271,8 @@ def run_pipeline():
             # contains data from the current generation.
             if get_debug_mode():
                 clear_debug_log()
+
+            app_log(f"Generation run started: run_id={run_id} mode={playlist_mode}")
 
             playlist_size = get_playlist_size()
             new_artist_percentage = get_new_artist_percentage()
@@ -699,6 +701,7 @@ def write_settings():
         if lang:
             payload["GPT_LANGUAGE"] = lang
     save_credentials(payload)
+    app_log(f"Settings changed: {list(payload.keys())}")
     return jsonify({"status": "ok"})
 
 
@@ -800,6 +803,7 @@ def export_profile_endpoint():
     """
     profile = export_profile_dict()
     payload = json.dumps(profile, indent=2, ensure_ascii=False) + "\n"
+    app_log("Profile exported")
 
     return Response(
         payload,
@@ -835,6 +839,7 @@ def import_profile_endpoint():
 
     try:
         updated = import_profile_dict(imported)
+        app_log("Profile imported")
         return jsonify({
             "status": "ok",
             "last_updated": updated.get("last_updated"),
@@ -850,6 +855,7 @@ def reset_profile_to_history_endpoint():
     """Swap the current profile with the history backup."""
     try:
         updated = swap_profile_with_history()
+        app_log("Profile reset to history")
         return jsonify({
             "status": "ok",
             "last_updated": updated.get("last_updated"),
@@ -920,6 +926,7 @@ def save_profile_endpoint():
 
     try:
         updated = save_profile_sections(sections)
+        app_log("Profile saved directly")
         return jsonify({
             "status": "ok",
             "last_updated": updated.get("last_updated"),
@@ -1051,6 +1058,7 @@ def spotify_callback():
 
     if error:
         desc = request.args.get("error_description", "")
+        app_log(f"Spotify OAuth callback error: {error}")
         safe_error = html.escape(error)
         safe_desc = html.escape(desc)
         hint = (

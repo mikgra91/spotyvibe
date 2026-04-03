@@ -118,7 +118,8 @@ CREDENTIALS_FILE = _APP_DIR / ".credentials"
 CACHE_FILE = _APP_DIR / ".spotify-cache"
 PROFILE_FILE = _APP_DIR / "personalized_music_profile.json"
 PROFILE_HISTORY_FILE = _APP_DIR / "personalized_music_profile.history.json"
-DEBUG_LOG_FILE = _APP_DIR / "debug.log"
+DEBUG_LOG_FILE = _APP_DIR / "debug.log"       # Backend application log
+PROMPT_LOG_FILE = _APP_DIR / "prompt.log"      # GPT request/response log (was debug.log)
 
 # Keys the user configures via the Settings UI
 USER_KEYS = ["OPENAI_API_KEY", "OPENAI_MODEL", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE", "GPT_LANGUAGE", "ONBOARDING_COMPLETED"]
@@ -238,6 +239,7 @@ def get_settings():
         "new_artist_percentage": get_new_artist_percentage(),
         "gpt_language": get_gpt_language(),
         "debug_log_path": "" if IS_ANDROID else str(DEBUG_LOG_FILE),
+        "prompt_log_path": "" if IS_ANDROID else str(PROMPT_LOG_FILE),
         "debug_controls_available": not IS_ANDROID,
         "is_android": IS_ANDROID,
     }

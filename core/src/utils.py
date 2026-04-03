@@ -14,7 +14,7 @@ import os
 import re
 from datetime import datetime, timezone
 from config import (
-    DEBUG_LOG_FILE, get_debug_mode,
+    PROMPT_LOG_FILE, DEBUG_LOG_FILE, get_debug_mode,
     OPENAI_SUPPORTED_MODELS_JSON, OPENAI_EXTRA_ALLOWED_MODELS, get_model,
 )
 
@@ -64,17 +64,28 @@ def debug_log(label, messages, response_content):
     parts.append("")
 
     DEBUG_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(DEBUG_LOG_FILE, "a", encoding="utf-8") as f:
+    with open(PROMPT_LOG_FILE, "a", encoding="utf-8") as f:
         f.write("\n".join(parts))
 
 
 def clear_debug_log():
-    """Delete the debug log file if it exists."""
-    try:
-        if DEBUG_LOG_FILE.exists():
-            DEBUG_LOG_FILE.unlink()
-    except OSError:
-        pass
+    """Delete both debug and prompt log files if they exist."""
+    for f in (DEBUG_LOG_FILE, PROMPT_LOG_FILE):
+        try:
+            if f.exists():
+                f.unlink()
+        except OSError:
+            pass
+
+
+def app_log(message):
+    """Log a backend event to debug.log."""
+    if not get_debug_mode():
+        return
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    DEBUG_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(DEBUG_LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(f"[{timestamp}] {message}\n")
 
 
 def strip_code_fences(text):
