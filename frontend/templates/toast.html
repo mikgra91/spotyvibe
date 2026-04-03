@@ -1,4 +1,4 @@
 <!-- Toast notification -->
-<div class="toast {% if toast_message %}{{ toast_type|default('info') }} show{% endif %}" id="toast">
+<div class="toast {% if toast_message %}{{ toast_type|default('info') }} show{% endif %}" id="toast" role="status" aria-live="polite" aria-atomic="true">
     {% if toast_message %}{{ toast_message|e }}{% endif %}
 </div>

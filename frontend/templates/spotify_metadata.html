@@ -1,19 +1,21 @@
 <!-- ── Spotify Metadata Analysis ── -->
 <div class="analysis-section" id="spotifyMetadataSection">
-    <div class="train-header" onclick="toggleSpotifyMetadata()">
+    <div class="train-header" role="button" tabindex="0" onclick="toggleSpotifyMetadata()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSpotifyMetadata()}" aria-expanded="false" aria-controls="spotifyMetadataBody">
         <div class="train-header-left">
-            <h2>🔎 <span data-i18n="spotify_meta.title">Spotify Metadata Analysis</span></h2>
+            <h2><span aria-hidden="true">🔎</span> <span data-i18n="spotify_meta.title">Spotify Metadata Analysis</span></h2>
             <span class="train-status train-subtitle">Look up real Spotify data — genres, albums, release dates — for any artist or track.</span>
         </div>
         <div class="train-header-actions">
-            <button class="btn-train" id="spotifyMetaToggleBtn" onclick="event.stopPropagation(); toggleSpotifyMetadata()">Open</button>
+            <button class="btn-train" id="spotifyMetaToggleBtn" onclick="event.stopPropagation(); toggleSpotifyMetadata()" aria-expanded="false" aria-controls="spotifyMetadataBody">Open</button>
         </div>
     </div>
     <div class="train-body hidden" id="spotifyMetadataBody">
         <p class="acc-hint analysis-hint" data-i18n="spotify_meta.hint">Look up artist, track, genres, and album data from Spotify metadata.</p>
         <div class="analysis-inputs">
             <div class="analysis-input-row">
+                <label for="spotifyMetaArtist" class="sr-only">Artist / band name</label>
                 <input id="spotifyMetaArtist" type="text" placeholder="Artist / band name" maxlength="200" data-i18n-placeholder="analysis.artist_placeholder">
+                <label for="spotifyMetaTrack" class="sr-only">Track name (optional)</label>
                 <input id="spotifyMetaTrack" type="text" placeholder="Track name (optional)" maxlength="200" data-i18n-placeholder="spotify_meta.track_placeholder">
             </div>
             <div class="analysis-input-row metadata-market-row">
@@ -31,8 +33,8 @@
         <div class="run-section">
             <button class="btn-run btn-run-narrow" id="spotifyMetaAnalyseBtn" onclick="runSpotifyMetadata()" data-i18n="spotify_meta.btn_analyse">Analyse</button>
         </div>
-        <div id="spotifyMetaLoading" class="hidden analysis-loading" data-i18n="spotify_meta.loading">Analyzing…</div>
-        <div id="spotifyMetaError" class="hidden component-warn analysis-error"></div>
-        <div id="spotifyMetaResult" class="hidden analysis-result-area"></div>
+        <div id="spotifyMetaLoading" class="hidden analysis-loading" data-i18n="spotify_meta.loading" aria-live="polite">Analyzing…</div>
+        <div id="spotifyMetaError" class="hidden component-warn analysis-error" role="alert"></div>
+        <div id="spotifyMetaResult" class="hidden analysis-result-area" aria-live="polite"></div>
     </div>
 </div>

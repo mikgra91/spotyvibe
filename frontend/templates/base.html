@@ -10,17 +10,21 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body class="theme-equalizer">
-<div class="background" id="themeBackground">
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<div class="background" id="themeBackground" aria-hidden="true">
     <canvas id="equalizerCanvas"></canvas>
 </div>
 <div class="container">
-    {% include "settings_gear.html" %}
-    <h1>SpotyVibe</h1>
-    <p class="subtitle" data-i18n="app.subtitle">AI-powered music discovery &amp; playlist generation — discover, curate, refine.</p>
-    {% include "theme_switcher.html" %}
+    <header>
+        {% include "settings_gear.html" %}
+        <h1>SpotyVibe</h1>
+        <p class="subtitle" data-i18n="app.subtitle">AI-powered music discovery &amp; playlist generation — discover, curate, refine.</p>
+        {% include "theme_switcher.html" %}
+    </header>
 
+    <main id="main-content">
     <!-- ── OpenAI Provider Section ── -->
-    <section class="provider-section provider-openai">
+    <section class="provider-section provider-openai" aria-label="OpenAI tools">
         <div class="provider-header">
             <div class="provider-header-title">
                 <span class="provider-badge provider-badge-openai">OpenAI</span>
@@ -33,7 +37,7 @@
     </section>
 
     <!-- ── Spotify Provider Section ── -->
-    <section class="provider-section provider-spotify">
+    <section class="provider-section provider-spotify" aria-label="Spotify tools">
         <div class="provider-header">
             <div class="provider-header-title">
                 <span class="provider-badge provider-badge-spotify">Spotify</span>
@@ -45,6 +49,7 @@
         {% include "playlist_review.html" %}
         {% include "run_history.html" %}
     </section>
+    </main>
 
     {% include "preview_overlay.html" %}
     {% include "toast.html" %}
@@ -56,7 +61,7 @@
     <button class="section-jump-bubble hidden" id="sectionJumpBubble" aria-label="Jump to section"></button>
 
     <!-- Section help popup (focused single-section view) -->
-    <div class="modal-overlay" id="sectionHelpOverlay" onclick="if(event.target===this)closeSectionHelp()">
+    <div class="modal-overlay" id="sectionHelpOverlay" role="dialog" aria-modal="true" aria-label="Section help" onclick="if(event.target===this)closeSectionHelp()">
         <div class="section-help-wrapper">
             <button class="help-close-btn" onclick="closeSectionHelp()" aria-label="Close">✕</button>
             <div class="modal section-help-popup">

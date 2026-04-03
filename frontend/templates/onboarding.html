@@ -149,11 +149,11 @@
             <div class="ob-subtitle">SpotyVibe needs your API keys to generate playlists.</div>
             <div class="ob-cred-section">
                 <p class="ob-explain">Your <strong>OpenAI API key</strong> powers the music recommendations. Your <strong>Spotify credentials</strong> let the app create playlists in your library. Keys are stored locally on your device only.</p>
-                <div class="ob-cred-label">OpenAI API Key</div>
+                <label for="ob-openai-key" class="ob-cred-label">OpenAI API Key</label>
                 <input class="ob-cred-input" id="ob-openai-key" type="password" placeholder="sk-…" autocomplete="off">
-                <div class="ob-cred-label">Spotify Client ID</div>
+                <label for="ob-spotify-id" class="ob-cred-label">Spotify Client ID</label>
                 <input class="ob-cred-input" id="ob-spotify-id" type="text" placeholder="Enter client ID…" autocomplete="off">
-                <div class="ob-cred-label">Spotify Client Secret</div>
+                <label for="ob-spotify-secret" class="ob-cred-label">Spotify Client Secret</label>
                 <input class="ob-cred-input" id="ob-spotify-secret" type="password" placeholder="Enter client secret…" autocomplete="off">
                 <div id="ob-cred-status" class="ob-explain" style="margin-top:0;"></div>
                 <button class="ob-action-btn" onclick="saveObCredentials()">Save Credentials</button>

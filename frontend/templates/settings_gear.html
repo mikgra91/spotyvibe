@@ -1,23 +1,23 @@
 <!-- Language toggle + Burger menu -->
-<div class="header-controls">
-    <div class="lang-toggle" id="langToggle">
-        <button class="lang-toggle-btn active" data-lang="en" onclick="switchLanguage('en')">EN</button>
-        <span class="lang-toggle-sep">|</span>
-        <button class="lang-toggle-btn" data-lang="de" onclick="switchLanguage('de')">DE</button>
+<nav class="header-controls" aria-label="Site navigation">
+    <div class="lang-toggle" id="langToggle" role="group" aria-label="Language">
+        <button class="lang-toggle-btn active" data-lang="en" onclick="switchLanguage('en')" aria-label="English">EN</button>
+        <span class="lang-toggle-sep" aria-hidden="true">|</span>
+        <button class="lang-toggle-btn" data-lang="de" onclick="switchLanguage('de')" aria-label="Deutsch">DE</button>
     </div>
     <div class="burger-wrapper">
-        <button class="burger-btn" onclick="toggleSettingsMenu()" title="Menu" aria-label="Menu">
-            <span class="burger-icon"></span>
-            <span class="burger-icon"></span>
-            <span class="burger-icon"></span>
+        <button class="burger-btn" onclick="toggleSettingsMenu()" title="Menu" aria-label="Menu" aria-expanded="false" aria-controls="settingsDropdown">
+            <span class="burger-icon" aria-hidden="true"></span>
+            <span class="burger-icon" aria-hidden="true"></span>
+            <span class="burger-icon" aria-hidden="true"></span>
         </button>
-        <div class="settings-dropdown" id="settingsDropdown">
-            <button onclick="openCredentials()">🔑 <span data-i18n="nav.credentials">Credentials</span></button>
-            <button onclick="openSettings()">⚙️ <span data-i18n="nav.settings">Settings</span></button>
-            <button id="spotifyToggleBtn" onclick="toggleSpotifyConnection()">
+        <div class="settings-dropdown" id="settingsDropdown" role="menu">
+            <button role="menuitem" onclick="openCredentials()"><span aria-hidden="true">🔑</span> <span data-i18n="nav.credentials">Credentials</span></button>
+            <button role="menuitem" onclick="openSettings()"><span aria-hidden="true">⚙️</span> <span data-i18n="nav.settings">Settings</span></button>
+            <button role="menuitem" id="spotifyToggleBtn" onclick="toggleSpotifyConnection()">
                 {{ '🔌 Disconnect Spotify' if spotify_connected else '🔌 Connect Spotify' }}
             </button>
-            <button onclick="openHelp()">❓ <span data-i18n="nav.help">Help</span></button>
+            <button role="menuitem" onclick="openHelp()"><span aria-hidden="true">❓</span> <span data-i18n="nav.help">Help</span></button>
         </div>
     </div>
-</div>
+</nav>

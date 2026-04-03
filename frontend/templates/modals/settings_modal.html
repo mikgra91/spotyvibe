@@ -1,10 +1,10 @@
 <!-- Settings modal -->
-<div class="modal-overlay" id="settingsModal" onclick="if(event.target===this)closeModal('settingsModal')">
+<div class="modal-overlay" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle" onclick="if(event.target===this)closeModal('settingsModal')">
     <div class="modal" style="position:relative;">
         <div class="modal-loading" id="settingsLoading">
             <div class="spinner"></div>
         </div>
-        <h2>⚙️ Settings</h2>
+        <h2 id="settingsModalTitle"><span aria-hidden="true">⚙️</span> Settings</h2>
 
         <!-- Model -->
         <div class="form-row">

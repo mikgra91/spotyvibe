@@ -1,19 +1,19 @@
 <!-- ── Run History ── -->
 <div class="history-section" id="historySection">
-    <div class="train-header" onclick="toggleHistoryBody()">
+    <div class="train-header" role="button" tabindex="0" onclick="toggleHistoryBody()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleHistoryBody()}" aria-expanded="false" aria-controls="historyBody">
         <div class="train-header-left">
-            <h2>🕓 <span data-i18n="history.title">History</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('run-history')" data-i18n-title="help.section_help_title" title="Open help for this section">?</button></h2>
+            <h2><span aria-hidden="true">🕓</span> <span data-i18n="history.title">History</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('run-history')" data-i18n-title="help.section_help_title" title="Open help for this section" aria-label="Help for History">?</button></h2>
             <span class="train-status train-subtitle">View past generation runs.</span>
         </div>
         <div class="train-header-actions">
-            <button class="btn-train" onclick="event.stopPropagation(); toggleHistoryBody()" data-i18n="history.show">Show history</button>
+            <button class="btn-train" onclick="event.stopPropagation(); toggleHistoryBody()" data-i18n="history.show" aria-expanded="false" aria-controls="historyBody">Show history</button>
         </div>
     </div>
     <div class="train-body hidden" id="historyBody">
         <div id="historyList">
             {% if run_history %}
                 {% for run in run_history %}
-                <div class="history-run-item" onclick="this.classList.toggle('expanded')">
+                <div class="history-run-item" role="button" tabindex="0" onclick="this.classList.toggle('expanded')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.classList.toggle('expanded')}" aria-expanded="false">
                     <div class="history-run-header">
                         <div>
                             <div class="history-run-date">{{ run.timestamp|datetimeformat if run.timestamp else '?' }}</div>
@@ -24,7 +24,7 @@
                                 {% endif %}
                             </div>
                         </div>
-                        <span class="history-run-chevron">▸</span>
+                        <span class="history-run-chevron" aria-hidden="true">▸</span>
                     </div>
                     {% if run.tracks %}
                     <ul class="history-run-tracks">

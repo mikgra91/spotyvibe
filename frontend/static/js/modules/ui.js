@@ -89,6 +89,8 @@ export function escHtml(str) {
 export function toggleSettingsMenu() {
     const dd = document.getElementById('settingsDropdown');
     dd.classList.toggle('open');
+    const btn = document.querySelector('.burger-btn');
+    if (btn) btn.setAttribute('aria-expanded', dd.classList.contains('open'));
 }
 
 let toastTimer = null;

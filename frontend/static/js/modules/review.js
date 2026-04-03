@@ -7,7 +7,13 @@ export function toggleReviewBody() {
     const body = document.getElementById('reviewBody');
     const btn = document.getElementById('reviewToggleBtn');
     const isHidden = body.classList.toggle('hidden');
-    if (btn) btn.textContent = isHidden ? 'Show' : 'Hide';
+    const expanded = (!isHidden).toString();
+    if (btn) {
+        btn.textContent = isHidden ? 'Show' : 'Hide';
+        btn.setAttribute('aria-expanded', expanded);
+    }
+    const header = document.querySelector('#reviewSection > .train-header');
+    if (header) header.setAttribute('aria-expanded', expanded);
 
     // Lazy-load playlists on first expand
     if (!isHidden && !body.dataset.loaded) {

@@ -1,26 +1,28 @@
 <!-- ── Band/Song Analysis ── -->
 <div class="analysis-section" id="analysisSection">
-    <div class="train-header" onclick="toggleAnalysisBody()">
+    <div class="train-header" role="button" tabindex="0" onclick="toggleAnalysisBody()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAnalysisBody()}" aria-expanded="{% if last_analysis_result %}true{% else %}false{% endif %}" aria-controls="analysisBody">
         <div class="train-header-left">
-            <h2>🔍 <span data-i18n="analysis.title">Band/Song Analysis</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('bandsong-analysis')" data-i18n-title="help.section_help_title" title="Open help for this section">?</button></h2>
+            <h2><span aria-hidden="true">🔍</span> <span data-i18n="analysis.title">Band/Song Analysis</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('bandsong-analysis')" data-i18n-title="help.section_help_title" title="Open help for this section" aria-label="Help for Band/Song Analysis">?</button></h2>
             <span class="train-status train-subtitle">Get an AI-powered breakdown of any artist or track with ready-to-paste profile suggestions.</span>
         </div>
         <div class="train-header-actions">
-            <button class="btn-train" id="analysisToggleBtn" onclick="event.stopPropagation(); toggleAnalysisBody()">Open Analysis</button>
+            <button class="btn-train" id="analysisToggleBtn" onclick="event.stopPropagation(); toggleAnalysisBody()" aria-expanded="{% if last_analysis_result %}true{% else %}false{% endif %}" aria-controls="analysisBody">Open Analysis</button>
         </div>
     </div>
     <div class="train-body {% if last_analysis_result %}{% else %}hidden{% endif %}" id="analysisBody">
         <p class="acc-hint analysis-hint" data-i18n="analysis.hint">Enter an artist (and optional track) to get an AI analysis with ready-to-paste profile suggestions.</p>
         <div class="analysis-inputs">
             <div class="analysis-input-row">
+                <label for="analysisArtist" class="sr-only">Artist / band name</label>
                 <input id="analysisArtist" type="text" placeholder="Artist / band name" maxlength="200" value="{{ artist_input if artist_input }}" data-i18n-placeholder="analysis.artist_placeholder">
+                <label for="analysisTrack" class="sr-only">Track name (optional)</label>
                 <input id="analysisTrack" type="text" placeholder="Track name (optional)" maxlength="200" value="{{ track_input if track_input }}" data-i18n-placeholder="analysis.track_placeholder">
             </div>
         <div class="run-section">
             <button class="btn-run btn-run-narrow" id="analysisSendBtn" onclick="runAnalysis()" data-i18n="btn.analyse">Analyse</button>
         </div>
         </div>
-        <div id="analysisResult" class="{% if last_analysis_result %}{% else %}hidden{% endif %}">
+        <div id="analysisResult" class="{% if last_analysis_result %}{% else %}hidden{% endif %}" aria-live="polite">
             {% if last_analysis_result %}{{ last_analysis_result }}{% endif %}
         </div>
     </div>

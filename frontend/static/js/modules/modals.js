@@ -57,6 +57,8 @@ export async function openCredentials() {
     } catch (e) { /* ignore — status will just be empty */ }
 
     document.getElementById('credentialsModal').classList.add('open');
+    _lastFocusedElement = _lastFocusedElement || document.activeElement;
+    requestAnimationFrame(() => _focusFirstInModal(document.getElementById('credentialsModal')));
 }
 
 export async function saveCredentials() {
@@ -93,6 +95,7 @@ export async function saveCredentials() {
 
 export async function openSettings() {
     document.getElementById('settingsDropdown').classList.remove('open');
+    _lastFocusedElement = document.activeElement;
     document.getElementById('settingsModal').classList.add('open');
     document.getElementById('settingsLoading').classList.add('active');
 
@@ -225,6 +228,7 @@ export async function saveSettings() {
 
 export async function openHelp() {
     document.getElementById('settingsDropdown').classList.remove('open');
+    _lastFocusedElement = document.activeElement;
     document.getElementById('helpModal').classList.add('open');
 
     if (State.helpLoaded) return;
@@ -282,21 +286,68 @@ export async function openDataDir() {
     }
 }
 
-export function closeModal(id) {
-    document.getElementById(id).classList.remove('open');
+/* ── Focus management for modals ── */
+let _lastFocusedElement = null;
+
+function _focusFirstInModal(modalEl) {
+    const focusable = modalEl.querySelectorAll(
+        'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable.length) focusable[0].focus();
 }
 
-/* ── Close open help/section-help modals on Escape key ── */
+function _trapFocus(e) {
+    const openModal = document.querySelector('.modal-overlay.open');
+    if (!openModal) return;
+    const focusable = openModal.querySelectorAll(
+        'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+    }
+}
+
+function _openModalWithFocus(id) {
+    _lastFocusedElement = document.activeElement;
+    const modal = document.getElementById(id);
+    modal.classList.add('open');
+    requestAnimationFrame(() => _focusFirstInModal(modal));
+}
+
+export function closeModal(id) {
+    document.getElementById(id).classList.remove('open');
+    if (_lastFocusedElement && typeof _lastFocusedElement.focus === 'function') {
+        _lastFocusedElement.focus();
+        _lastFocusedElement = null;
+    }
+}
+
+/* ── Close any open modal on Escape key + focus trap on Tab ── */
 document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    const helpModal = document.getElementById('helpModal');
-    if (helpModal && helpModal.classList.contains('open')) {
-        closeModal('helpModal');
+    if (e.key === 'Tab') {
+        _trapFocus(e);
         return;
     }
+    if (e.key !== 'Escape') return;
+    // Close in priority order: section help → help modal → other modals
     const sectionHelp = document.getElementById('sectionHelpOverlay');
     if (sectionHelp && sectionHelp.classList.contains('open')) {
         closeSectionHelp();
+        return;
+    }
+    for (const id of ['helpModal', 'credentialsModal', 'settingsModal']) {
+        const el = document.getElementById(id);
+        if (el && el.classList.contains('open')) {
+            closeModal(id);
+            return;
+        }
     }
 });
 

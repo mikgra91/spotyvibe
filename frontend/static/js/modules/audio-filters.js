@@ -78,6 +78,8 @@ export function toggleAudioFilters() {
     const isHidden = body.classList.contains('hidden');
     body.classList.toggle('hidden', !isHidden);
     if (chevron) chevron.textContent = isHidden ? '▲' : '▼';
+    const toggle = document.querySelector('#audioFiltersSection .audio-filter-toggle');
+    if (toggle) toggle.setAttribute('aria-expanded', isHidden.toString());
     if (isHidden) updateAllFilterHints();
 }
 

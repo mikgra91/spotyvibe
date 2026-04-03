@@ -3,6 +3,11 @@ import { showToast, esc, escHtml } from './ui.js';
 export function toggleAnalysisBody() {
     const body = document.getElementById('analysisBody');
     body.classList.toggle('hidden');
+    const expanded = (!body.classList.contains('hidden')).toString();
+    const header = document.querySelector('#analysisSection > .train-header');
+    if (header) header.setAttribute('aria-expanded', expanded);
+    const btn = document.getElementById('analysisToggleBtn');
+    if (btn) btn.setAttribute('aria-expanded', expanded);
 }
 
 /**

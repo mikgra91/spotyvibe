@@ -32,7 +32,9 @@ export function switchTheme(theme) {
     }
 
     document.querySelectorAll('.style-switcher-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.theme === theme);
+        const isActive = btn.dataset.theme === theme;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-checked', isActive.toString());
     });
 
     try { localStorage.setItem('spotyvibe-theme', theme); } catch(e) {}

@@ -12,7 +12,12 @@ export function toggleGenerateBody() {
     const body = document.getElementById('generateBody');
     const btn = document.getElementById('generateToggleBtn');
     const isHidden = body.classList.toggle('hidden');
-    if (btn) btn.textContent = isHidden ? 'Show' : 'Hide';
+    if (btn) {
+        btn.textContent = isHidden ? 'Show' : 'Hide';
+        btn.setAttribute('aria-expanded', (!isHidden).toString());
+    }
+    const header = document.querySelector('#generateSection > .train-header');
+    if (header) header.setAttribute('aria-expanded', (!isHidden).toString());
 }
 
 export function canGenerate() {

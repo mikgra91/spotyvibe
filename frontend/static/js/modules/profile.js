@@ -2,7 +2,10 @@ import * as State from './state.js';
 import { showToast } from './ui.js';
 
 export function toggleAccordion(id) {
-    document.getElementById(id).classList.toggle('open');
+    const panel = document.getElementById(id);
+    panel.classList.toggle('open');
+    const header = panel.querySelector('.accordion-header');
+    if (header) header.setAttribute('aria-expanded', panel.classList.contains('open'));
 }
 
 export async function checkProfileStatus() {
@@ -76,6 +79,13 @@ export function toggleTrainBody() {
 
     updateProfileIoVisibility();
     updateTrainToggleLabel();
+
+    // Sync aria-expanded on the section header and toggle button
+    const expanded = isOpening.toString();
+    const header = document.querySelector('#trainSection > .train-header');
+    if (header) header.setAttribute('aria-expanded', expanded);
+    const btn = document.getElementById('trainToggleBtn');
+    if (btn) btn.setAttribute('aria-expanded', expanded);
 }
 
 export function startImportProfile() {

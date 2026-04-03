@@ -5,6 +5,12 @@ export async function toggleHistoryBody() {
     const body = document.getElementById('historyBody');
     State.setHistoryBodyOpen(!State.historyBodyOpen);
     body.classList.toggle('hidden', !State.historyBodyOpen);
+    const expanded = State.historyBodyOpen.toString();
+    const header = document.querySelector('#historySection > .train-header');
+    if (header) header.setAttribute('aria-expanded', expanded);
+    document.querySelectorAll('#historySection .train-header-actions button[aria-controls]').forEach(
+        btn => btn.setAttribute('aria-expanded', expanded)
+    );
     if (State.historyBodyOpen) await loadHistory();
 }
 
