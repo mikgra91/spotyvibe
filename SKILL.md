@@ -126,6 +126,23 @@ Spotipy stores the OAuth token at `CACHE_FILE` (`%LOCALAPPDATA%\spotyvibe\.spoti
 
 # Agent Operational Procedures
 
+## Git — Preventing Pager/Interactive Prompts
+
+Some git commands (e.g. `git diff --stat`, `git log`, `git diff`) open a pager (`less`) that blocks the terminal waiting for user input. **Always** prevent this by appending `| cat` or using `git --no-pager`:
+
+```bash
+# Either of these works:
+git --no-pager diff --stat
+git diff --stat | cat
+
+git --no-pager log --oneline -10
+git log --oneline -10 | cat
+```
+
+Apply this to **any** git command whose output may exceed the terminal height: `diff`, `log`, `show`, `branch -a`, `stash list`, `diff --stat`, etc.
+
+---
+
 ## SKILL: git-commit-and-push
 
 When committing and pushing changes, follow this procedure in order:
