@@ -1,7 +1,7 @@
 <!-- Help modal -->
 <div class="modal-overlay" id="helpModal" onclick="if(event.target===this)closeModal('helpModal')">
-    <button class="help-close-btn" onclick="closeModal('helpModal')" aria-label="Close">✕</button>
     <div class="help-modal-wrapper">
+        <button class="help-close-btn" onclick="closeModal('helpModal')" aria-label="Close">✕</button>
         <div class="modal help-modal">
             <div id="helpContent" class="help-content">
                 {% if help_html %}

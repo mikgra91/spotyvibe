@@ -705,21 +705,23 @@ h1 {
     width: 90%;
 }
 .help-close-btn {
-    position: fixed;
-    top: 16px;
-    right: 16px;
+    position: absolute;
+    top: -30px;
+    right: 0;
     background: none;
     border: none;
-    color: var(--text-secondary);
-    font-size: 1.4rem;
+    color: var(--text-primary);
+    font-size: 1.5rem;
     cursor: pointer;
     padding: 4px 8px;
     line-height: 1;
-    transition: color var(--transition);
+    transition: color var(--transition), opacity var(--transition);
     z-index: 10001;
+    opacity: 0.85;
 }
 .help-close-btn:hover {
-    color: var(--text-primary);
+    color: #fff;
+    opacity: 1;
 }
 .help-modal {
     max-width: 100% !important;
@@ -1566,8 +1568,8 @@ h1 {
         max-height: 90vh;
     }
     .help-close-btn {
-        top: 10px;
-        right: 10px;
+        top: -28px;
+        right: 4px;
     }
     .help-modal {
         max-height: 90vh;
