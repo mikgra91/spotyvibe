@@ -332,3 +332,66 @@ class TestBaseDir:
             # Restore BASE_DIR for the rest of the test suite.
             importlib.reload(config)
 
+
+class TestIsOnboardingCompleted:
+    """Tests for is_onboarding_completed — always reads from .credentials file."""
+
+    def test_returns_true_when_file_has_true(self, tmp_path):
+        cred_file = tmp_path / ".credentials"
+        cred_file.write_text("ONBOARDING_COMPLETED=true\n")
+        with patch.object(config, "CREDENTIALS_FILE", cred_file):
+            assert config.is_onboarding_completed() is True
+
+    def test_returns_true_when_file_has_yes(self, tmp_path):
+        cred_file = tmp_path / ".credentials"
+        cred_file.write_text("ONBOARDING_COMPLETED=yes\n")
+        with patch.object(config, "CREDENTIALS_FILE", cred_file):
+            assert config.is_onboarding_completed() is True
+
+    def test_returns_true_when_file_has_1(self, tmp_path):
+        cred_file = tmp_path / ".credentials"
+        cred_file.write_text("ONBOARDING_COMPLETED=1\n")
+        with patch.object(config, "CREDENTIALS_FILE", cred_file):
+            assert config.is_onboarding_completed() is True
+
+    def test_returns_false_when_file_has_false(self, tmp_path):
+        cred_file = tmp_path / ".credentials"
+        cred_file.write_text("ONBOARDING_COMPLETED=false\n")
+        with patch.object(config, "CREDENTIALS_FILE", cred_file):
+            assert config.is_onboarding_completed() is False
+
+    def test_returns_false_when_file_has_empty_value(self, tmp_path):
+        cred_file = tmp_path / ".credentials"
+        cred_file.write_text("ONBOARDING_COMPLETED=\n")
+        with patch.object(config, "CREDENTIALS_FILE", cred_file):
+            assert config.is_onboarding_completed() is False
+
+    def test_returns_false_when_key_missing_from_file(self, tmp_path):
+        cred_file = tmp_path / ".credentials"
+        cred_file.write_text("OPENAI_API_KEY=sk-test\n")
+        with patch.object(config, "CREDENTIALS_FILE", cred_file):
+            assert config.is_onboarding_completed() is False
+
+    def test_returns_false_when_file_does_not_exist(self, tmp_path):
+        cred_file = tmp_path / ".credentials"
+        with patch.object(config, "CREDENTIALS_FILE", cred_file):
+            assert config.is_onboarding_completed() is False
+
+    def test_file_takes_priority_over_stale_env(self, tmp_path):
+        """Regression: user sets ONBOARDING_COMPLETED=false in .credentials
+        but os.environ still has 'true' from previous load_dotenv call."""
+        cred_file = tmp_path / ".credentials"
+        cred_file.write_text("ONBOARDING_COMPLETED=false\n")
+        with patch.dict(os.environ, {"ONBOARDING_COMPLETED": "true"}):
+            with patch.object(config, "CREDENTIALS_FILE", cred_file):
+                assert config.is_onboarding_completed() is False
+
+    def test_removed_key_detected_despite_stale_env(self, tmp_path):
+        """Regression: user deletes ONBOARDING_COMPLETED line from .credentials
+        but os.environ still has 'true' from previous load_dotenv call."""
+        cred_file = tmp_path / ".credentials"
+        cred_file.write_text("OPENAI_API_KEY=sk-test\n")
+        with patch.dict(os.environ, {"ONBOARDING_COMPLETED": "true"}):
+            with patch.object(config, "CREDENTIALS_FILE", cred_file):
+                assert config.is_onboarding_completed() is False
+

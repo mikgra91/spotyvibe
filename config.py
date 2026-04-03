@@ -204,10 +204,8 @@ def get_gpt_language():
 
 def is_onboarding_completed() -> bool:
     """Return True if the user has completed (or skipped) onboarding."""
-    val = os.getenv("ONBOARDING_COMPLETED", "")
-    if val.lower() in ("1", "true", "yes"):
-        return True
-    # Fallback: re-read .credentials file in case os.environ is stale
+    # Always re-read the .credentials file — os.environ may be stale
+    # (e.g. user manually removed or changed the flag while the app is running).
     if CREDENTIALS_FILE.exists():
         from dotenv import dotenv_values
         vals = dotenv_values(CREDENTIALS_FILE)

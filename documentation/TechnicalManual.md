@@ -135,11 +135,15 @@ spotyvibe/
 ├── .github/workflows/
 │   └── ci.yml              # GitHub Actions CI
 │
-│└── tests/                  # Automated tests
-    ├── conftest.py         # Pytest configuration
-    ├── test_utils.py       # Tests for shared utilities
-    ├── test_suggestions.py # Tests for suggestion logic
-    └── test_feedback.py    # Tests for feedback recording
+├── core/tests/              # Unit tests for core modules
+│   ├── conftest.py          # Pytest configuration (sys.path setup)
+│   ├── test_utils.py        # Tests for shared utilities
+│   ├── test_suggestions.py  # Tests for suggestion logic
+│   └── test_feedback.py     # Tests for feedback recording
+│
+└── frontend/tests/          # Frontend (Playwright) tests
+    ├── conftest.py          # Playwright browser setup
+    └── test_frontend.py     # End-to-end UI tests
 ```
 
 #### Theme System
@@ -747,10 +751,10 @@ User clicks "Generate"
 
 ```bash
 cd spotyvibe
-python -m pytest tests/ -v
+python -m pytest core/tests/ frontend/tests/ -v
 ```
 
-All core logic (normalisation, deduplication, feedback recording, utility functions) is covered by unit tests. External API calls (OpenAI, Spotify) are mocked.
+All core logic (normalisation, deduplication, feedback recording, utility functions) is covered by unit tests in `core/tests/`. Frontend end-to-end tests using Playwright live in `frontend/tests/`. External API calls (OpenAI, Spotify) are mocked.
 
 ---
 
@@ -778,7 +782,7 @@ SpotyVibe includes a Windows-first **PyInstaller one-folder** build setup.
 ```bash
 pip install -r requirements.txt
 python build_assets/make_ico.py
-python -m pytest tests/ -v
+python -m pytest core/tests/ frontend/tests/ -v
 
 
 # One-folder build

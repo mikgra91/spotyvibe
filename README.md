@@ -71,7 +71,8 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 | `prompts/analysis_prompt.txt` | GPT prompt template for band/song analysis |
 | `static/i18n/en.json`, `de.json` | UI translation files |
 | `.github/workflows/ci.yml` | GitHub Actions CI pipeline |
-| `tests/` | pytest test suite |
+| `core/tests/` | Unit tests for core modules |
+| `frontend/tests/` | Frontend (Playwright) tests |
 
 ## Quick Start
 
@@ -89,7 +90,7 @@ SpotyVibe includes a desktop-only PyInstaller setup which builds a **one-folder*
 ```bash
 pip install -r requirements.txt
 python build_assets/make_ico.py
-python -m pytest tests/ -v
+python -m pytest core/tests/ frontend/tests/ -v
 
 
 # One-folder build

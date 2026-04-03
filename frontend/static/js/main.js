@@ -17,7 +17,7 @@ import { initJumpBubble } from './modules/jump-bubble.js';
 import './modules/theme-equalizer.js';
 import './modules/theme-pulse.js';
 import { switchLanguage, applyLanguage, i18n, _i18nStrings, initI18n } from './modules/i18n.js';
-import { renderProviderPills } from './modules/spotify-metadata.js';
+import { renderProviderPills } from './modules/provider-pills.js';
 
 // Expose globals for HTML onclick= attributes
 window.checkCredentialStatus = checkCredentialStatus;
