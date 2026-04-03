@@ -194,7 +194,7 @@ To set up your profile:
 
 3. Choose how to save your changes:
    - Click **Save** to store your preferences directly as-is.
-   - Click **AI Profile Update** to send your input to GPT, which will analyse and refine it into a structured taste profile.
+   - Click **AI Profile Update** to send your input to GPT, which will analyse and refine it into a structured taste profile. The "Describe your vibe" field is cleared automatically after AI Profile Update — your free-text input has been incorporated into the structured sections.
 
 If you already have a profile, the fields are **pre-filled** with your existing preferences so you can see and edit what the AI currently knows.
 
@@ -249,19 +249,28 @@ For example, a name template of `SpotyVibe {style} {date}` might produce `SpotyV
 
 ### Audio Feature Filters
 
-Below the playlist mode selector you will find a collapsible **Audio Filters** section. These optional filters guide GPT to suggest tracks matching your desired mood and feel:
+Below the playlist mode selector inside the **Discover Music** section, you will find a collapsible **🎚 Audio Filters (optional)** sub-panel. Click it to expand. These optional filters guide GPT to suggest tracks matching your desired mood and feel:
 
-- **Energy** — how intense / energetic the track feels (0–100)
-- **Valence** — how happy / positive the track sounds (0–100)
+- **Energy** — how intense / energetic the track feels (0–1)
+- **Valence** — how happy / positive the track sounds (0–1)
 - **Tempo** — beats per minute (BPM)
-- **Danceability** — how suitable the track is for dancing (0–100)
-- **Acousticness** — how acoustic (vs. electronic) the track is (0–100)
+- **Danceability** — how suitable the track is for dancing (0–1)
+- **Acousticness** — how acoustic (vs. electronic) the track is (0–1)
 
-Each filter has a **min** and **max** input. When set, these constraints are sent directly to GPT as part of the prompt — the AI will only suggest tracks that match the specified ranges.
+Each filter has a **min** and **max** input. As you type, a human-readable hint appears next to the inputs (e.g. "↳ Energetic to Intense, aggressive") so you can understand what the numbers represent without guessing.
 
-Leave a filter's inputs empty to skip that filter entirely. If all filters are empty, no filtering is applied.
+Leave a filter's inputs empty to skip that filter entirely. If all filters are empty, no filtering is applied. Click **✕ Clear all** to reset every filter at once.
 
-> **Tip:** Use the **Band/Song Analysis** tool to see how GPT classifies a song's audio features. This helps you understand what values to use when setting filters — for example, if a song you like shows 80% energy and 60% danceability, you can set those as your filter ranges to find similar tracks.
+#### Using Band/Song Analysis to Set Filters
+
+The quickest way to set audio filters is from a **Band/Song Analysis** result:
+
+1. Open **Band/Song Analysis** (in the OpenAI section) and analyse a reference artist or track.
+2. In the results, each audio feature row has a **⇒ Filter** button that sets a sensible min/max range (±10%, or ±15 BPM for tempo) directly in the Discover Music filter panel.
+3. Click **⇒ Use All as Filters** to apply all available features at once.
+4. The Discover Music section and filter panel expand automatically when a filter is applied.
+
+This bridges the gap between research and generation — analyse a song you love, then apply its characteristics as filters with one click.
 
 ### Running a Generation
 
