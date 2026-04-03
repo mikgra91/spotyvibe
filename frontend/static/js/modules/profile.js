@@ -1,5 +1,29 @@
 import * as State from './state.js';
 import { showToast, showAlert, showConfirm } from './ui.js';
+import { i18n } from './i18n.js';
+
+const TRAINING_TEXTS = {
+    en: [
+        'Teaching the AI your vibe…',
+        'Analyzing your music taste…',
+        'Consulting the algorithmic DJ…',
+        'Cross-referencing with 80 million tracks…',
+        'Deciding if pineapple belongs on pizza…',
+        'Fine-tuning the recommendation engine…',
+        'Almost there… probably…',
+        'Your profile is getting a makeover…',
+    ],
+    de: [
+        'Bringe der KI deinen Vibe bei…',
+        'Analysiere deinen Musikgeschmack…',
+        'Befrage den algorithmischen DJ…',
+        'Vergleiche mit 80 Millionen Tracks…',
+        'Entscheide, ob Ananas auf Pizza gehört…',
+        'Feinabstimmung der Empfehlungsmaschine…',
+        'Fast fertig… wahrscheinlich…',
+        'Dein Profil bekommt ein Makeover…',
+    ],
+};
 
 export function toggleAccordion(id) {
     const panel = document.getElementById(id);
@@ -110,7 +134,7 @@ export async function exportProfile() {
         document.body.appendChild(a);
         a.click();
         a.remove();
-        showToast('Export started…', 'info', 2000);
+        showToast(i18n('msg.export_saved', 'Profile exported — check your Downloads folder for spotyvibe_profile.json'), 'success', 5000);
     } catch (e) {
         window.location.href = '/api/profile/export';
     }
@@ -205,6 +229,21 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
     btn.disabled = true;
     btn.textContent = loadingLabel;
 
+    let textInterval;
+    if (endpoint === '/api/train-profile') {
+        const spinner = document.getElementById('trainSpinner');
+        const spinnerText = document.getElementById('trainSpinnerText');
+        spinner.classList.remove('hidden');
+        const lang = localStorage.getItem('svLang') || 'en';
+        const texts = TRAINING_TEXTS[lang] || TRAINING_TEXTS.en;
+        let textIdx = 0;
+        spinnerText.textContent = texts[0];
+        textInterval = setInterval(() => {
+            textIdx = (textIdx + 1) % texts.length;
+            spinnerText.textContent = texts[textIdx];
+        }, 3000);
+    }
+
     try {
         const resp = await fetch(endpoint, {
             method: 'POST',
@@ -240,6 +279,8 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
     } catch (e) {
         showAlert('Network error: ' + e.message);
     } finally {
+        if (textInterval) clearInterval(textInterval);
+        document.getElementById('trainSpinner')?.classList.add('hidden');
         btn.disabled = false;
         btn.textContent = btnLabel;
     }
