@@ -90,7 +90,7 @@ Then run either:
 - One-file: `dist/spotyvibe_onefile.exe`
 
 
-The executable starts the server and auto-opens your default browser to **http://127.0.0.1:5000**.
+The executable opens a native window with the SpotyVibe UI — no external browser needed. Closing the window cleanly terminates the process.
 
 > **One-file note:** The one-file build may start more slowly on first launch because it extracts bundled files to a temporary directory.
 

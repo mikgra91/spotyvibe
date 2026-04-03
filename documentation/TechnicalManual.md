@@ -762,9 +762,9 @@ SpotyVibe includes a Windows-first **PyInstaller one-folder** build setup.
 
 | Path | Purpose |
 |---|---|
-| `requirements.txt` | Runtime + dev dependencies (includes PyInstaller + Pillow for desktop builds) |
+| `requirements.txt` | Runtime + dev dependencies (includes PyInstaller for desktop builds) |
 
-| `desktop_launcher.py` | Desktop-only entry point for packaged builds (keeps `app.py` unchanged) |
+| `desktop_launcher.py` | Desktop-only entry point — embeds a native window via pywebview (keeps `app.py` unchanged) |
 | `spotyvibe.spec` | PyInstaller spec (one-folder) which bundles Flask runtime assets |
 | `spotyvibe_onefile.spec` | PyInstaller spec (one-file) for a single-EXE distribution |
 | `build-tools/build_exe.sh` | Convenience wrapper around the spec builds (`--package`/`--full`) |
@@ -793,11 +793,14 @@ pyinstaller --noconfirm --clean spotyvibe.spec
 
 - Output: `dist/spotyvibe/spotyvibe.exe`
 - The executable runs the same Flask server at `http://127.0.0.1:5000`.
-- `desktop_launcher.py` auto-opens the default browser to the UI on launch (best-effort).
+- `desktop_launcher.py` opens a native embedded browser window (via pywebview) — closing the window cleanly terminates the process with no orphaned background servers.
 
 - Runtime assets are bundled via the spec file (`templates/`, `static/`, `prompts/`, `data/`, plus `documentation/help.md`).
 - `hiddenimports` includes `markdown.extensions.tables`, `markdown.extensions.fenced_code`, and `markdown.extensions.toc` so the in-app Help modal renders correctly in frozen builds.
 - Secrets are intentionally **not** bundled; credentials remain in `%LOCALAPPDATA%\spotyvibe\.credentials`.
+
+**System Requirement (Windows Desktop):**
+The desktop executable requires a modern, patched Windows 10/11 environment. `pywebview` relies on the **WebView2 (Chromium)** runtime to embed the native browser window. If a user runs this on an outdated Windows environment missing WebView2, the application might fall back to Legacy Edge/MSHTML (Trident), causing modern CSS and JavaScript in SpotyVibe to break or render incorrectly.
 
 ### One-file build (optional)
 

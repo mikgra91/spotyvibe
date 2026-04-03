@@ -111,7 +111,7 @@ Output:
 
 Notes:
 - The executable runs the same local server at `http://127.0.0.1:5000`.
-- On launch, the desktop executable auto-opens your default browser to the UI.
+- On launch, the desktop executable opens a native embedded browser window (via pywebview) — closing the window cleanly terminates the process.
 - Credentials are **not** bundled; they remain in `%LOCALAPPDATA%\spotyvibe\.credentials`.
 - The one-file build has a slower cold start (it extracts bundled files on launch).
 
