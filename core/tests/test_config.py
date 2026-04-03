@@ -455,20 +455,20 @@ class TestIsOnboardingCompleted:
             assert config.is_onboarding_completed() is False
 
     def test_file_takes_priority_over_stale_env(self, tmp_path):
-        """Regression: user sets ONBOARDING_COMPLETED=false in .credentials
+        """Regression: user sets ONBOARDING_COMPLETED=false in settings
         but os.environ still has 'true' from previous load_dotenv call."""
-        cred_file = tmp_path / ".credentials"
-        cred_file.write_text("ONBOARDING_COMPLETED=false\n")
+        settings_file = tmp_path / "settings.conf"
+        settings_file.write_text("ONBOARDING_COMPLETED=false\n")
         with patch.dict(os.environ, {"ONBOARDING_COMPLETED": "true"}):
-            with patch.object(config, "CREDENTIALS_FILE", cred_file):
+            with patch.object(config, "SETTINGS_FILE", settings_file):
                 assert config.is_onboarding_completed() is False
 
     def test_removed_key_detected_despite_stale_env(self, tmp_path):
-        """Regression: user deletes ONBOARDING_COMPLETED line from .credentials
+        """Regression: user deletes ONBOARDING_COMPLETED line from settings
         but os.environ still has 'true' from previous load_dotenv call."""
-        cred_file = tmp_path / ".credentials"
-        cred_file.write_text("OPENAI_API_KEY=sk-test\n")
+        settings_file = tmp_path / "settings.conf"
+        settings_file.write_text("OPENAI_MODEL=gpt-4o\n")
         with patch.dict(os.environ, {"ONBOARDING_COMPLETED": "true"}):
-            with patch.object(config, "CREDENTIALS_FILE", cred_file):
+            with patch.object(config, "SETTINGS_FILE", settings_file):
                 assert config.is_onboarding_completed() is False
 
