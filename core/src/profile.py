@@ -386,8 +386,10 @@ def train_profile(sections):
     if sections.get("vibe_description"):
         parts.append(
             f"\n## VIBE DESCRIPTION (free-form natural language — the user describes "
-            f"what they want in their own words; interpret this and incorporate it "
-            f"into the structured profile sections below):\n"
+            f"what they want conversationally; CLASSIFY each statement into the "
+            f"correct profile section: must_have, avoid, soft_preferences, or "
+            f"core_description, following the VIBE DESCRIPTION CLASSIFICATION "
+            f"rules in your system prompt):\n"
             f"{sections['vibe_description']}\n"
         )
 
