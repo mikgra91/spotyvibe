@@ -33,7 +33,8 @@ export async function checkSpotifyAuth() {
 }
 
 export function connectSpotify() {
-    if (/; wv\)/.test(navigator.userAgent)) {
+    // Android WebView or pywebview desktop: navigate in-window (no popup)
+    if (/; wv\)/.test(navigator.userAgent) || window.pywebview) {
         window.location.href = '/api/spotify/auth';
         return;
     }

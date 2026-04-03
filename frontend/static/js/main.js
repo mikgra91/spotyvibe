@@ -146,6 +146,12 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch(e) {}
     switchTheme(_pendingTheme || 'equalizer');
 
+    // Show refresh button when running inside pywebview desktop wrapper
+    if (window.pywebview) {
+        const rb = document.getElementById('refreshBtn');
+        if (rb) rb.classList.remove('hidden');
+    }
+
     // Auth and warnings
     Promise.all([checkCredentialStatus(), checkSpotifyAuth(), fetchSettingsState()]).then(() => {
         renderComponentWarnings();
