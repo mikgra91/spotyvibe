@@ -152,7 +152,7 @@ Open **Credentials** and enter:
 - **Spotify Client ID**
 - **Spotify Client Secret**
 
-Click **Save** when finished.
+Click **Save** when finished. Your API keys are stored securely in a separate credentials file — app preferences (model, playlist size, etc.) are stored in a separate settings file.
 
 If the information is correct, you can proceed to connect Spotify.
 

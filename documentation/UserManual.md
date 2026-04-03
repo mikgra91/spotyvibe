@@ -95,7 +95,7 @@ The executable opens a native window with the SpotyVibe UI — no external brows
 > **One-file note:** The one-file build may start more slowly on first launch because it extracts bundled files to a temporary directory.
 
 
-> **Note:** Your credentials are still stored outside the app bundle at `%LOCALAPPDATA%\spotyvibe\.credentials`.
+> **Note:** Your credentials are still stored outside the app bundle at `%LOCALAPPDATA%\spotyvibe\.credentials`. App settings (model, playlist size, etc.) are stored separately in `%LOCALAPPDATA%\spotyvibe\settings.conf`.
 
 
 
@@ -114,7 +114,7 @@ Enter the three values:
 - **Spotify Client ID** — from your Spotify Developer app.
 - **Spotify Client Secret** — from your Spotify Developer app.
 
-Click **Save**. Your credentials are stored securely outside the project folder and are never committed to version control.
+Click **Save**. Your credentials are stored securely in `%LOCALAPPDATA%\spotyvibe\.credentials`, outside the project folder, and are never committed to version control. App preferences (model selection, playlist size, etc.) are stored separately in `settings.conf` in the same directory.
 
 > **💰 Cost note:** SpotyVibe uses the OpenAI API, which is a **paid service**. Each generation run and each profile training call costs money. Check [OpenAI Pricing](https://platform.openai.com/docs/pricing) for details.
 
@@ -507,7 +507,8 @@ All your personal data is stored outside the project in your system's app data f
 
 | File | Location | Purpose |
 |---|---|---|
-| Credentials | `%LOCALAPPDATA%\spotyvibe\.credentials` | Your API keys and settings (never in the project folder). |
+| Credentials | `%LOCALAPPDATA%\spotyvibe\.credentials` | Your API keys (OpenAI key, Spotify Client ID/Secret). |
+| Settings | `%LOCALAPPDATA%\spotyvibe\settings.conf` | App preferences (model, playlist size, language, debug mode, etc.). |
 | Taste profile | `%LOCALAPPDATA%\spotyvibe\personalized_music_profile.json` | Your trained taste profile + history. |
 | Spotify token | `%LOCALAPPDATA%\spotyvibe\.spotify-cache` | Cached Spotify authentication token. |
 | Debug log | `%LOCALAPPDATA%\spotyvibe\debug.log` | GPT request/response log (desktop only, only when debug mode is enabled). |

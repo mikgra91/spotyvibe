@@ -1,10 +1,12 @@
-"""Centralised credential management.
+"""Centralised credential and settings management.
 
-Stores credentials in a platform-appropriate directory:
-  - Windows:  %LOCALAPPDATA%\\spotyvibe\\.credentials
+Stores data in a platform-appropriate directory:
+  - Windows:  %LOCALAPPDATA%\\spotyvibe\\
   - Android:  internal app storage (set via SPOTYVIBE_FILES_DIR env var)
-  - Fallback: ~/spotyvibe/.credentials
-so the user never has to put secrets inside the project directory.
+  - Fallback: ~/spotyvibe/
+
+Credentials (API keys/secrets) live in ``.credentials``.
+App preferences and state live in ``settings.conf``.
 """
 
 import os
@@ -115,51 +117,109 @@ def _get_app_dir():
 
 _APP_DIR = _get_app_dir()
 CREDENTIALS_FILE = _APP_DIR / ".credentials"
+SETTINGS_FILE = _APP_DIR / "settings.conf"
 CACHE_FILE = _APP_DIR / ".spotify-cache"
+PROFILES_DIR = _APP_DIR / "profiles"
+
+# Legacy single-profile paths (kept for reference / migration awareness)
 PROFILE_FILE = _APP_DIR / "personalized_music_profile.json"
 PROFILE_HISTORY_FILE = _APP_DIR / "personalized_music_profile.history.json"
 DEBUG_LOG_FILE = _APP_DIR / "debug.log"       # Backend application log
 PROMPT_LOG_FILE = _APP_DIR / "prompt.log"      # GPT request/response log (was debug.log)
 
-# Keys the user configures via the Settings UI
-USER_KEYS = ["OPENAI_API_KEY", "OPENAI_MODEL", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE", "GPT_LANGUAGE", "ONBOARDING_COMPLETED"]
+# Secret keys — stored in .credentials
+CREDENTIAL_KEYS = ["OPENAI_API_KEY", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET"]
+
+# Non-secret keys — stored in settings.conf
+SETTINGS_KEYS = ["OPENAI_MODEL", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE", "GPT_LANGUAGE", "ONBOARDING_COMPLETED", "ACTIVE_PROFILE_ID"]
+
+# Maximum length for profile display names
+MAX_PROFILE_NAME_LEN = 40
+
+# Combined list for backward compatibility
+USER_KEYS = CREDENTIAL_KEYS + SETTINGS_KEYS
 
 # Old file name used before the rename
 _OLD_ENV_FILE = _APP_DIR / ".env"
 
 
+def _ensure_file(filepath, keys):
+    """Ensure a dotenv-style file exists with all required keys."""
+    if not filepath.exists():
+        with open(filepath, "w", encoding="utf-8") as f:
+            for key in keys:
+                f.write(f"{key}=\n")
+        return
+
+    # File exists — make sure every required key is present
+    existing = set()
+    with open(filepath, "r", encoding="utf-8") as f:
+        for line in f:
+            stripped = line.strip()
+            if "=" in stripped and not stripped.startswith("#"):
+                existing.add(stripped.partition("=")[0].strip())
+
+    with open(filepath, "a", encoding="utf-8") as f:
+        for key in keys:
+            if key not in existing:
+                f.write(f"{key}=\n")
+
+
+def _migrate_settings_from_credentials():
+    """Move non-secret keys from .credentials to settings.conf (one-time).
+
+    Reads .credentials for any SETTINGS_KEYS entries, writes their values
+    into settings.conf, then removes them from .credentials.
+    """
+    if not CREDENTIALS_FILE.exists():
+        return
+
+    cred_lines = []
+    migrated = {}
+    with open(CREDENTIALS_FILE, "r", encoding="utf-8") as f:
+        for line in f:
+            stripped = line.strip()
+            if "=" in stripped and not stripped.startswith("#"):
+                key = stripped.partition("=")[0].strip()
+                if key in SETTINGS_KEYS:
+                    value = stripped.partition("=")[2]
+                    if value:  # only migrate non-empty values
+                        migrated[key] = value
+                    continue  # drop this line from .credentials
+            cred_lines.append(line)
+
+    if not migrated:
+        return
+
+    # Write migrated values into settings.conf
+    for key, value in migrated.items():
+        set_key(str(SETTINGS_FILE), key, value)
+
+    # Rewrite .credentials without the migrated keys
+    with open(CREDENTIALS_FILE, "w", encoding="utf-8") as f:
+        f.writelines(cred_lines)
+
+
 def ensure_env():
-    """Create the AppData .credentials with all required keys if missing."""
+    """Create the AppData .credentials and settings.conf with all required keys if missing."""
     _APP_DIR.mkdir(parents=True, exist_ok=True)
 
     # Migrate from the old .env file if it exists (desktop only)
     if not IS_ANDROID and _OLD_ENV_FILE.exists() and not CREDENTIALS_FILE.exists():
         _OLD_ENV_FILE.rename(CREDENTIALS_FILE)
 
-    if not CREDENTIALS_FILE.exists():
-        with open(CREDENTIALS_FILE, "w", encoding="utf-8") as f:
-            for key in USER_KEYS:
-                f.write(f"{key}=\n")
-        return
+    _ensure_file(CREDENTIALS_FILE, CREDENTIAL_KEYS)
+    _ensure_file(SETTINGS_FILE, SETTINGS_KEYS)
 
-    # File exists — make sure every required key is present
-    existing = set()
-    with open(CREDENTIALS_FILE, "r", encoding="utf-8") as f:
-        for line in f:
-            stripped = line.strip()
-            if "=" in stripped and not stripped.startswith("#"):
-                existing.add(stripped.partition("=")[0].strip())
-
-    with open(CREDENTIALS_FILE, "a", encoding="utf-8") as f:
-        for key in USER_KEYS:
-            if key not in existing:
-                f.write(f"{key}=\n")
+    # One-time migration: move settings keys from .credentials to settings.conf
+    _migrate_settings_from_credentials()
 
 
 def load_config():
-    """Load credentials from the AppData .credentials into os.environ."""
+    """Load credentials and settings into os.environ."""
     ensure_env()
     load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
+    load_dotenv(dotenv_path=str(SETTINGS_FILE), override=True)
 
 
 def get_model():
@@ -205,29 +265,24 @@ def get_gpt_language():
 
 def is_onboarding_completed() -> bool:
     """Return True if the user has completed (or skipped) onboarding."""
-    # Always re-read the .credentials file — os.environ may be stale
-    # (e.g. user manually removed or changed the flag while the app is running).
-    if CREDENTIALS_FILE.exists():
-        from dotenv import dotenv_values
-        vals = dotenv_values(CREDENTIALS_FILE)
+    if SETTINGS_FILE.exists():
+        vals = dotenv_values(SETTINGS_FILE)
         return vals.get("ONBOARDING_COMPLETED", "").lower() in ("1", "true", "yes")
     return False
 
 
 def set_onboarding_completed(completed: bool = True) -> None:
     """Persist the onboarding completion flag."""
-    from dotenv import set_key
     ensure_env()
-    set_key(str(CREDENTIALS_FILE), "ONBOARDING_COMPLETED", "true" if completed else "")
-    load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
+    set_key(str(SETTINGS_FILE), "ONBOARDING_COMPLETED", "true" if completed else "")
+    load_dotenv(dotenv_path=str(SETTINGS_FILE), override=True)
 
 
 def set_gpt_language(language: str):
     """Persist the GPT language setting."""
-    from dotenv import set_key
     ensure_env()
-    set_key(str(CREDENTIALS_FILE), "GPT_LANGUAGE", language)
-    load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
+    set_key(str(SETTINGS_FILE), "GPT_LANGUAGE", language)
+    load_dotenv(dotenv_path=str(SETTINGS_FILE), override=True)
 
 
 def get_settings():
@@ -246,50 +301,86 @@ def get_settings():
 
 
 
-# Keys that contain secrets and should be masked in the UI
-_SECRET_KEYS = {"OPENAI_API_KEY", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET"}
-
-
 def get_credentials():
     """Return current credential values, masked for safe display."""
     ensure_env()
     raw = dotenv_values(str(CREDENTIALS_FILE))
 
     result = {}
-    for key in USER_KEYS:
+    for key in CREDENTIAL_KEYS:
         value = raw.get(key, "") or ""
-        if key in _SECRET_KEYS:
-            if value and len(value) > 4:
-                masked = "*" * (len(value) - 4) + value[-4:]
-            elif value:
-                masked = "****"
-            else:
-                masked = ""
-            result[key] = {"masked": masked, "is_set": bool(value)}
+        if value and len(value) > 4:
+            masked = "*" * (len(value) - 4) + value[-4:]
+        elif value:
+            masked = "****"
         else:
-            # Non-secret keys (e.g. model name) — return the full value
-            result[key] = {"value": value, "is_set": bool(value)}
+            masked = ""
+        result[key] = {"masked": masked, "is_set": bool(value)}
 
     return result
 
 
+def _ensure_trailing_newline(filepath):
+    """Guarantee a file ends with a newline so set_key appends correctly."""
+    with open(filepath, "r+", encoding="utf-8") as f:
+        content = f.read()
+        if content and not content.endswith("\n"):
+            f.write("\n")
+
+
 def save_credentials(credentials):
-    """Update credential values in the AppData .credentials and reload.
+    """Update secret credential values in .credentials and reload.
 
     A value of ``None`` means "not provided" and is skipped.
     An empty string ``""`` explicitly clears the key.
     """
     ensure_env()
-
-    # Guarantee the file ends with a newline so set_key doesn't
-    # concatenate the new entry onto the last existing line.
-    with open(CREDENTIALS_FILE, "r+", encoding="utf-8") as f:
-        content = f.read()
-        if content and not content.endswith("\n"):
-            f.write("\n")
+    _ensure_trailing_newline(CREDENTIALS_FILE)
 
     for key, value in credentials.items():
-        if key in USER_KEYS and value is not None:
+        if key in CREDENTIAL_KEYS and value is not None:
             set_key(str(CREDENTIALS_FILE), key, value)
-    # Reload so os.environ reflects the new values immediately
     load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
+
+
+def save_settings(settings):
+    """Update non-secret settings in settings.conf and reload.
+
+    A value of ``None`` means "not provided" and is skipped.
+    An empty string ``""`` explicitly clears the key.
+    """
+    ensure_env()
+    _ensure_trailing_newline(SETTINGS_FILE)
+
+    for key, value in settings.items():
+        if key in SETTINGS_KEYS and value is not None:
+            set_key(str(SETTINGS_FILE), key, value)
+    load_dotenv(dotenv_path=str(SETTINGS_FILE), override=True)
+
+
+def get_active_profile_id():
+    """Return the active profile UUID, or empty string if none set."""
+    return os.getenv("ACTIVE_PROFILE_ID", "")
+
+
+def set_active_profile_id(profile_id: str):
+    """Store the active profile UUID in settings.conf."""
+    ensure_env()
+    set_key(str(SETTINGS_FILE), "ACTIVE_PROFILE_ID", profile_id)
+    os.environ["ACTIVE_PROFILE_ID"] = profile_id
+
+
+def get_active_profile_path():
+    """Return the Path to the active profile JSON, or None if none set."""
+    pid = get_active_profile_id()
+    if not pid:
+        return None
+    return PROFILES_DIR / f"{pid}.json"
+
+
+def get_active_history_path():
+    """Return the Path to the active profile's history backup, or None."""
+    pid = get_active_profile_id()
+    if not pid:
+        return None
+    return PROFILES_DIR / f"{pid}.history.json"

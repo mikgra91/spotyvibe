@@ -17,7 +17,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, Response, render_template, jsonify, request, redirect, stream_with_context
 from config import (
-    load_config, get_credentials, save_credentials, CREDENTIALS_FILE,
+    load_config, get_credentials, save_credentials, save_settings,
+    CREDENTIALS_FILE, SETTINGS_FILE,
     BATCH_SIZE, BASE_DIR, get_model, get_settings, get_debug_mode,
     get_playlist_size, DEBUG_LOG_FILE, MAX_CONSECUTIVE_EMPTY_BATCHES,
     get_new_artist_percentage, get_gpt_language, IS_ANDROID, PROFILE_IMPORT_MAX_BYTES,
@@ -25,7 +26,7 @@ from config import (
     MAX_CORE_DESCRIPTION_LEN, MAX_PROFILE_SECTION_LEN,
     MAX_FEEDBACK_REASON_LEN, MAX_FEEDBACK_ARTIST_LEN, MAX_FEEDBACK_TRACK_LEN,
     is_onboarding_completed, set_onboarding_completed, MAX_SONG_LIST_SIZE,
-    _get_app_dir,
+    _get_app_dir, get_active_profile_id, MAX_PROFILE_NAME_LEN,
 )
 import markdown
 
@@ -36,6 +37,7 @@ from core.src.profile import (
     get_profile_status, train_profile, save_profile_sections,
     export_profile_dict, import_profile_dict,
     swap_profile_with_history,
+    list_profiles, create_profile, delete_profile, activate_profile,
 )
 from core.src.suggestions import (
     normalize_history,
@@ -109,9 +111,16 @@ _DEFAULT_AUDIO_FILTERS = {
 def index():
     if not is_onboarding_completed():
         return redirect("/onboarding")
-    profile_data = load_profile()
-    prefs = profile_data.get("preferences", {})
-    profile_trained = is_profile_trained()
+
+    has_profile = bool(get_active_profile_id())
+    if has_profile:
+        profile_data_dict = load_profile()
+        prefs = profile_data_dict.get("preferences", {})
+        profile_trained = is_profile_trained()
+    else:
+        prefs = {}
+        profile_trained = False
+
     spotify_connected = get_spotify_auth_status() == "authenticated"
     raw_settings = get_settings()
     gpt_lang = get_gpt_language()
@@ -700,7 +709,7 @@ def write_settings():
         lang = sanitize_text(str(data["gpt_language"]).strip())
         if lang:
             payload["GPT_LANGUAGE"] = lang
-    save_credentials(payload)
+    save_settings(payload)
     app_log(f"Settings changed: {list(payload.keys())}")
     return jsonify({"status": "ok"})
 
@@ -780,15 +789,79 @@ def analyze_endpoint():
         return jsonify({"error": str(e)}), 500
 
 
+# ── Multi-profile CRUD ──────────────────────────────────────────────
+
+@app.route("/api/profiles")
+def get_profiles():
+    """List all profiles: [{id, name, trained, last_updated}]."""
+    try:
+        profiles = list_profiles()
+        active_id = get_active_profile_id()
+        return jsonify({"profiles": profiles, "active_id": active_id})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/profiles", methods=["POST"])
+def create_profile_endpoint():
+    """Create a new profile with a display name."""
+    data = request.get_json(force=True, silent=True) or {}
+    name = sanitize_text((data.get("name") or "").strip())
+    if not name:
+        return jsonify({"error": "Profile name is required."}), 400
+    if len(name) > MAX_PROFILE_NAME_LEN:
+        return jsonify({"error": f"Name too long (max {MAX_PROFILE_NAME_LEN} characters)."}), 400
+
+    try:
+        result = create_profile(name)
+        return jsonify(result), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/profiles/<profile_id>", methods=["DELETE"])
+def delete_profile_endpoint(profile_id):
+    """Delete a profile by ID."""
+    profile_id = sanitize_text(profile_id.strip())
+    try:
+        delete_profile(profile_id)
+        return jsonify({"status": "ok"})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/profiles/<profile_id>/activate", methods=["POST"])
+def activate_profile_endpoint(profile_id):
+    """Switch the active profile."""
+    profile_id = sanitize_text(profile_id.strip())
+    try:
+        activate_profile(profile_id)
+        return jsonify({"status": "ok"})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ── Profile data ────────────────────────────────────────────────────
+
 @app.route("/api/profile/status")
 def profile_status():
     """Return whether the profile has been trained and when."""
+    if not get_active_profile_id():
+        return jsonify({"trained": False, "last_updated": None, "no_profile": True})
     return jsonify(get_profile_status())
 
 
 @app.route("/api/profile/data")
 def profile_data():
     """Return the current profile preferences for pre-filling the UI."""
+    if not get_active_profile_id():
+        return jsonify({"error": "No active profile."}), 400
     profile = load_profile()
     return jsonify(profile)
 
@@ -909,8 +982,6 @@ def save_profile_endpoint():
     vibe_description = sanitize_text((data.get("vibe_description") or "").strip())
     core_description = sanitize_text((data.get("core_description") or "").strip())
 
-    if not core_description and not vibe_description:
-        return jsonify({"error": "Either a vibe description or core description is required."}), 400
     if core_description and len(core_description) > MAX_CORE_DESCRIPTION_LEN:
         return jsonify({"error": f"Core description too long (max {MAX_CORE_DESCRIPTION_LEN} chars)."}), 400
     if vibe_description and len(vibe_description) > MAX_CORE_DESCRIPTION_LEN:
@@ -918,7 +989,7 @@ def save_profile_endpoint():
 
     sections = {
         "vibe_description": vibe_description,
-        "core_description": core_description or vibe_description,
+        "core_description": core_description,
         "must_have": sanitize_text((data.get("must_have") or "").strip())[:MAX_PROFILE_SECTION_LEN],
         "soft_preferences": sanitize_text((data.get("soft_preferences") or "").strip())[:MAX_PROFILE_SECTION_LEN],
         "avoid": sanitize_text((data.get("avoid") or "").strip())[:MAX_PROFILE_SECTION_LEN],

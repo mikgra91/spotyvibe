@@ -116,10 +116,6 @@ class TestGetCredentials:
             "OPENAI_API_KEY": "sk-abcdef123456",
             "SPOTIPY_CLIENT_ID": "myclientid1234",
             "SPOTIPY_CLIENT_SECRET": "mysecret5678",
-            "OPENAI_MODEL": "gpt-4o",
-            "DEBUG_MODE": "",
-            "PLAYLIST_SIZE": "20",
-            "NEW_ARTIST_PERCENTAGE": "30",
         }
         creds = config.get_credentials()
         # Secrets should be masked — last 4 characters visible
@@ -127,9 +123,9 @@ class TestGetCredentials:
         assert creds["OPENAI_API_KEY"]["is_set"] is True
         assert "*" in creds["OPENAI_API_KEY"]["masked"]
 
-        # Non-secrets should return full value
-        assert creds["OPENAI_MODEL"]["value"] == "gpt-4o"
-        assert creds["OPENAI_MODEL"]["is_set"] is True
+        # Only credential keys should be returned
+        assert "OPENAI_MODEL" not in creds
+        assert "DEBUG_MODE" not in creds
 
     @patch("config.ensure_env")
     @patch("config.dotenv_values")
@@ -138,10 +134,6 @@ class TestGetCredentials:
             "OPENAI_API_KEY": "",
             "SPOTIPY_CLIENT_ID": "",
             "SPOTIPY_CLIENT_SECRET": "",
-            "OPENAI_MODEL": "",
-            "DEBUG_MODE": "",
-            "PLAYLIST_SIZE": "",
-            "NEW_ARTIST_PERCENTAGE": "",
         }
         creds = config.get_credentials()
         assert creds["OPENAI_API_KEY"]["masked"] == ""
@@ -154,10 +146,6 @@ class TestGetCredentials:
             "OPENAI_API_KEY": "abc",
             "SPOTIPY_CLIENT_ID": "",
             "SPOTIPY_CLIENT_SECRET": "",
-            "OPENAI_MODEL": "",
-            "DEBUG_MODE": "",
-            "PLAYLIST_SIZE": "",
-            "NEW_ARTIST_PERCENTAGE": "",
         }
         creds = config.get_credentials()
         # Short secrets (≤4 chars) → "****"
@@ -170,10 +158,10 @@ class TestSaveCredentials:
     @patch("config.set_key")
     @patch("config.ensure_env")
     @patch("builtins.open", mock_open(read_data="OPENAI_API_KEY=old\n"))
-    def test_saves_known_keys(self, mock_ensure, mock_set_key, mock_load):
-        config.save_credentials({"OPENAI_MODEL": "gpt-4o"})
+    def test_saves_credential_keys(self, mock_ensure, mock_set_key, mock_load):
+        config.save_credentials({"OPENAI_API_KEY": "sk-new"})
         mock_set_key.assert_called_once_with(
-            str(config.CREDENTIALS_FILE), "OPENAI_MODEL", "gpt-4o"
+            str(config.CREDENTIALS_FILE), "OPENAI_API_KEY", "sk-new"
         )
         mock_load.assert_called_once()
 
@@ -182,10 +170,18 @@ class TestSaveCredentials:
     @patch("config.ensure_env")
     @patch("builtins.open", mock_open(read_data="OPENAI_API_KEY=old\n"))
     def test_skips_none_values(self, mock_ensure, mock_set_key, mock_load):
-        config.save_credentials({"OPENAI_MODEL": None, "DEBUG_MODE": "true"})
+        config.save_credentials({"OPENAI_API_KEY": None, "SPOTIPY_CLIENT_ID": "id123"})
         mock_set_key.assert_called_once_with(
-            str(config.CREDENTIALS_FILE), "DEBUG_MODE", "true"
+            str(config.CREDENTIALS_FILE), "SPOTIPY_CLIENT_ID", "id123"
         )
+
+    @patch("config.load_dotenv")
+    @patch("config.set_key")
+    @patch("config.ensure_env")
+    @patch("builtins.open", mock_open(read_data="OPENAI_API_KEY=old\n"))
+    def test_ignores_settings_keys(self, mock_ensure, mock_set_key, mock_load):
+        config.save_credentials({"OPENAI_MODEL": "gpt-4o", "DEBUG_MODE": "true"})
+        mock_set_key.assert_not_called()
 
     @patch("config.load_dotenv")
     @patch("config.set_key")
@@ -196,47 +192,125 @@ class TestSaveCredentials:
         mock_set_key.assert_not_called()
 
 
+class TestSaveSettings:
+    @patch("config.load_dotenv")
+    @patch("config.set_key")
+    @patch("config.ensure_env")
+    @patch("builtins.open", mock_open(read_data="OPENAI_MODEL=\n"))
+    def test_saves_settings_keys(self, mock_ensure, mock_set_key, mock_load):
+        config.save_settings({"OPENAI_MODEL": "gpt-4o"})
+        mock_set_key.assert_called_once_with(
+            str(config.SETTINGS_FILE), "OPENAI_MODEL", "gpt-4o"
+        )
+        mock_load.assert_called_once()
+
+    @patch("config.load_dotenv")
+    @patch("config.set_key")
+    @patch("config.ensure_env")
+    @patch("builtins.open", mock_open(read_data="OPENAI_MODEL=\n"))
+    def test_skips_none_values(self, mock_ensure, mock_set_key, mock_load):
+        config.save_settings({"OPENAI_MODEL": None, "DEBUG_MODE": "true"})
+        mock_set_key.assert_called_once_with(
+            str(config.SETTINGS_FILE), "DEBUG_MODE", "true"
+        )
+
+    @patch("config.load_dotenv")
+    @patch("config.set_key")
+    @patch("config.ensure_env")
+    @patch("builtins.open", mock_open(read_data="OPENAI_MODEL=\n"))
+    def test_ignores_credential_keys(self, mock_ensure, mock_set_key, mock_load):
+        config.save_settings({"OPENAI_API_KEY": "sk-test"})
+        mock_set_key.assert_not_called()
+
+    @patch("config.load_dotenv")
+    @patch("config.set_key")
+    @patch("config.ensure_env")
+    @patch("builtins.open", mock_open(read_data="OPENAI_MODEL=\n"))
+    def test_ignores_unknown_keys(self, mock_ensure, mock_set_key, mock_load):
+        config.save_settings({"UNKNOWN_KEY": "value"})
+        mock_set_key.assert_not_called()
+
+
 class TestEnsureEnv:
-    def test_creates_credentials_file(self, tmp_path):
+    def test_creates_both_files(self, tmp_path):
         cred_file = tmp_path / ".credentials"
+        settings_file = tmp_path / "settings.conf"
         app_dir = tmp_path
         old_env = tmp_path / ".env"
 
         with patch.object(config, "_APP_DIR", app_dir), \
              patch.object(config, "CREDENTIALS_FILE", cred_file), \
+             patch.object(config, "SETTINGS_FILE", settings_file), \
              patch.object(config, "_OLD_ENV_FILE", old_env):
             config.ensure_env()
 
         assert cred_file.exists()
-        content = cred_file.read_text()
-        for key in config.USER_KEYS:
-            assert f"{key}=" in content
+        assert settings_file.exists()
+        cred_content = cred_file.read_text()
+        settings_content = settings_file.read_text()
+        for key in config.CREDENTIAL_KEYS:
+            assert f"{key}=" in cred_content
+        for key in config.SETTINGS_KEYS:
+            assert f"{key}=" in settings_content
 
     def test_appends_missing_keys(self, tmp_path):
         cred_file = tmp_path / ".credentials"
         cred_file.write_text("OPENAI_API_KEY=sk-test\n")
+        settings_file = tmp_path / "settings.conf"
+        settings_file.write_text("OPENAI_MODEL=gpt-4o\n")
         app_dir = tmp_path
         old_env = tmp_path / ".env"
 
         with patch.object(config, "_APP_DIR", app_dir), \
              patch.object(config, "CREDENTIALS_FILE", cred_file), \
+             patch.object(config, "SETTINGS_FILE", settings_file), \
              patch.object(config, "_OLD_ENV_FILE", old_env):
             config.ensure_env()
 
-        content = cred_file.read_text()
-        # Original key preserved
-        assert "OPENAI_API_KEY=sk-test" in content
+        cred_content = cred_file.read_text()
+        settings_content = settings_file.read_text()
+        # Original keys preserved
+        assert "OPENAI_API_KEY=sk-test" in cred_content
+        assert "OPENAI_MODEL=gpt-4o" in settings_content
         # Missing keys were appended
-        assert "OPENAI_MODEL=" in content
+        assert "SPOTIPY_CLIENT_ID=" in cred_content
+        assert "DEBUG_MODE=" in settings_content
+
+    def test_migrates_settings_from_credentials(self, tmp_path):
+        """Settings keys in .credentials are moved to settings.conf."""
+        cred_file = tmp_path / ".credentials"
+        cred_file.write_text("OPENAI_API_KEY=sk-test\nOPENAI_MODEL=gpt-4o\nDEBUG_MODE=true\n")
+        settings_file = tmp_path / "settings.conf"
+        app_dir = tmp_path
+        old_env = tmp_path / ".env"
+
+        with patch.object(config, "_APP_DIR", app_dir), \
+             patch.object(config, "CREDENTIALS_FILE", cred_file), \
+             patch.object(config, "SETTINGS_FILE", settings_file), \
+             patch.object(config, "_OLD_ENV_FILE", old_env):
+            config.ensure_env()
+
+        cred_content = cred_file.read_text()
+        settings_content = settings_file.read_text()
+        # Settings keys should have been migrated out of .credentials
+        assert "OPENAI_MODEL" not in cred_content
+        assert "DEBUG_MODE" not in cred_content
+        # Credentials should remain
+        assert "OPENAI_API_KEY=sk-test" in cred_content
+        # Settings should be in settings.conf
+        assert "OPENAI_MODEL" in settings_content
+        assert "DEBUG_MODE" in settings_content
 
     def test_migrates_old_env_file(self, tmp_path):
         old_env = tmp_path / ".env"
         old_env.write_text("OPENAI_API_KEY=sk-old\n")
         cred_file = tmp_path / ".credentials"
+        settings_file = tmp_path / "settings.conf"
         app_dir = tmp_path
 
         with patch.object(config, "_APP_DIR", app_dir), \
              patch.object(config, "CREDENTIALS_FILE", cred_file), \
+             patch.object(config, "SETTINGS_FILE", settings_file), \
              patch.object(config, "_OLD_ENV_FILE", old_env):
             config.ensure_env()
 
@@ -250,18 +324,21 @@ class TestEnsureEnv:
         old_env = tmp_path / ".env"
         old_env.write_text("OPENAI_API_KEY=sk-old\n")
         cred_file = tmp_path / ".credentials"
+        settings_file = tmp_path / "settings.conf"
         app_dir = tmp_path
 
         with patch.object(config, "_APP_DIR", app_dir), \
              patch.object(config, "CREDENTIALS_FILE", cred_file), \
+             patch.object(config, "SETTINGS_FILE", settings_file), \
              patch.object(config, "_OLD_ENV_FILE", old_env), \
              patch.object(config, "IS_ANDROID", True):
             config.ensure_env()
 
         # .env should NOT have been migrated
         assert old_env.exists()
-        # A fresh credentials file should have been created instead
+        # Fresh files should have been created instead
         assert cred_file.exists()
+        assert settings_file.exists()
 
 
 class TestGetAppDir:
@@ -334,47 +411,47 @@ class TestBaseDir:
 
 
 class TestIsOnboardingCompleted:
-    """Tests for is_onboarding_completed — always reads from .credentials file."""
+    """Tests for is_onboarding_completed — reads from settings.conf file."""
 
     def test_returns_true_when_file_has_true(self, tmp_path):
-        cred_file = tmp_path / ".credentials"
-        cred_file.write_text("ONBOARDING_COMPLETED=true\n")
-        with patch.object(config, "CREDENTIALS_FILE", cred_file):
+        settings_file = tmp_path / "settings.conf"
+        settings_file.write_text("ONBOARDING_COMPLETED=true\n")
+        with patch.object(config, "SETTINGS_FILE", settings_file):
             assert config.is_onboarding_completed() is True
 
     def test_returns_true_when_file_has_yes(self, tmp_path):
-        cred_file = tmp_path / ".credentials"
-        cred_file.write_text("ONBOARDING_COMPLETED=yes\n")
-        with patch.object(config, "CREDENTIALS_FILE", cred_file):
+        settings_file = tmp_path / "settings.conf"
+        settings_file.write_text("ONBOARDING_COMPLETED=yes\n")
+        with patch.object(config, "SETTINGS_FILE", settings_file):
             assert config.is_onboarding_completed() is True
 
     def test_returns_true_when_file_has_1(self, tmp_path):
-        cred_file = tmp_path / ".credentials"
-        cred_file.write_text("ONBOARDING_COMPLETED=1\n")
-        with patch.object(config, "CREDENTIALS_FILE", cred_file):
+        settings_file = tmp_path / "settings.conf"
+        settings_file.write_text("ONBOARDING_COMPLETED=1\n")
+        with patch.object(config, "SETTINGS_FILE", settings_file):
             assert config.is_onboarding_completed() is True
 
     def test_returns_false_when_file_has_false(self, tmp_path):
-        cred_file = tmp_path / ".credentials"
-        cred_file.write_text("ONBOARDING_COMPLETED=false\n")
-        with patch.object(config, "CREDENTIALS_FILE", cred_file):
+        settings_file = tmp_path / "settings.conf"
+        settings_file.write_text("ONBOARDING_COMPLETED=false\n")
+        with patch.object(config, "SETTINGS_FILE", settings_file):
             assert config.is_onboarding_completed() is False
 
     def test_returns_false_when_file_has_empty_value(self, tmp_path):
-        cred_file = tmp_path / ".credentials"
-        cred_file.write_text("ONBOARDING_COMPLETED=\n")
-        with patch.object(config, "CREDENTIALS_FILE", cred_file):
+        settings_file = tmp_path / "settings.conf"
+        settings_file.write_text("ONBOARDING_COMPLETED=\n")
+        with patch.object(config, "SETTINGS_FILE", settings_file):
             assert config.is_onboarding_completed() is False
 
     def test_returns_false_when_key_missing_from_file(self, tmp_path):
-        cred_file = tmp_path / ".credentials"
-        cred_file.write_text("OPENAI_API_KEY=sk-test\n")
-        with patch.object(config, "CREDENTIALS_FILE", cred_file):
+        settings_file = tmp_path / "settings.conf"
+        settings_file.write_text("OPENAI_MODEL=gpt-4o\n")
+        with patch.object(config, "SETTINGS_FILE", settings_file):
             assert config.is_onboarding_completed() is False
 
     def test_returns_false_when_file_does_not_exist(self, tmp_path):
-        cred_file = tmp_path / ".credentials"
-        with patch.object(config, "CREDENTIALS_FILE", cred_file):
+        settings_file = tmp_path / "settings.conf"
+        with patch.object(config, "SETTINGS_FILE", settings_file):
             assert config.is_onboarding_completed() is False
 
     def test_file_takes_priority_over_stale_env(self, tmp_path):

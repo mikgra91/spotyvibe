@@ -63,7 +63,6 @@ spotyvibe/
 │   ├── templates/          # Flask templates (base.html + partials)
 │   ├── static/             # CSS, JS, and other static assets
 │   └── tests/              # Frontend (Playwright) tests
-├── context/                # Generated context summaries (do not hand-edit)
 ```
 
 ---
@@ -86,9 +85,8 @@ spotyvibe/
   - Use `sp.current_user_playlist_create()`, never `sp.user_playlist_create()`.
 - **All Spotify interactions** live in `core/src/playlist.py`. Do not scatter Spotify API calls across other modules.
 
-### Agent Procedures & Context Files
+### Agent Procedures
 - Follow the git commit/push procedure in [`SKILL.md`](SKILL.md).
-- Context files in `context/` are generated summaries — regenerate them when their source files change, in the same commit.
 
 ### Documentation
 Every feature change must be reflected in all four:

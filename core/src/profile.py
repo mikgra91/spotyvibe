@@ -28,9 +28,16 @@ can later revert to the previous version.
 import json
 import shutil
 import threading
+import uuid as _uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
-from config import BASE_DIR, PROFILE_FILE, PROFILE_HISTORY_FILE, get_model, get_gpt_language
+from config import (
+    BASE_DIR, PROFILES_DIR, MAX_PROFILE_NAME_LEN,
+    get_model, get_gpt_language,
+    get_active_profile_id, set_active_profile_id,
+    get_active_profile_path, get_active_history_path,
+)
 from .utils import debug_log, strip_code_fences, sanitize_profile
 from .openai_http import chat_completions_create, extract_chat_content
 
@@ -41,10 +48,24 @@ from .openai_http import chat_completions_create, extract_chat_content
 TEMPLATE_FILE = BASE_DIR / "data" / "music_profile.json"
 TRAINING_PROMPT_FILE = BASE_DIR / "prompts" / "profile_training_prompt.txt"
 
-# Guards all read-modify-write cycles on PROFILE_FILE so concurrent
+# Guards all read-modify-write cycles on profile files so concurrent
 # requests (e.g. feedback during generation) cannot silently overwrite
 # each other's changes.
 _profile_lock = threading.Lock()
+
+
+# ── Helpers ──────────────────────────────────────────────────────────
+
+def _require_active_profile():
+    """Return (profile_path, history_path) for the active profile.
+
+    Raises ValueError if no profile is active.
+    """
+    profile_path = get_active_profile_path()
+    history_path = get_active_history_path()
+    if not profile_path:
+        raise ValueError("No active profile. Create or select a profile first.")
+    return profile_path, history_path
 
 
 # ── Profile I/O ─────────────────────────────────────────────────────
@@ -56,71 +77,70 @@ def _load_template():
 
 
 def ensure_profile():
-    """Create the personalized profile from the template if it doesn't exist."""
-    if not PROFILE_FILE.exists():
+    """Ensure the profiles directory exists and the active profile file is present.
+
+    If no active profile is set, does nothing (the UI must create one first).
+    """
+    PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+    profile_path = get_active_profile_path()
+    if profile_path and not profile_path.exists():
         template = _load_template()
-        with open(PROFILE_FILE, "w", encoding="utf-8") as f:
+        with open(profile_path, "w", encoding="utf-8") as f:
             json.dump(template, f, indent=2)
 
 
 def load_profile():
-    """Load the personalized music profile from AppData.
+    """Load the active music profile from the profiles directory.
 
     Thread-safe: acquires _profile_lock internally.
+    Raises ValueError if no active profile is set.
     """
+    profile_path, _ = _require_active_profile()
     with _profile_lock:
         ensure_profile()
-        with open(PROFILE_FILE, "r", encoding="utf-8") as f:
+        with open(profile_path, "r", encoding="utf-8") as f:
             return json.load(f)
 
 
 def save_profile(profile):
-    """Save the profile to AppData, keeping one history backup.
-
-    Pattern: **Copy-on-write with single backup**. Before each save,
-    the current file is copied to a `.history.json` sibling. This
-    provides a simple undo mechanism. More complex alternatives
-    (git-like versioning, append-only log) were considered unnecessary
-    for a single-user app with infrequent writes.
+    """Save the active profile, keeping one history backup.
 
     Thread-safe: acquires _profile_lock internally.
+    Raises ValueError if no active profile is set.
     """
+    profile_path, history_path = _require_active_profile()
     with _profile_lock:
-        # Back up the current file before overwriting
-        if PROFILE_FILE.exists():
-            shutil.copy2(str(PROFILE_FILE), str(PROFILE_HISTORY_FILE))
-        with open(PROFILE_FILE, "w", encoding="utf-8") as f:
+        if profile_path.exists():
+            shutil.copy2(str(profile_path), str(history_path))
+        with open(profile_path, "w", encoding="utf-8") as f:
             json.dump(profile, f, indent=2)
 
 
 def swap_profile_with_history():
     """Swap the active profile with its one-level history backup.
 
-    This implements the "Reset to history" action:
-    - current becomes history
-    - history becomes current
-
     Raises:
-        ValueError: if the history file does not exist.
+        ValueError: if no active profile or the history file does not exist.
 
     Returns:
         The new active profile dict (loaded from disk after the swap).
     """
+    profile_path, history_path = _require_active_profile()
     ensure_profile()
 
-    if not PROFILE_HISTORY_FILE.exists():
+    if not history_path.exists():
         raise ValueError("No history profile exists yet.")
 
-    PROFILE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    profile_path.parent.mkdir(parents=True, exist_ok=True)
 
-    tmp = PROFILE_FILE.parent / (PROFILE_FILE.name + ".swap.tmp")
+    tmp = profile_path.parent / (profile_path.name + ".swap.tmp")
     if tmp.exists():
         tmp.unlink()
 
     # Atomic-ish swap via renames.
-    PROFILE_FILE.rename(tmp)
-    PROFILE_HISTORY_FILE.rename(PROFILE_FILE)
-    tmp.rename(PROFILE_HISTORY_FILE)
+    profile_path.rename(tmp)
+    history_path.rename(profile_path)
+    tmp.rename(history_path)
 
     return load_profile()
 
@@ -152,7 +172,7 @@ def export_profile_dict():
 
 
 _ALLOWED_PROFILE_KEYS = {
-    "last_updated", "meta", "preferences", "artists",
+    "name", "last_updated", "meta", "preferences", "artists",
     "history", "feedback", "taste_rules",
 }
 
@@ -327,7 +347,7 @@ def save_profile_sections(sections):
     profile = load_profile()
 
     profile["preferences"]["vibe_description"] = sections.get("vibe_description", "")
-    profile["preferences"]["core_description"] = sections["core_description"]
+    profile["preferences"]["core_description"] = sections.get("core_description", "")
     profile["preferences"]["must_have"] = [
         line.strip() for line in sections.get("must_have", "").splitlines() if line.strip()
     ]
@@ -477,4 +497,103 @@ def train_profile(sections):
 
     save_profile(updated_profile)
     return updated_profile
+
+
+# ── Multi-profile management ────────────────────────────────────────
+
+def list_profiles():
+    """Return a list of all profiles: [{id, name, trained, last_updated}].
+
+    Scans the profiles/ directory for *.json files (excluding *.history.json).
+    """
+    PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+    profiles = []
+    for path in sorted(PROFILES_DIR.glob("*.json")):
+        if path.name.endswith(".history.json"):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            profiles.append({
+                "id": path.stem,
+                "name": data.get("name", ""),
+                "trained": bool(data.get("last_updated")),
+                "last_updated": data.get("last_updated"),
+            })
+        except (json.JSONDecodeError, OSError):
+            continue
+    return profiles
+
+
+def create_profile(name):
+    """Create a new profile with the given display name.
+
+    Returns {"id": "<uuid>", "name": "<name>"}.
+    Raises ValueError on invalid name or duplicate.
+    """
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("Profile name cannot be empty.")
+    if len(name) > MAX_PROFILE_NAME_LEN:
+        raise ValueError(f"Profile name too long (max {MAX_PROFILE_NAME_LEN} characters).")
+
+    # Check for duplicate names (case-insensitive)
+    existing = list_profiles()
+    for p in existing:
+        if p["name"].lower() == name.lower():
+            raise ValueError(f"A profile named \"{name}\" already exists.")
+
+    PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+    profile_id = str(_uuid.uuid4())
+    profile_path = PROFILES_DIR / f"{profile_id}.json"
+
+    template = _load_template()
+    template["name"] = name
+    with open(profile_path, "w", encoding="utf-8") as f:
+        json.dump(template, f, indent=2)
+
+    # Auto-activate the new profile
+    set_active_profile_id(profile_id)
+
+    return {"id": profile_id, "name": name}
+
+
+def delete_profile(profile_id):
+    """Delete a profile by ID.
+
+    Raises ValueError if the profile doesn't exist.
+    Removes both the profile and its history file.
+    If the deleted profile was active, clears the active pointer.
+    """
+    if not profile_id:
+        raise ValueError("Profile ID is required.")
+
+    profile_path = PROFILES_DIR / f"{profile_id}.json"
+    history_path = PROFILES_DIR / f"{profile_id}.history.json"
+
+    if not profile_path.exists():
+        raise ValueError("Profile not found.")
+
+    profile_path.unlink()
+    if history_path.exists():
+        history_path.unlink()
+
+    # If this was the active profile, clear the pointer
+    if get_active_profile_id() == profile_id:
+        set_active_profile_id("")
+
+
+def activate_profile(profile_id):
+    """Set a profile as the active one.
+
+    Raises ValueError if the profile doesn't exist.
+    """
+    if not profile_id:
+        raise ValueError("Profile ID is required.")
+
+    profile_path = PROFILES_DIR / f"{profile_id}.json"
+    if not profile_path.exists():
+        raise ValueError("Profile not found.")
+
+    set_active_profile_id(profile_id)
 

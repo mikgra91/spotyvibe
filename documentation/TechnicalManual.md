@@ -68,7 +68,7 @@ SpotyVibe is a Python web application built with **Flask** that connects two ext
 ```
 spotyvibe/
 ├── app.py                  # Flask web server — all HTTP endpoints
-├── config.py               # Centralised configuration & credential management
+├── config.py               # Centralised configuration, credentials & settings management
 ├── requirements.txt        # Python dependencies (pinned version ranges)
 ├── README.md               # Project overview
 ├── documentation/
@@ -191,7 +191,9 @@ The app module also pins its Python dependencies in `android/app/build.gradle`, 
 
 ### `config.py` — Configuration & Credentials
 
-Manages all application settings and credentials.
+Manages all application settings and credentials. Secrets (API keys) are stored in `.credentials`; non-secret preferences and app state are stored in `settings.conf`. Both files use dotenv format and live in the platform-appropriate app data directory (`%LOCALAPPDATA%\spotyvibe\` on Windows).
+
+On first load, any non-secret keys still present in `.credentials` (from older versions) are automatically migrated to `settings.conf`.
 
 **Key constants:**
 
@@ -207,7 +209,8 @@ Manages all application settings and credentials.
 | `MAX_CONSECUTIVE_EMPTY_BATCHES` | How many consecutive all-filtered batches are allowed before the loop breaks and the playlist is created with whatever was found (default: 3). |
 | `DEFAULT_OPENAI_MODEL` | Fallback model when none is configured (default: `gpt-5.4-mini`). |
 | `IS_ANDROID` | `True` when running under Chaquopy (detected via `sys.getandroidapilevel`). All Android-specific logic is gated behind this flag; desktop behaviour is unaffected. |
-| `CREDENTIALS_FILE` | Path to `%LOCALAPPDATA%\spotyvibe\.credentials`. |
+| `CREDENTIALS_FILE` | Path to `%LOCALAPPDATA%\spotyvibe\.credentials` — stores only API secrets (`OPENAI_API_KEY`, `SPOTIPY_CLIENT_ID`, `SPOTIPY_CLIENT_SECRET`). |
+| `SETTINGS_FILE` | Path to `%LOCALAPPDATA%\spotyvibe\settings.conf` — stores non-secret app preferences (`OPENAI_MODEL`, `DEBUG_MODE`, `PLAYLIST_SIZE`, `NEW_ARTIST_PERCENTAGE`, `GPT_LANGUAGE`, `ONBOARDING_COMPLETED`). |
 | `PROFILE_FILE` | Path to the personalised taste profile in AppData. |
 | `CACHE_FILE` | Path to the cached Spotify OAuth token. |
 | `DEBUG_LOG_FILE` | Path to the debug log file (`%LOCALAPPDATA%\spotyvibe\debug.log`). |
@@ -218,14 +221,8 @@ Manages all application settings and credentials.
 | `MAX_FEEDBACK_ARTIST_LEN` | Maximum character length for feedback artist name (default: 200). |
 | `MAX_FEEDBACK_TRACK_LEN` | Maximum character length for feedback track name (default: 200). |
 | `MAX_FEEDBACK_REASON_LEN` | Maximum character length for feedback reason text (default: 500). |
-| `GENERAL_REQUEST_MAX_BYTES` | Maximum allowed request size for general endpoints (default: 1MB). |
-| `MAX_GPT_CALLS_PER_RUN` | Cost guardrail: maximum GPT calls allowed per single generation run (default: 20). |
-| `MAX_CORE_DESCRIPTION_LEN` | Maximum character length for the core description field (default: 5000). |
-| `MAX_FEEDBACK_ARTIST_LEN` | Maximum character length for feedback artist field (default: 200). |
-| `MAX_FEEDBACK_TRACK_LEN` | Maximum character length for feedback track field (default: 200). |
-| `MAX_FEEDBACK_REASON_LEN` | Maximum character length for feedback reason field (default: 500). |
-| `GPT_LANGUAGE` | Configured language for GPT responses (stored in credentials file). |
-| `ONBOARDING_COMPLETED` | Boolean flag indicating whether the user has completed the onboarding flow. |
+| `CREDENTIAL_KEYS` | List of secret key names stored in `.credentials`. |
+| `SETTINGS_KEYS` | List of non-secret key names stored in `settings.conf`. |
 
 
 **Key helpers:**
