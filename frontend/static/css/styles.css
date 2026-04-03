@@ -706,8 +706,8 @@ h1 {
 }
 .help-close-btn {
     position: absolute;
-    top: -30px;
-    right: 0;
+    top: -40px;
+    right: -70px;
     background: none;
     border: none;
     color: var(--text-primary);
@@ -1569,7 +1569,7 @@ h1 {
     }
     .help-close-btn {
         top: -28px;
-        right: 4px;
+        right: 0;
     }
     .help-modal {
         max-height: 90vh;
