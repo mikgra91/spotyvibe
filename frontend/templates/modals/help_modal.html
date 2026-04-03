@@ -1,5 +1,5 @@
 <!-- Help modal -->
-<div class="modal-overlay" id="helpModal" onclick="if(event.target===this)closeModal('helpModal')">
+<div class="modal-overlay" id="helpModal" role="dialog" aria-modal="true" aria-label="Help" onclick="if(event.target===this)closeModal('helpModal')">
     <div class="help-modal-wrapper">
         <button class="help-close-btn" onclick="closeModal('helpModal')" aria-label="Close">✕</button>
         <div class="modal help-modal">

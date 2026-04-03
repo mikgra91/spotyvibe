@@ -1,8 +1,16 @@
 import { THEME_RENDERERS } from './theme-switcher.js';
 
 THEME_RENDERERS.pulse = function(canvas) {
+    // Bail out if user prefers reduced motion
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        return () => {};
+    }
+
     const ctx = canvas.getContext('2d');
     let animId;
+    let stopped = false;
+
+    const isMobile = window.innerWidth <= 768;
 
     const COLORS = [
         [30, 215, 96],
@@ -13,7 +21,7 @@ THEME_RENDERERS.pulse = function(canvas) {
         [255, 77, 184]
     ];
 
-    const EMITTER_COUNT = 5;
+    const EMITTER_COUNT = isMobile ? 3 : 5;
     const emitters = [];
     function initEmitters() {
         emitters.length = 0;
@@ -31,7 +39,7 @@ THEME_RENDERERS.pulse = function(canvas) {
     }
     initEmitters();
 
-    const MAX_RINGS = 120;
+    const MAX_RINGS = isMobile ? 40 : 120;
     const ringPool = [];
     let ringCount = 0;
     for (let i = 0; i < MAX_RINGS; i++) {
@@ -72,7 +80,7 @@ THEME_RENDERERS.pulse = function(canvas) {
         }
     }
 
-    const MAX_PARTICLES = 60;
+    const MAX_PARTICLES = isMobile ? 20 : 60;
     const particles = [];
     function initParticles() {
         particles.length = 0;
@@ -96,6 +104,14 @@ THEME_RENDERERS.pulse = function(canvas) {
     let breathPhase = 0;
 
     function draw(time) {
+        if (stopped) return;
+
+        // Pause when tab/app is backgrounded
+        if (document.visibilityState === 'hidden') {
+            animId = requestAnimationFrame(draw);
+            return;
+        }
+
         const dt = lastTime ? (time - lastTime) : 16;
         lastTime = time;
 
@@ -181,12 +197,14 @@ THEME_RENDERERS.pulse = function(canvas) {
             ctx.strokeStyle = `rgba(${r},${g},${b},${strokeA.toFixed(3)})`;
             ctx.lineWidth = ring.lineWidth * (ring.soft ? ring.life : 1);
 
-            if (ring.soft) {
-                ctx.shadowColor = `rgba(${r},${g},${b},${(0.45 * ea).toFixed(3)})`;
-                ctx.shadowBlur = 18 + ring.lineWidth * 2;
-            } else {
-                ctx.shadowColor = `rgba(${r},${g},${b},${(0.3 * ea).toFixed(3)})`;
-                ctx.shadowBlur = 8;
+            if (!isMobile) {
+                if (ring.soft) {
+                    ctx.shadowColor = `rgba(${r},${g},${b},${(0.45 * ea).toFixed(3)})`;
+                    ctx.shadowBlur = 18 + ring.lineWidth * 2;
+                } else {
+                    ctx.shadowColor = `rgba(${r},${g},${b},${(0.3 * ea).toFixed(3)})`;
+                    ctx.shadowBlur = 8;
+                }
             }
             ctx.stroke();
             ctx.shadowBlur = 0;
@@ -205,8 +223,10 @@ THEME_RENDERERS.pulse = function(canvas) {
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
             ctx.fillStyle = `rgba(${pr},${pg},${pb},${pa.toFixed(3)})`;
-            ctx.shadowColor = `rgba(${pr},${pg},${pb},${(pa * 0.6).toFixed(3)})`;
-            ctx.shadowBlur = 6;
+            if (!isMobile) {
+                ctx.shadowColor = `rgba(${pr},${pg},${pb},${(pa * 0.6).toFixed(3)})`;
+                ctx.shadowBlur = 6;
+            }
             ctx.fill();
             ctx.shadowBlur = 0;
         }
@@ -217,7 +237,12 @@ THEME_RENDERERS.pulse = function(canvas) {
         ctx.fillStyle = vig;
         ctx.fillRect(0, 0, W, H);
 
-        animId = requestAnimationFrame(draw);
+        if (isMobile) {
+            // Throttle to ~30fps on mobile
+            setTimeout(() => { animId = requestAnimationFrame(draw); }, 17);
+        } else {
+            animId = requestAnimationFrame(draw);
+        }
     }
 
     for (let e = 0; e < emitters.length; e++) {
@@ -227,5 +252,5 @@ THEME_RENDERERS.pulse = function(canvas) {
         }
     }
     animId = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(animId);
+    return () => { stopped = true; cancelAnimationFrame(animId); };
 };

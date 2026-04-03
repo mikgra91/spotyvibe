@@ -48,3 +48,4 @@ export function spliceReviewTrack(idx) {
     if (counterEl) counterEl.textContent = `${count} track(s)`;
 }
 export function setCachedPlaylists(val) { cachedPlaylists = val; }
+export function invalidateCachedPlaylists() { cachedPlaylists = null; }

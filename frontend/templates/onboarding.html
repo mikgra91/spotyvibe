@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#050608">
     <title>SpotyVibe — Welcome</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -100,6 +101,12 @@
         }
         .ob-success { color: var(--primary); font-size: 0.85rem; margin-top: 4px; }
         .ob-error { color: var(--error); font-size: 0.85rem; margin-top: 4px; }
+        .ob-cred-status-hint {
+            font-size: 0.78rem;
+            color: var(--primary);
+            margin: -6px 0 10px;
+            min-height: 1em;
+        }
     </style>
 </head>
 <body class="onboarding-body" style="background: var(--bg-deep); min-height: 100vh;">
@@ -147,17 +154,19 @@
             <div class="ob-logo">🔑</div>
             <div class="ob-title">Set Up Credentials</div>
             <div class="ob-subtitle">SpotyVibe needs your API keys to generate playlists.</div>
-            <div class="ob-cred-section">
-                <p class="ob-explain">Your <strong>OpenAI API key</strong> powers the music recommendations. Your <strong>Spotify credentials</strong> let the app create playlists in your library. Keys are stored locally on your device only.</p>
-                <div class="ob-cred-label">OpenAI API Key</div>
+            <div class="ob-cred-section" style="text-align:center;">
+                <p class="ob-explain" style="text-align:left;">Your <strong>OpenAI API key</strong> powers the music recommendations. Your <strong>Spotify credentials</strong> let the app create playlists in your library. Keys are stored locally on your device only.</p>
+                <label for="ob-openai-key" class="ob-cred-label" style="text-align:left;display:block;">OpenAI API Key</label>
                 <input class="ob-cred-input" id="ob-openai-key" type="password" placeholder="sk-…" autocomplete="off">
-                <div class="ob-cred-label">Spotify Client ID</div>
+                <div class="ob-cred-status-hint" id="ob-status-openai" style="text-align:left;"></div>
+                <label for="ob-spotify-id" class="ob-cred-label" style="text-align:left;display:block;">Spotify Client ID</label>
                 <input class="ob-cred-input" id="ob-spotify-id" type="text" placeholder="Enter client ID…" autocomplete="off">
-                <div class="ob-cred-label">Spotify Client Secret</div>
+                <div class="ob-cred-status-hint" id="ob-status-spotify-id" style="text-align:left;"></div>
+                <label for="ob-spotify-secret" class="ob-cred-label" style="text-align:left;display:block;">Spotify Client Secret</label>
                 <input class="ob-cred-input" id="ob-spotify-secret" type="password" placeholder="Enter client secret…" autocomplete="off">
+                <div class="ob-cred-status-hint" id="ob-status-spotify-secret" style="text-align:left;"></div>
                 <div id="ob-cred-status" class="ob-explain" style="margin-top:0;"></div>
                 <button class="ob-action-btn" onclick="saveObCredentials()">Save Credentials</button>
-                <button class="ob-btn-skip" style="display:block;margin:8px auto 0;text-align:center;" onclick="goPage(2)">Skip →</button>
             </div>
             <div class="ob-nav">
                 <button class="ob-btn-skip" onclick="skipOnboarding()">Skip</button>
@@ -252,6 +261,11 @@
             if (resp.ok) {
                 status.textContent = '✅ Credentials saved.';
                 status.className = 'ob-explain ob-success';
+                // Clear inputs and refresh status hints
+                document.getElementById('ob-openai-key').value = '';
+                document.getElementById('ob-spotify-id').value = '';
+                document.getElementById('ob-spotify-secret').value = '';
+                await prefillCredentials();
             } else {
                 status.textContent = '❌ Error saving credentials.';
                 status.className = 'ob-explain ob-error';
@@ -318,7 +332,33 @@
             const data = await resp.json();
             if (data.completed) window.location.href = '/';
         } catch (e) { /* stay on page */ }
+
+        // Prefill credential status so user sees what's already configured
+        await prefillCredentials();
     })();
+
+    async function prefillCredentials() {
+        try {
+            const resp = await fetch('/api/settings/credentials');
+            const data = await resp.json();
+
+            const map = {
+                'OPENAI_API_KEY':        { input: 'ob-openai-key',      hint: 'ob-status-openai' },
+                'SPOTIPY_CLIENT_ID':     { input: 'ob-spotify-id',      hint: 'ob-status-spotify-id' },
+                'SPOTIPY_CLIENT_SECRET': { input: 'ob-spotify-secret',  hint: 'ob-status-spotify-secret' },
+            };
+
+            for (const [key, ids] of Object.entries(map)) {
+                const info = data[key];
+                const hintEl = document.getElementById(ids.hint);
+                const inputEl = document.getElementById(ids.input);
+                if (info && info.is_set) {
+                    hintEl.textContent = '✓ Already set (' + info.masked + ')';
+                    inputEl.placeholder = info.masked;
+                }
+            }
+        } catch (e) { /* ignore — fields stay empty */ }
+    }
 </script>
 </body>
 </html>

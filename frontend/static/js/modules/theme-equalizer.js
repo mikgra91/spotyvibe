@@ -1,10 +1,18 @@
 import { THEME_RENDERERS } from './theme-switcher.js';
 
 THEME_RENDERERS.equalizer = function(canvas) {
+    // Bail out if user prefers reduced motion
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        return () => {};
+    }
+
     const ctx = canvas.getContext('2d');
     let animId;
+    let stopped = false;
 
-    const BAR_COUNT  = 56;
+    const isMobile = window.innerWidth <= 768;
+
+    const BAR_COUNT  = isMobile ? 24 : 56;
     const GAP        = 3;
     const FLOOR_Y    = 0.98;
     const MAX_H_FRAC = 0.85;
@@ -67,6 +75,14 @@ THEME_RENDERERS.equalizer = function(canvas) {
     }
 
     function draw(time) {
+        if (stopped) return;
+
+        // Pause when tab/app is backgrounded
+        if (document.visibilityState === 'hidden') {
+            animId = requestAnimationFrame(draw);
+            return;
+        }
+
         var w = canvas.width, h = canvas.height;
         ctx.clearRect(0, 0, w, h);
 
@@ -123,8 +139,10 @@ THEME_RENDERERS.equalizer = function(canvas) {
             grad.addColorStop(0.5, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.75)');
             grad.addColorStop(1, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.35)');
 
-            ctx.shadowColor = 'rgba(' + cr + ',' + cg + ',' + cb + ',0.55)';
-            ctx.shadowBlur  = 14 + heights[i] * 10;
+            if (!isMobile) {
+                ctx.shadowColor = 'rgba(' + cr + ',' + cg + ',' + cb + ',0.55)';
+                ctx.shadowBlur  = 14 + heights[i] * 10;
+            }
 
             ctx.beginPath();
             ctx.moveTo(x, yFloor);
@@ -162,8 +180,13 @@ THEME_RENDERERS.equalizer = function(canvas) {
         ctx.lineWidth   = 1;
         ctx.stroke();
 
-        animId = requestAnimationFrame(draw);
+        if (isMobile) {
+            // Throttle to ~30fps on mobile
+            setTimeout(() => { animId = requestAnimationFrame(draw); }, 17);
+        } else {
+            animId = requestAnimationFrame(draw);
+        }
     }
     animId = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(animId);
+    return () => { stopped = true; cancelAnimationFrame(animId); };
 };

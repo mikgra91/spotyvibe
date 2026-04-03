@@ -89,6 +89,8 @@ export function escHtml(str) {
 export function toggleSettingsMenu() {
     const dd = document.getElementById('settingsDropdown');
     dd.classList.toggle('open');
+    const btn = document.querySelector('.burger-btn');
+    if (btn) btn.setAttribute('aria-expanded', dd.classList.contains('open'));
 }
 
 let toastTimer = null;
@@ -102,3 +104,68 @@ export function showToast(message, type = 'success', duration = 3000) {
         toastTimer = null;
     }, duration);
 }
+
+/**
+ * Custom confirm dialog — replacement for native confirm() which
+ * may be blocked or styled inconsistently in Android WebViews.
+ * Returns a Promise<boolean>.
+ */
+export function showConfirm(message) {
+    return new Promise((resolve) => {
+        // Remove any existing confirm overlay
+        const existing = document.getElementById('customConfirmOverlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'customConfirmOverlay';
+        overlay.className = 'modal-overlay open';
+        overlay.style.zIndex = '10000';
+        overlay.setAttribute('role', 'alertdialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-label', 'Confirmation');
+
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.style.maxWidth = '420px';
+
+        const msg = document.createElement('p');
+        msg.style.cssText = 'white-space: pre-line; margin-bottom: 1.2rem; color: var(--text-secondary); line-height: 1.5;';
+        msg.textContent = message;
+
+        const actions = document.createElement('div');
+        actions.className = 'modal-actions';
+
+        const confirmBtn = document.createElement('button');
+        confirmBtn.className = 'btn btn-save';
+        confirmBtn.textContent = 'OK';
+        confirmBtn.onclick = () => { overlay.remove(); resolve(true); };
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn btn-cancel';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.onclick = () => { overlay.remove(); resolve(false); };
+
+        actions.append(confirmBtn, cancelBtn);
+        modal.append(msg, actions);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+
+        // Focus the confirm button
+        requestAnimationFrame(() => confirmBtn.focus());
+
+        // Close on Escape
+        const onKey = (e) => {
+            if (e.key === 'Escape') { overlay.remove(); resolve(false); document.removeEventListener('keydown', onKey); }
+        };
+        document.addEventListener('keydown', onKey);
+    });
+}
+
+/**
+ * Custom alert — replacement for native alert().
+ * Shows a toast for simple messages, or a modal for longer error messages.
+ */
+export function showAlert(message, type = 'error') {
+    showToast(message, type, 5000);
+}
+

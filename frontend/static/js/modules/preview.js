@@ -1,10 +1,13 @@
 import * as State from './state.js';
+import { showAlert } from './ui.js';
 
 let currentPreviewIndex = -1;
 let currentPreviewSource = 'discover'; // 'discover' or 'review'
 
 function embedUrl(trackId, autoplay = false) {
-    let url = `https://open.spotify.com/embed/track/${encodeURIComponent(trackId)}?utm_source=generator&theme=0`;
+    // Cache-bust so the embed re-evaluates the user's Spotify login state
+    // (without this, a stale anonymous session persists until a hard reload)
+    let url = `https://open.spotify.com/embed/track/${encodeURIComponent(trackId)}?utm_source=generator&theme=0&_cb=${Date.now()}`;
     if (autoplay) url += '&autoplay=1';
     return url;
 }
@@ -87,6 +90,7 @@ export function openPreviewOverlay(trackId, title, source = 'discover') {
     if (titleEl && title) titleEl.textContent = title;
     overlay.classList.add('visible');
     updateNavState();
+    initSwipeListeners(overlay);
 }
 
 export function closePreviewOverlay() {
@@ -199,7 +203,7 @@ export async function submitPreviewFeedback() {
     const track = document.getElementById('previewFbTrack').value.trim();
     const reason = document.getElementById('previewFbReason').value.trim();
 
-    if (!artist) { alert('Artist is required.'); return; }
+    if (!artist) { showAlert('Artist is required.'); return; }
 
     const submitBtn = document.getElementById('previewFbSubmit');
     submitBtn.disabled = true;
@@ -213,7 +217,7 @@ export async function submitPreviewFeedback() {
         });
         if (!resp.ok) {
             const data = await resp.json();
-            alert('Error: ' + (data.error || 'unknown'));
+            showAlert('Error: ' + (data.error || 'unknown'));
             return;
         }
 
@@ -238,7 +242,7 @@ export async function submitPreviewFeedback() {
         // Remove track from source list and advance preview
         removeCurrentAndAdvance();
     } catch (e) {
-        alert('Network error: ' + e.message);
+        showAlert('Network error: ' + e.message);
     } finally {
         submitBtn.disabled = false;
     }
@@ -298,4 +302,34 @@ function removeCurrentAndAdvance() {
     } else {
         closePreviewOverlay();
     }
+}
+
+/* ── Touch swipe support for mobile preview ─────────────────────────── */
+let _swipeInitialized = false;
+let _swipeStartX = 0;
+let _swipeStartY = 0;
+
+function initSwipeListeners(overlay) {
+    if (_swipeInitialized) return;
+    _swipeInitialized = true;
+
+    const panel = overlay.querySelector('.spotify-preview-panel');
+    if (!panel) return;
+
+    panel.addEventListener('touchstart', (e) => {
+        _swipeStartX = e.touches[0].clientX;
+        _swipeStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    panel.addEventListener('touchend', (e) => {
+        const dx = e.changedTouches[0].clientX - _swipeStartX;
+        const dy = e.changedTouches[0].clientY - _swipeStartY;
+        const MIN_SWIPE = 60;
+
+        // Only act on horizontal swipes (ignore vertical scrolling)
+        if (Math.abs(dx) > MIN_SWIPE && Math.abs(dx) > Math.abs(dy) * 1.5) {
+            if (dx < 0) nextPreview();   // swipe left → next
+            else        prevPreview();   // swipe right → previous
+        }
+    }, { passive: true });
 }

@@ -104,10 +104,9 @@ The main screen is organised into collapsible components grouped under two provi
 **OpenAI Section:**
 - **🎯 Music Profile** — Define your musical taste — genres, moods, must-haves, and things to avoid.
 - **🔍 Band/Song Analysis** — Get an AI-powered breakdown of any artist or track with ready-to-paste profile suggestions.
-- **🎚 Audio Filters** — Guide the AI to suggest tracks matching a specific mood and feel.
 
 **Spotify Section:**
-- **🎧 Discover Music** — Generate AI-powered playlists and save them directly to your Spotify account. *(Collapsed by default.)*
+- **🎧 Discover Music** — Generate AI-powered playlists and save them directly to your Spotify account. Includes an optional **Audio Filters** sub-panel to constrain suggestions by mood and feel. *(Collapsed by default.)*
 - **🔄 Refine Playlist** — Load an existing playlist and give track-by-track feedback to refine your taste profile. *(Collapsed by default.)*
 - **🕓 History** — View past generation runs.
 
@@ -256,7 +255,7 @@ Write in everyday language — like chatting with a friend — what kind of musi
 - "More jazz influence, less electronic. Think Snarky Puppy meets Radiohead."
 - "Make my profile darker and heavier, but keep the melodies."
 
-When you use **AI Profile Update**, SpotyVibe translates your words into a structured profile automatically.
+When you use **AI Profile Update**, SpotyVibe translates your words into a structured profile automatically. After the update completes, the field is **cleared automatically** — your input has been incorporated into the structured profile sections, so the one-time instruction is no longer needed.
 
 If you fill in this field, the **Core Description** below becomes optional — the AI will generate one for you.
 
@@ -446,29 +445,35 @@ If you create a new playlist, you can usually enter a custom playlist name.
 
 ### Use Audio Filters
 
-The **Audio Filters** section lets you narrow down the mood and feel of the playlist. When set, these constraints are sent directly to GPT as part of the prompt — the AI will only suggest tracks that match the specified ranges.
+Inside the **Discover Music** section, click the **🎚 Audio Filters (optional)** bar to expand the filter panel. These optional filters guide GPT to suggest tracks matching your desired mood and feel.
 
 Available filters:
 
-- **Energy**
-- **Valence**
-- **Tempo**
-- **Danceability**
-- **Acousticness**
+- **Energy** — how intense / energetic the track feels (0–1)
+- **Valence** — how happy / positive the track sounds (0–1)
+- **Tempo** — beats per minute (BPM)
+- **Danceability** — how suitable the track is for dancing (0–1)
+- **Acousticness** — how acoustic (vs. electronic) the track is (0–1)
 
-Use these when you want more control over the final sound.
+Each filter has a **min** and **max** input. As you type, a human-readable hint appears to the right (e.g. "↳ Energetic to Intense") so you can see what the numbers mean at a glance.
 
-Examples:
+**Clear All:** Click **✕ Clear all** in the top-right of the filter panel to reset every filter at once.
 
-- Higher energy for workout music
-- Lower valence for darker moods
-- More acousticness for organic sound
+#### Using Band/Song Analysis to Set Filters
 
-If you are unsure, leave the filters unchanged.
+The easiest way to fill in audio filters is via the **Band/Song Analysis** feature:
 
-> **Tip:** Use the **Band/Song Analysis** tool to see how GPT classifies a song's audio features (energy, danceability, etc.). This helps you understand what filter values to set — for example, if a reference track shows 80% energy, you can use that as your minimum.
+1. Open **Band/Song Analysis** and analyse a reference track.
+2. In the results, each audio feature row (Energy, Valence, etc.) has a **⇒ Filter** button.
+3. Click **⇒ Filter** on any feature — it automatically sets a sensible min/max range (±10%, or ±15 BPM for tempo) in the Discover Music filter panel.
+4. Or click **⇒ Use All as Filters** to apply all features at once.
+5. The Discover section and filter panel open automatically when you apply a filter.
 
-> **Screenshot placeholder:** Audio Filters section expanded
+This bridges the gap between analysis and generation — no more memorising numbers.
+
+> **Screenshot placeholder:** Audio Filters sub-panel inside Discover Music
+
+> **Screenshot placeholder:** Band/Song Analysis with ⇒ Filter buttons
 
 ---
 

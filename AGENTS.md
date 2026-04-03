@@ -26,10 +26,10 @@ See [`SKILL.md`](SKILL.md) for operational procedures (git workflow, context fil
 ```bash
 pip install -r requirements.txt
 python app.py          # http://127.0.0.1:5000
-python -m pytest tests/ core/tests/ -v
+python -m pytest core/tests/ frontend/tests/ -v
 ```
 
-Playwright's Chromium browser is auto-installed on the first test run (via `conftest.py`). No manual `playwright install` step is needed.
+Playwright's Chromium browser is auto-installed on the first frontend test run (via `frontend/tests/conftest.py`). No manual `playwright install` step is needed.
 
 Credentials (OpenAI key, Spotify Client ID/Secret) are configured via the UI and stored in `%LOCALAPPDATA%\spotyvibe\.credentials`.
 Spotify app must have `http://127.0.0.1:5000/callback` as a Redirect URI.
@@ -55,14 +55,15 @@ spotyvibe/
 │   ├── profile.py          # Taste profile I/O and GPT-based training
 │   ├── suggestions.py      # GPT suggestion engine and deduplication
 │   ├── playlist.py         # Spotify playlist management and OAuth
-│   └── feedback.py         # Like/dislike recording
+│   ├── feedback.py         # Like/dislike recording
+│   └── tests/              # Unit tests for core modules
 ├── prompts/                # AI prompt templates
 ├── data/                   # Template data
 ├── frontend/
 │   ├── templates/          # Flask templates (base.html + partials)
-│   └── static/             # CSS, JS, and other static assets
+│   ├── static/             # CSS, JS, and other static assets
+│   └── tests/              # Frontend (Playwright) tests
 ├── context/                # Generated context summaries (do not hand-edit)
-└── tests/
 ```
 
 ---
@@ -109,6 +110,18 @@ Every feature change must be reflected in all four:
 - Only remove an import after verifying no usages remain.
 - After new features, create/update unit tests.
 
+### Accessibility (a11y)
+Every frontend change **must** consider visually impaired and assistive-technology users:
+- **ARIA attributes** — All interactive elements must have descriptive `aria-label` or `aria-labelledby`. Use `aria-expanded`, `aria-controls`, `aria-modal`, `aria-live`, and `role` attributes where applicable.
+- **Focus management** — Modals and overlays must trap focus and restore it on close. Ensure a logical tab order; never leave focus on hidden or removed elements.
+- **Keyboard navigation** — Every action reachable by mouse/touch must also be reachable via keyboard (`Tab`, `Enter`, `Space`, `Escape`). Add `onkeydown` handlers alongside `onclick` for custom controls.
+- **Screen-reader text** — Use `.sr-only` for text that should be announced but not visible. Decorative icons must have `aria-hidden="true"`.
+- **Color & contrast** — Never convey information by color alone; pair color indicators with text or icons. Maintain WCAG AA contrast ratios (≥ 4.5:1 for text, ≥ 3:1 for large text/UI components).
+- **Semantic HTML** — Prefer `<button>`, `<a>`, `<nav>`, `<main>`, `<section>`, `<label>` over generic `<div>`/`<span>` for interactive or structural elements.
+- **`prefers-reduced-motion`** — Respect the user's motion preference; disable or simplify animations when this media query matches.
+- **Skip link** — The existing "Skip to main content" link must remain functional.
+- **Testing** — When adding new UI components, manually verify with a screen reader (TalkBack on Android, NVDA or Narrator on Windows) or at minimum check the DOM for correct ARIA tree structure.
+
 ### Git
 - **No destructive commands**: no `git restore`, `git checkout -- <path>`, `git reset`, `git clean`. On unexpected state, inspect and ask the user.
 - **Commit message style** — sentence-case subject, no trailing period; bullet body for multi-file changes describing what changed and why:
@@ -124,10 +137,10 @@ Every feature change must be reflected in all four:
 - Never commit `.credentials`, `.spotify-cache`, or `personalized_music_profile.json`.
 
 ### Tests
-- Run `python -m pytest tests/ core/tests/ -v` before completing any code or styling change.
+- Run `python -m pytest core/tests/ frontend/tests/ -v` before completing any code or styling change.
 - Skip for documentation-only changes.
 - Mock all external API calls (OpenAI, Spotify).
-- Playwright Chromium is auto-installed by `core/tests/conftest.py` on the first run — no manual step needed after `pip install -r requirements.txt`.
+- Playwright Chromium is auto-installed by `frontend/tests/conftest.py` on the first run — no manual step needed after `pip install -r requirements.txt`.
 
 ---
 

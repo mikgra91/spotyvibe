@@ -1,12 +1,19 @@
 import * as State from './state.js';
 import { buildTrackCardHtml } from './feedback.js';
-import { showToast } from './ui.js';
+import { showToast, showAlert } from './ui.js';
+import { refreshDiscoverPlaylistPicker } from './playlist-mode.js';
 
 export function toggleReviewBody() {
     const body = document.getElementById('reviewBody');
     const btn = document.getElementById('reviewToggleBtn');
     const isHidden = body.classList.toggle('hidden');
-    if (btn) btn.textContent = isHidden ? 'Show' : 'Hide';
+    const expanded = (!isHidden).toString();
+    if (btn) {
+        btn.textContent = isHidden ? 'Show' : 'Hide';
+        btn.setAttribute('aria-expanded', expanded);
+    }
+    const header = document.querySelector('#reviewSection > .train-header');
+    if (header) header.setAttribute('aria-expanded', expanded);
 
     // Lazy-load playlists on first expand
     if (!isHidden && !body.dataset.loaded) {
@@ -120,7 +127,7 @@ export async function submitReviewFeedback(idx) {
     const form = document.getElementById(`review-form-${idx}`);
     const action = form ? form.dataset.action : 'like';
 
-    if (!artist) { alert('Artist is required.'); return; }
+    if (!artist) { showAlert('Artist is required.'); return; }
 
     const submitBtn = document.getElementById(`review-submitBtn-${idx}`);
     submitBtn.disabled = true;
@@ -140,7 +147,7 @@ export async function submitReviewFeedback(idx) {
 
         if (!resp.ok) {
             const data = await resp.json();
-            alert('Error: ' + (data.error || 'unknown'));
+            showAlert('Error: ' + (data.error || 'unknown'));
             return;
         }
 
@@ -163,7 +170,7 @@ export async function submitReviewFeedback(idx) {
 
         animateReviewRemove(idx);
     } catch (e) {
-        alert('Network error: ' + e.message);
+        showAlert('Network error: ' + e.message);
     } finally {
         submitBtn.disabled = false;
     }
@@ -202,6 +209,8 @@ function animateReviewRemove(idx) {
     setTimeout(() => el.remove(), 300);
 
     State.spliceReviewTrack(idx);
+    // Track count changed — refresh both playlist pickers
+    refreshDiscoverPlaylistPicker().then(() => populateReviewPlaylistPicker());
 }
 
 /**

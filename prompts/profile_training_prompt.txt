@@ -12,7 +12,9 @@ INPUT FORMAT:
 
 The user's input is divided into sections, each with a specific meaning:
 
-- **CORE DESCRIPTION** (required): A free-text description of the user's ideal sound — genre, mood, energy, reference artists. Use this to populate "preferences.core_description" as a clear, descriptive paragraph that a recommendation engine can use later. Also derive "meta.goal" from it.
+- **VIBE DESCRIPTION** (optional): Free-form natural language where the user describes what they want conversationally. This field often contains implicit or explicit directives that MUST be classified into the correct structured profile sections (see VIBE DESCRIPTION CLASSIFICATION below). After classification, any remaining general taste information should be woven into "preferences.core_description".
+
+- **CORE DESCRIPTION** (required if no vibe description): A free-text description of the user's ideal sound — genre, mood, energy, reference artists. Use this to populate "preferences.core_description" as a clear, descriptive paragraph that a recommendation engine can use later. Also derive "meta.goal" from it.
 
 - **MUST HAVE**: Non-negotiable hard requirements. Every track suggestion MUST satisfy ALL of these. Each line is one requirement. Map these to "preferences.must_have" as a list of concise, specific traits. These are the highest-priority filter — they override all other considerations.
 
@@ -21,6 +23,40 @@ The user's input is divided into sections, each with a specific meaning:
 - **AVOID**: Absolute disqualifiers. A single match to ANY of these removes a track from consideration immediately. Each line is one disqualifier. Map these to "preferences.avoid".
 
 When converting the user's natural language into profile entries, make each entry clear and specific enough that a recommendation system can use it as a filter. For example, turn "I need vocals" into "vocals/singing present (no purely instrumental tracks)".
+
+VIBE DESCRIPTION CLASSIFICATION:
+
+When a VIBE DESCRIPTION is provided, you MUST analyse the text for directional language and classify each statement into the correct profile section. Do NOT leave classifiable statements in core_description — route them to the appropriate list.
+
+Classification rules (apply in order):
+
+1. **MUST HAVE** — statements expressing hard requirements. Trigger phrases include (but are not limited to):
+   - "must have", "must include", "needs to have", "has to have", "always needs"
+   - "I need", "I require", "I want" (when expressing a firm requirement)
+   - "every track must", "every song should have", "always"
+   - "it's essential that", "it's important that", "absolutely needs"
+   → Add to "preferences.must_have" as concise, specific traits.
+
+2. **AVOID** — statements expressing things the user does not want. Trigger phrases include:
+   - "no", "never", "avoid", "don't want", "I hate", "I can't stand", "not interested in"
+   - "nothing with", "keep away from", "without any", "absolutely no"
+   - "I dislike", "I despise", "turn off", "dealbreaker"
+   → Add to "preferences.avoid" as concise disqualifiers.
+
+3. **SOFT PREFERENCES** — statements expressing wishes or nice-to-haves without hard commitment. Trigger phrases include:
+   - "would be nice", "ideally", "preferably", "I'd love", "I'd enjoy"
+   - "bonus if", "extra points for", "a plus", "if possible"
+   - "I tend to like", "I lean towards", "I'm drawn to"
+   → Add to "preferences.soft_preferences" as nice-to-have traits.
+
+4. **CORE DESCRIPTION** — everything else: general genre/mood/energy descriptions, reference artists, overall vibe.
+   → Merge into "preferences.core_description".
+
+When the intent is ambiguous, prefer the stronger classification (must_have > soft_preferences) if the language expresses conviction. When in doubt, classify as soft_preferences rather than ignoring the statement.
+
+IMPORTANT: A single vibe description sentence may contain MULTIPLE classifiable parts. Split and classify each part independently. For example:
+- "I love heavy bass and drums, no autotune, and it would be nice to have some jazz influence"
+  → must_have: "heavy bass and drums" / avoid: "autotune or pitch-corrected vocals" / soft_preferences: "jazz influence or jazz-inspired elements"
 
 PROFILE SCHEMA — fill these fields based on the user's input:
 

@@ -386,8 +386,10 @@ def train_profile(sections):
     if sections.get("vibe_description"):
         parts.append(
             f"\n## VIBE DESCRIPTION (free-form natural language — the user describes "
-            f"what they want in their own words; interpret this and incorporate it "
-            f"into the structured profile sections below):\n"
+            f"what they want conversationally; CLASSIFY each statement into the "
+            f"correct profile section: must_have, avoid, soft_preferences, or "
+            f"core_description, following the VIBE DESCRIPTION CLASSIFICATION "
+            f"rules in your system prompt):\n"
             f"{sections['vibe_description']}\n"
         )
 
@@ -465,6 +467,10 @@ def train_profile(sections):
     for key in ("history", "feedback"):
         if key in profile:
             updated_profile[key] = profile[key]
+
+    # Clear vibe_description — it was a one-time instruction that GPT has now
+    # incorporated into the structured profile sections.
+    updated_profile.setdefault("preferences", {})["vibe_description"] = ""
 
     # Stamp the update time
     updated_profile["last_updated"] = datetime.now(timezone.utc).isoformat()

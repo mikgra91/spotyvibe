@@ -71,7 +71,8 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 | `prompts/analysis_prompt.txt` | GPT prompt template for band/song analysis |
 | `static/i18n/en.json`, `de.json` | UI translation files |
 | `.github/workflows/ci.yml` | GitHub Actions CI pipeline |
-| `tests/` | pytest test suite |
+| `core/tests/` | Unit tests for core modules |
+| `frontend/tests/` | Frontend (Playwright) tests |
 
 ## Quick Start
 
@@ -89,7 +90,7 @@ SpotyVibe includes a desktop-only PyInstaller setup which builds a **one-folder*
 ```bash
 pip install -r requirements.txt
 python build_assets/make_ico.py
-python -m pytest tests/ -v
+python -m pytest core/tests/ frontend/tests/ -v
 
 
 # One-folder build
@@ -111,7 +112,7 @@ Output:
 
 Notes:
 - The executable runs the same local server at `http://127.0.0.1:5000`.
-- On launch, the desktop executable auto-opens your default browser to the UI.
+- On launch, the desktop executable opens a native embedded browser window (via pywebview) — closing the window cleanly terminates the process.
 - Credentials are **not** bundled; they remain in `%LOCALAPPDATA%\spotyvibe\.credentials`.
 - The one-file build has a slower cold start (it extracts bundled files on launch).
 

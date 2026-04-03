@@ -2,9 +2,9 @@ import { checkCredentialStatus, checkSpotifyAuth, connectSpotify, toggleSpotifyC
 import { renderComponentWarnings } from './modules/warnings.js';
 import { toggleAccordion, prefillTrainFields, updateTrainToggleLabel, toggleTrainBody, startImportProfile, exportProfile, submitProfile, sendTrainProfile, saveProfileDirect, resetProfileToHistory, bindProfileImportInput, checkProfileStatus } from './modules/profile.js';
 import { toggleHistoryBody, loadHistory } from './modules/history.js';
-import { toggleAnalysisBody, runAnalysis, renderAnalysisResult, copySuggestion } from './modules/analysis.js';
+import { toggleAnalysisBody, runAnalysis, renderAnalysisResult, copySuggestion, jumpToAnalysis } from './modules/analysis.js';
 import { toggleGenerateBody, runPipeline, setGenerating, updateUseTracksButton, generateUUID, handleStreamEvent, showSseDisconnectBanner, resumeRun, cancelGeneration, useCurrentTracks, canGenerate } from './modules/pipeline.js';
-import { toggleAudioFilters, getAudioFilters } from './modules/audio-filters.js';
+import { toggleAudioFilters, getAudioFilters, clearAllFilters, updateFilterHint, applyAnalysisFilter, applyAllAnalysisFilters, updateAllFilterHints } from './modules/audio-filters.js';
 import { getPlaylistMode, onPlaylistModeChange, getPlaylistModePayload } from './modules/playlist-mode.js';
 import { renderTracks } from './modules/tracklist.js';
 import { openPreviewOverlay, closePreviewOverlay, prevPreview, nextPreview, previewLike, previewDislike, previewDismiss, submitPreviewFeedback, closePreviewFeedback } from './modules/preview.js';
@@ -13,10 +13,11 @@ import { toggleReviewBody, loadPlaylistTracks, renderReviewTracks, toggleReviewF
 import { showStatus, showStatusHtml, showPlaylistLink, hidePlaylistLink, esc, attr, sanitizeHtml, escHtml, toggleSettingsMenu, showToast } from './modules/ui.js';
 import { openCredentials, saveCredentials, clearCredential, saveSettings, openSettings, openHelp, openSectionHelp, closeSectionHelp, openDataDir, closeModal } from './modules/modals.js';
 import { switchTheme, THEME_BACKGROUNDS, THEME_RENDERERS } from './modules/theme-switcher.js';
+import { initJumpBubble } from './modules/jump-bubble.js';
 import './modules/theme-equalizer.js';
 import './modules/theme-pulse.js';
 import { switchLanguage, applyLanguage, i18n, _i18nStrings, initI18n } from './modules/i18n.js';
-import { renderProviderPills } from './modules/spotify-metadata.js';
+import { renderProviderPills } from './modules/provider-pills.js';
 
 // Expose globals for HTML onclick= attributes
 window.checkCredentialStatus = checkCredentialStatus;
@@ -38,6 +39,7 @@ window.resetProfileToHistory = resetProfileToHistory;
 window.toggleHistoryBody = toggleHistoryBody;
 window.loadHistory = loadHistory;
 window.toggleAnalysisBody = toggleAnalysisBody;
+window.jumpToAnalysis = jumpToAnalysis;
 window.runAnalysis = runAnalysis;
 window.renderAnalysisResult = renderAnalysisResult;
 window.copySuggestion = copySuggestion;
@@ -54,6 +56,10 @@ window.useCurrentTracks = useCurrentTracks;
 window.canGenerate = canGenerate;
 window.toggleAudioFilters = toggleAudioFilters;
 window.getAudioFilters = getAudioFilters;
+window.clearAllFilters = clearAllFilters;
+window.updateFilterHint = updateFilterHint;
+window.applyAnalysisFilter = applyAnalysisFilter;
+window.applyAllAnalysisFilters = applyAllAnalysisFilters;
 window.getPlaylistMode = getPlaylistMode;
 window.onPlaylistModeChange = onPlaylistModeChange;
 window.getPlaylistModePayload = getPlaylistModePayload;
@@ -156,4 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // i18n
     initI18n();
+
+    // Section jump bubble
+    initJumpBubble();
 });

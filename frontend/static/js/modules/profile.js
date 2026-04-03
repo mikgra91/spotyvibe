@@ -1,8 +1,11 @@
 import * as State from './state.js';
-import { showToast } from './ui.js';
+import { showToast, showAlert, showConfirm } from './ui.js';
 
 export function toggleAccordion(id) {
-    document.getElementById(id).classList.toggle('open');
+    const panel = document.getElementById(id);
+    panel.classList.toggle('open');
+    const header = panel.querySelector('.accordion-header');
+    if (header) header.setAttribute('aria-expanded', panel.classList.contains('open'));
 }
 
 export async function checkProfileStatus() {
@@ -76,13 +79,20 @@ export function toggleTrainBody() {
 
     updateProfileIoVisibility();
     updateTrainToggleLabel();
+
+    // Sync aria-expanded on the section header and toggle button
+    const expanded = isOpening.toString();
+    const header = document.querySelector('#trainSection > .train-header');
+    if (header) header.setAttribute('aria-expanded', expanded);
+    const btn = document.getElementById('trainToggleBtn');
+    if (btn) btn.setAttribute('aria-expanded', expanded);
 }
 
-export function startImportProfile() {
+export async function startImportProfile() {
     const input = document.getElementById('profileImportInput');
     if (!input) return;
 
-    const ok = confirm(
+    const ok = await showConfirm(
         'Import profile? This will replace your current profile file.\n\n' +
         'Your previous profile will be backed up automatically to the history file.'
     );
@@ -210,7 +220,7 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
         const data = await resp.json();
 
         if (!resp.ok || data.error) {
-            alert('Error: ' + (data.error || 'unknown'));
+            showAlert('Error: ' + (data.error || 'unknown'));
             return;
         }
 
@@ -228,7 +238,7 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
         await checkProfileStatus();
 
     } catch (e) {
-        alert('Network error: ' + e.message);
+        showAlert('Network error: ' + e.message);
     } finally {
         btn.disabled = false;
         btn.textContent = btnLabel;
@@ -244,7 +254,7 @@ export function saveProfileDirect() {
 }
 
 export async function resetProfileToHistory() {
-    const ok = confirm(
+    const ok = await showConfirm(
         'Reset profile to history?\n\n' +
         'This swaps your current profile with the previous saved version.'
     );

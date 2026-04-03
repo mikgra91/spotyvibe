@@ -1,92 +1,92 @@
 <div class="train-section" id="trainSection">
-    <div class="train-header" onclick="toggleTrainBody()">
+    <div class="train-header" role="button" tabindex="0" onclick="toggleTrainBody()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleTrainBody()}" aria-expanded="{% if profile_edit_mode %}true{% else %}false{% endif %}" aria-controls="trainBody">
         <div class="train-header-left">
-            <h2>🎯 <span data-i18n="profile.title">Music Profile</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('music-profile')" data-i18n-title="help.section_help_title" title="Open help for this section">?</button></h2>
+            <h2><span aria-hidden="true">🎯</span> <span data-i18n="profile.title">Music Profile</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('music-profile')" data-i18n-title="help.section_help_title" title="Open help for this section" aria-label="Help for Music Profile">?</button></h2>
             <span class="train-status train-subtitle">Define your musical taste — genres, moods, must-haves, and things to avoid.</span>
             <span class="train-status" id="trainStatus">
                 {% if profile_trained %}✓ Last trained: {{ profile.last_updated|datetimeformat }}{% else %}⚠ Not yet trained — describe your taste below.{% endif %}
             </span>
-            <div class="profile-io-row {% if not profile_edit_mode %}hidden{% endif %}" id="profileIoActions" aria-label="Profile import/export/reset" onclick="event.stopPropagation()">
-                <button class="btn btn-profile-io" id="profileImportBtn" onclick="startImportProfile()" title="Import profile JSON">⬆ <span data-i18n="btn.import">Import</span></button>
-                <button class="btn btn-profile-io" id="profileExportBtn" onclick="exportProfile()" title="Export profile JSON">⬇ <span data-i18n="btn.export">Export</span></button>
-                <button class="btn btn-profile-io" id="profileResetBtn" onclick="resetProfileToHistory()" title="Reset profile to previous saved version">↩ <span data-i18n="btn.reset_to_history">Reset to history</span></button>
+            <div class="profile-io-row {% if not profile_edit_mode %}hidden{% endif %}" id="profileIoActions" role="group" aria-label="Profile import/export/reset" onclick="event.stopPropagation()">
+                <button class="btn btn-profile-io" id="profileImportBtn" onclick="startImportProfile()" title="Import profile JSON" aria-label="Import profile"><span aria-hidden="true">⬆</span> <span data-i18n="btn.import">Import</span></button>
+                <button class="btn btn-profile-io" id="profileExportBtn" onclick="exportProfile()" title="Export profile JSON" aria-label="Export profile"><span aria-hidden="true">⬇</span> <span data-i18n="btn.export">Export</span></button>
+                <button class="btn btn-profile-io" id="profileResetBtn" onclick="resetProfileToHistory()" title="Reset profile to previous saved version" aria-label="Reset to history"><span aria-hidden="true">↩</span> <span data-i18n="btn.reset_to_history">Reset to history</span></button>
             </div>
-            <input id="profileImportInput" type="file" accept="application/json,.json" style="display:none;" />
+            <input id="profileImportInput" type="file" accept="application/json,.json" style="display:none;" aria-hidden="true" />
         </div>
         <div class="train-header-actions">
-            <button class="btn-train" id="trainToggleBtn" onclick="event.stopPropagation(); toggleTrainBody()" data-i18n="profile.edit_profile">
+            <button class="btn-train" id="trainToggleBtn" onclick="event.stopPropagation(); toggleTrainBody()" data-i18n="profile.edit_profile" aria-expanded="{% if profile_edit_mode %}true{% else %}false{% endif %}" aria-controls="trainBody">
                 {{ 'Hide profile' if profile_edit_mode else 'Edit profile' }}
             </button>
         </div>
     </div>
 
-    <div id="trainWarn" class="hidden"></div>
+    <div id="trainWarn" class="hidden" role="alert"></div>
     <div class="train-body {% if not profile_edit_mode %}hidden{% endif %}" id="trainBody">
 
         <!-- Describe Your Vibe (free-form natural language) -->
         <div class="accordion-panel open" id="accVibeDesc">
-            <div class="accordion-header" onclick="toggleAccordion('accVibeDesc')">
-                <h3>💬 <span data-i18n="profile.vibe_description">Describe Your Vibe</span></h3>
-                <span class="accordion-chevron">▼</span>
+            <div class="accordion-header" role="button" tabindex="0" onclick="toggleAccordion('accVibeDesc')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAccordion('accVibeDesc')}" aria-expanded="true">
+                <h3><span aria-hidden="true">💬</span> <span data-i18n="profile.vibe_description">Describe Your Vibe</span></h3>
+                <span class="accordion-chevron" aria-hidden="true">▼</span>
             </div>
             <div class="accordion-body">
                 <div class="accordion-body-inner">
-                    <p class="acc-hint" data-i18n="profile.vibe_description_hint">Tell the AI what you're looking for in everyday language — no structure needed. The AI will translate this into your profile.</p>
-                    <textarea id="trainVibeDesc" data-i18n-placeholder="profile.vibe_description_placeholder" placeholder='e.g. "I love energetic rock with theatrical vocals like Queen. Surprise me with something new but keep it high-energy and melodic!"'>{{ profile.vibe_description if profile.vibe_description }}</textarea>
+                    <p class="acc-hint" data-i18n="profile.vibe_description_hint" id="vibeDescHint">Tell the AI what you're looking for in everyday language — no structure needed. The AI will translate this into your profile.</p>
+                    <textarea id="trainVibeDesc" data-i18n-placeholder="profile.vibe_description_placeholder" aria-describedby="vibeDescHint" placeholder='e.g. "I love energetic rock with theatrical vocals like Queen. Surprise me with something new but keep it high-energy and melodic!"'>{{ profile.vibe_description if profile.vibe_description }}</textarea>
                 </div>
             </div>
         </div>
 
         <!-- Core Description (required if no vibe description) -->
         <div class="accordion-panel open" id="accCoreDesc">
-            <div class="accordion-header" onclick="toggleAccordion('accCoreDesc')">
-                <h3>🎵 <span data-i18n="profile.core_description">Core Description</span> <span class="acc-required" id="coreDescRequired" data-i18n="profile.core_description_required">required</span></h3>
-                <span class="accordion-chevron">▼</span>
+            <div class="accordion-header" role="button" tabindex="0" onclick="toggleAccordion('accCoreDesc')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAccordion('accCoreDesc')}" aria-expanded="true">
+                <h3><span aria-hidden="true">🎵</span> <span data-i18n="profile.core_description">Core Description</span> <span class="acc-required" id="coreDescRequired" data-i18n="profile.core_description_required">required</span></h3>
+                <span class="accordion-chevron" aria-hidden="true">▼</span>
             </div>
             <div class="accordion-body">
                 <div class="accordion-body-inner">
-                    <p class="acc-hint" data-i18n="profile.core_description_hint">Describe your ideal sound in your own words — genre, mood, energy, reference artists. This is the foundation of your profile.</p>
-                    <textarea id="trainCoreDesc" placeholder='e.g. "Upbeat, theatrical rock with strong melodic hooks, rich harmonies, and constant momentum. Think Queen meets Bear Ghost."'>{{ profile.core_description if profile.core_description }}</textarea>
-                    <div class="acc-error-msg" id="errCoreDesc" data-i18n="profile.core_description_error">Core description is required when no vibe description is provided.</div>
+                    <p class="acc-hint" data-i18n="profile.core_description_hint" id="coreDescHint">Describe your ideal sound in your own words — genre, mood, energy, reference artists. This is the foundation of your profile.</p>
+                    <textarea id="trainCoreDesc" aria-describedby="coreDescHint" placeholder='e.g. "Upbeat, theatrical rock with strong melodic hooks, rich harmonies, and constant momentum. Think Queen meets Bear Ghost."'>{{ profile.core_description if profile.core_description }}</textarea>
+                    <div class="acc-error-msg" id="errCoreDesc" role="alert" data-i18n="profile.core_description_error">Core description is required when no vibe description is provided.</div>
                 </div>
             </div>
         </div>
 
         <!-- Must Have -->
         <div class="accordion-panel" id="accMustHave">
-            <div class="accordion-header" onclick="toggleAccordion('accMustHave')">
-                <h3>✅ <span data-i18n="profile.must_have">Must Have</span></h3>
+            <div class="accordion-header" role="button" tabindex="0" onclick="toggleAccordion('accMustHave')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAccordion('accMustHave')}" aria-expanded="false">
+                <h3><span aria-hidden="true">✅</span> <span data-i18n="profile.must_have">Must Have</span></h3>
             </div>
             <div class="accordion-body">
                 <div class="accordion-body-inner">
-                    <p class="acc-hint" data-i18n="profile.must_have_hint">Non-negotiable traits every suggestion <strong>must</strong> have. One per line. These are hard requirements — a track missing any one is rejected.</p>
-                    <textarea id="trainMustHave" placeholder='e.g.&#10;high energy&#10;strong memorable melodies&#10;vocals / singing (no instrumentals)'>{{ profile.must_have if profile.must_have }}</textarea>
+                    <p class="acc-hint" data-i18n="profile.must_have_hint" id="mustHaveHint">Non-negotiable traits every suggestion <strong>must</strong> have. One per line. These are hard requirements — a track missing any one is rejected.</p>
+                    <textarea id="trainMustHave" aria-describedby="mustHaveHint" placeholder='e.g.&#10;high energy&#10;strong memorable melodies&#10;vocals / singing (no instrumentals)'>{{ profile.must_have if profile.must_have }}</textarea>
                 </div>
             </div>
         </div>
 
         <!-- Soft Preferences -->
         <div class="accordion-panel" id="accSoftPrefs">
-            <div class="accordion-header" onclick="toggleAccordion('accSoftPrefs')">
-                <h3>💡 <span data-i18n="profile.soft_preferences">Soft Preferences</span></h3>
+            <div class="accordion-header" role="button" tabindex="0" onclick="toggleAccordion('accSoftPrefs')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAccordion('accSoftPrefs')}" aria-expanded="false">
+                <h3><span aria-hidden="true">💡</span> <span data-i18n="profile.soft_preferences">Soft Preferences</span></h3>
             </div>
             <div class="accordion-body">
                 <div class="accordion-body-inner">
-                    <p class="acc-hint" data-i18n="profile.soft_preferences_hint">Nice-to-have traits that improve a suggestion but aren't required. One per line.</p>
-                    <textarea id="trainSoftPrefs" placeholder='e.g.&#10;slight prog influence&#10;playful and clever composition'>{{ profile.soft_preferences if profile.soft_preferences }}</textarea>
+                    <p class="acc-hint" data-i18n="profile.soft_preferences_hint" id="softPrefsHint">Nice-to-have traits that improve a suggestion but aren't required. One per line.</p>
+                    <textarea id="trainSoftPrefs" aria-describedby="softPrefsHint" placeholder='e.g.&#10;slight prog influence&#10;playful and clever composition'>{{ profile.soft_preferences if profile.soft_preferences }}</textarea>
                 </div>
             </div>
         </div>
 
         <!-- Avoid -->
         <div class="accordion-panel" id="accAvoid">
-            <div class="accordion-header" onclick="toggleAccordion('accAvoid')">
-                <h3>🚫 <span data-i18n="profile.avoid">Avoid</span></h3>
+            <div class="accordion-header" role="button" tabindex="0" onclick="toggleAccordion('accAvoid')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAccordion('accAvoid')}" aria-expanded="false">
+                <h3><span aria-hidden="true">🚫</span> <span data-i18n="profile.avoid">Avoid</span></h3>
             </div>
             <div class="accordion-body">
                 <div class="accordion-body-inner">
-                    <p class="acc-hint" data-i18n="profile.avoid_hint">Traits that immediately disqualify a track. One per line. These are absolute dealbreakers.</p>
-                    <textarea id="trainAvoid" placeholder='e.g.&#10;electronic/synth-heavy production&#10;slow or mid-tempo songs&#10;80s production aesthetic'>{{ profile.avoid if profile.avoid }}</textarea>
+                    <p class="acc-hint" data-i18n="profile.avoid_hint" id="avoidHint">Traits that immediately disqualify a track. One per line. These are absolute dealbreakers.</p>
+                    <textarea id="trainAvoid" aria-describedby="avoidHint" placeholder='e.g.&#10;electronic/synth-heavy production&#10;slow or mid-tempo songs&#10;80s production aesthetic'>{{ profile.avoid if profile.avoid }}</textarea>
                 </div>
             </div>
         </div>
@@ -99,5 +99,5 @@
             </div>
         </div>
     </div>
-    <div id="trainSuccessIcon" class="hidden"></div>
+    <div id="trainSuccessIcon" class="hidden" role="status" aria-live="polite"></div>
 </div>

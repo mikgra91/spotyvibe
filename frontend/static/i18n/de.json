@@ -95,7 +95,7 @@
 
   "audio_filters.title": "Audio-Filter",
   "audio_filters.subtitle": "Die KI anleiten, Tracks mit einer bestimmten Stimmung und Atmosphäre vorzuschlagen.",
-  "audio_filters.hint": "Min/Max-Bereiche setzen, um GPT-Vorschläge einzuschränken. Leer lassen, um einen Filter zu deaktivieren. Verwende die Band-/Song-Analyse, um zu sehen, wie GPT einen Referenztrack einordnet.",
+  "audio_filters.hint": "Min/Max-Bereiche setzen, um GPT-Vorschläge einzuschränken. Leer lassen, um einen Filter zu deaktivieren.",
 
   "warn.low_confidence_match": "Niedrige Übereinstimmungsgenauigkeit",
   "warn.no_result": "Kein Ergebnis gefunden",

@@ -477,6 +477,14 @@ class TestHelpModal:
         page.locator("#helpModal .help-close-btn").click()
         expect(page.locator("#helpModal")).not_to_have_class(re.compile(r"open"))
 
+    def test_closes_on_escape_key(self, page: Page, base_url):
+        page.goto(base_url)
+        page.locator(".burger-btn").click()
+        page.locator("#settingsDropdown >> text=Help").click()
+        expect(page.locator("#helpModal")).to_have_class(re.compile(r"open"))
+        page.keyboard.press("Escape")
+        expect(page.locator("#helpModal")).not_to_have_class(re.compile(r"open"))
+
 
 class TestProfileEditor:
     """Music Profile section — editing, accordion panels, save/cancel."""
@@ -1015,3 +1023,254 @@ class TestResponsiveLayout:
         page.goto(base_url)
         expect(page.locator("h1")).to_be_visible()
         expect(page.locator("#generateToggleBtn")).to_be_visible()
+
+    def test_open_data_dir_hidden_on_mobile(self, page: Page, base_url):
+        """The 'Open Data Directory' button is hidden on mobile (≤768px)."""
+        page.set_viewport_size({"width": 375, "height": 812})
+        page.goto(base_url)
+        page.locator(".burger-btn").click()
+        page.locator("#settingsDropdown >> text=⚙️ Settings").click()
+        page.locator("#settingsLoading.active").wait_for(state="detached", timeout=5000)
+        expect(page.locator("#openDataDirBtn")).to_be_hidden()
+
+    def test_open_data_dir_visible_on_desktop(self, page: Page, base_url):
+        """The 'Open Data Directory' button is visible on desktop."""
+        page.set_viewport_size({"width": 1280, "height": 800})
+        page.goto(base_url)
+        page.locator(".burger-btn").click()
+        page.locator("#settingsDropdown >> text=⚙️ Settings").click()
+        page.locator("#settingsLoading.active").wait_for(state="detached", timeout=5000)
+        expect(page.locator("#openDataDirBtn")).to_be_visible()
+
+
+class TestMetaTags:
+    """Verify essential meta tags are present."""
+
+    def test_theme_color_meta_tag(self, page: Page, base_url):
+        page.goto(base_url)
+        meta = page.locator('meta[name="theme-color"]')
+        expect(meta).to_have_attribute("content", "#050608")
+
+
+class TestTrackCardAttributes:
+    """Verify HTML attributes on generated track cards."""
+
+    def _setup_with_tracks(self, page: Page, base_url):
+        page.goto(base_url)
+        page.wait_for_load_state("networkidle")
+
+        def handle_run(route):
+            sse_body = (
+                'data: {"type":"result","playlist":['
+                '{"artist":"Img Artist","track":"Img Song","reason":"Test",'
+                '"cover_url":"https://example.com/cover.jpg","track_id":"abc123"}],'
+                '"playlist_url":"https://open.spotify.com/playlist/t",'
+                '"added":1,"not_found":[],"was_cancelled":false}\n\n'
+            )
+            route.fulfill(
+                status=200,
+                headers={"Content-Type": "text/event-stream"},
+                body=sse_body,
+            )
+
+        def handle_profile_status(route):
+            route.fulfill(
+                status=200,
+                headers={"Content-Type": "application/json"},
+                body=json.dumps({"trained": True, "last_updated": "2025-01-01T00:00:00"}),
+            )
+
+        page.route("**/api/run", handle_run)
+        page.route("**/api/profile/status", handle_profile_status)
+        page.reload()
+        page.wait_for_load_state("networkidle")
+        page.locator("#generateToggleBtn").click()
+        page.locator("#runBtn").click()
+        page.locator(".track-item").first.wait_for(timeout=5000)
+
+    def test_cover_images_have_lazy_loading(self, page: Page, base_url):
+        """Track cover <img> elements should have loading='lazy'."""
+        self._setup_with_tracks(page, base_url)
+        img = page.locator(".track-cover").first
+        expect(img).to_have_attribute("loading", "lazy")
+
+
+class TestCustomDialogs:
+    """Custom confirm/alert dialogs replace native alert()/confirm()."""
+
+    def test_clear_credential_shows_custom_confirm(self, page: Page, base_url):
+        """Clicking 'Clear' on a credential should open a custom confirm dialog,
+        not a native browser confirm()."""
+        page.goto(base_url)
+        page.locator(".burger-btn").click()
+        page.locator("#settingsDropdown >> text=Credentials").click()
+        page.wait_for_load_state("networkidle")
+
+        # Click the clear button for OpenAI key
+        page.locator("#clear-OPENAI_API_KEY").click()
+
+        # Custom confirm overlay should appear
+        confirm_overlay = page.locator("#customConfirmOverlay")
+        expect(confirm_overlay).to_have_class(re.compile(r"open"), timeout=2000)
+        expect(confirm_overlay).to_contain_text("Remove")
+
+    def test_custom_confirm_cancel_dismisses(self, page: Page, base_url):
+        """Clicking Cancel on the custom confirm dialog closes it."""
+        page.goto(base_url)
+        page.locator(".burger-btn").click()
+        page.locator("#settingsDropdown >> text=Credentials").click()
+        page.wait_for_load_state("networkidle")
+
+        page.locator("#clear-OPENAI_API_KEY").click()
+        confirm_overlay = page.locator("#customConfirmOverlay")
+        expect(confirm_overlay).to_have_class(re.compile(r"open"), timeout=2000)
+
+        # Click Cancel
+        confirm_overlay.locator(".btn-cancel").click()
+        expect(confirm_overlay).to_have_count(0)
+
+    def test_custom_confirm_closes_on_escape(self, page: Page, base_url):
+        """Pressing Escape on the custom confirm dialog closes it."""
+        page.goto(base_url)
+        page.locator(".burger-btn").click()
+        page.locator("#settingsDropdown >> text=Credentials").click()
+        page.wait_for_load_state("networkidle")
+
+        page.locator("#clear-OPENAI_API_KEY").click()
+        expect(page.locator("#customConfirmOverlay")).to_have_class(
+            re.compile(r"open"), timeout=2000
+        )
+
+        page.keyboard.press("Escape")
+        expect(page.locator("#customConfirmOverlay")).to_have_count(0)
+
+
+class TestSseReconnection:
+    """SSE stream reconnection on visibility change / resume button."""
+
+    def test_disconnect_banner_shows_resume_button(self, page: Page, base_url):
+        """When the SSE connection drops, a banner with Resume appears."""
+        page.goto(base_url)
+        page.wait_for_load_state("networkidle")
+
+        def handle_run_drop(route):
+            # Return a partial response then abort to simulate a network drop
+            route.abort("connectionfailed")
+
+        def handle_profile_status(route):
+            route.fulfill(
+                status=200,
+                headers={"Content-Type": "application/json"},
+                body=json.dumps({"trained": True, "last_updated": "2025-01-01T00:00:00"}),
+            )
+
+        page.route("**/api/run", handle_run_drop)
+        page.route("**/api/profile/status", handle_profile_status)
+        page.reload()
+        page.wait_for_load_state("networkidle")
+
+        page.locator("#generateToggleBtn").click()
+        page.locator("#runBtn").click()
+
+        # Wait for the disconnect banner
+        status = page.locator("#statusBox")
+        expect(status).to_contain_text("Connection lost", timeout=5000)
+        expect(status.locator("button")).to_contain_text("Resume")
+
+    def test_resume_checks_run_status(self, page: Page, base_url):
+        """Clicking Resume calls /api/run/{id}/status."""
+        page.goto(base_url)
+        page.wait_for_load_state("networkidle")
+
+        resume_requests = []
+
+        def handle_run_drop(route):
+            route.abort("connectionfailed")
+
+        def handle_profile_status(route):
+            route.fulfill(
+                status=200,
+                headers={"Content-Type": "application/json"},
+                body=json.dumps({"trained": True, "last_updated": "2025-01-01T00:00:00"}),
+            )
+
+        def handle_run_status(route):
+            resume_requests.append(route.request.url)
+            route.fulfill(
+                status=200,
+                headers={"Content-Type": "application/json"},
+                body=json.dumps({"status": "completed", "tracks_found": 5}),
+            )
+
+        page.route("**/api/run", handle_run_drop)
+        page.route("**/api/profile/status", handle_profile_status)
+        page.route("**/api/run/*/status", handle_run_status)
+        page.reload()
+        page.wait_for_load_state("networkidle")
+
+        page.locator("#generateToggleBtn").click()
+        page.locator("#runBtn").click()
+
+        # Wait for disconnect banner, then click Resume
+        status = page.locator("#statusBox")
+        expect(status).to_contain_text("Connection lost", timeout=5000)
+        status.locator("button").click()
+
+        page.wait_for_timeout(500)
+        assert len(resume_requests) >= 1, "Resume should call /api/run/{id}/status"
+
+
+class TestOnboardingCredentialPrefill:
+    """Onboarding page prefills credential status when keys are already set."""
+
+    def test_shows_already_set_hints(self, page: Page, base_url):
+        """When credentials are already configured, the onboarding page shows
+        'Already set' hints next to each field."""
+        # Intercept the onboarding status check that auto-redirects to /
+        def handle_onboarding_status(route):
+            route.fulfill(
+                status=200,
+                headers={"Content-Type": "application/json"},
+                body=json.dumps({"completed": False}),
+            )
+
+        page.route("**/api/onboarding/status", handle_onboarding_status)
+
+        # Navigate directly to the onboarding page
+        page.goto(base_url + "/onboarding")
+        page.wait_for_load_state("networkidle")
+
+        # Navigate to credentials page (page 2)
+        page.locator("text=Next →").first.click()
+        page.wait_for_timeout(800)
+
+        # Verify hints show "Already set" with masked values
+        expect(page.locator("#ob-status-openai")).to_contain_text("Already set")
+        expect(page.locator("#ob-status-spotify-id")).to_contain_text("Already set")
+        expect(page.locator("#ob-status-spotify-secret")).to_contain_text("Already set")
+
+    def test_no_duplicate_skip_button(self, page: Page, base_url):
+        """The credentials page should not have a duplicate Skip button
+        between Save Credentials and the bottom nav."""
+        def handle_onboarding_status(route):
+            route.fulfill(
+                status=200,
+                headers={"Content-Type": "application/json"},
+                body=json.dumps({"completed": False}),
+            )
+
+        page.route("**/api/onboarding/status", handle_onboarding_status)
+
+        # Navigate directly to the onboarding page
+        page.goto(base_url + "/onboarding")
+        page.wait_for_load_state("networkidle")
+
+        # Navigate to credentials page
+        page.locator("text=Next →").first.click()
+        page.wait_for_timeout(800)
+
+        # Inside the cred-section, there should NOT be a Skip button
+        cred_section = page.locator(".ob-cred-section")
+        skip_buttons_in_section = cred_section.locator(".ob-btn-skip")
+        expect(skip_buttons_in_section).to_have_count(0)
+

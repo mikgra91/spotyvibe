@@ -1,10 +1,10 @@
 <!-- Settings modal -->
-<div class="modal-overlay" id="settingsModal" onclick="if(event.target===this)closeModal('settingsModal')">
+<div class="modal-overlay" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle" onclick="if(event.target===this)closeModal('settingsModal')">
     <div class="modal" style="position:relative;">
         <div class="modal-loading" id="settingsLoading">
             <div class="spinner"></div>
         </div>
-        <h2>⚙️ Settings</h2>
+        <h2 id="settingsModalTitle"><span aria-hidden="true">⚙️</span> Settings</h2>
 
         <!-- Model -->
         <div class="form-row">
@@ -81,7 +81,7 @@
         <div class="modal-actions">
             <button class="btn btn-save" onclick="saveSettings()" data-i18n="btn.save">Save</button>
             <button class="btn btn-cancel" onclick="closeModal('settingsModal')" data-i18n="btn.cancel">Cancel</button>
-            <button class="btn btn-secondary" onclick="openDataDir()" data-i18n="settings.open_data_dir" title="Open the folder where your profile, credentials and logs are stored">📂 To local files</button>
+            <button class="btn btn-secondary" id="openDataDirBtn" onclick="openDataDir()" data-i18n="settings.open_data_dir" title="Open the folder where your profile, credentials and logs are stored">📂 To local files</button>
         </div>
     </div>
 </div>

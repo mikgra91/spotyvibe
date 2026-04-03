@@ -1,13 +1,14 @@
 import * as State from './state.js';
-import { showStatus, showToast, esc, sanitizeHtml } from './ui.js';
+import { showStatus, showToast, showAlert, showConfirm, esc, sanitizeHtml } from './ui.js';
 import { checkCredentialStatus, checkSpotifyAuth, fetchSettingsState } from './auth.js';
 import { renderComponentWarnings } from './warnings.js';
-import { renderProviderPills } from './spotify-metadata.js';
+import { renderProviderPills } from './provider-pills.js';
 
 const CRED_KEYS = ['OPENAI_API_KEY', 'SPOTIPY_CLIENT_ID', 'SPOTIPY_CLIENT_SECRET'];
 
 export async function clearCredential(key) {
-    if (!confirm('Remove ' + key + '?')) return;
+    const ok = await showConfirm('Remove ' + key + '?');
+    if (!ok) return;
 
     try {
         const resp = await fetch('/api/settings/credentials', {
@@ -28,7 +29,7 @@ export async function clearCredential(key) {
             showToast(key + ' cleared.', 'info');
         }
     } catch (e) {
-        alert('Network error: ' + e.message);
+        showAlert('Network error: ' + e.message);
     }
 }
 
@@ -57,6 +58,8 @@ export async function openCredentials() {
     } catch (e) { /* ignore — status will just be empty */ }
 
     document.getElementById('credentialsModal').classList.add('open');
+    _lastFocusedElement = _lastFocusedElement || document.activeElement;
+    requestAnimationFrame(() => _focusFirstInModal(document.getElementById('credentialsModal')));
 }
 
 export async function saveCredentials() {
@@ -84,15 +87,16 @@ export async function saveCredentials() {
             renderComponentWarnings();
         } else {
             const d = await resp.json();
-            alert('Error: ' + (d.error || 'unknown'));
+            showAlert('Error: ' + (d.error || 'unknown'));
         }
     } catch (e) {
-        alert('Network error: ' + e.message);
+        showAlert('Network error: ' + e.message);
     }
 }
 
 export async function openSettings() {
     document.getElementById('settingsDropdown').classList.remove('open');
+    _lastFocusedElement = document.activeElement;
     document.getElementById('settingsModal').classList.add('open');
     document.getElementById('settingsLoading').classList.add('active');
 
@@ -216,15 +220,16 @@ export async function saveSettings() {
             fetchSettingsState().then(() => renderProviderPills());
         } else {
             const d = await resp.json();
-            alert('Error: ' + (d.error || 'unknown'));
+            showAlert('Error: ' + (d.error || 'unknown'));
         }
     } catch (e) {
-        alert('Network error: ' + e.message);
+        showAlert('Network error: ' + e.message);
     }
 }
 
 export async function openHelp() {
     document.getElementById('settingsDropdown').classList.remove('open');
+    _lastFocusedElement = document.activeElement;
     document.getElementById('helpModal').classList.add('open');
 
     if (State.helpLoaded) return;
@@ -282,6 +287,69 @@ export async function openDataDir() {
     }
 }
 
+/* ── Focus management for modals ── */
+let _lastFocusedElement = null;
+
+function _focusFirstInModal(modalEl) {
+    const focusable = modalEl.querySelectorAll(
+        'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable.length) focusable[0].focus();
+}
+
+function _trapFocus(e) {
+    const openModal = document.querySelector('.modal-overlay.open')
+        || document.querySelector('.spotify-preview-overlay.visible');
+    if (!openModal) return;
+    const focusable = openModal.querySelectorAll(
+        'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+    }
+}
+
+function _openModalWithFocus(id) {
+    _lastFocusedElement = document.activeElement;
+    const modal = document.getElementById(id);
+    modal.classList.add('open');
+    requestAnimationFrame(() => _focusFirstInModal(modal));
+}
+
 export function closeModal(id) {
     document.getElementById(id).classList.remove('open');
+    if (_lastFocusedElement && typeof _lastFocusedElement.focus === 'function') {
+        _lastFocusedElement.focus();
+        _lastFocusedElement = null;
+    }
 }
+
+/* ── Close any open modal on Escape key + focus trap on Tab ── */
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+        _trapFocus(e);
+        return;
+    }
+    if (e.key !== 'Escape') return;
+    // Close in priority order: section help → help modal → other modals
+    const sectionHelp = document.getElementById('sectionHelpOverlay');
+    if (sectionHelp && sectionHelp.classList.contains('open')) {
+        closeSectionHelp();
+        return;
+    }
+    for (const id of ['helpModal', 'credentialsModal', 'settingsModal']) {
+        const el = document.getElementById(id);
+        if (el && el.classList.contains('open')) {
+            closeModal(id);
+            return;
+        }
+    }
+});
+

@@ -135,11 +135,15 @@ spotyvibe/
 ├── .github/workflows/
 │   └── ci.yml              # GitHub Actions CI
 │
-│└── tests/                  # Automated tests
-    ├── conftest.py         # Pytest configuration
-    ├── test_utils.py       # Tests for shared utilities
-    ├── test_suggestions.py # Tests for suggestion logic
-    └── test_feedback.py    # Tests for feedback recording
+├── core/tests/              # Unit tests for core modules
+│   ├── conftest.py          # Pytest configuration (sys.path setup)
+│   ├── test_utils.py        # Tests for shared utilities
+│   ├── test_suggestions.py  # Tests for suggestion logic
+│   └── test_feedback.py     # Tests for feedback recording
+│
+└── frontend/tests/          # Frontend (Playwright) tests
+    ├── conftest.py          # Playwright browser setup
+    └── test_frontend.py     # End-to-end UI tests
 ```
 
 #### Theme System
@@ -285,7 +289,7 @@ Handles loading, saving, and training the user's music taste profile.
 2. The user fills in structured accordion sections (core description, must-have, soft preferences, avoid) in the UI. Existing profile data is pre-filled via `GET /api/profile/data`.
 3. The user can save changes in two ways:
    - **Direct save** (`POST /api/save-profile`): `save_profile_sections()` writes the user's input directly to the profile preferences without AI processing. Multi-line fields (must-have, soft preferences, avoid) are split into arrays by newline.
-   - **AI Profile Update** (`POST /api/train-profile`): `train_profile()` receives a `sections` dict and builds a labelled GPT message with `## CORE DESCRIPTION`, `## MUST HAVE`, `## SOFT PREFERENCES`, and `## AVOID` headers so GPT understands the purpose and priority of each section. GPT returns an updated profile JSON. History and feedback sections are preserved server-side (GPT's version is discarded for these sections).
+   - **AI Profile Update** (`POST /api/train-profile`): `train_profile()` receives a `sections` dict and builds a labelled GPT message with `## VIBE DESCRIPTION`, `## CORE DESCRIPTION`, `## MUST HAVE`, `## SOFT PREFERENCES`, and `## AVOID` headers so GPT understands the purpose and priority of each section. The vibe description field undergoes **automatic classification**: GPT analyses the free-form text for directional language (e.g. "must have", "never", "would be nice") and routes each statement to the correct profile section (`must_have`, `avoid`, `soft_preferences`, or `core_description`). This ensures that conversational input like "music must have heavy bass and no autotune" is properly split into structured profile entries rather than being lost in the core description. GPT returns an updated profile JSON. History and feedback sections are preserved server-side (GPT's version is discarded for these sections). After the update, `vibe_description` is cleared — it was a one-time instruction now incorporated into the structured profile.
 4. The profile is saved with a `last_updated` timestamp.
 
 **History backup:** Every save creates a `.history.json` backup of the previous version, allowing one-step revert.
@@ -377,7 +381,7 @@ Manages all interactions with the Spotify Web API via the `spotipy` library.
 
 **Audio feature filtering (GPT-prompt-based):** Audio filters (energy, valence, tempo, danceability, acousticness) are injected directly into the GPT user prompt via `build_messages(audio_filters=...)`. The `_format_audio_filters()` helper in `suggestions.py` converts the filter dict (e.g., `{"energy": {"min": 0.6, "max": 1.0}}`) into a human-readable constraint block that GPT must respect when selecting tracks. This replaced the previous `filter_by_audio_features()` function which relied on the now-removed Spotify `audio_features` API endpoint.
 
-**Playlist listing:** `get_user_playlists(sp)` returns a list of the user's Spotify playlists (id, name, track count) for the playlist mode selector UI.
+**Playlist listing:** `get_user_playlists(sp)` returns a list of the user's Spotify playlists (id, name, track count) for the playlist mode selector UI. The frontend caches the playlist list in `State.cachedPlaylists` to avoid redundant API calls. After any operation that modifies playlists (generation complete, track removal in Refine Playlist), the cache is invalidated via `invalidateCachedPlaylists()` and both the Discover and Refine playlist pickers are refreshed so track counts stay current.
 
 **Search query sanitisation:** User/model-provided artist and track strings are sanitised before building `track:"..." artist:"..."` queries to avoid malformed Spotify search syntax (e.g., embedded quotes/control characters).
 
@@ -493,17 +497,17 @@ When `/api/cancel` is called with `finalize: false`, the generator yields a `can
 A modular single-page application split across Jinja2 templates and vanilla JavaScript modules (no framework). Communicates with the Flask backend via `fetch` API calls. `base.html` is the root layout; UI sections are composed from partials under `frontend/templates/`. JavaScript logic lives in `frontend/static/js/modules/`.
 
 **Layout:** The UI is divided into two provider sections, each with a badge, subtitle, and live status pills:
-- **OpenAI** — Taste profile training, AI band/song analysis, and audio filters (GPT-prompt-based). Status pills: key configured, profile trained, selected model, GPT language.
-- **Spotify** — Discover Music (playlist generation), Refine Playlist (review existing playlists), and History. Status pills: connection state.
+- **OpenAI** — Taste profile training and AI band/song analysis. Status pills: key configured, profile trained, selected model, GPT language.
+- **Spotify** — Discover Music (playlist generation with integrated audio filters), Refine Playlist (review existing playlists), and History. Status pills: connection state.
 
 Both sections are wrapped in styled provider cards (`.provider-section`) for visual consistency.
 
-**Collapsible sections:** All major UI components (Music Profile, Band/Song Analysis, Audio Filters, Discover Music, Refine Playlist, History) are collapsible/expandable. Each section header includes a descriptive subtitle and a toggle button. The entire header background area is clickable to expand/collapse the section (buttons inside the header use `event.stopPropagation()` to prevent double-toggling). The Discover Music and Refine Playlist sections are collapsed by default; others start expanded or match their initial state.
+**Collapsible sections:** All major UI components (Music Profile, Band/Song Analysis, Discover Music, Refine Playlist, History) are collapsible/expandable. Each section header includes a descriptive subtitle and a toggle button. The entire header background area is clickable to expand/collapse the section (buttons inside the header use `event.stopPropagation()` to prevent double-toggling). The Discover Music and Refine Playlist sections are collapsed by default; others start expanded or match their initial state.
 
 **Key UI components:**
 - **Train Taste Profile** — accordion-style editor with four collapsible sections: Core Description (required, open by default), Must Have, Soft Preferences, and Avoid. Existing profile data is pre-filled via `GET /api/profile/data` when the form is opened. Core Description is validated client-side — submission is blocked with an error highlight if empty. Shows an inline warning and disables inputs if the OpenAI API key is missing.
 - **Profile import/export/reset** — when the user explicitly enters Edit Profile mode, the UI exposes **⬆ Import** (posts to `POST /api/profile/import`), **⬇ Export** (downloads from `GET /api/profile/export`), and **↩ Reset to history** (calls `POST /api/profile/reset-to-history`). These buttons appear below the "Last trained" status line in the section header. Import replaces the entire profile file; the previous profile is automatically backed up via `.history.json`.
-- **Audio Filters** — collapsible section in the OpenAI provider area. Audio filter ranges (energy, valence, tempo, danceability, acousticness) are injected into the GPT prompt via `build_messages(audio_filters=...)`. Uses the same collapsible section pattern as other panels.
+- **Audio Filters** — collapsible sub-panel inside the Discover Music section (between playlist mode selector and Generate button). Audio filter ranges (energy, valence, tempo, danceability, acousticness) are injected into the GPT prompt via `build_messages(audio_filters=...)`. Each filter row shows a dynamic human-readable hint (e.g. "↳ Energetic to Intense") updated on input. A "✕ Clear all" button resets all filters at once. Band/Song Analysis results include "⇒ Filter" buttons per feature and a "⇒ Use All as Filters" button — clicking these auto-populates the filter inputs with a ±10% range (±15 BPM for tempo) and opens the Discover section if collapsed.
 
 
 - **Generate button** — triggers the pipeline with live progress updates. An inline loading spinner (57px / ~1.5 cm) appears below the button inside the Discover Music section, with progress messages displayed underneath it. The old standalone status box is hidden during generation to avoid duplication and shown only for terminal states (success, error). Shows an inline warning and disables the button if OpenAI key or Spotify credentials/authentication are missing.
@@ -511,7 +515,7 @@ Both sections are wrapped in styled provider cards (`.provider-section`) for vis
 - **▶ Use X tracks now button** — visible during generation once at least one track has been verified. Calls `POST /api/cancel` with `finalize: true` (does NOT abort the SSE reader). The server stops the loop and emits a `result` event with the partial playlist. Label updates in real time via `batch_verified` SSE events.
 - **Track list (Discover)** — generated tracks appear inside the Discover Music section, below the Generate button, separated by an `<hr class="inline-divider">`. The `#discoverTrackArea` wrapper is hidden when empty and revealed by `renderTracks()` or `showStatus()`/`showPlaylistLink()` for terminal events. Displays suggestions with album cover thumbnails, like/dislike/remove actions. Track cards glow green on hover via `box-shadow`.
 - **Refine Playlist** — collapsible section with a playlist dropdown (lazy-loaded on first expand via `populateReviewPlaylistPicker()`), a "Load Playlist" button with an inline loading spinner, and a review track list inside the section. The `#reviewTrackArea` wrapper is hidden until tracks are loaded. Each track card supports like, dislike, and dismiss (✕) actions. Dislike removes the track from the Spotify playlist; dismiss removes without recording feedback.
-- **Preview overlay** — bottom-sheet three-zone layout: (1) Spotify embed player (centered, responsive width 50vw / min 420px / max 700px), (2) file-cabinet register-tab action buttons (👍 👎 ✕) with rounded-right-edge shape, (3) sliding feedback form that fills remaining space to the right screen edge via `flex: 1`. Like/dislike tabs toggle: clicking the same tab again closes the form. Active tabs glow green (like) or red (dislike) via CSS `box-shadow`. The ✕ button triggers dismiss directly without a form.
+- **Preview overlay** — bottom-sheet three-zone layout: (1) Spotify embed player (centered, responsive width 50vw / min 420px / max 700px), (2) file-cabinet register-tab action buttons (👍 👎 ✕) with rounded-right-edge shape, (3) sliding feedback form that fills remaining space to the right screen edge via `flex: 1`. Like/dislike tabs toggle: clicking the same tab again closes the form. Active tabs glow green (like) or red (dislike) via CSS `box-shadow`. The ✕ button triggers dismiss directly without a form. Embed URLs include a `_cb=<timestamp>` cache-bust parameter so the iframe re-evaluates the user's Spotify login state each time; without this, an anonymous session can persist until a hard page reload.
 - **Feedback form** — expandable per-track form with artist, track, and reason fields. In the preview overlay, it slides in from the right as part of the three-zone layout.
 - **Gear dropdown menu** — Credentials, Settings, Disconnect Spotify (visible only when connected), and Help.
 - **Credentials modal** (`🔑 Credentials`) — manages API keys (OpenAI, Spotify). Secrets only.
@@ -747,10 +751,10 @@ User clicks "Generate"
 
 ```bash
 cd spotyvibe
-python -m pytest tests/ -v
+python -m pytest core/tests/ frontend/tests/ -v
 ```
 
-All core logic (normalisation, deduplication, feedback recording, utility functions) is covered by unit tests. External API calls (OpenAI, Spotify) are mocked.
+All core logic (normalisation, deduplication, feedback recording, utility functions) is covered by unit tests in `core/tests/`. Frontend end-to-end tests using Playwright live in `frontend/tests/`. External API calls (OpenAI, Spotify) are mocked.
 
 ---
 
@@ -762,9 +766,9 @@ SpotyVibe includes a Windows-first **PyInstaller one-folder** build setup.
 
 | Path | Purpose |
 |---|---|
-| `requirements.txt` | Runtime + dev dependencies (includes PyInstaller + Pillow for desktop builds) |
+| `requirements.txt` | Runtime + dev dependencies (includes PyInstaller for desktop builds) |
 
-| `desktop_launcher.py` | Desktop-only entry point for packaged builds (keeps `app.py` unchanged) |
+| `desktop_launcher.py` | Desktop-only entry point — embeds a native window via pywebview (keeps `app.py` unchanged) |
 | `spotyvibe.spec` | PyInstaller spec (one-folder) which bundles Flask runtime assets |
 | `spotyvibe_onefile.spec` | PyInstaller spec (one-file) for a single-EXE distribution |
 | `build-tools/build_exe.sh` | Convenience wrapper around the spec builds (`--package`/`--full`) |
@@ -778,7 +782,7 @@ SpotyVibe includes a Windows-first **PyInstaller one-folder** build setup.
 ```bash
 pip install -r requirements.txt
 python build_assets/make_ico.py
-python -m pytest tests/ -v
+python -m pytest core/tests/ frontend/tests/ -v
 
 
 # One-folder build
@@ -793,10 +797,14 @@ pyinstaller --noconfirm --clean spotyvibe.spec
 
 - Output: `dist/spotyvibe/spotyvibe.exe`
 - The executable runs the same Flask server at `http://127.0.0.1:5000`.
-- `desktop_launcher.py` auto-opens the default browser to the UI on launch (best-effort).
+- `desktop_launcher.py` opens a native embedded browser window (via pywebview) — closing the window cleanly terminates the process with no orphaned background servers.
 
 - Runtime assets are bundled via the spec file (`templates/`, `static/`, `prompts/`, `data/`, plus `documentation/help.md`).
+- `hiddenimports` includes `markdown.extensions.tables`, `markdown.extensions.fenced_code`, and `markdown.extensions.toc` so the in-app Help modal renders correctly in frozen builds.
 - Secrets are intentionally **not** bundled; credentials remain in `%LOCALAPPDATA%\spotyvibe\.credentials`.
+
+**System Requirement (Windows Desktop):**
+The desktop executable requires a modern, patched Windows 10/11 environment. `pywebview` relies on the **WebView2 (Chromium)** runtime to embed the native browser window. If a user runs this on an outdated Windows environment missing WebView2, the application might fall back to Legacy Edge/MSHTML (Trident), causing modern CSS and JavaScript in SpotyVibe to break or render incorrectly.
 
 ### One-file build (optional)
 
