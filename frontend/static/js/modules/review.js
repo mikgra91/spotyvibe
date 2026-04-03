@@ -1,6 +1,7 @@
 import * as State from './state.js';
 import { buildTrackCardHtml } from './feedback.js';
 import { showToast } from './ui.js';
+import { refreshDiscoverPlaylistPicker } from './playlist-mode.js';
 
 export function toggleReviewBody() {
     const body = document.getElementById('reviewBody');
@@ -202,6 +203,8 @@ function animateReviewRemove(idx) {
     setTimeout(() => el.remove(), 300);
 
     State.spliceReviewTrack(idx);
+    // Track count changed — refresh both playlist pickers
+    refreshDiscoverPlaylistPicker().then(() => populateReviewPlaylistPicker());
 }
 
 /**

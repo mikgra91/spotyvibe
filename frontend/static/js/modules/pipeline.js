@@ -2,10 +2,11 @@ import * as State from './state.js';
 import { showStatus, showStatusHtml, hidePlaylistLink, showPlaylistLink } from './ui.js';
 import { checkCredentialStatus, checkSpotifyAuth } from './auth.js';
 import { renderComponentWarnings } from './warnings.js';
-import { getPlaylistModePayload } from './playlist-mode.js';
+import { getPlaylistModePayload, refreshDiscoverPlaylistPicker } from './playlist-mode.js';
 import { getAudioFilters } from './audio-filters.js';
 import { renderTracks } from './tracklist.js';
 import { loadHistory } from './history.js';
+import { populateReviewPlaylistPicker } from './review.js';
 
 export function toggleGenerateBody() {
     const body = document.getElementById('generateBody');
@@ -228,6 +229,8 @@ export function handleStreamEvent(event) {
             if (event.not_found && event.not_found.length)
                 parts.push(`${event.not_found.length} track(s) not found on Spotify.`);
             showStatus(parts.join(' '), event.was_cancelled ? 'info' : 'success');
+            // Playlist was created or modified — refresh both pickers
+            refreshDiscoverPlaylistPicker().then(() => populateReviewPlaylistPicker());
             break;
         }
         case 'error':
