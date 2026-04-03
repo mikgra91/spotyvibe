@@ -4,7 +4,9 @@ let currentPreviewIndex = -1;
 let currentPreviewSource = 'discover'; // 'discover' or 'review'
 
 function embedUrl(trackId, autoplay = false) {
-    let url = `https://open.spotify.com/embed/track/${encodeURIComponent(trackId)}?utm_source=generator&theme=0`;
+    // Cache-bust so the embed re-evaluates the user's Spotify login state
+    // (without this, a stale anonymous session persists until a hard reload)
+    let url = `https://open.spotify.com/embed/track/${encodeURIComponent(trackId)}?utm_source=generator&theme=0&_cb=${Date.now()}`;
     if (autoplay) url += '&autoplay=1';
     return url;
 }

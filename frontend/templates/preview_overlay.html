@@ -17,7 +17,7 @@
                     allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                     loading="lazy"
                     {% if preview_track and preview_track.track_id %}
-                    src="https://open.spotify.com/embed/track/{{ preview_track.track_id }}?utm_source=generator&theme=0"
+                    src="https://open.spotify.com/embed/track/{{ preview_track.track_id }}?utm_source=generator&theme=0&_cb={{ range(1000000)|random }}"
                     {% endif %}>
                 </iframe>
                 <button class="spotify-preview-nav spotify-preview-next" id="previewNext" onclick="nextPreview()" title="Next track">›</button>
