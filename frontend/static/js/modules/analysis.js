@@ -5,6 +5,25 @@ export function toggleAnalysisBody() {
     body.classList.toggle('hidden');
 }
 
+/**
+ * Expand Band/Song Analysis (if collapsed) and scroll it into view.
+ */
+export function jumpToAnalysis() {
+    const body = document.getElementById('analysisBody');
+    const section = document.getElementById('analysisSection');
+    if (body && body.classList.contains('hidden')) {
+        body.classList.remove('hidden');
+    }
+    if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    // Focus the artist input for immediate use
+    setTimeout(() => {
+        const input = document.getElementById('analysisArtist');
+        if (input) input.focus();
+    }, 400);
+}
+
 export async function runAnalysis() {
     const artist = document.getElementById('analysisArtist').value.trim();
     const track = document.getElementById('analysisTrack').value.trim();
@@ -57,23 +76,34 @@ export function renderAnalysisResult(d) {
         acousticness: 'Acousticness', instrumentalness: 'Instrumentalness',
         speechiness: 'Speechiness', liveness: 'Liveness', tempo: 'Tempo',
     };
+    // Features that can be applied as filters (match audio-filters.js supported set)
+    const filterableFeatures = new Set(['energy', 'valence', 'danceability', 'acousticness', 'tempo']);
     const afRows = Object.entries(featureLabels)
         .filter(([k]) => af[k] != null)
         .map(([k, label]) => {
             const val = af[k];
+            const filterBtn = filterableFeatures.has(k)
+                ? ` <button class="af-use-btn" onclick="applyAnalysisFilter('${k}', ${val})" title="Use as audio filter">⇒ Filter</button>`
+                : '';
             if (k === 'tempo') {
                 return `<div class="af-row">
                     <span class="af-label">${escHtml(label)}</span>
-                    <span class="af-value">${val.toFixed(0)} BPM</span>
+                    <span class="af-value">${val.toFixed(0)} BPM</span>${filterBtn}
                 </div>`;
             }
             const pct = Math.round(val * 100);
             return `<div class="af-row">
                 <span class="af-label">${escHtml(label)}</span>
                 <div class="af-bar-track"><div class="af-bar-fill" style="width:${pct}%"></div></div>
-                <span class="af-value">${pct}%</span>
+                <span class="af-value">${pct}%</span>${filterBtn}
             </div>`;
         }).join('');
+
+    // "Use All as Filters" button — only if there are filterable features
+    const hasFilterable = Object.keys(af).some(k => filterableFeatures.has(k) && af[k] != null);
+    const useAllBtn = hasFilterable
+        ? `<button class="af-use-all-btn" onclick='applyAllAnalysisFilters(${JSON.stringify(af)})'>⇒ Use All as Filters</button>`
+        : '';
 
     const suggestions = (d.profile_suggestions || []).map((s, i) =>
         `<div class="analysis-suggestion">
@@ -87,7 +117,7 @@ export function renderAnalysisResult(d) {
         <div class="analysis-row"><strong>Genre:</strong> ${escHtml(genres)}</div>
         <div class="analysis-row">${tags}</div>
         ${charRows ? `<table class="analysis-ch-table">${charRows}</table>` : ''}
-        ${afRows ? `<div class="analysis-suggestions-header">Audio Features (GPT estimate)</div><div class="af-grid">${afRows}</div>` : ''}
+        ${afRows ? `<div class="analysis-suggestions-header">Audio Features (GPT estimate) ${useAllBtn}</div><div class="af-grid">${afRows}</div>` : ''}
         ${suggestions ? `<div class="analysis-suggestions-header">Profile Suggestions (click 📋 to copy)</div>${suggestions}` : ''}
     </div>`;
 }

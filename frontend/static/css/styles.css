@@ -1708,7 +1708,20 @@ h1 {
         grid-template-columns: 1fr 1fr;
     }
 
+    .audio-filter-grid-header {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .audio-filter-grid-header span:first-child,
+    .audio-filter-grid-header .audio-filter-clear-btn {
+        grid-column: 1 / -1;
+    }
+
     .audio-filter-row label {
+        grid-column: 1 / -1;
+    }
+
+    .audio-filter-hint-text {
         grid-column: 1 / -1;
     }
 
@@ -2137,19 +2150,102 @@ input {
     font-size: 0.82rem;
 }
 
-/* ── Audio feature filters ──────────────────────────────────────────── */
-/* Flat grid: all label/input children of every .audio-filter-row share
-   the same three column tracks, so labels are consistently aligned. */
+/* ── Audio feature filters (sub-panel inside Discover) ──────────────── */
+.audio-filter-subpanel {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    margin-bottom: 12px;
+}
+
+.audio-filter-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+}
+
+.audio-filter-label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.audio-filter-optional {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.audio-filter-chevron {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    user-select: none;
+}
+
+.audio-filter-body {
+    margin-top: 10px;
+}
+
+.audio-filter-hint {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
+.audio-filter-jump {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.audio-filter-jump:hover {
+    text-decoration: underline;
+}
+
+.audio-filter-grid-header {
+    display: grid;
+    grid-template-columns: max-content 1fr 1fr auto;
+    gap: 4px 8px;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.audio-filter-col-label {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    text-align: center;
+}
+
+.audio-filter-clear-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    transition: color var(--transition), background var(--transition);
+    white-space: nowrap;
+}
+.audio-filter-clear-btn:hover {
+    color: var(--error);
+    background: rgba(255, 80, 80, 0.1);
+}
+
+/* Flat grid: label, min, max, hint share four column tracks */
 .audio-filter-grid {
     display: grid;
-    grid-template-columns: max-content 1fr 1fr;
-    gap: 10px 8px;
+    grid-template-columns: max-content 1fr 1fr auto;
+    gap: 8px 8px;
     align-items: center;
 }
 
-/* display:contents makes the wrapper invisible to the grid so its three
-   children (label, min-input, max-input) slot directly into the parent
-   grid columns — giving all labels a uniform width. */
 .audio-filter-row {
     display: contents;
 }
@@ -2166,6 +2262,48 @@ input {
     min-width: 0;
     padding: 6px 10px;
     font-size: 0.82rem;
+}
+
+.audio-filter-hint-text {
+    font-size: 0.72rem;
+    color: var(--primary);
+    white-space: nowrap;
+    min-width: 100px;
+}
+
+/* ── "⇒ Filter" buttons in analysis results ────────────────────────── */
+.af-use-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--primary);
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition);
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-left: 4px;
+}
+.af-use-btn:hover {
+    background: var(--primary);
+    color: #fff;
+}
+
+.af-use-all-btn {
+    background: var(--primary-dark);
+    border: 1px solid var(--primary);
+    color: #fff;
+    font-size: 0.75rem;
+    padding: 3px 10px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background var(--transition);
+    white-space: nowrap;
+    margin-left: 8px;
+}
+.af-use-all-btn:hover {
+    background: var(--primary);
 }
 
 /* ---- Song list counter ---- */
@@ -2403,34 +2541,6 @@ input {
     margin-top: 10px;
 }
 
-/* ── Audio filter toggle header ─────────────────────────────────────── */
-.audio-filter-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    cursor: pointer;
-}
-
-.audio-filter-label {
-    font-size: 0.88rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-}
-
-.audio-filter-optional {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-}
-
-.audio-filter-chevron {
-    color: var(--text-muted);
-}
-
-.audio-filter-hint {
-    font-size: 0.82rem;
-    color: var(--text-muted);
-    margin-bottom: 10px;
-}
 
 /* ── Analysis / Metadata shared ─────────────────────────────────────── */
 .btn-run-narrow {

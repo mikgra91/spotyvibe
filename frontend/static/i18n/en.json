@@ -95,7 +95,7 @@
 
   "audio_filters.title": "Audio Filters",
   "audio_filters.subtitle": "Guide the AI to suggest tracks matching a specific mood and feel.",
-  "audio_filters.hint": "Set min/max ranges to constrain GPT suggestions. Leave blank to disable a filter. Use Band/Song Analysis to see how GPT classifies a reference track.",
+  "audio_filters.hint": "Set min/max ranges to constrain GPT suggestions. Leave blank to disable a filter.",
 
   "warn.low_confidence_match": "Low confidence match",
   "warn.no_result": "No result found",

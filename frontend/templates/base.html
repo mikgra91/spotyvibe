@@ -30,49 +30,6 @@
         </div>
         {% include "train_profile.html" %}
         {% include "band_analysis.html" %}
-
-        <!-- Audio feature filters (GPT-prompt-based, belongs to OpenAI section) -->
-        <div class="analysis-section" id="audioFiltersSection">
-            <div class="train-header" onclick="toggleAudioFilters()">
-                <div class="train-header-left">
-                    <h2>🎚 <span data-i18n="audio_filters.title">Audio Filters</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('use-audio-filters')" data-i18n-title="help.section_help_title" title="Open help for this section">?</button></h2>
-                    <span class="train-status train-subtitle" data-i18n="audio_filters.subtitle">Guide the AI to suggest tracks matching a specific mood and feel.</span>
-                </div>
-                <div class="train-header-actions">
-                    <button class="btn-train" id="audioFilterToggleBtn" onclick="event.stopPropagation(); toggleAudioFilters()">Show</button>
-                </div>
-            </div>
-            <div class="train-body hidden" id="audioFiltersBody">
-                <p class="acc-hint analysis-hint" data-i18n="audio_filters.hint">Set min/max ranges to constrain GPT suggestions. Leave blank to disable a filter. Use Band/Song Analysis to see how GPT classifies a reference track.</p>
-                <div class="audio-filter-grid">
-                    <div class="audio-filter-row">
-                        <label>Energy (0–1)</label>
-                        <input type="number" id="af-energy-min" placeholder="min" min="0" max="1" step="0.05" value="{{ audio_filters.energy.min if audio_filters.energy.min is not none }}">
-                        <input type="number" id="af-energy-max" placeholder="max" min="0" max="1" step="0.05" value="{{ audio_filters.energy.max if audio_filters.energy.max is not none }}">
-                    </div>
-                    <div class="audio-filter-row">
-                        <label>Valence (0–1)</label>
-                        <input type="number" id="af-valence-min" placeholder="min" min="0" max="1" step="0.05" value="{{ audio_filters.valence.min if audio_filters.valence.min is not none }}">
-                        <input type="number" id="af-valence-max" placeholder="max" min="0" max="1" step="0.05" value="{{ audio_filters.valence.max if audio_filters.valence.max is not none }}">
-                    </div>
-                    <div class="audio-filter-row">
-                        <label>Tempo (BPM)</label>
-                        <input type="number" id="af-tempo-min" placeholder="min" min="0" max="300" step="5" value="{{ audio_filters.tempo.min if audio_filters.tempo.min is not none }}">
-                        <input type="number" id="af-tempo-max" placeholder="max" min="0" max="300" step="5" value="{{ audio_filters.tempo.max if audio_filters.tempo.max is not none }}">
-                    </div>
-                    <div class="audio-filter-row">
-                        <label>Danceability (0–1)</label>
-                        <input type="number" id="af-danceability-min" placeholder="min" min="0" max="1" step="0.05" value="{{ audio_filters.danceability.min if audio_filters.danceability.min is not none }}">
-                        <input type="number" id="af-danceability-max" placeholder="max" min="0" max="1" step="0.05" value="{{ audio_filters.danceability.max if audio_filters.danceability.max is not none }}">
-                    </div>
-                    <div class="audio-filter-row">
-                        <label>Acousticness (0–1)</label>
-                        <input type="number" id="af-acousticness-min" placeholder="min" min="0" max="1" step="0.05" value="{{ audio_filters.acousticness.min if audio_filters.acousticness.min is not none }}">
-                        <input type="number" id="af-acousticness-max" placeholder="max" min="0" max="1" step="0.05" value="{{ audio_filters.acousticness.max if audio_filters.acousticness.max is not none }}">
-                    </div>
-                </div>
-            </div>
-        </div>
     </section>
 
     <!-- ── Spotify Provider Section ── -->
