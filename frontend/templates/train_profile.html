@@ -5,6 +5,18 @@
 
             <span class="train-status train-subtitle">Define your musical taste — genres, moods, must-haves, and things to avoid.</span>
 
+            <div class="profile-io-row {% if not profile_edit_mode %}hidden{% endif %}" id="profileIoActions" role="group" aria-label="Profile import/export/reset" onclick="event.stopPropagation()">
+                <button class="btn btn-profile-io" id="profileImportBtn" onclick="startImportProfile()" title="Import profile JSON" aria-label="Import profile"><span aria-hidden="true">⬆</span> <span data-i18n="btn.import">Import</span></button>
+                <button class="btn btn-profile-io" id="profileExportBtn" onclick="exportProfile()" title="Export profile JSON" aria-label="Export profile"><span aria-hidden="true">⬇</span> <span data-i18n="btn.export">Export</span></button>
+                <button class="btn btn-profile-io" id="profileResetBtn" onclick="resetProfileToHistory()" title="Reset profile to previous saved version" aria-label="Reset to history"><span aria-hidden="true">↩</span> <span data-i18n="btn.reset_to_history">Reset to history</span></button>
+                <button class="btn btn-profile-io btn-profile-delete" id="profileDeleteBtn" onclick="deleteCurrentProfile()" title="Delete this profile" aria-label="Delete profile"><span aria-hidden="true">🗑</span> <span data-i18n="btn.delete_profile">Delete</span></button>
+            </div>
+            <input id="profileImportInput" type="file" accept="application/json,.json" style="display:none;" aria-hidden="true" />
+
+            <span class="train-status {% if not profile_edit_mode %}hidden{% endif %}" id="trainStatus">
+                {% if profile_trained %}✓ Last trained: {{ profile.last_updated|datetimeformat }}{% else %}⚠ Not yet trained — describe your taste below.{% endif %}
+            </span>
+
             <!-- Profile selector (shown only when expanded) -->
             <div class="profile-selector {% if not profile_edit_mode %}hidden{% endif %}" id="profileSelector" onclick="event.stopPropagation()">
                 <select id="profileSelect" class="profile-dropdown" aria-label="Select profile" onchange="switchProfile(this.value)">
@@ -19,17 +31,6 @@
                     <span class="profile-create-error hidden" id="profileCreateError" role="alert"></span>
                 </div>
             </div>
-
-            <span class="train-status" id="trainStatus">
-                {% if profile_trained %}✓ Last trained: {{ profile.last_updated|datetimeformat }}{% else %}⚠ Not yet trained — describe your taste below.{% endif %}
-            </span>
-            <div class="profile-io-row {% if not profile_edit_mode %}hidden{% endif %}" id="profileIoActions" role="group" aria-label="Profile import/export/reset" onclick="event.stopPropagation()">
-                <button class="btn btn-profile-io" id="profileImportBtn" onclick="startImportProfile()" title="Import profile JSON" aria-label="Import profile"><span aria-hidden="true">⬆</span> <span data-i18n="btn.import">Import</span></button>
-                <button class="btn btn-profile-io" id="profileExportBtn" onclick="exportProfile()" title="Export profile JSON" aria-label="Export profile"><span aria-hidden="true">⬇</span> <span data-i18n="btn.export">Export</span></button>
-                <button class="btn btn-profile-io" id="profileResetBtn" onclick="resetProfileToHistory()" title="Reset profile to previous saved version" aria-label="Reset to history"><span aria-hidden="true">↩</span> <span data-i18n="btn.reset_to_history">Reset to history</span></button>
-                <button class="btn btn-profile-io btn-profile-delete" id="profileDeleteBtn" onclick="deleteCurrentProfile()" title="Delete this profile" aria-label="Delete profile"><span aria-hidden="true">🗑</span> <span data-i18n="btn.delete_profile">Delete</span></button>
-            </div>
-            <input id="profileImportInput" type="file" accept="application/json,.json" style="display:none;" aria-hidden="true" />
         </div>
         <div class="train-header-actions">
             <button class="btn-train" id="trainToggleBtn" onclick="event.stopPropagation(); toggleTrainBody()" data-i18n="profile.edit_profile" aria-expanded="{% if profile_edit_mode %}true{% else %}false{% endif %}" aria-controls="trainBody">

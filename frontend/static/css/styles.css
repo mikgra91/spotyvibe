@@ -340,14 +340,14 @@ h1 {
 
 @media (hover: hover) {
     .generate-section:hover,
-}
-.train-section:hover,
-.analysis-section:hover,
-.history-section:hover,
-.review-section:hover,
-.track-item:hover {
-    border-color: var(--glass-hover-border);
-    box-shadow: var(--shadow-card-hover);
+    .train-section:hover,
+    .analysis-section:hover,
+    .history-section:hover,
+    .review-section:hover,
+    .track-item:hover {
+        border-color: var(--glass-hover-border);
+        box-shadow: var(--shadow-card-hover);
+    }
 }
 
 /* --- Shared section panel layout --- */
@@ -993,6 +993,7 @@ h1 {
 .profile-selector {
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 6px;
     width: 100%;
     max-width: 360px;
@@ -1000,8 +1001,8 @@ h1 {
 
 .profile-dropdown {
     width: 100%;
-    min-height: 34px;
-    padding: 6px 12px;
+    min-height: 39px;
+    padding: 6px 30px 6px 12px;
     font-size: 0.85rem;
     font-family: inherit;
     color: var(--text-primary);
@@ -1010,7 +1011,11 @@ h1 {
     border-radius: var(--radius-sm);
     cursor: pointer;
     transition: border-color var(--transition), box-shadow var(--transition);
-    appearance: auto;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
 }
 .profile-dropdown:focus {
     outline: none;
