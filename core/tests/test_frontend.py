@@ -477,6 +477,14 @@ class TestHelpModal:
         page.locator("#helpModal .help-close-btn").click()
         expect(page.locator("#helpModal")).not_to_have_class(re.compile(r"open"))
 
+    def test_closes_on_escape_key(self, page: Page, base_url):
+        page.goto(base_url)
+        page.locator(".burger-btn").click()
+        page.locator("#settingsDropdown >> text=Help").click()
+        expect(page.locator("#helpModal")).to_have_class(re.compile(r"open"))
+        page.keyboard.press("Escape")
+        expect(page.locator("#helpModal")).not_to_have_class(re.compile(r"open"))
+
 
 class TestProfileEditor:
     """Music Profile section — editing, accordion panels, save/cancel."""

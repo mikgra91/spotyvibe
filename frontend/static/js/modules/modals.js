@@ -285,3 +285,18 @@ export async function openDataDir() {
 export function closeModal(id) {
     document.getElementById(id).classList.remove('open');
 }
+
+/* ── Close open help/section-help modals on Escape key ── */
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const helpModal = document.getElementById('helpModal');
+    if (helpModal && helpModal.classList.contains('open')) {
+        closeModal('helpModal');
+        return;
+    }
+    const sectionHelp = document.getElementById('sectionHelpOverlay');
+    if (sectionHelp && sectionHelp.classList.contains('open')) {
+        closeSectionHelp();
+    }
+});
+
