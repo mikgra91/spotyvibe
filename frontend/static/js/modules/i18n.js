@@ -3,6 +3,17 @@ export let _i18nStrings = {};
 export async function switchLanguage(lang) {
     localStorage.setItem('svLang', lang);
     await applyLanguage(lang);
+
+    // Sync GPT language to match app language
+    const langMap = { en: 'English', de: 'German' };
+    const gptLang = langMap[lang];
+    if (gptLang) {
+        fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gpt_language: gptLang }),
+        }).catch(() => {}); // best-effort, don't block UI
+    }
 }
 
 function _syncToggle(lang) {

@@ -64,7 +64,7 @@ export function sanitizeHtml(html) {
     const ALLOWED = new Set(['H1','H2','H3','H4','H5','H6','P','UL','OL','LI',
         'A','STRONG','EM','CODE','PRE','BR','HR','TABLE','THEAD','TBODY','TR',
         'TH','TD','BLOCKQUOTE','IMG','SPAN','DIV','DL','DT','DD','SUP','SUB']);
-    const ALLOWED_ATTRS = {A:['href','title'],IMG:['src','alt','title'],TD:['colspan','rowspan'],TH:['colspan','rowspan']};
+    const ALLOWED_ATTRS = {A:['href','title'],IMG:['src','alt','title'],TD:['colspan','rowspan'],TH:['colspan','rowspan'],H1:['id'],H2:['id'],H3:['id'],H4:['id'],H5:['id'],H6:['id']};
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
     (function walk(parent) {

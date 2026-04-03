@@ -138,19 +138,6 @@ export async function openSettings() {
         pctStatus.textContent = '✓ At least ' + pct + '% of tracks from new artists';
         pctStatus.className = 'cred-status set';
 
-        const lang = data.gpt_language || 'English';
-        const langSelect = document.getElementById('settings-gpt-language');
-        let found = false;
-        for (const opt of langSelect.options) {
-            if (opt.value === lang) { opt.selected = true; found = true; break; }
-        }
-        if (!found) {
-            const opt = document.createElement('option');
-            opt.value = lang; opt.textContent = lang; opt.selected = true;
-            langSelect.appendChild(opt);
-        }
-        document.getElementById('status-settings-gpt-language').textContent = '✓ ' + lang;
-        document.getElementById('status-settings-gpt-language').className = 'cred-status set';
 
     } catch (e) { /* ignore */ }
 
@@ -205,8 +192,6 @@ export async function saveSettings() {
         payload.new_artist_percentage = pctVal;
     }
 
-    const langVal = document.getElementById('settings-gpt-language').value;
-    if (langVal) payload.gpt_language = langVal;
 
     try {
         const resp = await fetch('/api/settings', {
@@ -240,6 +225,17 @@ export async function openHelp() {
         if (data.html) {
             document.getElementById('helpContent').innerHTML = sanitizeHtml(data.html);
             State.setHelpLoaded(true);
+            const helpContent = document.getElementById('helpContent');
+            helpContent.addEventListener('click', (e) => {
+                const link = e.target.closest('a[href^="#"]');
+                if (!link) return;
+                e.preventDefault();
+                const targetId = link.getAttribute('href').slice(1);
+                const target = helpContent.querySelector('#' + CSS.escape(targetId));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
         } else {
             document.getElementById('helpContent').innerHTML =
                 '<p style="color:#e74c3c;">Could not load help content.</p>';
