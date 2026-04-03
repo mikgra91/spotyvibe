@@ -15,7 +15,7 @@ export function jumpToAnalysis() {
         body.classList.remove('hidden');
     }
     if (section) {
-        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        section.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
     // Focus the artist input for immediate use
     setTimeout(() => {

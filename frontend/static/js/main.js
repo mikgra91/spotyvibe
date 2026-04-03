@@ -13,6 +13,7 @@ import { toggleReviewBody, loadPlaylistTracks, renderReviewTracks, toggleReviewF
 import { showStatus, showStatusHtml, showPlaylistLink, hidePlaylistLink, esc, attr, sanitizeHtml, escHtml, toggleSettingsMenu, showToast } from './modules/ui.js';
 import { openCredentials, saveCredentials, clearCredential, saveSettings, openSettings, openHelp, openSectionHelp, closeSectionHelp, openDataDir, closeModal } from './modules/modals.js';
 import { switchTheme, THEME_BACKGROUNDS, THEME_RENDERERS } from './modules/theme-switcher.js';
+import { initJumpBubble } from './modules/jump-bubble.js';
 import './modules/theme-equalizer.js';
 import './modules/theme-pulse.js';
 import { switchLanguage, applyLanguage, i18n, _i18nStrings, initI18n } from './modules/i18n.js';
@@ -161,4 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // i18n
     initI18n();
+
+    // Section jump bubble
+    initJumpBubble();
 });

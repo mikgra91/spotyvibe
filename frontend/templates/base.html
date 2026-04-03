@@ -52,6 +52,9 @@
     {% include "modals/settings_modal.html" %}
     {% include "modals/help_modal.html" %}
 
+    <!-- Section jump bubble (scroll-aware navigation) -->
+    <button class="section-jump-bubble hidden" id="sectionJumpBubble" aria-label="Jump to section"></button>
+
     <!-- Section help popup (focused single-section view) -->
     <div class="modal-overlay" id="sectionHelpOverlay" onclick="if(event.target===this)closeSectionHelp()">
         <div class="section-help-wrapper">
