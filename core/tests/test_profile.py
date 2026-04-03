@@ -346,3 +346,147 @@ class TestSaveProfileSections:
         }
         result = save_profile_sections(sections)
         assert result["preferences"]["must_have"] == ["energy", "high tempo"]
+
+
+class TestListProfiles:
+    def test_returns_empty_when_no_profiles(self, tmp_path):
+        _, _, _, p4 = _patch_active_profile(tmp_path)
+        with p4:
+            result = list_profiles()
+        assert result == []
+
+    def test_lists_all_profiles(self, tmp_path):
+        profiles_dir = tmp_path / "profiles"
+        profiles_dir.mkdir()
+        (profiles_dir / "aaa.json").write_text(json.dumps({"name": "Work", "last_updated": "2025-01-01"}))
+        (profiles_dir / "bbb.json").write_text(json.dumps({"name": "Chill", "last_updated": None}))
+        _, _, _, p4 = _patch_active_profile(tmp_path)
+        with p4:
+            result = list_profiles()
+        assert len(result) == 2
+        assert result[0] == {"id": "aaa", "name": "Work", "trained": True, "last_updated": "2025-01-01"}
+        assert result[1] == {"id": "bbb", "name": "Chill", "trained": False, "last_updated": None}
+
+    def test_excludes_history_files(self, tmp_path):
+        profiles_dir = tmp_path / "profiles"
+        profiles_dir.mkdir()
+        (profiles_dir / "aaa.json").write_text(json.dumps({"name": "A", "last_updated": None}))
+        (profiles_dir / "aaa.history.json").write_text(json.dumps({"name": "A", "last_updated": None}))
+        _, _, _, p4 = _patch_active_profile(tmp_path)
+        with p4:
+            result = list_profiles()
+        assert len(result) == 1
+
+    def test_skips_corrupt_files(self, tmp_path):
+        profiles_dir = tmp_path / "profiles"
+        profiles_dir.mkdir()
+        (profiles_dir / "good.json").write_text(json.dumps({"name": "Good", "last_updated": None}))
+        (profiles_dir / "bad.json").write_text("NOT JSON {{{")
+        _, _, _, p4 = _patch_active_profile(tmp_path)
+        with p4:
+            result = list_profiles()
+        assert len(result) == 1
+        assert result[0]["id"] == "good"
+
+
+class TestCreateProfile:
+    def test_creates_profile_with_name(self, tmp_path):
+        _, _, _, p4 = _patch_active_profile(tmp_path)
+        with p4, patch("core.src.profile.set_active_profile_id") as mock_set:
+            result = create_profile("Workout")
+        assert result["name"] == "Workout"
+        assert result["id"]  # UUID string
+        profile_path = tmp_path / "profiles" / f"{result['id']}.json"
+        assert profile_path.exists()
+        data = json.loads(profile_path.read_text())
+        assert data["name"] == "Workout"
+        mock_set.assert_called_once_with(result["id"])
+
+    def test_rejects_empty_name(self, tmp_path):
+        import pytest
+        _, _, _, p4 = _patch_active_profile(tmp_path)
+        with p4, pytest.raises(ValueError, match="cannot be empty"):
+            create_profile("")
+
+    def test_rejects_too_long_name(self, tmp_path):
+        import pytest
+        _, _, _, p4 = _patch_active_profile(tmp_path)
+        with p4, pytest.raises(ValueError, match="too long"):
+            create_profile("A" * 50)
+
+    def test_rejects_duplicate_name(self, tmp_path):
+        import pytest
+        profiles_dir = tmp_path / "profiles"
+        profiles_dir.mkdir()
+        (profiles_dir / "existing.json").write_text(json.dumps({"name": "Workout", "last_updated": None}))
+        _, _, _, p4 = _patch_active_profile(tmp_path)
+        with p4, patch("core.src.profile.set_active_profile_id"), pytest.raises(ValueError, match="already exists"):
+            create_profile("workout")  # case-insensitive
+
+
+class TestDeleteProfile:
+    def test_deletes_profile_and_history(self, tmp_path):
+        profiles_dir = tmp_path / "profiles"
+        profiles_dir.mkdir()
+        (profiles_dir / "abc.json").write_text("{}")
+        (profiles_dir / "abc.history.json").write_text("{}")
+        _, _, _, p4 = _patch_active_profile(tmp_path)
+        with p4, patch("core.src.profile.get_active_profile_id", return_value="abc"), \
+             patch("core.src.profile.set_active_profile_id") as mock_set:
+            delete_profile("abc")
+        assert not (profiles_dir / "abc.json").exists()
+        assert not (profiles_dir / "abc.history.json").exists()
+        mock_set.assert_called_once_with("")
+
+    def test_clears_active_when_deleting_active_profile(self, tmp_path):
+        profiles_dir = tmp_path / "profiles"
+        profiles_dir.mkdir()
+        (profiles_dir / "active-id.json").write_text("{}")
+        _, _, _, p4 = _patch_active_profile(tmp_path)
+        with p4, patch("core.src.profile.get_active_profile_id", return_value="active-id"), \
+             patch("core.src.profile.set_active_profile_id") as mock_set:
+            delete_profile("active-id")
+        mock_set.assert_called_once_with("")
+
+    def test_does_not_clear_active_when_deleting_other_profile(self, tmp_path):
+        profiles_dir = tmp_path / "profiles"
+        profiles_dir.mkdir()
+        (profiles_dir / "other-id.json").write_text("{}")
+        _, _, _, p4 = _patch_active_profile(tmp_path)
+        with p4, patch("core.src.profile.get_active_profile_id", return_value="different-id"), \
+             patch("core.src.profile.set_active_profile_id") as mock_set:
+            delete_profile("other-id")
+        mock_set.assert_not_called()
+
+    def test_raises_on_missing_profile(self, tmp_path):
+        import pytest
+        _, _, _, p4 = _patch_active_profile(tmp_path)
+        with p4, pytest.raises(ValueError, match="not found"):
+            delete_profile("nonexistent")
+
+    def test_raises_on_empty_id(self):
+        import pytest
+        with pytest.raises(ValueError, match="required"):
+            delete_profile("")
+
+
+class TestActivateProfile:
+    def test_activates_existing_profile(self, tmp_path):
+        profiles_dir = tmp_path / "profiles"
+        profiles_dir.mkdir()
+        (profiles_dir / "target-id.json").write_text("{}")
+        _, _, _, p4 = _patch_active_profile(tmp_path)
+        with p4, patch("core.src.profile.set_active_profile_id") as mock_set:
+            activate_profile("target-id")
+        mock_set.assert_called_once_with("target-id")
+
+    def test_raises_on_missing_profile(self, tmp_path):
+        import pytest
+        _, _, _, p4 = _patch_active_profile(tmp_path)
+        with p4, pytest.raises(ValueError, match="not found"):
+            activate_profile("nonexistent")
+
+    def test_raises_on_empty_id(self):
+        import pytest
+        with pytest.raises(ValueError, match="required"):
+            activate_profile("")

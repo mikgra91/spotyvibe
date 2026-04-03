@@ -21,13 +21,15 @@ This guide explains how to use the **SpotyVibe interface** to set up your prefer
   - [Theme](#theme)
 - [Music Profile](#music-profile)
   - [Create Your Music Profile](#create-your-music-profile)
+    - [Select or Create a Profile](#select-or-create-a-profile)
+    - [Edit Your Profile](#edit-your-profile)
     - [Describe Your Vibe](#describe-your-vibe)
     - [Core Description](#core-description)
     - [Must Have](#must-have)
     - [Soft Preferences](#soft-preferences)
     - [Avoid](#avoid)
     - [Save or AI Profile Update](#save-or-ai-profile-update)
-  - [Import, Export, and Reset Your Profile](#import-export-and-reset-your-profile)
+  - [Import, Export, Reset, and Delete Your Profile](#import-export-reset-and-delete-your-profile)
   - [Updating Your Taste Over Time](#updating-your-taste-over-time)
 - [Discovery & Analysis](#discovery--analysis)
   - [Band/Song Analysis](#bandsong-analysis)
@@ -237,7 +239,25 @@ Themes change the visual style of the interface but do not affect playlist resul
 
 Before SpotyVibe can generate good recommendations, you need to teach it your taste.
 
-In the **OpenAI** section, click **Edit profile** or click anywhere on the **Music Profile** header to expand it.
+In the **OpenAI** section, look at the **Music Profile** header. You will see a **profile dropdown** that lets you manage multiple profiles.
+
+#### Select or Create a Profile
+
+1. Click **+ Create new Profile** below the dropdown.
+2. Type a name — for example "Workout", "Chill", or "Discovery" — and press **Enter** or click **✓**.
+3. The new profile is automatically selected and ready to edit.
+
+You can create as many profiles as you want. Each profile is completely independent — great for different moods, activities, or family members.
+
+To switch profiles, select a different one from the dropdown. To delete the current profile, expand the editor and click the 🗑 **Delete** button.
+
+> **Screenshot placeholder:** Profile selector dropdown with create input
+
+---
+
+#### Edit Your Profile
+
+Click **Edit profile** or click anywhere on the **Music Profile** header to expand the editor.
 
 You will see several sections that help describe your ideal music.
 
@@ -338,10 +358,10 @@ Enter one item per line.
 After editing your profile, you can choose one of two actions:
 
 - **Save**  
-  Stores your profile as written
+  Stores your profile as written. Works even if fields are empty.
 
 - **AI Profile Update**  
-  Lets SpotyVibe refine and organize your input for you
+  Lets SpotyVibe refine and organize your input for you. Requires either a Core Description or a Vibe message — a yellow warning appears if both are empty.
 
 Use **Save** for quick edits.  
 Use **AI Profile Update** when you want the app to help improve the profile.
@@ -350,22 +370,25 @@ Use **AI Profile Update** when you want the app to help improve the profile.
 
 ---
 
-### Import, Export, and Reset Your Profile
+### Import, Export, Reset, and Delete Your Profile
 
 When the profile editor is open, profile management buttons appear below the **Last trained** status line in the section header:
 
 - **Import**  
-  Load a saved profile file
+  Load a saved profile file into the current profile.
 
 - **Export**  
-  Download your current profile
+  Download your current profile as a JSON file.
 
 - **Reset to history**  
-  Restore the previous version of your profile
+  Restore the previous version of your profile (one-step undo).
 
-This is useful if you want to back up your profile, move it to another device, or undo a recent change.
+- **Delete**  
+  Permanently remove the current profile and its history. This cannot be undone. If other profiles exist, the first one is automatically selected.
 
-> **Screenshot placeholder:** Import / Export / Reset controls
+This is useful if you want to back up your profile, move it to another device, clean up unused profiles, or undo a recent change.
+
+> **Screenshot placeholder:** Import / Export / Reset / Delete controls
 
 ---
 

@@ -184,17 +184,21 @@ Each major component within a section is **collapsible/expandable**. Click anywh
 
 To set up your profile:
 
-1. In the **OpenAI** section, click **Edit profile**.
-2. The editor opens with four collapsible accordion sections. Fill in the ones relevant to you:
+1. In the **OpenAI** section, look at the **Music Profile** header. A **profile dropdown** lets you select, create, or delete profiles.
+   - To create your first profile, click **+ Create new Profile**, type a name (e.g. "Workout", "Chill", "Discovery"), and press Enter or click ✓.
+   - Switch between profiles at any time using the dropdown.
+   - Delete the current profile with the 🗑 **Delete** button in the import/export row.
+2. Click **Edit profile** to open the editor with four collapsible accordion sections. Fill in the ones relevant to you:
 
-   - **🎵 Core Description** *(required)* — Describe your ideal sound in your own words: genre, mood, energy, reference artists. This is the foundation of your profile and must be provided.
+   - **💬 Describe Your Vibe** — Tell the AI what you're looking for in everyday language. The AI automatically classifies your input into the correct profile sections.
+   - **🎵 Core Description** — Describe your ideal sound in your own words: genre, mood, energy, reference artists. This is the foundation of your profile.
    - **✅ Must Have** — Non-negotiable traits every suggestion must have (one per line). These are hard requirements — a track missing any one is rejected. Example: *"strong melodies"*, *"vocals/singing"*.
    - **💡 Soft Preferences** — Nice-to-have traits that improve a suggestion but aren't required (one per line). Example: *"slight prog influence"*.
    - **🚫 Avoid** — Traits that immediately disqualify a track (one per line). Example: *"electronic/synth-heavy production"*, *"slow or mid-tempo songs"*.
 
 3. Choose how to save your changes:
-   - Click **Save** to store your preferences directly as-is.
-   - Click **AI Profile Update** to send your input to GPT, which will analyse and refine it into a structured taste profile. The "Describe your vibe" field is cleared automatically after AI Profile Update — your free-text input has been incorporated into the structured sections.
+   - Click **Save** to store your preferences directly as-is. Save always works, even with empty fields.
+   - Click **AI Profile Update** to send your input to GPT, which will analyse and refine it into a structured taste profile. AI Profile Update requires either a Core Description or a Vibe message. The "Describe your vibe" field is cleared automatically after AI Profile Update — your free-text input has been incorporated into the structured sections.
 
 If you already have a profile, the fields are **pre-filled** with your existing preferences so you can see and edit what the AI currently knows.
 
@@ -202,23 +206,22 @@ If you already have a profile, the fields are **pre-filled** with your existing 
 
 When you expand the **Music Profile** editor (via **Edit profile**), extra profile file actions appear under the **Last trained** label:
 
-- **⬆ Import** — Select a JSON profile file and import it into SpotyVibe.
+- **⬆ Import** — Select a JSON profile file and import it into the active profile.
   - On Android, this opens the system file picker.
-  - Import **replaces your entire current profile file**.
-  - Before replacing it, SpotyVibe automatically backs up your existing profile to the history file (`personalized_music_profile.history.json`).
+  - Import **replaces the current active profile**.
+  - Before replacing it, SpotyVibe automatically backs up your existing profile to the history file.
   - **Size limit:** Imported files must be **10MB or smaller**.
 
 - **⬇ Export** — Downloads your current active profile as `spotyvibe_profile.json`.
   - On Android, the file is saved to your device's **Downloads**.
 
-- **↩ Reset to history** — Reverts your profile to the previous saved version (one-step undo).
+- **↩ Reset to history** — Reverts the active profile to the previous saved version (one-step undo).
   - This **swaps** the current profile and the history file.
   - If no history exists yet, SpotyVibe will show an error.
 
+- **🗑 Delete** — Permanently deletes the current profile and its history. This cannot be undone. If other profiles exist, the first one is auto-selected.
+
 > **Tip:** The exported file is always in the correct format to re-import later.
-
-
-> **Note:** The Core Description field is required. If you clear it and try to submit, the app will highlight the field and ask you to fill it in.
 
 
 The AI Profile Update merges with what the AI already knows — your feedback history and past suggestions are always preserved. The direct Save option is useful when you just want to make a quick edit without waiting for AI processing.

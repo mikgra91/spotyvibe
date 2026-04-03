@@ -677,3 +677,84 @@ class TestRunStatusEndpoint:
         assert resp.status_code == 404
         data = resp.get_json()
         assert data["status"] == "not_found"
+
+
+class TestGetProfiles:
+    @patch("app.get_active_profile_id", return_value="abc-123")
+    @patch("app.list_profiles", return_value=[{"id": "abc-123", "name": "Work", "trained": True, "last_updated": "2025-01-01"}])
+    def test_returns_profiles_and_active_id(self, mock_list, mock_pid, client):
+        resp = client.get("/api/profiles")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data["profiles"]) == 1
+        assert data["active_id"] == "abc-123"
+
+    @patch("app.get_active_profile_id", return_value="")
+    @patch("app.list_profiles", return_value=[])
+    def test_returns_empty_list(self, mock_list, mock_pid, client):
+        resp = client.get("/api/profiles")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["profiles"] == []
+        assert data["active_id"] == ""
+
+
+class TestCreateProfileEndpoint:
+    @patch("app.create_profile", return_value={"id": "new-uuid", "name": "Workout"})
+    def test_creates_profile(self, mock_create, client):
+        resp = client.post("/api/profiles", json={"name": "Workout"})
+        assert resp.status_code == 201
+        data = resp.get_json()
+        assert data["id"] == "new-uuid"
+        assert data["name"] == "Workout"
+        mock_create.assert_called_once_with("Workout")
+
+    def test_rejects_empty_name(self, client):
+        resp = client.post("/api/profiles", json={"name": ""})
+        assert resp.status_code == 400
+        assert "required" in resp.get_json()["error"].lower()
+
+    def test_rejects_missing_name(self, client):
+        resp = client.post("/api/profiles", json={})
+        assert resp.status_code == 400
+
+    def test_rejects_too_long_name(self, client):
+        resp = client.post("/api/profiles", json={"name": "A" * 50})
+        assert resp.status_code == 400
+        assert "too long" in resp.get_json()["error"].lower()
+
+    @patch("app.create_profile", side_effect=ValueError("already exists"))
+    def test_returns_400_on_duplicate(self, mock_create, client):
+        resp = client.post("/api/profiles", json={"name": "Dup"})
+        assert resp.status_code == 400
+        assert "already exists" in resp.get_json()["error"]
+
+
+class TestDeleteProfileEndpoint:
+    @patch("app.delete_profile")
+    def test_deletes_profile(self, mock_delete, client):
+        resp = client.delete("/api/profiles/abc-123")
+        assert resp.status_code == 200
+        assert resp.get_json()["status"] == "ok"
+        mock_delete.assert_called_once_with("abc-123")
+
+    @patch("app.delete_profile", side_effect=ValueError("Profile not found."))
+    def test_returns_400_on_not_found(self, mock_delete, client):
+        resp = client.delete("/api/profiles/nonexistent")
+        assert resp.status_code == 400
+        assert "not found" in resp.get_json()["error"].lower()
+
+
+class TestActivateProfileEndpoint:
+    @patch("app.activate_profile")
+    def test_activates_profile(self, mock_activate, client):
+        resp = client.post("/api/profiles/abc-123/activate")
+        assert resp.status_code == 200
+        assert resp.get_json()["status"] == "ok"
+        mock_activate.assert_called_once_with("abc-123")
+
+    @patch("app.activate_profile", side_effect=ValueError("Profile not found."))
+    def test_returns_400_on_not_found(self, mock_activate, client):
+        resp = client.post("/api/profiles/nonexistent/activate")
+        assert resp.status_code == 400
+        assert "not found" in resp.get_json()["error"].lower()
