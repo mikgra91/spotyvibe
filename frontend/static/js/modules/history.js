@@ -1,5 +1,6 @@
 import * as State from './state.js';
 import { attr, escHtml } from './ui.js';
+import { i18n } from './i18n.js';
 
 export async function toggleHistoryBody() {
     const body = document.getElementById('historyBody');
@@ -11,6 +12,8 @@ export async function toggleHistoryBody() {
     document.querySelectorAll('#historySection .train-header-actions button[aria-controls]').forEach(
         btn => btn.setAttribute('aria-expanded', expanded)
     );
+    const toggleBtn = document.getElementById('historyToggleBtn');
+    if (toggleBtn) toggleBtn.textContent = State.historyBodyOpen ? i18n('history.hide', 'Hide') : i18n('history.show', 'Show history');
     if (State.historyBodyOpen) await loadHistory();
 }
 
