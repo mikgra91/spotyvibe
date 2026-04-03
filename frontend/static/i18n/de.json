@@ -40,6 +40,8 @@
   "btn.cancel_generation": "Abbrechen",
 
   "analysis.title": "Band-/Song-Analyse",
+  "analysis.show": "Analyse öffnen",
+  "analysis.hide": "Ausblenden",
   "analysis.artist_placeholder": "Künstler / Bandname",
   "analysis.track_placeholder": "Titelname (optional)",
   "analysis.hint": "Gib einen Künstler (und optional einen Titel) ein, um eine KI-Analyse mit kopierfertigen Profilvorschlägen zu erhalten.",
@@ -49,13 +51,15 @@
   "settings.model": "Verwendetes Modell",
   "settings.playlist_size": "Playlist-Größe",
   "settings.new_artist_pct": "Neue Künstler %",
-  "settings.gpt_language": "ChatGPT-Sprache",
   "settings.debug_mode": "Debug-Modus",
   "settings.debug_mode_hint": "GPT-Anfragen & -Antworten in Datei protokollieren",
   "settings.open_data_dir": "📂 Zu lokalen Dateien",
 
+  "msg.export_saved": "Profil exportiert — Prüfe deinen Downloads-Ordner nach spotyvibe_profile.json",
+
   "history.title": "Verlauf",
   "history.show": "Verlauf anzeigen",
+  "history.hide": "Ausblenden",
   "history.open_playlist": "Playlist öffnen",
   "history.no_runs": "Noch keine Läufe.",
   "history.tracks_added": "Track(s) hinzugefügt",

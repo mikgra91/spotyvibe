@@ -40,6 +40,8 @@
   "btn.cancel_generation": "Cancel",
 
   "analysis.title": "Band/Song Analysis",
+  "analysis.show": "Open Analysis",
+  "analysis.hide": "Hide",
   "analysis.artist_placeholder": "Artist / band name",
   "analysis.track_placeholder": "Track name (optional)",
   "analysis.hint": "Enter an artist (and optional track) to get an AI analysis with ready-to-paste profile suggestions.",
@@ -49,13 +51,15 @@
   "settings.model": "Used Model",
   "settings.playlist_size": "Playlist Size",
   "settings.new_artist_pct": "New Artist %",
-  "settings.gpt_language": "ChatGPT Language",
   "settings.debug_mode": "Debug Mode",
   "settings.debug_mode_hint": "Log GPT requests & responses to debug file",
   "settings.open_data_dir": "📂 To local files",
 
+  "msg.export_saved": "Profile exported — check your Downloads folder for spotyvibe_profile.json",
+
   "history.title": "History",
   "history.show": "Show history",
+  "history.hide": "Hide",
   "history.open_playlist": "Open playlist",
   "history.no_runs": "No runs yet.",
   "history.tracks_added": "track(s) added",

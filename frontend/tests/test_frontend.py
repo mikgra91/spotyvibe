@@ -308,7 +308,7 @@ class TestBurgerMenu:
 
     def test_burger_button_visible(self, page: Page, base_url):
         page.goto(base_url)
-        expect(page.locator(".burger-btn")).to_be_visible()
+        expect(page.locator("button[aria-label=\"Menu\"]")).to_be_visible()
 
     def test_dropdown_hidden_initially(self, page: Page, base_url):
         page.goto(base_url)
@@ -316,12 +316,12 @@ class TestBurgerMenu:
 
     def test_dropdown_opens_on_click(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         expect(page.locator("#settingsDropdown")).to_have_class(re.compile(r"open"))
 
     def test_dropdown_has_all_options(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         dd = page.locator("#settingsDropdown")
         expect(dd.locator("text=Credentials")).to_be_visible()
         expect(dd.locator("text=Settings")).to_be_visible()
@@ -329,7 +329,7 @@ class TestBurgerMenu:
 
     def test_dropdown_closes_on_outside_click(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         expect(page.locator("#settingsDropdown")).to_have_class(re.compile(r"open"))
         # Click on the heading (outside the dropdown)
         page.locator("h1").click()
@@ -338,7 +338,7 @@ class TestBurgerMenu:
     def test_spotify_toggle_shows_disconnect_when_authenticated(self, page: Page, base_url):
         page.goto(base_url)
         page.wait_for_load_state("networkidle")
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         expect(page.locator("#spotifyToggleBtn")).to_contain_text("Disconnect Spotify")
 
 
@@ -347,13 +347,13 @@ class TestCredentialsModal:
 
     def test_opens_from_burger_menu(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=Credentials").click()
         expect(page.locator("#credentialsModal")).to_have_class(re.compile(r"open"))
 
     def test_shows_three_fields(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=Credentials").click()
         expect(page.locator("#cred-OPENAI_API_KEY")).to_be_visible()
         expect(page.locator("#cred-SPOTIPY_CLIENT_ID")).to_be_visible()
@@ -361,7 +361,7 @@ class TestCredentialsModal:
 
     def test_shows_credential_status(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=Credentials").click()
         # Our mock returns is_set=True for all keys
         expect(page.locator("#status-OPENAI_API_KEY")).to_contain_text("Set")
@@ -370,7 +370,7 @@ class TestCredentialsModal:
 
     def test_closes_on_cancel(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=Credentials").click()
         expect(page.locator("#credentialsModal")).to_have_class(re.compile(r"open"))
         page.locator("#credentialsModal .btn-cancel").click()
@@ -378,7 +378,7 @@ class TestCredentialsModal:
 
     def test_closes_on_overlay_click(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=Credentials").click()
         # Click the overlay (top-left corner, outside the modal)
         page.locator("#credentialsModal").click(position={"x": 5, "y": 5})
@@ -390,13 +390,13 @@ class TestSettingsModal:
 
     def test_opens_from_burger_menu(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=⚙️ Settings").click()
         expect(page.locator("#settingsModal")).to_have_class(re.compile(r"open"))
 
     def test_shows_model_dropdown(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=⚙️ Settings").click()
         page.wait_for_load_state("networkidle")
         select = page.locator("#settings-model")
@@ -404,17 +404,17 @@ class TestSettingsModal:
 
     def test_model_dropdown_has_options(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=⚙️ Settings").click()
         # Wait for the loading overlay to disappear, indicating models have loaded
-        page.locator("#settingsLoading.active").wait_for(state="detached", timeout=5000)
+        page.locator("#settingsLoading.active").wait_for(state="detached", timeout=2500)
         options = page.locator("#settings-model option").all_text_contents()
         assert "gpt-4.1-mini" in options
         assert "gpt-4.1" in options
 
     def test_shows_playlist_size(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=⚙️ Settings").click()
         page.wait_for_load_state("networkidle")
         expect(page.locator("#settings-playlist-size")).to_be_visible()
@@ -422,7 +422,7 @@ class TestSettingsModal:
 
     def test_shows_new_artist_percentage(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=⚙️ Settings").click()
         page.wait_for_load_state("networkidle")
         expect(page.locator("#settings-new-artist-pct")).to_be_visible()
@@ -430,14 +430,14 @@ class TestSettingsModal:
 
     def test_shows_debug_mode_checkbox(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=⚙️ Settings").click()
         page.wait_for_load_state("networkidle")
         expect(page.locator("#settings-debug")).to_be_visible()
 
     def test_closes_on_cancel(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=⚙️ Settings").click()
         page.locator("#settingsModal .btn-cancel").click()
         expect(page.locator("#settingsModal")).not_to_have_class(re.compile(r"open"))
@@ -448,30 +448,30 @@ class TestHelpModal:
 
     def test_opens_from_burger_menu(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=Help").click()
         expect(page.locator("#helpModal")).to_have_class(re.compile(r"open"))
 
     def test_loads_help_content(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=Help").click()
         # Wait for help content to load (should contain the guide heading)
-        page.locator("#helpContent >> text=SpotyVibe User Guide").wait_for(timeout=5000)
+        page.locator("#helpContent >> text=SpotyVibe User Guide").wait_for(timeout=2500)
         expect(page.locator("#helpContent >> text=SpotyVibe User Guide")).to_be_visible()
 
     def test_help_contains_key_sections(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=Help").click()
-        page.locator("#helpContent >> text=SpotyVibe User Guide").wait_for(timeout=5000)
+        page.locator("#helpContent >> text=SpotyVibe User Guide").wait_for(timeout=2500)
         content = page.locator("#helpContent")
         expect(content.locator("h2:has-text('Getting Started')").first).to_be_visible()
         expect(content.locator("h2:has-text('Playlist Generation')").first).to_be_visible()
 
     def test_closes_on_close_button(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=Help").click()
         expect(page.locator("#helpModal")).to_have_class(re.compile(r"open"))
         page.locator("#helpModal .help-close-btn").click()
@@ -479,7 +479,7 @@ class TestHelpModal:
 
     def test_closes_on_escape_key(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=Help").click()
         expect(page.locator("#helpModal")).to_have_class(re.compile(r"open"))
         page.keyboard.press("Escape")
@@ -545,7 +545,7 @@ class TestProfileEditor:
         # The error message should be visible or an alert should appear
         # (the endpoint returns 400 when core_description is empty)
         # Wait for the error to appear in the status or as a toast
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(250)
 
     def test_save_profile_directly(self, page: Page, base_url):
         page.goto(base_url)
@@ -557,7 +557,7 @@ class TestProfileEditor:
         page.locator("#trainSaveBtn").click()
 
         # Wait for success indication
-        page.wait_for_timeout(1000)
+        page.wait_for_timeout(500)
 
     def test_accordion_toggle(self, page: Page, base_url):
         page.goto(base_url)
@@ -681,7 +681,7 @@ class TestGenerationPipeline:
         page.locator("#runBtn").click()
 
         # Wait for result tracks to appear
-        page.locator(".track-item").first.wait_for(timeout=5000)
+        page.locator(".track-item").first.wait_for(timeout=2500)
 
         # Verify tracks rendered
         tracks = page.locator(".track-item")
@@ -725,7 +725,7 @@ class TestGenerationPipeline:
         page.locator("#generateToggleBtn").click()
         page.locator("#runBtn").click()
         # The button should change to "Generating…" and stay there
-        expect(page.locator("#runBtn")).to_have_text("⏳ Generating…", timeout=5000)
+        expect(page.locator("#runBtn")).to_have_text("⏳ Generating…", timeout=2500)
 
         # Clean up: unroute so hanging request doesn't leak into other tests
         page.unroute("**/api/run")
@@ -767,7 +767,7 @@ class TestFeedbackButtons:
         # Generate section is collapsed by default — expand it first
         page.locator("#generateToggleBtn").click()
         page.locator("#runBtn").click()
-        page.locator(".track-item").first.wait_for(timeout=5000)
+        page.locator(".track-item").first.wait_for(timeout=2500)
 
     def test_like_button_opens_feedback_form(self, page: Page, base_url):
         self._setup_with_tracks(page, base_url)
@@ -828,7 +828,7 @@ class TestFeedbackButtons:
         page.locator("#submitBtn-0").click()
 
         # Wait for the request to be sent
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(250)
         assert len(feedback_requests) == 1
         assert feedback_requests[0]["action"] == "like"
         assert feedback_requests[0]["artist"] == "Feedback Artist"
@@ -847,7 +847,7 @@ class TestFeedbackButtons:
         page.locator("#track-0 .btn-remove").click()
 
         # Wait for animation + removal
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(350)
         assert page.locator(".track-item").count() == 1
 
 
@@ -996,7 +996,7 @@ class TestToastNotifications:
         # Generate section is collapsed by default — expand it first
         page.locator("#generateToggleBtn").click()
         page.locator("#runBtn").click()
-        page.locator(".track-item").first.wait_for(timeout=5000)
+        page.locator(".track-item").first.wait_for(timeout=2500)
 
         # Like the track
         page.locator("#track-0 .btn-like").click()
@@ -1004,7 +1004,7 @@ class TestToastNotifications:
 
         # Toast should appear
         toast = page.locator("#toast")
-        expect(toast).to_contain_text("Liked", timeout=3000)
+        expect(toast).to_contain_text("Liked", timeout=1500)
 
 
 class TestResponsiveLayout:
@@ -1016,7 +1016,7 @@ class TestResponsiveLayout:
         # Main elements should still be visible
         expect(page.locator("h1")).to_be_visible()
         expect(page.locator("#generateToggleBtn")).to_be_visible()
-        expect(page.locator(".burger-btn")).to_be_visible()
+        expect(page.locator("button[aria-label=\"Menu\"]")).to_be_visible()
 
     def test_tablet_viewport(self, page: Page, base_url):
         page.set_viewport_size({"width": 768, "height": 1024})
@@ -1028,18 +1028,18 @@ class TestResponsiveLayout:
         """The 'Open Data Directory' button is hidden on mobile (≤768px)."""
         page.set_viewport_size({"width": 375, "height": 812})
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=⚙️ Settings").click()
-        page.locator("#settingsLoading.active").wait_for(state="detached", timeout=5000)
+        page.locator("#settingsLoading.active").wait_for(state="detached", timeout=2500)
         expect(page.locator("#openDataDirBtn")).to_be_hidden()
 
     def test_open_data_dir_visible_on_desktop(self, page: Page, base_url):
         """The 'Open Data Directory' button is visible on desktop."""
         page.set_viewport_size({"width": 1280, "height": 800})
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=⚙️ Settings").click()
-        page.locator("#settingsLoading.active").wait_for(state="detached", timeout=5000)
+        page.locator("#settingsLoading.active").wait_for(state="detached", timeout=2500)
         expect(page.locator("#openDataDirBtn")).to_be_visible()
 
 
@@ -1086,7 +1086,7 @@ class TestTrackCardAttributes:
         page.wait_for_load_state("networkidle")
         page.locator("#generateToggleBtn").click()
         page.locator("#runBtn").click()
-        page.locator(".track-item").first.wait_for(timeout=5000)
+        page.locator(".track-item").first.wait_for(timeout=2500)
 
     def test_cover_images_have_lazy_loading(self, page: Page, base_url):
         """Track cover <img> elements should have loading='lazy'."""
@@ -1102,7 +1102,7 @@ class TestCustomDialogs:
         """Clicking 'Clear' on a credential should open a custom confirm dialog,
         not a native browser confirm()."""
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=Credentials").click()
         page.wait_for_load_state("networkidle")
 
@@ -1111,19 +1111,19 @@ class TestCustomDialogs:
 
         # Custom confirm overlay should appear
         confirm_overlay = page.locator("#customConfirmOverlay")
-        expect(confirm_overlay).to_have_class(re.compile(r"open"), timeout=2000)
+        expect(confirm_overlay).to_have_class(re.compile(r"open"), timeout=1000)
         expect(confirm_overlay).to_contain_text("Remove")
 
     def test_custom_confirm_cancel_dismisses(self, page: Page, base_url):
         """Clicking Cancel on the custom confirm dialog closes it."""
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=Credentials").click()
         page.wait_for_load_state("networkidle")
 
         page.locator("#clear-OPENAI_API_KEY").click()
         confirm_overlay = page.locator("#customConfirmOverlay")
-        expect(confirm_overlay).to_have_class(re.compile(r"open"), timeout=2000)
+        expect(confirm_overlay).to_have_class(re.compile(r"open"), timeout=1000)
 
         # Click Cancel
         confirm_overlay.locator(".btn-cancel").click()
@@ -1132,13 +1132,13 @@ class TestCustomDialogs:
     def test_custom_confirm_closes_on_escape(self, page: Page, base_url):
         """Pressing Escape on the custom confirm dialog closes it."""
         page.goto(base_url)
-        page.locator(".burger-btn").click()
+        page.locator("button[aria-label=\"Menu\"]").click()
         page.locator("#settingsDropdown >> text=Credentials").click()
         page.wait_for_load_state("networkidle")
 
         page.locator("#clear-OPENAI_API_KEY").click()
         expect(page.locator("#customConfirmOverlay")).to_have_class(
-            re.compile(r"open"), timeout=2000
+            re.compile(r"open"), timeout=1000
         )
 
         page.keyboard.press("Escape")
@@ -1174,7 +1174,7 @@ class TestSseReconnection:
 
         # Wait for the disconnect banner
         status = page.locator("#statusBox")
-        expect(status).to_contain_text("Connection lost", timeout=5000)
+        expect(status).to_contain_text("Connection lost", timeout=2500)
         expect(status.locator("button")).to_contain_text("Resume")
 
     def test_resume_checks_run_status(self, page: Page, base_url):
@@ -1213,10 +1213,10 @@ class TestSseReconnection:
 
         # Wait for disconnect banner, then click Resume
         status = page.locator("#statusBox")
-        expect(status).to_contain_text("Connection lost", timeout=5000)
+        expect(status).to_contain_text("Connection lost", timeout=2500)
         status.locator("button").click()
 
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(250)
         assert len(resume_requests) >= 1, "Resume should call /api/run/{id}/status"
 
 
@@ -1242,7 +1242,7 @@ class TestOnboardingCredentialPrefill:
 
         # Navigate to credentials page (page 2)
         page.locator("text=Next →").first.click()
-        page.wait_for_timeout(800)
+        page.wait_for_timeout(400)
 
         # Verify hints show "Already set" with masked values
         expect(page.locator("#ob-status-openai")).to_contain_text("Already set")
@@ -1267,7 +1267,7 @@ class TestOnboardingCredentialPrefill:
 
         # Navigate to credentials page
         page.locator("text=Next →").first.click()
-        page.wait_for_timeout(800)
+        page.wait_for_timeout(400)
 
         # Inside the cred-section, there should NOT be a Skip button
         cred_section = page.locator(".ob-cred-section")

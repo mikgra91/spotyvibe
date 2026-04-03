@@ -46,3 +46,10 @@ def browser_context_args(browser_context_args):
     """Force English locale so i18n doesn't auto-switch to German."""
     return {**browser_context_args, "locale": "en-US"}
 
+
+@pytest.fixture(autouse=True)
+def _reduce_timeouts(page):
+    """Halve default Playwright timeouts to speed up failure detection."""
+    page.set_default_timeout(15_000)
+    page.set_default_navigation_timeout(15_000)
+
