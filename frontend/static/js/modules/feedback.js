@@ -1,5 +1,5 @@
 import * as State from './state.js';
-import { showToast, esc, attr } from './ui.js';
+import { showToast, showAlert, esc, attr } from './ui.js';
 
 /**
  * Build the inner HTML for a track card (shared by discover and review lists).
@@ -22,10 +22,10 @@ export function buildTrackCardHtml(track, idx, source = 'discover') {
     const coverHtml = track.cover_url
         ? (track.track_id
             ? `<div class="track-cover-wrap" onclick="openPreviewOverlay('${attr(track.track_id)}','${attr(track.artist)} — ${attr(track.track)}','${source}')" title="Preview on Spotify">
-                   <img class="track-cover" src="${attr(track.cover_url)}" alt="Album cover">
+                   <img class="track-cover" src="${attr(track.cover_url)}" alt="Album cover" loading="lazy">
                    <span class="cover-play">▶</span>
                </div>`
-            : `<img class="track-cover" src="${attr(track.cover_url)}" alt="Album cover">`)
+            : `<img class="track-cover" src="${attr(track.cover_url)}" alt="Album cover" loading="lazy">`)
         : '';
     const noPreviewHtml = !track.track_id ? '<span class="track-no-preview">No preview</span>' : '';
     const spotifyLinks = [
@@ -110,7 +110,7 @@ export async function submitFeedback(idx) {
     const track  = document.getElementById(`title-${idx}`).value.trim();
     const reason = document.getElementById(`reason-${idx}`).value.trim();
 
-    if (!artist) { alert('Artist is required.'); return; }
+    if (!artist) { showAlert('Artist is required.'); return; }
 
     const submitBtn = document.getElementById(`submitBtn-${idx}`);
     submitBtn.disabled = true;
@@ -130,7 +130,7 @@ export async function submitFeedback(idx) {
 
         if (!resp.ok) {
             const data = await resp.json();
-            alert('Error: ' + (data.error || 'unknown'));
+            showAlert('Error: ' + (data.error || 'unknown'));
             return;
         }
 
@@ -158,7 +158,7 @@ export async function submitFeedback(idx) {
             }).catch(() => {});
         }
     } catch (e) {
-        alert('Network error: ' + e.message);
+        showAlert('Network error: ' + e.message);
     } finally {
         submitBtn.disabled = false;
     }

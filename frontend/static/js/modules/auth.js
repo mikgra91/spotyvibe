@@ -1,6 +1,6 @@
 import * as State from './state.js';
 import { renderComponentWarnings } from './warnings.js';
-import { showToast } from './ui.js';
+import { showToast, showAlert } from './ui.js';
 
 export async function checkCredentialStatus() {
     try {
@@ -56,7 +56,7 @@ export async function toggleSpotifyConnection() {
             await checkSpotifyAuth();
             renderComponentWarnings();
         } catch (e) {
-            alert('Network error: ' + e.message);
+            showAlert('Network error: ' + e.message);
         }
     } else {
         connectSpotify();

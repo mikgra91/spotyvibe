@@ -1,13 +1,14 @@
 import * as State from './state.js';
-import { showStatus, showToast, esc, sanitizeHtml } from './ui.js';
+import { showStatus, showToast, showAlert, showConfirm, esc, sanitizeHtml } from './ui.js';
 import { checkCredentialStatus, checkSpotifyAuth, fetchSettingsState } from './auth.js';
 import { renderComponentWarnings } from './warnings.js';
-import { renderProviderPills } from './spotify-metadata.js';
+import { renderProviderPills } from './provider-pills.js';
 
 const CRED_KEYS = ['OPENAI_API_KEY', 'SPOTIPY_CLIENT_ID', 'SPOTIPY_CLIENT_SECRET'];
 
 export async function clearCredential(key) {
-    if (!confirm('Remove ' + key + '?')) return;
+    const ok = await showConfirm('Remove ' + key + '?');
+    if (!ok) return;
 
     try {
         const resp = await fetch('/api/settings/credentials', {
@@ -28,7 +29,7 @@ export async function clearCredential(key) {
             showToast(key + ' cleared.', 'info');
         }
     } catch (e) {
-        alert('Network error: ' + e.message);
+        showAlert('Network error: ' + e.message);
     }
 }
 
@@ -86,10 +87,10 @@ export async function saveCredentials() {
             renderComponentWarnings();
         } else {
             const d = await resp.json();
-            alert('Error: ' + (d.error || 'unknown'));
+            showAlert('Error: ' + (d.error || 'unknown'));
         }
     } catch (e) {
-        alert('Network error: ' + e.message);
+        showAlert('Network error: ' + e.message);
     }
 }
 
@@ -219,10 +220,10 @@ export async function saveSettings() {
             fetchSettingsState().then(() => renderProviderPills());
         } else {
             const d = await resp.json();
-            alert('Error: ' + (d.error || 'unknown'));
+            showAlert('Error: ' + (d.error || 'unknown'));
         }
     } catch (e) {
-        alert('Network error: ' + e.message);
+        showAlert('Network error: ' + e.message);
     }
 }
 
@@ -297,7 +298,8 @@ function _focusFirstInModal(modalEl) {
 }
 
 function _trapFocus(e) {
-    const openModal = document.querySelector('.modal-overlay.open');
+    const openModal = document.querySelector('.modal-overlay.open')
+        || document.querySelector('.spotify-preview-overlay.visible');
     if (!openModal) return;
     const focusable = openModal.querySelectorAll(
         'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'

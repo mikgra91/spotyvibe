@@ -1,6 +1,6 @@
 import * as State from './state.js';
 import { buildTrackCardHtml } from './feedback.js';
-import { showToast } from './ui.js';
+import { showToast, showAlert } from './ui.js';
 import { refreshDiscoverPlaylistPicker } from './playlist-mode.js';
 
 export function toggleReviewBody() {
@@ -127,7 +127,7 @@ export async function submitReviewFeedback(idx) {
     const form = document.getElementById(`review-form-${idx}`);
     const action = form ? form.dataset.action : 'like';
 
-    if (!artist) { alert('Artist is required.'); return; }
+    if (!artist) { showAlert('Artist is required.'); return; }
 
     const submitBtn = document.getElementById(`review-submitBtn-${idx}`);
     submitBtn.disabled = true;
@@ -147,7 +147,7 @@ export async function submitReviewFeedback(idx) {
 
         if (!resp.ok) {
             const data = await resp.json();
-            alert('Error: ' + (data.error || 'unknown'));
+            showAlert('Error: ' + (data.error || 'unknown'));
             return;
         }
 
@@ -170,7 +170,7 @@ export async function submitReviewFeedback(idx) {
 
         animateReviewRemove(idx);
     } catch (e) {
-        alert('Network error: ' + e.message);
+        showAlert('Network error: ' + e.message);
     } finally {
         submitBtn.disabled = false;
     }
