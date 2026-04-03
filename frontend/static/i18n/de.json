@@ -17,6 +17,8 @@
   "profile.edit_profile": "Profil bearbeiten",
   "profile.no_profile_selected": "Kein Profil ausgewählt",
   "profile.no_profile_hint": "Erstelle ein Profil, um loszulegen.",
+  "profile.profiles_title": "Profile",
+  "profile.profiles_hint": "Erstelle ein Profil, um loszulegen.",
   "profile.create_new": "+ Neues Profil erstellen",
   "profile.create_placeholder": "z.B. Workout, Chill, Entdeckung",
   "profile.name_required": "Gib einen Profilnamen ein.",

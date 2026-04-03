@@ -277,12 +277,6 @@ export function toggleTrainBody() {
     updateProfileIoVisibility();
     updateTrainToggleLabel();
 
-    // Show/hide the profile selector and status alongside the body
-    const profileSel = document.getElementById('profileSelector');
-    if (profileSel) profileSel.classList.toggle('hidden', !isOpening);
-    const trainStatus = document.getElementById('trainStatus');
-    if (trainStatus) trainStatus.classList.toggle('hidden', !isOpening);
-
     // Sync aria-expanded on the section header and toggle button
     const expanded = isOpening.toString();
     const header = document.querySelector('#trainSection > .train-header');

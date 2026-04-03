@@ -16,21 +16,6 @@
             <span class="train-status {% if not profile_edit_mode %}hidden{% endif %}" id="trainStatus">
                 {% if profile_trained %}✓ Last trained: {{ profile.last_updated|datetimeformat }}{% else %}⚠ Not yet trained — describe your taste below.{% endif %}
             </span>
-
-            <!-- Profile selector (shown only when expanded) -->
-            <div class="profile-selector {% if not profile_edit_mode %}hidden{% endif %}" id="profileSelector" onclick="event.stopPropagation()">
-                <select id="profileSelect" class="profile-dropdown" aria-label="Select profile" onchange="switchProfile(this.value)">
-                    <option value="" data-i18n="profile.no_profile_selected">No profile selected</option>
-                </select>
-                <div class="profile-create-row" id="profileCreateRow">
-                    <button class="profile-create-btn" id="profileCreateToggle" onclick="toggleCreateProfile()" role="button" aria-expanded="false" aria-controls="profileCreateInput" data-i18n="profile.create_new">+ Create new Profile</button>
-                    <div class="profile-create-input-wrap hidden" id="profileCreateWrap">
-                        <input type="text" id="profileCreateInput" class="profile-create-input" maxlength="40" data-i18n-placeholder="profile.create_placeholder" placeholder="e.g. Workout, Chill, Discovery" aria-label="New profile name" onkeydown="if(event.key==='Enter'){event.preventDefault();createNewProfile()}else if(event.key==='Escape'){toggleCreateProfile()}" />
-                        <button class="profile-create-confirm" onclick="createNewProfile()" aria-label="Create profile" title="Create">✓</button>
-                    </div>
-                    <span class="profile-create-error hidden" id="profileCreateError" role="alert"></span>
-                </div>
-            </div>
         </div>
         <div class="train-header-actions">
             <button class="btn-train" id="trainToggleBtn" onclick="event.stopPropagation(); toggleTrainBody()" data-i18n="profile.edit_profile" aria-expanded="{% if profile_edit_mode %}true{% else %}false{% endif %}" aria-controls="trainBody">
@@ -41,6 +26,32 @@
 
     <div id="trainWarn" class="hidden" role="alert"></div>
     <div class="train-body {% if not profile_edit_mode %}hidden{% endif %}" id="trainBody">
+
+        <!-- Profiles (select / create) -->
+        <div class="accordion-panel open" id="accProfiles">
+            <div class="accordion-header" role="button" tabindex="0" onclick="toggleAccordion('accProfiles')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAccordion('accProfiles')}" aria-expanded="true">
+                <h3><span aria-hidden="true">👤</span> <span data-i18n="profile.profiles_title">Profiles</span></h3>
+                <span class="accordion-chevron" aria-hidden="true">▼</span>
+            </div>
+            <div class="accordion-body">
+                <div class="accordion-body-inner">
+                    <p class="acc-hint" data-i18n="profile.profiles_hint" id="profilesHint">Create a profile to get started.</p>
+                    <div class="profile-selector" id="profileSelector">
+                        <select id="profileSelect" class="profile-dropdown" aria-label="Select profile" onchange="switchProfile(this.value)">
+                            <option value="" data-i18n="profile.no_profile_selected">No profile selected</option>
+                        </select>
+                        <div class="profile-create-row" id="profileCreateRow">
+                            <button class="profile-create-btn" id="profileCreateToggle" onclick="toggleCreateProfile()" role="button" aria-expanded="false" aria-controls="profileCreateInput" data-i18n="profile.create_new">+ Create new Profile</button>
+                            <div class="profile-create-input-wrap hidden" id="profileCreateWrap">
+                                <input type="text" id="profileCreateInput" class="profile-create-input" maxlength="40" data-i18n-placeholder="profile.create_placeholder" placeholder="e.g. Workout, Chill, Discovery" aria-label="New profile name" onkeydown="if(event.key==='Enter'){event.preventDefault();createNewProfile()}else if(event.key==='Escape'){toggleCreateProfile()}" />
+                                <button class="profile-create-confirm" onclick="createNewProfile()" aria-label="Create profile" title="Create">✓</button>
+                            </div>
+                            <span class="profile-create-error hidden" id="profileCreateError" role="alert"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Describe Your Vibe (free-form natural language) -->
         <div class="accordion-panel open" id="accVibeDesc">
