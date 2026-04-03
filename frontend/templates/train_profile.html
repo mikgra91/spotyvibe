@@ -3,8 +3,10 @@
         <div class="train-header-left">
             <h2><span aria-hidden="true">🎯</span> <span data-i18n="profile.title">Music Profile</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('music-profile')" data-i18n-title="help.section_help_title" title="Open help for this section" aria-label="Help for Music Profile">?</button></h2>
 
-            <!-- Profile selector -->
-            <div class="profile-selector" onclick="event.stopPropagation()">
+            <span class="train-status train-subtitle">Define your musical taste — genres, moods, must-haves, and things to avoid.</span>
+
+            <!-- Profile selector (shown only when expanded) -->
+            <div class="profile-selector {% if not profile_edit_mode %}hidden{% endif %}" id="profileSelector" onclick="event.stopPropagation()">
                 <select id="profileSelect" class="profile-dropdown" aria-label="Select profile" onchange="switchProfile(this.value)">
                     <option value="" data-i18n="profile.no_profile_selected">No profile selected</option>
                 </select>
@@ -18,7 +20,6 @@
                 </div>
             </div>
 
-            <span class="train-status train-subtitle">Define your musical taste — genres, moods, must-haves, and things to avoid.</span>
             <span class="train-status" id="trainStatus">
                 {% if profile_trained %}✓ Last trained: {{ profile.last_updated|datetimeformat }}{% else %}⚠ Not yet trained — describe your taste below.{% endif %}
             </span>

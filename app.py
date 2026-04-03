@@ -861,7 +861,8 @@ def profile_status():
 def profile_data():
     """Return the current profile preferences for pre-filling the UI."""
     if not get_active_profile_id():
-        return jsonify({"error": "No active profile."}), 400
+        app.logger.debug("profile/data called with no active profile")
+        return jsonify({})
     profile = load_profile()
     return jsonify(profile)
 

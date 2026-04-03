@@ -236,10 +236,11 @@ class TestProfileData:
         data = resp.get_json()
         assert data["preferences"]["core_description"] == "rock"
 
-    def test_returns_400_when_no_active_profile(self, client):
+    def test_returns_empty_json_when_no_active_profile(self, client):
         with patch("app.get_active_profile_id", return_value=""):
             resp = client.get("/api/profile/data")
-        assert resp.status_code == 400
+        assert resp.status_code == 200
+        assert resp.get_json() == {}
 
 
 class TestProfileImportExport:

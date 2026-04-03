@@ -1028,7 +1028,7 @@ h1 {
 .profile-create-btn {
     background: none;
     border: none;
-    color: var(--accent-teal);
+    color: var(--primary);
     font-size: 0.82rem;
     font-family: inherit;
     font-weight: 600;
