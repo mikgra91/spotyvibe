@@ -25,6 +25,169 @@ const TRAINING_TEXTS = {
     ],
 };
 
+
+// ── Multi-profile management ────────────────────────────────────────
+
+let _profileList = [];
+let _activeProfileId = '';
+
+export async function loadProfileList() {
+    try {
+        const resp = await fetch('/api/profiles');
+        const data = await resp.json();
+        _profileList = data.profiles || [];
+        _activeProfileId = data.active_id || '';
+        _renderProfileDropdown();
+    } catch (e) { /* ignore */ }
+}
+
+function _renderProfileDropdown() {
+    const select = document.getElementById('profileSelect');
+    if (!select) return;
+
+    select.innerHTML = '';
+
+    if (_profileList.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = i18n('profile.no_profile_selected', 'No profile selected');
+        select.appendChild(opt);
+        return;
+    }
+
+    for (const p of _profileList) {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name || p.id;
+        if (p.id === _activeProfileId) opt.selected = true;
+        select.appendChild(opt);
+    }
+}
+
+export async function switchProfile(profileId) {
+    if (!profileId || profileId === _activeProfileId) return;
+    try {
+        const resp = await fetch(`/api/profiles/${encodeURIComponent(profileId)}/activate`, { method: 'POST' });
+        if (!resp.ok) {
+            const data = await resp.json();
+            showToast(data.error || 'Failed to switch profile.', 'error');
+            return;
+        }
+        _activeProfileId = profileId;
+        await Promise.all([checkProfileStatus(), prefillTrainFields()]);
+        showToast(i18n('msg.profile_switched', 'Profile switched.'), 'success');
+    } catch (e) {
+        showToast('Network error: ' + e.message, 'error');
+    }
+}
+
+export function toggleCreateProfile() {
+    const wrap = document.getElementById('profileCreateWrap');
+    const toggle = document.getElementById('profileCreateToggle');
+    const input = document.getElementById('profileCreateInput');
+    const error = document.getElementById('profileCreateError');
+
+    if (wrap.classList.contains('hidden')) {
+        wrap.classList.remove('hidden');
+        toggle.classList.add('hidden');
+        error.classList.add('hidden');
+        input.value = '';
+        input.focus();
+        toggle.setAttribute('aria-expanded', 'true');
+    } else {
+        wrap.classList.add('hidden');
+        toggle.classList.remove('hidden');
+        error.classList.add('hidden');
+        toggle.setAttribute('aria-expanded', 'false');
+    }
+}
+
+export async function createNewProfile() {
+    const input = document.getElementById('profileCreateInput');
+    const error = document.getElementById('profileCreateError');
+    const name = (input.value || '').trim();
+
+    if (!name) {
+        error.textContent = i18n('profile.name_required', 'Enter a profile name.');
+        error.classList.remove('hidden');
+        input.focus();
+        return;
+    }
+
+    try {
+        const resp = await fetch('/api/profiles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name }),
+        });
+        const data = await resp.json();
+
+        if (!resp.ok || data.error) {
+            error.textContent = data.error || 'Failed to create profile.';
+            error.classList.remove('hidden');
+            input.focus();
+            return;
+        }
+
+        // Collapse the create input
+        toggleCreateProfile();
+
+        // Reload the profile list — the new profile is auto-activated
+        await loadProfileList();
+        await Promise.all([checkProfileStatus(), prefillTrainFields()]);
+        showToast(i18n('msg.profile_created', 'Profile created.'), 'success');
+    } catch (e) {
+        error.textContent = 'Network error: ' + e.message;
+        error.classList.remove('hidden');
+    }
+}
+
+export async function deleteCurrentProfile() {
+    if (!_activeProfileId) return;
+
+    const currentName = _profileList.find(p => p.id === _activeProfileId)?.name || 'this profile';
+    const ok = await showConfirm(
+        `Delete "${currentName}"?\n\nThis cannot be undone.`
+    );
+    if (!ok) return;
+
+    try {
+        const resp = await fetch(`/api/profiles/${encodeURIComponent(_activeProfileId)}`, { method: 'DELETE' });
+        const data = await resp.json();
+
+        if (!resp.ok || data.error) {
+            showToast(data.error || 'Delete failed.', 'error');
+            return;
+        }
+
+        _activeProfileId = '';
+        await loadProfileList();
+
+        // Auto-select the first remaining profile if any
+        if (_profileList.length > 0) {
+            await switchProfile(_profileList[0].id);
+        } else {
+            await checkProfileStatus();
+            _clearTrainFields();
+        }
+
+        showToast(i18n('msg.profile_deleted', 'Profile deleted.'), 'success');
+    } catch (e) {
+        showToast('Network error: ' + e.message, 'error');
+    }
+}
+
+function _clearTrainFields() {
+    const ids = ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid'];
+    for (const id of ids) {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    }
+}
+
+
+// ── Existing profile functions ──────────────────────────────────────
+
 export function toggleAccordion(id) {
     const panel = document.getElementById(id);
     panel.classList.toggle('open');
@@ -36,6 +199,14 @@ export async function checkProfileStatus() {
     try {
         const resp = await fetch('/api/profile/status');
         const data = await resp.json();
+
+        if (data.no_profile) {
+            State.setProfileTrained(false);
+            const el = document.getElementById('trainStatus');
+            if (el) el.textContent = i18n('profile.no_profile_hint', 'Create a profile to get started.');
+            return;
+        }
+
         State.setProfileTrained(data.trained);
         const el = document.getElementById('trainStatus');
         if (data.trained) {
@@ -55,6 +226,7 @@ export async function checkProfileStatus() {
 export async function prefillTrainFields() {
     try {
         const resp = await fetch('/api/profile/data');
+        if (!resp.ok) return;
         const profile = await resp.json();
         const prefs = profile.preferences || {};
 
@@ -63,15 +235,16 @@ export async function prefillTrainFields() {
         document.getElementById('trainMustHave').value = (prefs.must_have || []).join('\n');
         document.getElementById('trainSoftPrefs').value = (prefs.soft_preferences || []).join('\n');
         document.getElementById('trainAvoid').value = (prefs.avoid || []).join('\n');
-        updateCoreDescRequired();
+        _updateAiWarning();
     } catch (e) { /* ignore — fields stay empty */ }
 }
 
-function updateCoreDescRequired() {
+function _updateAiWarning() {
     const vibeDesc = (document.getElementById('trainVibeDesc').value || '').trim();
-    const badge = document.getElementById('coreDescRequired');
-    if (badge) {
-        badge.style.display = vibeDesc ? 'none' : '';
+    const coreDesc = (document.getElementById('trainCoreDesc').value || '').trim();
+    const warning = document.getElementById('trainAiWarning');
+    if (warning) {
+        warning.classList.toggle('hidden', !!(vibeDesc || coreDesc));
     }
 }
 
@@ -192,11 +365,11 @@ export function bindProfileImportInput() {
         handleProfileImportFile(file);
     });
 
-    // Update "required" badge on Core Description when vibe description changes
+    // Update AI warning when description fields change
     const vibeInput = document.getElementById('trainVibeDesc');
-    if (vibeInput) {
-        vibeInput.addEventListener('input', updateCoreDescRequired);
-    }
+    const coreInput = document.getElementById('trainCoreDesc');
+    if (vibeInput) vibeInput.addEventListener('input', _updateAiWarning);
+    if (coreInput) coreInput.addEventListener('input', _updateAiWarning);
 }
 
 export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, successMsg, requireOpenAI) {
@@ -210,8 +383,8 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
     const coreInput = document.getElementById('trainCoreDesc');
     const errMsg = document.getElementById('errCoreDesc');
 
-    // Core description is required only if vibe description is empty
-    if (!coreDesc && !vibeDesc) {
+    // For AI training, require at least one description
+    if (requireOpenAI && !coreDesc && !vibeDesc) {
         coreInput.classList.add('input-error');
         errMsg.style.display = 'block';
         document.getElementById('accCoreDesc').classList.add('open');

@@ -977,6 +977,142 @@ h1 {
         color: var(--text-primary);
     }
 }
+
+.btn-profile-delete {
+    color: var(--error) !important;
+    border-color: rgba(255, 80, 80, 0.3) !important;
+}
+@media (hover: hover) {
+    .btn-profile-delete:hover {
+        background: rgba(255, 80, 80, 0.12) !important;
+        border-color: var(--error) !important;
+    }
+}
+
+/* ── Profile selector & multi-profile controls ─────────────────────── */
+.profile-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+    max-width: 360px;
+}
+
+.profile-dropdown {
+    width: 100%;
+    min-height: 34px;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color var(--transition), box-shadow var(--transition);
+    appearance: auto;
+}
+.profile-dropdown:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--focus-glow);
+}
+
+.profile-create-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.profile-create-btn {
+    background: none;
+    border: none;
+    color: var(--accent-teal);
+    font-size: 0.82rem;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 2px 0;
+    transition: color var(--transition);
+}
+@media (hover: hover) {
+    .profile-create-btn:hover {
+        color: var(--primary);
+    }
+}
+
+.profile-create-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    animation: slideDown 0.15s ease-out;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .profile-create-input-wrap { animation: none; }
+}
+
+.profile-create-input {
+    flex: 1;
+    min-width: 140px;
+    min-height: 30px;
+    padding: 5px 10px;
+    font-size: 0.82rem;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+.profile-create-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--focus-glow);
+}
+
+.profile-create-confirm {
+    background: none;
+    border: 1px solid var(--accent-teal);
+    color: var(--accent-teal);
+    font-size: 0.9rem;
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition);
+}
+@media (hover: hover) {
+    .profile-create-confirm:hover {
+        background: var(--accent-teal);
+        color: #fff;
+    }
+}
+
+.profile-create-error {
+    font-size: 0.78rem;
+    color: var(--error);
+    width: 100%;
+}
+
+/* ── AI training advisory warning ──────────────────────────────────── */
+.train-ai-warning {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    margin-top: 8px;
+    font-size: 0.82rem;
+    color: #e6b800;
+    background: rgba(230, 184, 0, 0.08);
+    border: 1px solid rgba(230, 184, 0, 0.25);
+    border-radius: var(--radius-sm);
+}
+
 .train-header h2 {
     font-size: 1rem;
     color: var(--text-primary);

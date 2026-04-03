@@ -15,6 +15,12 @@
 
   "profile.title": "Music Profile",
   "profile.edit_profile": "Edit profile",
+  "profile.no_profile_selected": "No profile selected",
+  "profile.no_profile_hint": "Create a profile to get started.",
+  "profile.create_new": "+ Create new Profile",
+  "profile.create_placeholder": "e.g. Workout, Chill, Discovery",
+  "profile.name_required": "Enter a profile name.",
+  "profile.ai_warning": "Enter a Core Description or a Vibe message to update your profile with AI.",
   "profile.vibe_description": "Describe Your Vibe",
   "profile.vibe_description_hint": "Tell the AI what you're looking for in everyday language — no structure needed. The AI will translate this into your profile.",
   "profile.vibe_description_placeholder": "e.g. \"I love energetic rock with theatrical vocals like Queen. Surprise me with something new but keep it high-energy and melodic!\"",
@@ -35,6 +41,7 @@
   "btn.import": "Import",
   "btn.export": "Export",
   "btn.reset_to_history": "Reset to history",
+  "btn.delete_profile": "Delete",
   "btn.analyse": "Analyse",
   "btn.generate": "Generate & Create Playlist",
   "btn.cancel_generation": "Cancel",
@@ -56,6 +63,9 @@
   "settings.open_data_dir": "📂 To local files",
 
   "msg.export_saved": "Profile exported — check your Downloads folder for spotyvibe_profile.json",
+  "msg.profile_switched": "Profile switched.",
+  "msg.profile_created": "Profile created.",
+  "msg.profile_deleted": "Profile deleted.",
 
   "history.title": "History",
   "history.show": "Show history",

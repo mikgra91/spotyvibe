@@ -1,6 +1,6 @@
 import { checkCredentialStatus, checkSpotifyAuth, connectSpotify, toggleSpotifyConnection, fetchSettingsState } from './modules/auth.js';
 import { renderComponentWarnings } from './modules/warnings.js';
-import { toggleAccordion, prefillTrainFields, updateTrainToggleLabel, toggleTrainBody, startImportProfile, exportProfile, submitProfile, sendTrainProfile, saveProfileDirect, resetProfileToHistory, bindProfileImportInput, checkProfileStatus } from './modules/profile.js';
+import { toggleAccordion, prefillTrainFields, updateTrainToggleLabel, toggleTrainBody, startImportProfile, exportProfile, submitProfile, sendTrainProfile, saveProfileDirect, resetProfileToHistory, bindProfileImportInput, checkProfileStatus, loadProfileList, switchProfile, toggleCreateProfile, createNewProfile, deleteCurrentProfile } from './modules/profile.js';
 import { toggleHistoryBody, loadHistory } from './modules/history.js';
 import { toggleAnalysisBody, runAnalysis, renderAnalysisResult, copySuggestion, jumpToAnalysis } from './modules/analysis.js';
 import { toggleGenerateBody, runPipeline, setGenerating, updateUseTracksButton, generateUUID, handleStreamEvent, showSseDisconnectBanner, resumeRun, cancelGeneration, useCurrentTracks, canGenerate } from './modules/pipeline.js';
@@ -36,6 +36,11 @@ window.submitProfile = submitProfile;
 window.sendTrainProfile = sendTrainProfile;
 window.saveProfileDirect = saveProfileDirect;
 window.resetProfileToHistory = resetProfileToHistory;
+window.loadProfileList = loadProfileList;
+window.switchProfile = switchProfile;
+window.toggleCreateProfile = toggleCreateProfile;
+window.createNewProfile = createNewProfile;
+window.deleteCurrentProfile = deleteCurrentProfile;
 window.toggleHistoryBody = toggleHistoryBody;
 window.loadHistory = loadHistory;
 window.toggleAnalysisBody = toggleAnalysisBody;
@@ -159,6 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Profile
+    loadProfileList();
     checkProfileStatus();
     updateTrainToggleLabel();
     bindProfileImportInput();
