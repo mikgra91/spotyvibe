@@ -466,6 +466,10 @@ def train_profile(sections):
         if key in profile:
             updated_profile[key] = profile[key]
 
+    # Clear vibe_description — it was a one-time instruction that GPT has now
+    # incorporated into the structured profile sections.
+    updated_profile.setdefault("preferences", {})["vibe_description"] = ""
+
     # Stamp the update time
     updated_profile["last_updated"] = datetime.now(timezone.utc).isoformat()
 
