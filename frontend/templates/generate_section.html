@@ -54,15 +54,15 @@
             </div>
             <div class="audio-filter-grid">
                 <div class="audio-filter-row">
-                    <label for="af-energy-min">Energy (0–1)</label>
-                    <input type="number" id="af-energy-min" placeholder="min" min="0" max="1" step="0.05" oninput="updateFilterHint('energy')" value="{{ audio_filters.energy.min if audio_filters.energy.min is not none }}">
-                    <input type="number" id="af-energy-max" placeholder="max" min="0" max="1" step="0.05" oninput="updateFilterHint('energy')" value="{{ audio_filters.energy.max if audio_filters.energy.max is not none }}">
+                    <label for="af-energy-min">Energy (%)</label>
+                    <input type="number" id="af-energy-min" placeholder="min" min="0" max="100" step="5" oninput="updateFilterHint('energy')" value="{{ (audio_filters.energy.min * 100)|round|int if audio_filters.energy.min is not none }}">
+                    <input type="number" id="af-energy-max" placeholder="max" min="0" max="100" step="5" oninput="updateFilterHint('energy')" value="{{ (audio_filters.energy.max * 100)|round|int if audio_filters.energy.max is not none }}">
                     <span class="audio-filter-hint-text" id="af-energy-hint"></span>
                 </div>
                 <div class="audio-filter-row">
-                    <label for="af-valence-min">Valence (0–1)</label>
-                    <input type="number" id="af-valence-min" placeholder="min" min="0" max="1" step="0.05" oninput="updateFilterHint('valence')" value="{{ audio_filters.valence.min if audio_filters.valence.min is not none }}">
-                    <input type="number" id="af-valence-max" placeholder="max" min="0" max="1" step="0.05" oninput="updateFilterHint('valence')" value="{{ audio_filters.valence.max if audio_filters.valence.max is not none }}">
+                    <label for="af-valence-min">Valence (%)</label>
+                    <input type="number" id="af-valence-min" placeholder="min" min="0" max="100" step="5" oninput="updateFilterHint('valence')" value="{{ (audio_filters.valence.min * 100)|round|int if audio_filters.valence.min is not none }}">
+                    <input type="number" id="af-valence-max" placeholder="max" min="0" max="100" step="5" oninput="updateFilterHint('valence')" value="{{ (audio_filters.valence.max * 100)|round|int if audio_filters.valence.max is not none }}">
                     <span class="audio-filter-hint-text" id="af-valence-hint"></span>
                 </div>
                 <div class="audio-filter-row">
@@ -72,15 +72,15 @@
                     <span class="audio-filter-hint-text" id="af-tempo-hint"></span>
                 </div>
                 <div class="audio-filter-row">
-                    <label for="af-danceability-min">Danceability (0–1)</label>
-                    <input type="number" id="af-danceability-min" placeholder="min" min="0" max="1" step="0.05" oninput="updateFilterHint('danceability')" value="{{ audio_filters.danceability.min if audio_filters.danceability.min is not none }}">
-                    <input type="number" id="af-danceability-max" placeholder="max" min="0" max="1" step="0.05" oninput="updateFilterHint('danceability')" value="{{ audio_filters.danceability.max if audio_filters.danceability.max is not none }}">
+                    <label for="af-danceability-min">Danceability (%)</label>
+                    <input type="number" id="af-danceability-min" placeholder="min" min="0" max="100" step="5" oninput="updateFilterHint('danceability')" value="{{ (audio_filters.danceability.min * 100)|round|int if audio_filters.danceability.min is not none }}">
+                    <input type="number" id="af-danceability-max" placeholder="max" min="0" max="100" step="5" oninput="updateFilterHint('danceability')" value="{{ (audio_filters.danceability.max * 100)|round|int if audio_filters.danceability.max is not none }}">
                     <span class="audio-filter-hint-text" id="af-danceability-hint"></span>
                 </div>
                 <div class="audio-filter-row">
-                    <label for="af-acousticness-min">Acousticness (0–1)</label>
-                    <input type="number" id="af-acousticness-min" placeholder="min" min="0" max="1" step="0.05" oninput="updateFilterHint('acousticness')" value="{{ audio_filters.acousticness.min if audio_filters.acousticness.min is not none }}">
-                    <input type="number" id="af-acousticness-max" placeholder="max" min="0" max="1" step="0.05" oninput="updateFilterHint('acousticness')" value="{{ audio_filters.acousticness.max if audio_filters.acousticness.max is not none }}">
+                    <label for="af-acousticness-min">Acousticness (%)</label>
+                    <input type="number" id="af-acousticness-min" placeholder="min" min="0" max="100" step="5" oninput="updateFilterHint('acousticness')" value="{{ (audio_filters.acousticness.min * 100)|round|int if audio_filters.acousticness.min is not none }}">
+                    <input type="number" id="af-acousticness-max" placeholder="max" min="0" max="100" step="5" oninput="updateFilterHint('acousticness')" value="{{ (audio_filters.acousticness.max * 100)|round|int if audio_filters.acousticness.max is not none }}">
                     <span class="audio-filter-hint-text" id="af-acousticness-hint"></span>
                 </div>
             </div>

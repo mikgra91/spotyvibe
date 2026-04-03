@@ -3,28 +3,28 @@ import { showToast } from './ui.js';
 /* ── Human-readable hint descriptions ──────────────────────────────── */
 const HINT_RANGES = {
     energy: [
-        [0, 0.3, 'Calm, ambient'],
-        [0.3, 0.6, 'Moderate'],
-        [0.6, 0.8, 'Energetic'],
-        [0.8, 1.0, 'Intense, aggressive'],
+        [0, 30, 'Calm, ambient'],
+        [30, 60, 'Moderate'],
+        [60, 80, 'Energetic'],
+        [80, 100, 'Intense, aggressive'],
     ],
     valence: [
-        [0, 0.3, 'Dark, melancholic'],
-        [0.3, 0.6, 'Neutral, bittersweet'],
-        [0.6, 0.8, 'Upbeat, positive'],
-        [0.8, 1.0, 'Euphoric, joyful'],
+        [0, 30, 'Dark, melancholic'],
+        [30, 60, 'Neutral, bittersweet'],
+        [60, 80, 'Upbeat, positive'],
+        [80, 100, 'Euphoric, joyful'],
     ],
     danceability: [
-        [0, 0.3, 'Not danceable'],
-        [0.3, 0.6, 'Moderate groove'],
-        [0.6, 0.8, 'Danceable'],
-        [0.8, 1.0, 'Club / dance-floor'],
+        [0, 30, 'Not danceable'],
+        [30, 60, 'Moderate groove'],
+        [60, 80, 'Danceable'],
+        [80, 100, 'Club / dance-floor'],
     ],
     acousticness: [
-        [0, 0.3, 'Electronic / electric'],
-        [0.3, 0.6, 'Mixed'],
-        [0.6, 0.8, 'Mostly acoustic'],
-        [0.8, 1.0, 'Fully acoustic'],
+        [0, 30, 'Electronic / electric'],
+        [30, 60, 'Mixed'],
+        [60, 80, 'Mostly acoustic'],
+        [80, 100, 'Fully acoustic'],
     ],
     tempo: [
         [0, 80, 'Slow'],
@@ -85,12 +85,17 @@ export function toggleAudioFilters() {
 
 export function getAudioFilters() {
     const filters = {};
+    const percentFeatures = new Set(['energy', 'valence', 'danceability', 'acousticness']);
     const features = ['energy','valence','tempo','danceability','acousticness'];
     features.forEach(f => {
         const minEl = document.getElementById(`af-${f}-min`);
         const maxEl = document.getElementById(`af-${f}-max`);
-        const lo = minEl && minEl.value !== '' ? parseFloat(minEl.value) : null;
-        const hi = maxEl && maxEl.value !== '' ? parseFloat(maxEl.value) : null;
+        let lo = minEl && minEl.value !== '' ? parseFloat(minEl.value) : null;
+        let hi = maxEl && maxEl.value !== '' ? parseFloat(maxEl.value) : null;
+        if (percentFeatures.has(f)) {
+            if (lo !== null) lo = lo / 100;
+            if (hi !== null) hi = hi / 100;
+        }
         if (lo !== null || hi !== null) {
             filters[f] = {};
             if (lo !== null) filters[f].min = lo;
@@ -120,22 +125,23 @@ export function clearAllFilters() {
  */
 export function applyAnalysisFilter(feature, value) {
     const isTempo = feature === 'tempo';
-    const offset = isTempo ? 15 : 0.10;
-    const maxBound = isTempo ? 300 : 1;
-    const step = isTempo ? 5 : 0.05;
+    const isPercent = !isTempo;
+    const displayValue = isPercent ? value * 100 : value;
+    const offset = isTempo ? 15 : 10;
+    const maxBound = isTempo ? 300 : 100;
+    const step = isTempo ? 5 : 5;
 
-    const lo = Math.max(0, value - offset);
-    const hi = Math.min(maxBound, value + offset);
+    const lo = Math.max(0, displayValue - offset);
+    const hi = Math.min(maxBound, displayValue + offset);
 
-    // Round to step precision
     const roundTo = (v, s) => Math.round(v / s) * s;
     const loRounded = roundTo(lo, step);
     const hiRounded = roundTo(hi, step);
 
     const minEl = document.getElementById(`af-${feature}-min`);
     const maxEl = document.getElementById(`af-${feature}-max`);
-    if (minEl) minEl.value = isTempo ? loRounded : loRounded.toFixed(2);
-    if (maxEl) maxEl.value = isTempo ? hiRounded : hiRounded.toFixed(2);
+    if (minEl) minEl.value = loRounded;
+    if (maxEl) maxEl.value = hiRounded;
 
     updateFilterHint(feature);
 
@@ -151,7 +157,7 @@ export function applyAnalysisFilter(feature, value) {
     }
 
     const label = feature.charAt(0).toUpperCase() + feature.slice(1);
-    const desc = isTempo ? `${loRounded}–${hiRounded} BPM` : `${loRounded.toFixed(2)}–${hiRounded.toFixed(2)}`;
+    const desc = isTempo ? `${loRounded}–${hiRounded} BPM` : `${loRounded}–${hiRounded}%`;
     showToast(`${label} filter set to ${desc}`, 'success');
 }
 
@@ -166,18 +172,20 @@ export function applyAllAnalysisFilters(audioFeatures) {
         if (audioFeatures[f] != null) {
             // Apply silently (no individual toasts)
             const isTempo = f === 'tempo';
-            const offset = isTempo ? 15 : 0.10;
-            const maxBound = isTempo ? 300 : 1;
-            const step = isTempo ? 5 : 0.05;
-            const lo = Math.max(0, audioFeatures[f] - offset);
-            const hi = Math.min(maxBound, audioFeatures[f] + offset);
+            const isPercent = !isTempo;
+            const displayValue = isPercent ? audioFeatures[f] * 100 : audioFeatures[f];
+            const offset = isTempo ? 15 : 10;
+            const maxBound = isTempo ? 300 : 100;
+            const step = isTempo ? 5 : 5;
+            const lo = Math.max(0, displayValue - offset);
+            const hi = Math.min(maxBound, displayValue + offset);
             const roundTo = (v, s) => Math.round(v / s) * s;
             const loR = roundTo(lo, step);
             const hiR = roundTo(hi, step);
             const minEl = document.getElementById(`af-${f}-min`);
             const maxEl = document.getElementById(`af-${f}-max`);
-            if (minEl) minEl.value = isTempo ? loR : loR.toFixed(2);
-            if (maxEl) maxEl.value = isTempo ? hiR : hiR.toFixed(2);
+            if (minEl) minEl.value = loR;
+            if (maxEl) maxEl.value = hiR;
             updateFilterHint(f);
             count++;
         }
