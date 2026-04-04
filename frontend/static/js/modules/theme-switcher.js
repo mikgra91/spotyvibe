@@ -1,6 +1,8 @@
 export const THEME_BACKGROUNDS = {
     equalizer: `<canvas id="equalizerCanvas"></canvas>`,
     pulse: `<canvas id="pulseCanvas"></canvas>`,
+    spectrum: `<canvas id="spectrumCanvas"></canvas>`,
+    starfield: `<canvas id="starfieldCanvas"></canvas>`,
 };
 
 export const THEME_RENDERERS = {};

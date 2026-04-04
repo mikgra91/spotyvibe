@@ -21,15 +21,15 @@ THEME_RENDERERS.pulse = function(canvas) {
         [255, 77, 184]
     ];
 
-    const EMITTER_COUNT = isMobile ? 3 : 5;
+    const EMITTER_COUNT = isMobile ? 4 : 6;
     const emitters = [];
     function initEmitters() {
         emitters.length = 0;
         const w = canvas.width, h = canvas.height;
         for (let i = 0; i < EMITTER_COUNT; i++) {
             emitters.push({
-                x: w * (0.15 + Math.random() * 0.7),
-                y: h * (0.15 + Math.random() * 0.7),
+                x: w * (0.05 + Math.random() * 0.9),
+                y: h * (0.05 + Math.random() * 0.9),
                 depth: 0.3 + Math.random() * 0.7,
                 colorIdx: Math.floor(Math.random() * COLORS.length),
                 nextSpawn: 0,
