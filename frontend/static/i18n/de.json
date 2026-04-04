@@ -18,7 +18,7 @@
   "profile.no_profile_selected": "Kein Profil ausgewählt",
   "profile.no_profile_hint": "Erstelle ein Profil, um loszulegen.",
   "profile.profiles_title": "Profile",
-  "profile.profiles_hint": "Erstelle ein Profil, um loszulegen.",
+  "profile.profiles_hint": "Wähle oder erstelle Profile basierend auf deinem Musikgeschmack.",
   "profile.create_new": "+ Neues Profil erstellen",
   "profile.create_placeholder": "z.B. Workout, Chill, Entdeckung",
   "profile.name_required": "Gib einen Profilnamen ein.",
@@ -39,6 +39,9 @@
 
   "btn.ai_profile_update": "KI-Profil aktualisieren",
   "btn.save": "Speichern",
+  "btn.save_no_ai": "Speichern ohne KI",
+  "btn.show": "Anzeigen",
+  "btn.hide": "Ausblenden",
   "btn.cancel": "Abbrechen",
   "btn.import": "Importieren",
   "btn.export": "Exportieren",

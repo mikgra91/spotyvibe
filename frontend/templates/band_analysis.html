@@ -6,7 +6,7 @@
             <span class="train-status train-subtitle">Get an AI-powered breakdown of any artist or track with ready-to-paste profile suggestions.</span>
         </div>
         <div class="train-header-actions">
-            <button class="btn-train" id="analysisToggleBtn" onclick="event.stopPropagation(); toggleAnalysisBody()" data-i18n="analysis.show" aria-expanded="{% if last_analysis_result %}true{% else %}false{% endif %}" aria-controls="analysisBody">Open Analysis</button>
+            <button class="btn-train" id="analysisToggleBtn" onclick="event.stopPropagation(); toggleAnalysisBody()" data-i18n="btn.show" aria-expanded="{% if last_analysis_result %}true{% else %}false{% endif %}" aria-controls="analysisBody">Show</button>
         </div>
     </div>
     <div class="train-body {% if last_analysis_result %}{% else %}hidden{% endif %}" id="analysisBody">

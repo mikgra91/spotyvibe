@@ -13,7 +13,7 @@ export async function toggleHistoryBody() {
         btn => btn.setAttribute('aria-expanded', expanded)
     );
     const toggleBtn = document.getElementById('historyToggleBtn');
-    if (toggleBtn) toggleBtn.textContent = State.historyBodyOpen ? i18n('history.hide', 'Hide') : i18n('history.show', 'Show history');
+    if (toggleBtn) toggleBtn.textContent = State.historyBodyOpen ? i18n('btn.hide', 'Hide') : i18n('btn.show', 'Show');
     if (State.historyBodyOpen) await loadHistory();
 }
 

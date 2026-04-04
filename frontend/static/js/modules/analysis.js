@@ -10,7 +10,7 @@ export function toggleAnalysisBody() {
     const btn = document.getElementById('analysisToggleBtn');
     if (btn) {
         btn.setAttribute('aria-expanded', expanded);
-        btn.textContent = expanded === 'true' ? i18n('analysis.hide', 'Hide') : i18n('analysis.show', 'Open Analysis');
+        btn.textContent = expanded === 'true' ? i18n('btn.hide', 'Hide') : i18n('btn.show', 'Show');
     }
 }
 
