@@ -3817,3 +3817,13 @@ input {
     100%    { opacity: 0.6; }
 }
 
+/* --- Scrollbar (dark theme, green thumb – matches app palette) --- */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+    background: var(--primary, #1DB954);
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover { background: #1ed760; }
+::-webkit-scrollbar-corner { background: transparent; }
+
