@@ -52,6 +52,7 @@ function _renderProfileDropdown() {
         opt.value = '';
         opt.textContent = i18n('profile.no_profile_selected', 'No profile selected');
         select.appendChild(opt);
+        _renderCustomDropdown();
         return;
     }
 
@@ -62,6 +63,121 @@ function _renderProfileDropdown() {
         if (p.id === _activeProfileId) opt.selected = true;
         select.appendChild(opt);
     }
+
+    _renderCustomDropdown();
+}
+
+/* ── Custom dropdown rendering & interaction ─────────────────────── */
+
+function _renderCustomDropdown() {
+    const label = document.getElementById('profileDropdownLabel');
+    const list = document.getElementById('profileDropdownList');
+    if (!label || !list) return;
+
+    // Update label to show the active profile
+    const active = _profileList.find(p => p.id === _activeProfileId);
+    label.textContent = active
+        ? (active.name || active.id)
+        : i18n('profile.no_profile_selected', 'No profile selected');
+
+    // Build list items
+    list.innerHTML = '';
+    if (_profileList.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = i18n('profile.no_profile_selected', 'No profile selected');
+        li.style.color = 'var(--text-muted)';
+        li.style.cursor = 'default';
+        list.appendChild(li);
+        return;
+    }
+
+    for (const p of _profileList) {
+        const li = document.createElement('li');
+        li.setAttribute('role', 'option');
+        li.setAttribute('data-value', p.id);
+        li.setAttribute('tabindex', '-1');
+        li.textContent = p.name || p.id;
+        if (p.id === _activeProfileId) {
+            li.setAttribute('aria-selected', 'true');
+        }
+        li.addEventListener('click', (e) => {
+            e.stopPropagation();
+            _selectCustomDropdownItem(p.id);
+        });
+        li.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                _selectCustomDropdownItem(p.id);
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                const next = li.nextElementSibling;
+                if (next) next.focus();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                const prev = li.previousElementSibling;
+                if (prev) prev.focus();
+            } else if (e.key === 'Escape') {
+                _closeCustomDropdown();
+            }
+        });
+        list.appendChild(li);
+    }
+}
+
+function _selectCustomDropdownItem(profileId) {
+    // Update the hidden native select
+    const select = document.getElementById('profileSelect');
+    if (select) select.value = profileId;
+    _closeCustomDropdown();
+    switchProfile(profileId);
+}
+
+function _toggleCustomDropdown() {
+    const dropdown = document.getElementById('profileCustomDropdown');
+    const list = document.getElementById('profileDropdownList');
+    if (!dropdown || !list) return;
+
+    const isOpen = !list.classList.contains('hidden');
+    if (isOpen) {
+        _closeCustomDropdown();
+    } else {
+        list.classList.remove('hidden');
+        dropdown.setAttribute('aria-expanded', 'true');
+        // Focus the selected item or first item
+        const selected = list.querySelector('[aria-selected="true"]') || list.querySelector('li');
+        if (selected) selected.focus();
+    }
+}
+
+function _closeCustomDropdown() {
+    const dropdown = document.getElementById('profileCustomDropdown');
+    const list = document.getElementById('profileDropdownList');
+    if (!dropdown || !list) return;
+    list.classList.add('hidden');
+    dropdown.setAttribute('aria-expanded', 'false');
+}
+
+export function initCustomProfileDropdown() {
+    const dropdown = document.getElementById('profileCustomDropdown');
+    if (!dropdown) return;
+
+    dropdown.addEventListener('click', (e) => {
+        e.stopPropagation();
+        _toggleCustomDropdown();
+    });
+    dropdown.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            _toggleCustomDropdown();
+        } else if (e.key === 'Escape') {
+            _closeCustomDropdown();
+        }
+    });
+
+    // Close on outside click
+    document.addEventListener('click', () => {
+        _closeCustomDropdown();
+    });
 }
 
 export async function switchProfile(profileId) {
@@ -74,6 +190,7 @@ export async function switchProfile(profileId) {
             return;
         }
         _activeProfileId = profileId;
+        _renderCustomDropdown();
         await Promise.all([checkProfileStatus(), prefillTrainFields()]);
         showToast(i18n('msg.profile_switched', 'Profile switched.'), 'success');
     } catch (e) {
@@ -215,7 +332,7 @@ export async function checkProfileStatus() {
         } else {
             el.textContent = '⚠ Not yet trained — describe your taste below.';
             document.getElementById('trainBody').classList.remove('hidden');
-            State.setUserProfileEditMode(false);
+            State.setUserProfileEditMode(true);
             updateProfileIoVisibility();
             updateTrainToggleLabel();
             prefillTrainFields();
@@ -253,7 +370,7 @@ export function updateTrainToggleLabel() {
     const body = document.getElementById('trainBody');
     const btn = document.getElementById('trainToggleBtn');
     if (!body || !btn) return;
-    btn.textContent = body.classList.contains('hidden') ? 'Edit profile' : 'Hide profile';
+    btn.textContent = body.classList.contains('hidden') ? i18n('btn.show', 'Show') : i18n('btn.hide', 'Hide');
 }
 
 export function toggleTrainBody() {
