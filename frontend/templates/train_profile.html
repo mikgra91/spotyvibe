@@ -2,26 +2,67 @@
     <div class="train-header" role="button" tabindex="0" onclick="toggleTrainBody()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleTrainBody()}" aria-expanded="{% if profile_edit_mode %}true{% else %}false{% endif %}" aria-controls="trainBody">
         <div class="train-header-left">
             <h2><span aria-hidden="true">🎯</span> <span data-i18n="profile.title">Music Profile</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('music-profile')" data-i18n-title="help.section_help_title" title="Open help for this section" aria-label="Help for Music Profile">?</button></h2>
+
             <span class="train-status train-subtitle">Define your musical taste — genres, moods, must-haves, and things to avoid.</span>
-            <span class="train-status" id="trainStatus">
+
+            <span class="train-status {% if not profile_edit_mode %}hidden{% endif %}" id="trainStatus">
                 {% if profile_trained %}✓ Last trained: {{ profile.last_updated|datetimeformat }}{% else %}⚠ Not yet trained — describe your taste below.{% endif %}
             </span>
-            <div class="profile-io-row {% if not profile_edit_mode %}hidden{% endif %}" id="profileIoActions" role="group" aria-label="Profile import/export/reset" onclick="event.stopPropagation()">
-                <button class="btn btn-profile-io" id="profileImportBtn" onclick="startImportProfile()" title="Import profile JSON" aria-label="Import profile"><span aria-hidden="true">⬆</span> <span data-i18n="btn.import">Import</span></button>
-                <button class="btn btn-profile-io" id="profileExportBtn" onclick="exportProfile()" title="Export profile JSON" aria-label="Export profile"><span aria-hidden="true">⬇</span> <span data-i18n="btn.export">Export</span></button>
-                <button class="btn btn-profile-io" id="profileResetBtn" onclick="resetProfileToHistory()" title="Reset profile to previous saved version" aria-label="Reset to history"><span aria-hidden="true">↩</span> <span data-i18n="btn.reset_to_history">Reset to history</span></button>
-            </div>
-            <input id="profileImportInput" type="file" accept="application/json,.json" style="display:none;" aria-hidden="true" />
         </div>
         <div class="train-header-actions">
-            <button class="btn-train" id="trainToggleBtn" onclick="event.stopPropagation(); toggleTrainBody()" data-i18n="profile.edit_profile" aria-expanded="{% if profile_edit_mode %}true{% else %}false{% endif %}" aria-controls="trainBody">
-                {{ 'Hide profile' if profile_edit_mode else 'Edit profile' }}
+            <button class="btn-train" id="trainToggleBtn" onclick="event.stopPropagation(); toggleTrainBody()" data-i18n="btn.show" aria-expanded="{% if profile_edit_mode %}true{% else %}false{% endif %}" aria-controls="trainBody">
+                {{ 'Hide' if profile_edit_mode else 'Show' }}
             </button>
         </div>
     </div>
 
     <div id="trainWarn" class="hidden" role="alert"></div>
     <div class="train-body {% if not profile_edit_mode %}hidden{% endif %}" id="trainBody">
+
+        <!-- Profiles (select / create) -->
+        <div class="accordion-panel open" id="accProfiles">
+            <div class="accordion-header" role="button" tabindex="0" onclick="toggleAccordion('accProfiles')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAccordion('accProfiles')}" aria-expanded="true">
+                <h3><span aria-hidden="true">👤</span> <span data-i18n="profile.profiles_title">Profiles</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('music-profile')" data-i18n-title="help.section_help_title" title="Open help for this section" aria-label="Help for Profiles">?</button></h3>
+                <span class="accordion-chevron" aria-hidden="true">▼</span>
+            </div>
+            <div class="accordion-body">
+                <div class="accordion-body-inner">
+                    <p class="acc-hint" data-i18n="profile.profiles_hint" id="profilesHint">Select or create profiles based on your musical taste.</p>
+                    <div class="profile-selector" id="profileSelector">
+                        <div class="profile-select-card">
+                            <span class="profile-select-icon" aria-hidden="true">🎸</span>
+                            <!-- Hidden native select for JS data binding -->
+                            <select id="profileSelect" class="profile-dropdown sr-only" aria-hidden="true" tabindex="-1">
+                                <option value="" data-i18n="profile.no_profile_selected">No profile selected</option>
+                            </select>
+                            <!-- Custom styled dropdown -->
+                            <div class="custom-dropdown" id="profileCustomDropdown" role="combobox" tabindex="0" aria-expanded="false" aria-haspopup="listbox" aria-label="Select profile">
+                                <span class="custom-dropdown-label" id="profileDropdownLabel">No profile selected</span>
+                                <span class="custom-dropdown-chevron" aria-hidden="true">
+                                    <svg width="12" height="8" viewBox="0 0 12 8"><path d="M1 1l5 5 5-5" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                </span>
+                            </div>
+                            <ul class="custom-dropdown-list hidden" id="profileDropdownList" role="listbox" aria-label="Profiles"></ul>
+                        </div>
+                        <div class="profile-io-row {% if not profile_edit_mode %}hidden{% endif %}" id="profileIoActions" role="toolbar" aria-label="Profile actions" onclick="event.stopPropagation()">
+                            <button class="btn btn-profile-io" id="profileImportBtn" onclick="startImportProfile()" title="Upload profile" aria-label="Upload profile"><span aria-hidden="true">⬆</span></button>
+                            <button class="btn btn-profile-io" id="profileExportBtn" onclick="exportProfile()" title="Download profile" aria-label="Download profile"><span aria-hidden="true">⬇</span></button>
+                            <button class="btn btn-profile-io" id="profileResetBtn" onclick="resetProfileToHistory()" title="Reset to last saved version" aria-label="Reset to history"><span aria-hidden="true">↩</span></button>
+                            <button class="btn btn-profile-io btn-profile-delete" id="profileDeleteBtn" onclick="deleteCurrentProfile()" title="Delete profile" aria-label="Delete profile"><span aria-hidden="true">🗑</span></button>
+                        </div>
+                        <input id="profileImportInput" type="file" accept="application/json,.json" style="display:none;" aria-hidden="true" />
+                        <div class="profile-create-card" id="profileCreateRow">
+                            <button class="btn-run btn-run-narrow" id="profileCreateToggle" onclick="toggleCreateProfile()" role="button" aria-expanded="false" aria-controls="profileCreateInput" data-i18n="profile.create_new">+ Create new Profile</button>
+                            <div class="profile-create-input-wrap hidden" id="profileCreateWrap">
+                                <input type="text" id="profileCreateInput" class="profile-create-input" maxlength="40" data-i18n-placeholder="profile.create_placeholder" placeholder="e.g. Workout, Chill, Discovery" aria-label="New profile name" onkeydown="if(event.key==='Enter'){event.preventDefault();createNewProfile()}else if(event.key==='Escape'){toggleCreateProfile()}" />
+                                <button class="profile-create-confirm" onclick="createNewProfile()" aria-label="Create profile" title="Create">✓</button>
+                            </div>
+                            <span class="profile-create-error hidden" id="profileCreateError" role="alert"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Describe Your Vibe (free-form natural language) -->
         <div class="accordion-panel open" id="accVibeDesc">
@@ -37,10 +78,10 @@
             </div>
         </div>
 
-        <!-- Core Description (required if no vibe description) -->
+        <!-- Core Description -->
         <div class="accordion-panel open" id="accCoreDesc">
             <div class="accordion-header" role="button" tabindex="0" onclick="toggleAccordion('accCoreDesc')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAccordion('accCoreDesc')}" aria-expanded="true">
-                <h3><span aria-hidden="true">🎵</span> <span data-i18n="profile.core_description">Core Description</span> <span class="acc-required" id="coreDescRequired" data-i18n="profile.core_description_required">required</span></h3>
+                <h3><span aria-hidden="true">🎵</span> <span data-i18n="profile.core_description">Core Description</span></h3>
                 <span class="accordion-chevron" aria-hidden="true">▼</span>
             </div>
             <div class="accordion-body">
@@ -56,6 +97,7 @@
         <div class="accordion-panel" id="accMustHave">
             <div class="accordion-header" role="button" tabindex="0" onclick="toggleAccordion('accMustHave')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAccordion('accMustHave')}" aria-expanded="false">
                 <h3><span aria-hidden="true">✅</span> <span data-i18n="profile.must_have">Must Have</span></h3>
+                <span class="accordion-chevron" aria-hidden="true">▼</span>
             </div>
             <div class="accordion-body">
                 <div class="accordion-body-inner">
@@ -69,6 +111,7 @@
         <div class="accordion-panel" id="accSoftPrefs">
             <div class="accordion-header" role="button" tabindex="0" onclick="toggleAccordion('accSoftPrefs')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAccordion('accSoftPrefs')}" aria-expanded="false">
                 <h3><span aria-hidden="true">💡</span> <span data-i18n="profile.soft_preferences">Soft Preferences</span></h3>
+                <span class="accordion-chevron" aria-hidden="true">▼</span>
             </div>
             <div class="accordion-body">
                 <div class="accordion-body-inner">
@@ -82,6 +125,7 @@
         <div class="accordion-panel" id="accAvoid">
             <div class="accordion-header" role="button" tabindex="0" onclick="toggleAccordion('accAvoid')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAccordion('accAvoid')}" aria-expanded="false">
                 <h3><span aria-hidden="true">🚫</span> <span data-i18n="profile.avoid">Avoid</span></h3>
+                <span class="accordion-chevron" aria-hidden="true">▼</span>
             </div>
             <div class="accordion-body">
                 <div class="accordion-body-inner">
@@ -91,12 +135,18 @@
             </div>
         </div>
 
+        <!-- AI training warning (shown when both descriptions are empty) -->
+        <div class="train-ai-warning hidden" id="trainAiWarning" role="alert">
+            <span aria-hidden="true">⚠</span> <span data-i18n="profile.ai_warning">Enter a Core Description or a Vibe message to update your profile with AI.</span>
+        </div>
+
         <div class="train-actions">
-            <button class="btn btn-save" id="trainSendBtn" onclick="sendTrainProfile()" data-i18n="btn.ai_profile_update">AI Profile Update</button>
-            <div class="train-actions-right">
-                <button class="btn btn-save" id="trainSaveBtn" onclick="saveProfileDirect()" data-i18n="btn.save">Save</button>
-                <button class="btn btn-cancel" onclick="toggleTrainBody()" data-i18n="btn.cancel">Cancel</button>
-            </div>
+            <button class="btn-run btn-run-narrow" id="trainSendBtn" onclick="sendTrainProfile()" data-i18n="btn.ai_profile_update">AI Profile Update</button>
+            <button class="btn-run btn-run-narrow btn-run-secondary" id="trainSaveBtn" onclick="saveProfileDirect()" data-i18n="btn.save_no_ai" title="Save your profile fields as-is, without AI analysis">Save without AI</button>
+        </div>
+        <div id="trainSpinner" class="train-spinner hidden" aria-live="polite">
+            <div class="spinner-ring" aria-hidden="true"></div>
+            <p id="trainSpinnerText" class="spinner-text"></p>
         </div>
     </div>
     <div id="trainSuccessIcon" class="hidden" role="status" aria-live="polite"></div>

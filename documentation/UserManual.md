@@ -95,7 +95,7 @@ The executable opens a native window with the SpotyVibe UI — no external brows
 > **One-file note:** The one-file build may start more slowly on first launch because it extracts bundled files to a temporary directory.
 
 
-> **Note:** Your credentials are still stored outside the app bundle at `%LOCALAPPDATA%\spotyvibe\.credentials`.
+> **Note:** Your credentials are still stored outside the app bundle at `%LOCALAPPDATA%\spotyvibe\.credentials`. App settings (model, playlist size, etc.) are stored separately in `%LOCALAPPDATA%\spotyvibe\settings.conf`.
 
 
 
@@ -114,7 +114,7 @@ Enter the three values:
 - **Spotify Client ID** — from your Spotify Developer app.
 - **Spotify Client Secret** — from your Spotify Developer app.
 
-Click **Save**. Your credentials are stored securely outside the project folder and are never committed to version control.
+Click **Save**. Your credentials are stored securely in `%LOCALAPPDATA%\spotyvibe\.credentials`, outside the project folder, and are never committed to version control. App preferences (model selection, playlist size, etc.) are stored separately in `settings.conf` in the same directory.
 
 > **💰 Cost note:** SpotyVibe uses the OpenAI API, which is a **paid service**. Each generation run and each profile training call costs money. Check [OpenAI Pricing](https://platform.openai.com/docs/pricing) for details.
 
@@ -184,17 +184,21 @@ Each major component within a section is **collapsible/expandable**. Click anywh
 
 To set up your profile:
 
-1. In the **OpenAI** section, click **Edit profile**.
-2. The editor opens with four collapsible accordion sections. Fill in the ones relevant to you:
+1. In the **OpenAI** section, look at the **Music Profile** header. A **profile dropdown** lets you select, create, or delete profiles.
+   - To create your first profile, click **+ Create new Profile**, type a name (e.g. "Workout", "Chill", "Discovery"), and press Enter or click ✓.
+   - Switch between profiles at any time using the dropdown.
+   - Delete the current profile with the 🗑 **Delete** button in the import/export row.
+2. Click **Edit profile** to open the editor with four collapsible accordion sections. Fill in the ones relevant to you:
 
-   - **🎵 Core Description** *(required)* — Describe your ideal sound in your own words: genre, mood, energy, reference artists. This is the foundation of your profile and must be provided.
+   - **💬 Describe Your Vibe** — Tell the AI what you're looking for in everyday language. The AI automatically classifies your input into the correct profile sections.
+   - **🎵 Core Description** — Describe your ideal sound in your own words: genre, mood, energy, reference artists. This is the foundation of your profile.
    - **✅ Must Have** — Non-negotiable traits every suggestion must have (one per line). These are hard requirements — a track missing any one is rejected. Example: *"strong melodies"*, *"vocals/singing"*.
    - **💡 Soft Preferences** — Nice-to-have traits that improve a suggestion but aren't required (one per line). Example: *"slight prog influence"*.
    - **🚫 Avoid** — Traits that immediately disqualify a track (one per line). Example: *"electronic/synth-heavy production"*, *"slow or mid-tempo songs"*.
 
 3. Choose how to save your changes:
-   - Click **Save** to store your preferences directly as-is.
-   - Click **AI Profile Update** to send your input to GPT, which will analyse and refine it into a structured taste profile. The "Describe your vibe" field is cleared automatically after AI Profile Update — your free-text input has been incorporated into the structured sections.
+   - Click **Save** to store your preferences directly as-is. Save always works, even with empty fields.
+   - Click **AI Profile Update** to send your input to GPT, which will analyse and refine it into a structured taste profile. AI Profile Update requires either a Core Description or a Vibe message. The "Describe your vibe" field is cleared automatically after AI Profile Update — your free-text input has been incorporated into the structured sections.
 
 If you already have a profile, the fields are **pre-filled** with your existing preferences so you can see and edit what the AI currently knows.
 
@@ -202,23 +206,22 @@ If you already have a profile, the fields are **pre-filled** with your existing 
 
 When you expand the **Music Profile** editor (via **Edit profile**), extra profile file actions appear under the **Last trained** label:
 
-- **⬆ Import** — Select a JSON profile file and import it into SpotyVibe.
+- **⬆ Import** — Select a JSON profile file and import it into the active profile.
   - On Android, this opens the system file picker.
-  - Import **replaces your entire current profile file**.
-  - Before replacing it, SpotyVibe automatically backs up your existing profile to the history file (`personalized_music_profile.history.json`).
+  - Import **replaces the current active profile**.
+  - Before replacing it, SpotyVibe automatically backs up your existing profile to the history file.
   - **Size limit:** Imported files must be **10MB or smaller**.
 
 - **⬇ Export** — Downloads your current active profile as `spotyvibe_profile.json`.
   - On Android, the file is saved to your device's **Downloads**.
 
-- **↩ Reset to history** — Reverts your profile to the previous saved version (one-step undo).
+- **↩ Reset to history** — Reverts the active profile to the previous saved version (one-step undo).
   - This **swaps** the current profile and the history file.
   - If no history exists yet, SpotyVibe will show an error.
 
+- **🗑 Delete** — Permanently deletes the current profile and its history. This cannot be undone. If other profiles exist, the first one is auto-selected.
+
 > **Tip:** The exported file is always in the correct format to re-import later.
-
-
-> **Note:** The Core Description field is required. If you clear it and try to submit, the app will highlight the field and ask you to fill it in.
 
 
 The AI Profile Update merges with what the AI already knows — your feedback history and past suggestions are always preserved. The direct Save option is useful when you just want to make a quick edit without waiting for AI processing.
@@ -328,7 +331,7 @@ Each history entry is **expandable** — click it to reveal the full list of tra
 After a generation completes, the suggested tracks appear **inside the Discover Music section**, below the Generate button, separated by a divider. A completion banner and playlist link are shown first, followed by a song counter (e.g. *10 / 100 songs*) and the track cards themselves. Each track shows the **artist**, **track name**, and a short **reason** explaining why the AI picked it. Track cards glow green on hover. Cards include:
 
 - **Album artwork** — the album cover is shown on each track card.
-- **Preview** — clicking the album art opens a bottom-sheet preview overlay with the embedded Spotify player. The overlay uses a three-zone layout: the **Spotify player** (centered), a vertical column of **file-cabinet register-tab action buttons** (👍 👎 ✕) to its right, and a **sliding feedback form** that expands to fill the remaining space when you click like or dislike. Clicking the same tab again closes the form. Active tabs glow green (like) or red (dislike). The ✕ dismiss button removes the track immediately without a form.
+- **Preview** — clicking the album art opens a bottom-sheet preview overlay with the embedded Spotify player. The overlay uses a three-zone layout: the **Spotify player** (centered), a vertical column of **file-cabinet register-tab action buttons** (👍 👎 ✕) to its right, and a **sliding feedback form** that expands to fill the remaining space when you click like or dislike. Clicking the same tab again closes the form. Active tabs glow green (like) or red (dislike). The ✕ dismiss button removes the track immediately without a form. **Note:** The embedded player provides ~30-second previews only — full-length playback is not possible because the iframe cannot access your Spotify session (browser third-party cookie restrictions). Use the Spotify icon inside the player to open the full track.
 - **Quick links** — icon links open the track (🎵), artist (🎤), and album (💿) pages on Spotify so you can explore further.
 
 ### Persistent Song List
@@ -507,7 +510,8 @@ All your personal data is stored outside the project in your system's app data f
 
 | File | Location | Purpose |
 |---|---|---|
-| Credentials | `%LOCALAPPDATA%\spotyvibe\.credentials` | Your API keys and settings (never in the project folder). |
+| Credentials | `%LOCALAPPDATA%\spotyvibe\.credentials` | Your API keys (OpenAI key, Spotify Client ID/Secret). |
+| Settings | `%LOCALAPPDATA%\spotyvibe\settings.conf` | App preferences (model, playlist size, language, debug mode, etc.). |
 | Taste profile | `%LOCALAPPDATA%\spotyvibe\personalized_music_profile.json` | Your trained taste profile + history. |
 | Spotify token | `%LOCALAPPDATA%\spotyvibe\.spotify-cache` | Cached Spotify authentication token. |
 | Debug log | `%LOCALAPPDATA%\spotyvibe\debug.log` | GPT request/response log (desktop only, only when debug mode is enabled). |

@@ -44,26 +44,6 @@
             <div class="cred-status" id="status-settings-new-artist-pct"></div>
         </div>
 
-        <!-- GPT language -->
-        {% set gpt_languages = [
-            ('English',    'English'),
-            ('German',     'German (Deutsch)'),
-            ('French',     'French (Français)'),
-            ('Spanish',    'Spanish (Español)'),
-            ('Italian',    'Italian (Italiano)'),
-            ('Portuguese', 'Portuguese (Português)'),
-            ('Dutch',      'Dutch (Nederlands)'),
-            ('Polish',     'Polish (Polski)'),
-        ] %}
-        <div class="form-row">
-            <label for="settings-gpt-language" data-i18n="settings.gpt_language">ChatGPT Language</label>
-            <select id="settings-gpt-language">
-                {% for value, label in gpt_languages %}
-                <option value="{{ value }}" {% if settings.gpt_language == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-            <div class="cred-status" id="status-settings-gpt-language"></div>
-        </div>
 
         <!-- Debug mode (desktop-only) -->
         <div class="form-row {% if not debug_controls_available %}hidden{% endif %}" id="debugModeRow">

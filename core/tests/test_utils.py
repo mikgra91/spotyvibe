@@ -1,7 +1,7 @@
 import os
 from unittest.mock import patch, MagicMock, mock_open
 
-from core.src.utils import strip_code_fences, debug_log, clear_debug_log, get_openai_models, sanitize_text, sanitize_profile
+from core.src.utils import strip_code_fences, debug_log, clear_debug_log, app_log, get_openai_models, sanitize_text, sanitize_profile
 
 
 class TestStripCodeFences:
@@ -38,16 +38,16 @@ class TestDebugLog:
     @patch("core.src.utils.get_debug_mode", return_value=False)
     def test_skips_when_debug_off(self, mock_mode, tmp_path):
         """debug_log should not write anything when debug mode is disabled."""
-        log_file = tmp_path / "debug.log"
-        with patch("core.src.utils.DEBUG_LOG_FILE", log_file):
+        log_file = tmp_path / "prompt.log"
+        with patch("core.src.utils.PROMPT_LOG_FILE", log_file):
             debug_log("Test", [{"role": "user", "content": "hi"}], '{"ok": true}')
         assert not log_file.exists()
 
     @patch("core.src.utils.get_debug_mode", return_value=True)
     def test_writes_when_debug_on(self, mock_mode, tmp_path):
-        """debug_log should write label, messages, and response to file."""
-        log_file = tmp_path / "debug.log"
-        with patch("core.src.utils.DEBUG_LOG_FILE", log_file):
+        """debug_log should write label, messages, and response to prompt.log."""
+        log_file = tmp_path / "prompt.log"
+        with patch("core.src.utils.PROMPT_LOG_FILE", log_file):
             messages = [{"role": "system", "content": "sys"}, {"role": "user", "content": "hello"}]
             debug_log("TestLabel", messages, '{"result": "ok"}')
         content = log_file.read_text()
@@ -59,34 +59,93 @@ class TestDebugLog:
 
     @patch("core.src.utils.get_debug_mode", return_value=True)
     def test_handles_non_json_response(self, mock_mode, tmp_path):
-        log_file = tmp_path / "debug.log"
-        with patch("core.src.utils.DEBUG_LOG_FILE", log_file):
+        log_file = tmp_path / "prompt.log"
+        with patch("core.src.utils.PROMPT_LOG_FILE", log_file):
             debug_log("Test", [{"role": "user", "content": "hi"}], "not json")
         content = log_file.read_text()
         assert "not json" in content
 
     @patch("core.src.utils.get_debug_mode", return_value=True)
     def test_appends_to_existing_log(self, mock_mode, tmp_path):
-        log_file = tmp_path / "debug.log"
+        log_file = tmp_path / "prompt.log"
         log_file.write_text("previous content\n")
-        with patch("core.src.utils.DEBUG_LOG_FILE", log_file):
+        with patch("core.src.utils.PROMPT_LOG_FILE", log_file):
             debug_log("New", [{"role": "user", "content": "msg"}], "resp")
         content = log_file.read_text()
         assert "previous content" in content
         assert "New" in content
 
 
-class TestClearDebugLog:
-    def test_deletes_existing_file(self, tmp_path):
+class TestAppLog:
+    @patch("core.src.utils.get_debug_mode", return_value=False)
+    def test_skips_when_debug_off(self, mock_mode, tmp_path):
         log_file = tmp_path / "debug.log"
-        log_file.write_text("some log data")
         with patch("core.src.utils.DEBUG_LOG_FILE", log_file):
-            clear_debug_log()
+            app_log("test event")
         assert not log_file.exists()
 
-    def test_no_error_when_file_missing(self, tmp_path):
+    @patch("core.src.utils.get_debug_mode", return_value=True)
+    def test_writes_when_debug_on(self, mock_mode, tmp_path):
         log_file = tmp_path / "debug.log"
         with patch("core.src.utils.DEBUG_LOG_FILE", log_file):
+            app_log("server started")
+        content = log_file.read_text()
+        assert "server started" in content
+
+    @patch("core.src.utils.get_debug_mode", return_value=True)
+    def test_includes_timestamp(self, mock_mode, tmp_path):
+        log_file = tmp_path / "debug.log"
+        with patch("core.src.utils.DEBUG_LOG_FILE", log_file):
+            app_log("check timestamp")
+        content = log_file.read_text()
+        assert "UTC" in content
+
+    @patch("core.src.utils.get_debug_mode", return_value=True)
+    def test_appends_to_existing_log(self, mock_mode, tmp_path):
+        log_file = tmp_path / "debug.log"
+        log_file.write_text("previous line\n")
+        with patch("core.src.utils.DEBUG_LOG_FILE", log_file):
+            app_log("new event")
+        content = log_file.read_text()
+        assert "previous line" in content
+        assert "new event" in content
+
+
+class TestClearDebugLog:
+    def test_deletes_debug_log(self, tmp_path):
+        debug_file = tmp_path / "debug.log"
+        debug_file.write_text("debug data")
+        prompt_file = tmp_path / "prompt.log"
+        with patch("core.src.utils.DEBUG_LOG_FILE", debug_file), \
+             patch("core.src.utils.PROMPT_LOG_FILE", prompt_file):
+            clear_debug_log()
+        assert not debug_file.exists()
+
+    def test_deletes_prompt_log(self, tmp_path):
+        debug_file = tmp_path / "debug.log"
+        prompt_file = tmp_path / "prompt.log"
+        prompt_file.write_text("prompt data")
+        with patch("core.src.utils.DEBUG_LOG_FILE", debug_file), \
+             patch("core.src.utils.PROMPT_LOG_FILE", prompt_file):
+            clear_debug_log()
+        assert not prompt_file.exists()
+
+    def test_deletes_both_files(self, tmp_path):
+        debug_file = tmp_path / "debug.log"
+        debug_file.write_text("debug data")
+        prompt_file = tmp_path / "prompt.log"
+        prompt_file.write_text("prompt data")
+        with patch("core.src.utils.DEBUG_LOG_FILE", debug_file), \
+             patch("core.src.utils.PROMPT_LOG_FILE", prompt_file):
+            clear_debug_log()
+        assert not debug_file.exists()
+        assert not prompt_file.exists()
+
+    def test_no_error_when_files_missing(self, tmp_path):
+        debug_file = tmp_path / "debug.log"
+        prompt_file = tmp_path / "prompt.log"
+        with patch("core.src.utils.DEBUG_LOG_FILE", debug_file), \
+             patch("core.src.utils.PROMPT_LOG_FILE", prompt_file):
             clear_debug_log()  # should not raise
 
 

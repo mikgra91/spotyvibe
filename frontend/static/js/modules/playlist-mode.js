@@ -34,7 +34,7 @@ async function loadDiscoverPicker() {
         playlists.forEach(pl => {
             const opt = document.createElement('option');
             opt.value = pl.id;
-            opt.textContent = `${pl.name} (${pl.track_count} tracks)`;
+            opt.textContent = pl.name;
             sel.appendChild(opt);
         });
         // Restore previous selection if still present

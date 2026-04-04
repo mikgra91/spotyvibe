@@ -6,7 +6,7 @@
             <span class="train-status train-subtitle">View past generation runs.</span>
         </div>
         <div class="train-header-actions">
-            <button class="btn-train" onclick="event.stopPropagation(); toggleHistoryBody()" data-i18n="history.show" aria-expanded="false" aria-controls="historyBody">Show history</button>
+            <button class="btn-train" id="historyToggleBtn" onclick="event.stopPropagation(); toggleHistoryBody()" data-i18n="btn.show" aria-expanded="false" aria-controls="historyBody">Show</button>
         </div>
     </div>
     <div class="train-body hidden" id="historyBody">

@@ -1,6 +1,6 @@
 import { checkCredentialStatus, checkSpotifyAuth, connectSpotify, toggleSpotifyConnection, fetchSettingsState } from './modules/auth.js';
 import { renderComponentWarnings } from './modules/warnings.js';
-import { toggleAccordion, prefillTrainFields, updateTrainToggleLabel, toggleTrainBody, startImportProfile, exportProfile, submitProfile, sendTrainProfile, saveProfileDirect, resetProfileToHistory, bindProfileImportInput, checkProfileStatus } from './modules/profile.js';
+import { toggleAccordion, prefillTrainFields, updateTrainToggleLabel, toggleTrainBody, startImportProfile, exportProfile, submitProfile, sendTrainProfile, saveProfileDirect, resetProfileToHistory, bindProfileImportInput, checkProfileStatus, loadProfileList, switchProfile, toggleCreateProfile, createNewProfile, deleteCurrentProfile, initCustomProfileDropdown } from './modules/profile.js';
 import { toggleHistoryBody, loadHistory } from './modules/history.js';
 import { toggleAnalysisBody, runAnalysis, renderAnalysisResult, copySuggestion, jumpToAnalysis } from './modules/analysis.js';
 import { toggleGenerateBody, runPipeline, setGenerating, updateUseTracksButton, generateUUID, handleStreamEvent, showSseDisconnectBanner, resumeRun, cancelGeneration, useCurrentTracks, canGenerate } from './modules/pipeline.js';
@@ -16,6 +16,8 @@ import { switchTheme, THEME_BACKGROUNDS, THEME_RENDERERS } from './modules/theme
 import { initJumpBubble } from './modules/jump-bubble.js';
 import './modules/theme-equalizer.js';
 import './modules/theme-pulse.js';
+import './modules/theme-spectrum.js';
+import './modules/theme-starfield.js';
 import { switchLanguage, applyLanguage, i18n, _i18nStrings, initI18n } from './modules/i18n.js';
 import { renderProviderPills } from './modules/provider-pills.js';
 
@@ -36,6 +38,11 @@ window.submitProfile = submitProfile;
 window.sendTrainProfile = sendTrainProfile;
 window.saveProfileDirect = saveProfileDirect;
 window.resetProfileToHistory = resetProfileToHistory;
+window.loadProfileList = loadProfileList;
+window.switchProfile = switchProfile;
+window.toggleCreateProfile = toggleCreateProfile;
+window.createNewProfile = createNewProfile;
+window.deleteCurrentProfile = deleteCurrentProfile;
 window.toggleHistoryBody = toggleHistoryBody;
 window.loadHistory = loadHistory;
 window.toggleAnalysisBody = toggleAnalysisBody;
@@ -129,7 +136,7 @@ document.addEventListener('click', (e) => {
 });
 
 // DOMContentLoaded init
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // Overlay click-to-close
     const overlay = document.getElementById('spotifyPreviewOverlay');
     if (overlay) {
@@ -146,6 +153,12 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch(e) {}
     switchTheme(_pendingTheme || 'equalizer');
 
+    // Show refresh button when running inside pywebview desktop wrapper
+    if (window.pywebview) {
+        const rb = document.getElementById('refreshBtn');
+        if (rb) rb.classList.remove('hidden');
+    }
+
     // Auth and warnings
     Promise.all([checkCredentialStatus(), checkSpotifyAuth(), fetchSettingsState()]).then(() => {
         renderComponentWarnings();
@@ -153,6 +166,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Profile
+    initCustomProfileDropdown();
+    await loadProfileList();
     checkProfileStatus();
     updateTrainToggleLabel();
     bindProfileImportInput();

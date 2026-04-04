@@ -1,5 +1,309 @@
 import * as State from './state.js';
 import { showToast, showAlert, showConfirm } from './ui.js';
+import { i18n } from './i18n.js';
+
+const TRAINING_TEXTS = {
+    en: [
+        'Teaching the AI your vibe…',
+        'Analyzing your music taste…',
+        'Consulting the algorithmic DJ…',
+        'Cross-referencing with 80 million tracks…',
+        'Deciding if pineapple belongs on pizza…',
+        'Fine-tuning the recommendation engine…',
+        'Almost there… probably…',
+        'Your profile is getting a makeover…',
+    ],
+    de: [
+        'Bringe der KI deinen Vibe bei…',
+        'Analysiere deinen Musikgeschmack…',
+        'Befrage den algorithmischen DJ…',
+        'Vergleiche mit 80 Millionen Tracks…',
+        'Entscheide, ob Ananas auf Pizza gehört…',
+        'Feinabstimmung der Empfehlungsmaschine…',
+        'Fast fertig… wahrscheinlich…',
+        'Dein Profil bekommt ein Makeover…',
+    ],
+};
+
+
+// ── Multi-profile management ────────────────────────────────────────
+
+let _profileList = [];
+let _activeProfileId = '';
+
+export async function loadProfileList() {
+    try {
+        const resp = await fetch('/api/profiles');
+        const data = await resp.json();
+        _profileList = data.profiles || [];
+        _activeProfileId = data.active_id || '';
+        _renderProfileDropdown();
+    } catch (e) { /* ignore */ }
+}
+
+function _renderProfileDropdown() {
+    const select = document.getElementById('profileSelect');
+    if (!select) return;
+
+    select.innerHTML = '';
+
+    if (_profileList.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = i18n('profile.no_profile_selected', 'No profile selected');
+        select.appendChild(opt);
+        _renderCustomDropdown();
+        return;
+    }
+
+    for (const p of _profileList) {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name || p.id;
+        if (p.id === _activeProfileId) opt.selected = true;
+        select.appendChild(opt);
+    }
+
+    _renderCustomDropdown();
+}
+
+/* ── Custom dropdown rendering & interaction ─────────────────────── */
+
+function _renderCustomDropdown() {
+    const label = document.getElementById('profileDropdownLabel');
+    const list = document.getElementById('profileDropdownList');
+    if (!label || !list) return;
+
+    // Update label to show the active profile
+    const active = _profileList.find(p => p.id === _activeProfileId);
+    label.textContent = active
+        ? (active.name || active.id)
+        : i18n('profile.no_profile_selected', 'No profile selected');
+
+    // Build list items
+    list.innerHTML = '';
+    if (_profileList.length === 0) {
+        const li = document.createElement('li');
+        li.textContent = i18n('profile.no_profile_selected', 'No profile selected');
+        li.style.color = 'var(--text-muted)';
+        li.style.cursor = 'default';
+        list.appendChild(li);
+        return;
+    }
+
+    for (const p of _profileList) {
+        const li = document.createElement('li');
+        li.setAttribute('role', 'option');
+        li.setAttribute('data-value', p.id);
+        li.setAttribute('tabindex', '-1');
+        li.textContent = p.name || p.id;
+        if (p.id === _activeProfileId) {
+            li.setAttribute('aria-selected', 'true');
+        }
+        li.addEventListener('click', (e) => {
+            e.stopPropagation();
+            _selectCustomDropdownItem(p.id);
+        });
+        li.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                _selectCustomDropdownItem(p.id);
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                const next = li.nextElementSibling;
+                if (next) next.focus();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                const prev = li.previousElementSibling;
+                if (prev) prev.focus();
+            } else if (e.key === 'Escape') {
+                _closeCustomDropdown();
+            }
+        });
+        list.appendChild(li);
+    }
+}
+
+function _selectCustomDropdownItem(profileId) {
+    // Update the hidden native select
+    const select = document.getElementById('profileSelect');
+    if (select) select.value = profileId;
+    _closeCustomDropdown();
+    switchProfile(profileId);
+}
+
+function _toggleCustomDropdown() {
+    const dropdown = document.getElementById('profileCustomDropdown');
+    const list = document.getElementById('profileDropdownList');
+    if (!dropdown || !list) return;
+
+    const isOpen = !list.classList.contains('hidden');
+    if (isOpen) {
+        _closeCustomDropdown();
+    } else {
+        list.classList.remove('hidden');
+        dropdown.setAttribute('aria-expanded', 'true');
+        // Focus the selected item or first item
+        const selected = list.querySelector('[aria-selected="true"]') || list.querySelector('li');
+        if (selected) selected.focus();
+    }
+}
+
+function _closeCustomDropdown() {
+    const dropdown = document.getElementById('profileCustomDropdown');
+    const list = document.getElementById('profileDropdownList');
+    if (!dropdown || !list) return;
+    list.classList.add('hidden');
+    dropdown.setAttribute('aria-expanded', 'false');
+}
+
+export function initCustomProfileDropdown() {
+    const dropdown = document.getElementById('profileCustomDropdown');
+    if (!dropdown) return;
+
+    dropdown.addEventListener('click', (e) => {
+        e.stopPropagation();
+        _toggleCustomDropdown();
+    });
+    dropdown.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            _toggleCustomDropdown();
+        } else if (e.key === 'Escape') {
+            _closeCustomDropdown();
+        }
+    });
+
+    // Close on outside click
+    document.addEventListener('click', () => {
+        _closeCustomDropdown();
+    });
+}
+
+export async function switchProfile(profileId) {
+    if (!profileId || profileId === _activeProfileId) return;
+    try {
+        const resp = await fetch(`/api/profiles/${encodeURIComponent(profileId)}/activate`, { method: 'POST' });
+        if (!resp.ok) {
+            const data = await resp.json();
+            showToast(data.error || 'Failed to switch profile.', 'error');
+            return;
+        }
+        _activeProfileId = profileId;
+        _renderCustomDropdown();
+        await Promise.all([checkProfileStatus(), prefillTrainFields()]);
+        showToast(i18n('msg.profile_switched', 'Profile switched.'), 'success');
+    } catch (e) {
+        showToast('Network error: ' + e.message, 'error');
+    }
+}
+
+export function toggleCreateProfile() {
+    const wrap = document.getElementById('profileCreateWrap');
+    const toggle = document.getElementById('profileCreateToggle');
+    const input = document.getElementById('profileCreateInput');
+    const error = document.getElementById('profileCreateError');
+
+    if (wrap.classList.contains('hidden')) {
+        wrap.classList.remove('hidden');
+        toggle.classList.add('hidden');
+        error.classList.add('hidden');
+        input.value = '';
+        input.focus();
+        toggle.setAttribute('aria-expanded', 'true');
+    } else {
+        wrap.classList.add('hidden');
+        toggle.classList.remove('hidden');
+        error.classList.add('hidden');
+        toggle.setAttribute('aria-expanded', 'false');
+    }
+}
+
+export async function createNewProfile() {
+    const input = document.getElementById('profileCreateInput');
+    const error = document.getElementById('profileCreateError');
+    const name = (input.value || '').trim();
+
+    if (!name) {
+        error.textContent = i18n('profile.name_required', 'Enter a profile name.');
+        error.classList.remove('hidden');
+        input.focus();
+        return;
+    }
+
+    try {
+        const resp = await fetch('/api/profiles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name }),
+        });
+        const data = await resp.json();
+
+        if (!resp.ok || data.error) {
+            error.textContent = data.error || 'Failed to create profile.';
+            error.classList.remove('hidden');
+            input.focus();
+            return;
+        }
+
+        // Collapse the create input
+        toggleCreateProfile();
+
+        // Reload the profile list — the new profile is auto-activated
+        await loadProfileList();
+        await Promise.all([checkProfileStatus(), prefillTrainFields()]);
+        showToast(i18n('msg.profile_created', 'Profile created.'), 'success');
+    } catch (e) {
+        error.textContent = 'Network error: ' + e.message;
+        error.classList.remove('hidden');
+    }
+}
+
+export async function deleteCurrentProfile() {
+    if (!_activeProfileId) return;
+
+    const currentName = _profileList.find(p => p.id === _activeProfileId)?.name || 'this profile';
+    const ok = await showConfirm(
+        `Delete "${currentName}"?\n\nThis cannot be undone.`
+    );
+    if (!ok) return;
+
+    try {
+        const resp = await fetch(`/api/profiles/${encodeURIComponent(_activeProfileId)}`, { method: 'DELETE' });
+        const data = await resp.json();
+
+        if (!resp.ok || data.error) {
+            showToast(data.error || 'Delete failed.', 'error');
+            return;
+        }
+
+        _activeProfileId = '';
+        await loadProfileList();
+
+        // Auto-select the first remaining profile if any
+        if (_profileList.length > 0) {
+            await switchProfile(_profileList[0].id);
+        } else {
+            await checkProfileStatus();
+            _clearTrainFields();
+        }
+
+        showToast(i18n('msg.profile_deleted', 'Profile deleted.'), 'success');
+    } catch (e) {
+        showToast('Network error: ' + e.message, 'error');
+    }
+}
+
+function _clearTrainFields() {
+    const ids = ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid'];
+    for (const id of ids) {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    }
+}
+
+
+// ── Existing profile functions ──────────────────────────────────────
 
 export function toggleAccordion(id) {
     const panel = document.getElementById(id);
@@ -12,6 +316,14 @@ export async function checkProfileStatus() {
     try {
         const resp = await fetch('/api/profile/status');
         const data = await resp.json();
+
+        if (data.no_profile) {
+            State.setProfileTrained(false);
+            const el = document.getElementById('trainStatus');
+            if (el) el.textContent = i18n('profile.no_profile_hint', 'Create a profile to get started.');
+            return;
+        }
+
         State.setProfileTrained(data.trained);
         const el = document.getElementById('trainStatus');
         if (data.trained) {
@@ -20,7 +332,7 @@ export async function checkProfileStatus() {
         } else {
             el.textContent = '⚠ Not yet trained — describe your taste below.';
             document.getElementById('trainBody').classList.remove('hidden');
-            State.setUserProfileEditMode(false);
+            State.setUserProfileEditMode(true);
             updateProfileIoVisibility();
             updateTrainToggleLabel();
             prefillTrainFields();
@@ -31,6 +343,7 @@ export async function checkProfileStatus() {
 export async function prefillTrainFields() {
     try {
         const resp = await fetch('/api/profile/data');
+        if (!resp.ok) return;
         const profile = await resp.json();
         const prefs = profile.preferences || {};
 
@@ -39,16 +352,12 @@ export async function prefillTrainFields() {
         document.getElementById('trainMustHave').value = (prefs.must_have || []).join('\n');
         document.getElementById('trainSoftPrefs').value = (prefs.soft_preferences || []).join('\n');
         document.getElementById('trainAvoid').value = (prefs.avoid || []).join('\n');
-        updateCoreDescRequired();
     } catch (e) { /* ignore — fields stay empty */ }
 }
 
-function updateCoreDescRequired() {
-    const vibeDesc = (document.getElementById('trainVibeDesc').value || '').trim();
-    const badge = document.getElementById('coreDescRequired');
-    if (badge) {
-        badge.style.display = vibeDesc ? 'none' : '';
-    }
+function _hideAiWarning() {
+    const warning = document.getElementById('trainAiWarning');
+    if (warning) warning.classList.add('hidden');
 }
 
 function updateProfileIoVisibility() {
@@ -61,7 +370,7 @@ export function updateTrainToggleLabel() {
     const body = document.getElementById('trainBody');
     const btn = document.getElementById('trainToggleBtn');
     if (!body || !btn) return;
-    btn.textContent = body.classList.contains('hidden') ? 'Edit profile' : 'Hide profile';
+    btn.textContent = body.classList.contains('hidden') ? i18n('btn.show', 'Show') : i18n('btn.hide', 'Hide');
 }
 
 export function toggleTrainBody() {
@@ -110,7 +419,7 @@ export async function exportProfile() {
         document.body.appendChild(a);
         a.click();
         a.remove();
-        showToast('Export started…', 'info', 2000);
+        showToast(i18n('msg.export_saved', 'Profile exported — check your Downloads folder for spotyvibe_profile.json'), 'success', 5000);
     } catch (e) {
         window.location.href = '/api/profile/export';
     }
@@ -167,12 +476,6 @@ export function bindProfileImportInput() {
         const file = input.files && input.files[0];
         handleProfileImportFile(file);
     });
-
-    // Update "required" badge on Core Description when vibe description changes
-    const vibeInput = document.getElementById('trainVibeDesc');
-    if (vibeInput) {
-        vibeInput.addEventListener('input', updateCoreDescRequired);
-    }
 }
 
 export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, successMsg, requireOpenAI) {
@@ -183,19 +486,14 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
 
     const vibeDesc = document.getElementById('trainVibeDesc').value.trim();
     const coreDesc = document.getElementById('trainCoreDesc').value.trim();
-    const coreInput = document.getElementById('trainCoreDesc');
-    const errMsg = document.getElementById('errCoreDesc');
 
-    // Core description is required only if vibe description is empty
-    if (!coreDesc && !vibeDesc) {
-        coreInput.classList.add('input-error');
-        errMsg.style.display = 'block';
-        document.getElementById('accCoreDesc').classList.add('open');
-        coreInput.focus();
+    // For AI training, require at least one description
+    if (requireOpenAI && !coreDesc && !vibeDesc) {
+        const warning = document.getElementById('trainAiWarning');
+        if (warning) warning.classList.remove('hidden');
         return;
     }
-    coreInput.classList.remove('input-error');
-    errMsg.style.display = 'none';
+    _hideAiWarning();
 
     const mustHave = document.getElementById('trainMustHave').value.trim();
     const softPrefs = document.getElementById('trainSoftPrefs').value.trim();
@@ -204,6 +502,21 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
     const btn = document.getElementById(btnId);
     btn.disabled = true;
     btn.textContent = loadingLabel;
+
+    let textInterval;
+    if (endpoint === '/api/train-profile') {
+        const spinner = document.getElementById('trainSpinner');
+        const spinnerText = document.getElementById('trainSpinnerText');
+        spinner.classList.remove('hidden');
+        const lang = localStorage.getItem('svLang') || 'en';
+        const texts = TRAINING_TEXTS[lang] || TRAINING_TEXTS.en;
+        let textIdx = 0;
+        spinnerText.textContent = texts[0];
+        textInterval = setInterval(() => {
+            textIdx = (textIdx + 1) % texts.length;
+            spinnerText.textContent = texts[textIdx];
+        }, 3000);
+    }
 
     try {
         const resp = await fetch(endpoint, {
@@ -240,6 +553,8 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
     } catch (e) {
         showAlert('Network error: ' + e.message);
     } finally {
+        if (textInterval) clearInterval(textInterval);
+        document.getElementById('trainSpinner')?.classList.add('hidden');
         btn.disabled = false;
         btn.textContent = btnLabel;
     }

@@ -1,4 +1,5 @@
 import { showToast, esc, escHtml } from './ui.js';
+import { i18n } from './i18n.js';
 
 export function toggleAnalysisBody() {
     const body = document.getElementById('analysisBody');
@@ -7,7 +8,10 @@ export function toggleAnalysisBody() {
     const header = document.querySelector('#analysisSection > .train-header');
     if (header) header.setAttribute('aria-expanded', expanded);
     const btn = document.getElementById('analysisToggleBtn');
-    if (btn) btn.setAttribute('aria-expanded', expanded);
+    if (btn) {
+        btn.setAttribute('aria-expanded', expanded);
+        btn.textContent = expanded === 'true' ? i18n('btn.hide', 'Hide') : i18n('btn.show', 'Show');
+    }
 }
 
 /**

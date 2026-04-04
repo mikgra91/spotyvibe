@@ -17,9 +17,6 @@ function renderOpenaiPills() {
     if (State.selectedModel) {
         pills.push(pill('ok', State.selectedModel));
     }
-    if (State.gptLanguage) {
-        pills.push(pill('ok', State.gptLanguage));
-    }
     el.innerHTML = pills.join('');
 }
 

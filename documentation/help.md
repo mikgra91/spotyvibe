@@ -21,13 +21,16 @@ This guide explains how to use the **SpotyVibe interface** to set up your prefer
   - [Theme](#theme)
 - [Music Profile](#music-profile)
   - [Create Your Music Profile](#create-your-music-profile)
+    - [Select or Create a Profile](#select-or-create-a-profile)
+    - [Profile Status](#profile-status)
     - [Describe Your Vibe](#describe-your-vibe)
     - [Core Description](#core-description)
     - [Must Have](#must-have)
     - [Soft Preferences](#soft-preferences)
     - [Avoid](#avoid)
     - [Save or AI Profile Update](#save-or-ai-profile-update)
-  - [Import, Export, and Reset Your Profile](#import-export-and-reset-your-profile)
+    - [What the AI Does Behind the Scenes](#what-the-ai-does-behind-the-scenes)
+  - [Import, Export, Reset, and Delete Your Profile](#import-export-reset-and-delete-your-profile)
   - [Updating Your Taste Over Time](#updating-your-taste-over-time)
 - [Discovery & Analysis](#discovery--analysis)
   - [Band/Song Analysis](#bandsong-analysis)
@@ -152,7 +155,7 @@ Open **Credentials** and enter:
 - **Spotify Client ID**
 - **Spotify Client Secret**
 
-Click **Save** when finished.
+Click **Save** when finished. Your API keys are stored securely in a separate credentials file — app preferences (model, playlist size, etc.) are stored in a separate settings file.
 
 If the information is correct, you can proceed to connect Spotify.
 
@@ -237,17 +240,44 @@ Themes change the visual style of the interface but do not affect playlist resul
 
 Before SpotyVibe can generate good recommendations, you need to teach it your taste.
 
-In the **OpenAI** section, click **Edit profile** or click anywhere on the **Music Profile** header to expand it.
+In the **OpenAI** section, click **Edit profile** or click anywhere on the **Music Profile** header to expand the profile editor.
 
-You will see several sections that help describe your ideal music.
+The editor is organized into **collapsible accordion panels**. Click any panel header to expand or collapse it. The first panel — **Profiles** — is where you manage your profiles.
 
-> **Screenshot placeholder:** Music Profile editor open
+> **Screenshot placeholder:** Music Profile editor open with accordion panels
+
+---
+
+#### Select or Create a Profile
+
+The **👤 Profiles** accordion is the first panel in the editor. It contains a dropdown and a create button.
+
+1. Click **+ Create new Profile** below the dropdown.
+2. Type a name — for example "Workout", "Chill", or "Discovery" — and press **Enter** or click **✓**. Names can be up to 40 characters.
+3. The new profile is automatically selected and ready to edit.
+
+You can create as many profiles as you want. Each profile is completely independent — great for different moods, activities, or family members.
+
+To switch profiles, select a different one from the dropdown. Your form fields update automatically when you switch.
+
+> **Screenshot placeholder:** Profiles accordion with dropdown and create input
+
+---
+
+#### Profile Status
+
+Below the section header you will see a status line:
+
+- **✓ Last trained: [date/time]** — The profile has been saved or AI-updated at least once. This shows when the last save happened, not how good the profile is.
+- **⚠ Not yet trained** — The profile has never been saved. Describe your taste and save it to get started.
+
+> **Screenshot placeholder:** Profile status indicators
 
 ---
 
 #### Describe Your Vibe
 
-This is the quickest way to tell SpotyVibe what you are looking for.
+The **💬 Describe Your Vibe** accordion is the quickest way to tell SpotyVibe what you are looking for.
 
 Write in everyday language — like chatting with a friend — what kind of music you want. For example:
 
@@ -255,17 +285,26 @@ Write in everyday language — like chatting with a friend — what kind of musi
 - "More jazz influence, less electronic. Think Snarky Puppy meets Radiohead."
 - "Make my profile darker and heavier, but keep the melodies."
 
-When you use **AI Profile Update**, SpotyVibe translates your words into a structured profile automatically. After the update completes, the field is **cleared automatically** — your input has been incorporated into the structured profile sections, so the one-time instruction is no longer needed.
+**Smart classification:** When you use **AI Profile Update**, SpotyVibe does not just store your text — it **automatically classifies** each part of your message and routes it to the correct profile section. The AI recognizes natural trigger phrases:
+
+| What you write | Where it goes |
+|---|---|
+| "must have heavy bass", "needs strong vocals" | → **Must Have** |
+| "no autotune", "avoid slow songs", "without synths" | → **Avoid** |
+| "would be nice to have jazz influence", "ideally some prog elements" | → **Soft Preferences** |
+| General taste descriptions, genre/mood/energy | → **Core Description** |
+
+This means you can write everything in one place and let the AI sort it out. After the update completes, the field is **cleared automatically** — your input has been incorporated into the structured profile sections, so the one-time instruction is no longer needed.
 
 If you fill in this field, the **Core Description** below becomes optional — the AI will generate one for you.
 
-> **Screenshot placeholder:** Describe Your Vibe field
+> **Screenshot placeholder:** Describe Your Vibe field with example text
 
 ---
 
 #### Core Description
 
-This is the most important part of your profile.
+The **🎵 Core Description** accordion is the foundation of your profile.
 
 Describe the kind of music you want using your own words, such as:
 
@@ -285,7 +324,7 @@ This field should clearly explain your overall taste.
 
 #### Must Have
 
-Use this section for qualities that every recommendation should have.
+The **✅ Must Have** accordion is for non-negotiable traits that every recommendation **must** have. A track missing any of these is rejected.
 
 Examples:
 
@@ -302,7 +341,7 @@ Enter one preference per line.
 
 #### Soft Preferences
 
-Use this section for qualities that are welcome, but not required.
+The **💡 Soft Preferences** accordion is for qualities that are welcome but not required — nice-to-haves that improve a suggestion.
 
 Examples:
 
@@ -318,7 +357,7 @@ Enter one preference per line.
 
 #### Avoid
 
-Use this section for sounds or traits you do **not** want.
+The **🚫 Avoid** accordion is for absolute dealbreakers — sounds or traits you do **not** want.
 
 Examples:
 
@@ -335,37 +374,62 @@ Enter one item per line.
 
 #### Save or AI Profile Update
 
-After editing your profile, you can choose one of two actions:
+After editing your profile, two action buttons appear at the bottom of the editor:
 
-- **Save**  
-  Stores your profile as written
+- **Save** (right side)  
+  Stores your profile exactly as written. No AI processing, no API call, instant. Works even if fields are empty. Does **not** require an OpenAI API key.
 
-- **AI Profile Update**  
-  Lets SpotyVibe refine and organize your input for you
+- **AI Profile Update** (left side)  
+  Sends your input to GPT, which refines, organizes, and structures your profile. The AI automatically classifies your Vibe Description (see above), extracts reference artists, generates internal taste rules, and improves the wording of each section. Requires an OpenAI API key and uses a small number of tokens. A yellow warning appears if both Core Description and Vibe Description are empty.
 
-Use **Save** for quick edits.  
-Use **AI Profile Update** when you want the app to help improve the profile.
+**When to use which:**
+
+| | Save | AI Profile Update |
+|---|---|---|
+| Speed | Instant | A few seconds |
+| API key required | No | Yes (OpenAI) |
+| Token cost | None | Small |
+| Refines wording | No — saves as-is | Yes — improves structure |
+| Classifies Vibe text | No | Yes — routes to correct sections |
+| Best for | Quick edits, minor tweaks | First-time setup, major changes |
+
+A loading spinner with rotating status messages appears during AI Profile Update.
 
 > **Screenshot placeholder:** Save and AI Profile Update buttons
 
 ---
 
-### Import, Export, and Reset Your Profile
+#### What the AI Does Behind the Scenes
+
+When you run **AI Profile Update**, GPT does more than just save your text. It also populates several internal fields that you never edit directly but that significantly improve playlist generation:
+
+- **Goal & primary reference** — A one-sentence summary and dominant style benchmark derived from your core description.
+- **Confirmed / moderate / rejected artists** — Artist names extracted from your descriptions, categorized by how well they match your taste.
+- **Taste rules** — A priority order for judging tracks (e.g. "melody > energy > style") and an ordered list of absolute dealbreakers from your Avoid section.
+
+These fields are invisible in the UI but are included in every playlist generation prompt, helping GPT make more accurate suggestions. You do not need to manage them — they update automatically each time you run AI Profile Update.
+
+---
+
+### Import, Export, Reset, and Delete Your Profile
 
 When the profile editor is open, profile management buttons appear below the **Last trained** status line in the section header:
 
 - **Import**  
-  Load a saved profile file
+  Load a saved profile JSON file into the current profile. A confirmation dialog appears first. Your previous profile is automatically backed up to a history file before the import overwrites it. Unknown fields in the imported file are silently stripped; missing fields are filled from the default template.
 
 - **Export**  
-  Download your current profile
+  Download your current profile as a `spotyvibe_profile.json` file (full JSON including all AI-generated internal fields).
 
 - **Reset to history**  
-  Restore the previous version of your profile
+  Restore the previous version of your profile (one-step undo). This loads the automatic backup that was created before the last save, AI update, or import.
 
-This is useful if you want to back up your profile, move it to another device, or undo a recent change.
+- **Delete**  
+  Permanently remove the current profile and its history. A confirmation dialog appears first. This cannot be undone. If other profiles exist, the first one is automatically selected.
 
-> **Screenshot placeholder:** Import / Export / Reset controls
+This is useful if you want to back up your profile, move it to another device, clean up unused profiles, or undo a recent change.
+
+> **Screenshot placeholder:** Import / Export / Reset / Delete controls
 
 ---
 
@@ -377,11 +441,11 @@ To update your preferences:
 
 1. Go back to the **OpenAI** section
 2. Click **Edit profile**
-3. Update your description or preference lists
+3. Update your description or preference lists — or just type what changed in the **Describe Your Vibe** field
 4. Save or run **AI Profile Update**
 5. Generate again
 
-The more accurately your profile reflects your current taste, the better your future playlists will be.
+The more accurately your profile reflects your current taste, the better your future playlists will be. For small adjustments, use the Vibe field — for example, "more acoustic, less electronic" — and let the AI merge it into your existing profile.
 
 > **Screenshot placeholder:** Editing an existing profile
 
@@ -540,6 +604,8 @@ The preview uses a three-zone layout:
 Clicking the same tab again closes the feedback form. The ✕ button dismisses the track immediately without opening a form. Active tabs glow green (like) or red (dislike).
 
 Use the ‹ and › arrows to navigate between tracks without closing the overlay.
+
+> **Note:** The embedded Spotify player provides **~30-second previews**. Full-length playback is not available because the embed runs in an isolated iframe that cannot access your Spotify session due to browser third-party cookie restrictions. To listen to the full track, click the Spotify icon inside the player or use the Spotify links on the song card.
 
 > **Screenshot placeholder:** Preview player open
 

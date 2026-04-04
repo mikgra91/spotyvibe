@@ -30,6 +30,7 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 
 - **AI-powered suggestions** with configurable OpenAI model selection (GPT-5.4, GPT-5.4-mini, GPT-4.1, GPT-4.1-mini, GPT-4.1-nano).
 - **Structured taste profile** — accordion-style editor with separate sections for core description, must-haves, soft preferences, and things to avoid. Existing profile data is pre-filled for easy editing. Save changes directly or use **AI Profile Update** to let GPT refine your input.
+- **Multiple profiles** — create, switch, and delete named profiles from a dropdown in the Music Profile header. Each profile is stored as a UUID-named JSON file in the `profiles/` directory. Profiles are completely independent — great for different moods, activities, or family members.
 - **Profile import/export** — import a full profile JSON (the current profile is automatically backed up to the history file) or export your current active profile as a JSON download. Import/Export/Reset controls appear below the "Last trained" status line when the profile editor is open.
 - **Reset to history** — revert your Music Profile to the previous saved version (one-step undo).
 - **Collapsible UI sections** — every major component (Music Profile, Band/Song Analysis, Audio Filters, Discover Music, Refine Playlist, History) is collapsible/expandable. Each section header includes a short description and the entire header area is clickable to toggle.
@@ -113,7 +114,7 @@ Output:
 Notes:
 - The executable runs the same local server at `http://127.0.0.1:5000`.
 - On launch, the desktop executable opens a native embedded browser window (via pywebview) — closing the window cleanly terminates the process.
-- Credentials are **not** bundled; they remain in `%LOCALAPPDATA%\spotyvibe\.credentials`.
+- Credentials are **not** bundled; they remain in `%LOCALAPPDATA%\\spotyvibe\\.credentials`.\n- App settings (model, playlist size, etc.) are stored in `%LOCALAPPDATA%\\spotyvibe\\settings.conf`.
 - The one-file build has a slower cold start (it extracts bundled files on launch).
 
 

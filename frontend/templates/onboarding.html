@@ -185,7 +185,7 @@
             <div class="ob-title">Connect Spotify</div>
             <div class="ob-subtitle">Authenticate with Spotify and optionally import an existing taste profile.</div>
             <div style="width:100%;max-width:380px;">
-                <button class="ob-action-btn" onclick="connectSpotify()">🔌 Connect to Spotify</button>
+                <button class="ob-action-btn" id="ob-spotify-btn" onclick="toggleObSpotify()">🔌 Connect to Spotify</button>
                 <div id="ob-spotify-status" class="ob-explain" style="margin-top:-4px;"></div>
                 <button class="ob-action-btn secondary" onclick="importProfile()">⬆ Import Preference Profile</button>
                 <div id="ob-import-status" class="ob-explain" style="margin-top:-4px;"></div>
@@ -276,7 +276,17 @@
         }
     }
 
-    function connectSpotify() {
+    let _obSpotifyConnected = false;
+
+    function toggleObSpotify() {
+        if (_obSpotifyConnected) {
+            disconnectObSpotify();
+        } else {
+            connectObSpotify();
+        }
+    }
+
+    function connectObSpotify() {
         const statusEl = document.getElementById('ob-spotify-status');
         statusEl.textContent = 'Opening Spotify…';
         // On Android WebView, navigate directly; on desktop open a popup
@@ -287,11 +297,44 @@
             // Listen for callback message
             window.addEventListener('message', async (e) => {
                 if (e.data === 'spotify-auth-complete') {
-                    statusEl.textContent = '✅ Spotify connected!';
-                    statusEl.className = 'ob-explain ob-success';
+                    _setObSpotifyState(true);
                 }
             }, { once: true });
         }
+    }
+
+    async function disconnectObSpotify() {
+        try {
+            await fetch('/api/spotify/disconnect', { method: 'POST' });
+            _setObSpotifyState(false);
+        } catch (e) {
+            const statusEl = document.getElementById('ob-spotify-status');
+            statusEl.textContent = '❌ Network error.';
+            statusEl.className = 'ob-explain ob-error';
+        }
+    }
+
+    function _setObSpotifyState(connected) {
+        _obSpotifyConnected = connected;
+        const btn = document.getElementById('ob-spotify-btn');
+        const statusEl = document.getElementById('ob-spotify-status');
+        if (connected) {
+            btn.textContent = '🔌 Disconnect from Spotify';
+            statusEl.textContent = '✅ Spotify connected!';
+            statusEl.className = 'ob-explain ob-success';
+        } else {
+            btn.textContent = '🔌 Connect to Spotify';
+            statusEl.textContent = '';
+            statusEl.className = 'ob-explain';
+        }
+    }
+
+    async function _checkObSpotifyStatus() {
+        try {
+            const resp = await fetch('/api/spotify/status');
+            const data = await resp.json();
+            _setObSpotifyState(data.status === 'authenticated');
+        } catch (e) { /* ignore */ }
     }
 
     function importProfile() {
@@ -335,6 +378,7 @@
 
         // Prefill credential status so user sees what's already configured
         await prefillCredentials();
+        await _checkObSpotifyStatus();
     })();
 
     async function prefillCredentials() {
@@ -353,8 +397,9 @@
                 const hintEl = document.getElementById(ids.hint);
                 const inputEl = document.getElementById(ids.input);
                 if (info && info.is_set) {
-                    hintEl.textContent = '✓ Already set (' + info.masked + ')';
-                    inputEl.placeholder = info.masked;
+                    const short = info.masked.length > 20 ? info.masked.slice(0, 17) + '…' + info.masked.slice(-4) : info.masked;
+                    hintEl.textContent = '✓ Already set (' + short + ')';
+                    inputEl.placeholder = short;
                 }
             }
         } catch (e) { /* ignore — fields stay empty */ }

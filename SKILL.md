@@ -148,14 +148,8 @@ Apply this to **any** git command whose output may exceed the terminal height: `
 When committing and pushing changes, follow this procedure in order:
 
 1. Stage the relevant changed files
-2. **Check if any context files need updating:**
-   - `.github/workflows/*.yml` changed → regenerate `context/workflows.md`
-   - Project structure changed significantly → consider updating `context/architecture.md`
-3. Stage any regenerated context files alongside the main changes
-4. Commit with a descriptive message following the style defined in `AGENTS.md`
-5. Push to remote
-
-Context file updates must be part of the **same commit** as the changes that caused them — never a separate "update context" commit.
+2. Commit with a descriptive message following the style defined in `AGENTS.md`
+3. Push to remote
 
 ---
 
@@ -170,37 +164,6 @@ gh pr create --base main --head develop --fill
 `--fill` uses the commit log to auto-populate the PR title and body.
 
 ---
-
-## Context Files
-
-Context files live in `context/` and are **generated summaries** — do not hand-edit them.
-
-### File format
-
-Every context file must begin with this header block:
-
-```
-# <Title>
-# Generated: <YYYY-MM-DD>
-# Source files:
-#   - path/to/source1
-#   - path/to/source2
-```
-
-The `# Source files:` list is mandatory. It tells future agents exactly which files to re-read when regenerating the summary — without it, the context file is untrustworthy.
-
-### Known context files
-
-| File | Summarizes | Regenerate when |
-|---|---|---|
-| `context/workflows.md` | `.github/workflows/*.yml` | Any workflow file changes |
-
-### How to regenerate a context file
-
-1. Read all files listed under `# Source files:` in the existing context file
-2. Summarize into the format above
-3. Update the `# Generated:` date to today
-4. Stage and commit as part of the SKILL: git-commit-and-push procedure
 
 # SKILL: Python Project GitHub Release and Tagging Automation
 
