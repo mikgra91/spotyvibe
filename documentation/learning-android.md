@@ -813,7 +813,7 @@ def _get_app_dir():
 
 | Item | Desktop Path | Android Path |
 |------|-------------|--------------|
-| Credentials | `%LOCALAPPDATA%\spotyvibe\.credentials` | `/data/data/com.spotyvibe.app/files/.credentials` |
+| Credentials | OS keychain (fallback: `%LOCALAPPDATA%\spotyvibe\.credentials`) | `/data/data/com.spotyvibe.app/files/.credentials` |
 | Spotify cache | `%LOCALAPPDATA%\spotyvibe\.spotify-cache` | `/data/data/com.spotyvibe.app/files/.spotify-cache` |
 | Music profile | `%LOCALAPPDATA%\spotyvibe\personalized_music_profile.json` | `/data/data/com.spotyvibe.app/files/personalized_music_profile.json` |
 | Settings | `%LOCALAPPDATA%\spotyvibe\settings.conf` | `/data/data/com.spotyvibe.app/files/settings.conf` |
@@ -839,7 +839,7 @@ The desktop launcher (`desktop_launcher.py`) is skipped entirely — Android's A
 
 ## Android Onboarding Flow
 
-SpotyVibe has a first-run onboarding screen (credentials setup + Spotify connection). On Android, it uses a **dual-persisted** onboarding state:
+SpotyVibe has a first-run onboarding screen (language selection, credentials setup + Spotify connection). The flow has 4 pages: Welcome → Language → Credentials → Connect & Import. On Android, it uses a **dual-persisted** onboarding state:
 
 ### Dual Persistence
 
@@ -1044,7 +1044,7 @@ The size difference comes from ProGuard shrinking Kotlin code and the debug APK 
 | Control | Implementation |
 |---------|----------------|
 | Location | Android internal storage (sandboxed, not on SD card) |
-| Format | INI file (`.credentials`) via Python `configparser` |
+| Format | Dotenv file (`.credentials`) via `python-dotenv` (keyring unavailable on Android) |
 | Access | Only this app's process can read/write |
 | Encryption | Relies on Android's disk encryption (FBE or FDE) |
 

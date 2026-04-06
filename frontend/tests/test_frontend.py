@@ -1240,8 +1240,10 @@ class TestOnboardingCredentialPrefill:
         page.goto(base_url + "/onboarding")
         page.wait_for_load_state("networkidle")
 
-        # Navigate to credentials page (page 2)
+        # Navigate to credentials page (page 3 — after intro and language)
         page.locator("text=Next →").first.click()
+        page.wait_for_timeout(400)
+        page.locator("text=Next →").nth(1).click()
         page.wait_for_timeout(400)
 
         # Verify green status rows are visible with "OK" text
@@ -1276,11 +1278,13 @@ class TestOnboardingCredentialPrefill:
         page.goto(base_url + "/onboarding")
         page.wait_for_load_state("networkidle")
 
-        # Navigate to credentials page
+        # Navigate to credentials page (page 3 — after intro and language)
         page.locator("text=Next →").first.click()
         page.wait_for_timeout(400)
+        page.locator("text=Next →").nth(1).click()
+        page.wait_for_timeout(400)
 
-        # Inside the cred-section, there should NOT be a Skip button
+        # Inside the cred-section, there should NOT be a Skip or Back button
         cred_section = page.locator(".ob-cred-section")
         skip_buttons_in_section = cred_section.locator(".ob-btn-skip")
         expect(skip_buttons_in_section).to_have_count(0)

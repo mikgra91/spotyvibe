@@ -31,7 +31,7 @@ python -m pytest core/tests/ frontend/tests/ -v
 
 Playwright's Chromium browser is auto-installed on the first frontend test run (via `frontend/tests/conftest.py`). No manual `playwright install` step is needed.
 
-Credentials (OpenAI key, Spotify Client ID/Secret) are configured via the UI and stored in `%LOCALAPPDATA%\spotyvibe\.credentials`.
+Credentials (OpenAI key, Spotify Client ID/Secret) are configured via the UI and stored in the OS keychain (Windows Credential Manager) when available, with `%LOCALAPPDATA%\spotyvibe\.credentials` as a plaintext fallback.
 Spotify app must have `http://127.0.0.1:5000/callback` as a Redirect URI.
 
 ## Android (Chaquopy) Constraints

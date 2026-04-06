@@ -367,5 +367,8 @@
   "ob.profile_imported": "✅ Profil importiert.",
   "ob.import_failed": "Import fehlgeschlagen.",
   "ob.close": "Schließen ✓",
-  "ob.edit": "Bearbeiten"
+  "ob.edit": "Bearbeiten",
+  "ob.back": "← Zurück",
+  "ob.select_language": "Sprache wählen",
+  "ob.select_language_subtitle": "Wähle die Sprache, die du in SpotyVibe verwenden möchtest."
 }

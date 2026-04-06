@@ -520,8 +520,10 @@ class TestDocumentationScreenshotAcquire:
         page.route("**/api/onboarding/status", handle_status)
         page.goto(screenshot_url + "/onboarding")
         page.wait_for_load_state("networkidle")
-        # Navigate to page 2 (credentials)
+        # Navigate to page 3 (credentials — after intro and language)
         page.locator("text=Next →").first.click()
+        page.wait_for_timeout(400)
+        page.locator("text=Next →").nth(1).click()
         page.wait_for_timeout(400)
         _shot(page, "24_onboarding_credentials")
 

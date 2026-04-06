@@ -148,25 +148,10 @@
         .ob-cred-input-wrap {
             margin-top: 8px;
         }
-        /* Language toggle positioned top-right on all pages */
-        .ob-lang-toggle {
-            position: fixed;
-            top: 16px;
-            right: 16px;
-            z-index: 100;
-        }
     </style>
 </head>
 <body class="onboarding-body" style="background: var(--bg-deep); min-height: 100vh;">
 
-<!-- Language toggle (reuses main app styling) -->
-<div class="ob-lang-toggle">
-    <div class="lang-toggle" role="group" aria-label="Language">
-        <button class="lang-toggle-btn active" data-lang="en" onclick="obSwitchLang('en')" aria-label="English">EN</button>
-        <span class="lang-toggle-sep" aria-hidden="true">|</span>
-        <button class="lang-toggle-btn" data-lang="de" onclick="obSwitchLang('de')" aria-label="Deutsch">DE</button>
-    </div>
-</div>
 
 <div class="ob-wrap" id="obWrap">
     <div class="ob-pages" id="obPages">
@@ -175,6 +160,7 @@
         <div class="ob-page">
             <div class="ob-indicators" id="indicators1">
                 <div class="ob-dot active"></div>
+                <div class="ob-dot"></div>
                 <div class="ob-dot"></div>
                 <div class="ob-dot"></div>
             </div>
@@ -201,9 +187,34 @@
             </div>
         </div>
 
-        <!-- Page 2: Credentials -->
+        <!-- Page 2: Language Selection -->
         <div class="ob-page">
             <div class="ob-indicators">
+                <div class="ob-dot"></div>
+                <div class="ob-dot active"></div>
+                <div class="ob-dot"></div>
+                <div class="ob-dot"></div>
+            </div>
+            <div class="ob-logo">🌐</div>
+            <div class="ob-title" data-i18n="ob.select_language">Select Your Language</div>
+            <div class="ob-subtitle" data-i18n="ob.select_language_subtitle">Choose the language you'd like to use in SpotyVibe.</div>
+            <div style="margin-top: 12px;">
+                <div class="lang-toggle" role="group" aria-label="Language" style="font-size: 1.3rem;">
+                    <button class="lang-toggle-btn active" data-lang="en" onclick="obSwitchLang('en')" aria-label="English">EN</button>
+                    <span class="lang-toggle-sep" aria-hidden="true">|</span>
+                    <button class="lang-toggle-btn" data-lang="de" onclick="obSwitchLang('de')" aria-label="Deutsch">DE</button>
+                </div>
+            </div>
+            <div class="ob-nav">
+                <button class="ob-btn-skip" onclick="goPage(0)" data-i18n="ob.back">← Back</button>
+                <button class="onboarding-continue-btn" style="width:auto;padding:12px 28px;" onclick="goPage(2)" data-i18n="ob.next">Next →</button>
+            </div>
+        </div>
+
+        <!-- Page 3: Credentials -->
+        <div class="ob-page">
+            <div class="ob-indicators">
+                <div class="ob-dot"></div>
                 <div class="ob-dot"></div>
                 <div class="ob-dot active"></div>
                 <div class="ob-dot"></div>
@@ -257,14 +268,15 @@
                 <button class="ob-action-btn hidden" id="ob-save-cred-btn" onclick="saveObCredentials()" data-i18n="ob.save_credentials">Save Credentials</button>
             </div>
             <div class="ob-nav">
-                <button class="ob-btn-skip" onclick="skipOnboarding()" data-i18n="ob.skip">Skip</button>
-                <button class="onboarding-continue-btn" style="width:auto;padding:12px 28px;" onclick="goPage(2)" data-i18n="ob.next">Next →</button>
+                <button class="ob-btn-skip" onclick="goPage(1)" data-i18n="ob.back">← Back</button>
+                <button class="onboarding-continue-btn" style="width:auto;padding:12px 28px;" onclick="goPage(3)" data-i18n="ob.next">Next →</button>
             </div>
         </div>
 
-        <!-- Page 3: Spotify + Preferences -->
+        <!-- Page 4: Spotify + Preferences -->
         <div class="ob-page">
             <div class="ob-indicators">
+                <div class="ob-dot"></div>
                 <div class="ob-dot"></div>
                 <div class="ob-dot"></div>
                 <div class="ob-dot active"></div>
@@ -280,7 +292,7 @@
                 <input id="ob-import-input" type="file" accept="application/json,.json" style="display:none;">
             </div>
             <div class="ob-nav">
-                <button class="ob-btn-skip" onclick="skipOnboarding()" data-i18n="ob.skip">Skip</button>
+                <button class="ob-btn-skip" onclick="goPage(2)" data-i18n="ob.back">← Back</button>
                 <button class="onboarding-continue-btn" style="width:auto;padding:12px 28px;" onclick="finishOnboarding()" data-i18n="ob.close">Close ✓</button>
             </div>
         </div>
@@ -347,7 +359,7 @@
 
     /* ── Onboarding page logic ───────────────────────────────────── */
     let currentPage = 0;
-    const totalPages = 3;
+    const totalPages = 4;
 
     function goPage(idx) {
         currentPage = idx;

@@ -95,7 +95,7 @@ The executable opens a native window with the SpotyVibe UI — no external brows
 > **One-file note:** The one-file build may start more slowly on first launch because it extracts bundled files to a temporary directory.
 
 
-> **Note:** Your credentials are still stored outside the app bundle at `%LOCALAPPDATA%\spotyvibe\.credentials`. App settings (model, playlist size, etc.) are stored separately in `%LOCALAPPDATA%\spotyvibe\settings.conf`.
+> **Note:** Your credentials are stored in your operating system's keychain (e.g. Windows Credential Manager), not as plain text on disk. App settings (model, playlist size, etc.) are stored separately in `%LOCALAPPDATA%\spotyvibe\settings.conf`.
 
 
 
@@ -114,7 +114,7 @@ Enter the three values:
 - **Spotify Client ID** — from your Spotify Developer app.
 - **Spotify Client Secret** — from your Spotify Developer app.
 
-Click **Save**. Your credentials are stored securely in `%LOCALAPPDATA%\spotyvibe\.credentials`, outside the project folder, and are never committed to version control. App preferences (model selection, playlist size, etc.) are stored separately in `settings.conf` in the same directory.
+Click **Save**. Your credentials are stored securely in your operating system's keychain (e.g. Windows Credential Manager). They are never saved as plain text and are never committed to version control. App preferences (model selection, playlist size, etc.) are stored separately in `settings.conf` at `%LOCALAPPDATA%\spotyvibe\`.
 
 > **💰 Cost note:** SpotyVibe uses the OpenAI API, which is a **paid service**. Each generation run and each profile training call costs money. Check [OpenAI Pricing](https://platform.openai.com/docs/pricing) for details.
 
@@ -494,13 +494,14 @@ After installing, the app starts Flask in the background and loads the UI in a W
 
 ### Onboarding Flow (Android)
 
-The first time you launch the Android APK, a **3-page swipeable onboarding** screen appears:
+The first time you launch the Android APK, a **4-page swipeable onboarding** screen appears:
 
 1. **Page 1 — Welcome** — an introduction to SpotyVibe with feature highlights.
-2. **Page 2 — Credentials** — enter your OpenAI API key and Spotify Client ID / Secret directly during setup.
-3. **Page 3 — Connect & Import** — connect your Spotify account and import an existing taste profile if you have one.
+2. **Page 2 — Language** — select your preferred interface language (English or German).
+3. **Page 3 — Credentials** — enter your OpenAI API key and Spotify Client ID / Secret directly during setup.
+4. **Page 4 — Connect & Import** — connect your Spotify account and import an existing taste profile if you have one.
 
-Each page has **Skip**, **Next**, and **Close** buttons so you can navigate or dismiss the onboarding at any time. Once completed (or skipped), the onboarding is remembered and will not appear again on subsequent launches.
+Page 1 has **Skip** and **Next** buttons. Pages 2–3 have **Back** and **Next** buttons. Page 4 has **Back** and **Close** buttons. Once completed (or skipped), the onboarding is remembered and will not appear again on subsequent launches.
 
 ---
 
@@ -510,7 +511,7 @@ All your personal data is stored outside the project in your system's app data f
 
 | File | Location | Purpose |
 |---|---|---|
-| Credentials | `%LOCALAPPDATA%\spotyvibe\.credentials` | Your API keys (OpenAI key, Spotify Client ID/Secret). |
+| Credentials | OS keychain (Windows Credential Manager) | Your API keys (OpenAI key, Spotify Client ID/Secret). Fallback: `%LOCALAPPDATA%\spotyvibe\.credentials`. |
 | Settings | `%LOCALAPPDATA%\spotyvibe\settings.conf` | App preferences (model, playlist size, language, debug mode, etc.). |
 | Taste profile | `%LOCALAPPDATA%\spotyvibe\personalized_music_profile.json` | Your trained taste profile + history. |
 | Spotify token | `%LOCALAPPDATA%\spotyvibe\.spotify-cache` | Cached Spotify authentication token. |

@@ -5,7 +5,9 @@ Stores data in a platform-appropriate directory:
   - Android:  internal app storage (set via SPOTYVIBE_FILES_DIR env var)
   - Fallback: ~/spotyvibe/
 
-Credentials (API keys/secrets) live in ``.credentials``.
+Credentials (API keys/secrets) are stored in the OS keychain when available
+(Windows Credential Manager / macOS Keychain) with ``.credentials`` as a
+fallback for platforms without a usable keyring (e.g. Android).
 App preferences and state live in ``settings.conf``.
 """
 
@@ -228,15 +230,65 @@ def ensure_env():
     _migrate_settings_from_credentials()
 
 
+def _migrate_credentials_to_keyring():
+    """One-time migration: move plaintext secrets from .credentials into keyring.
+
+    For each credential key that has a non-empty value in .credentials but
+    no value in keyring yet, stores the value in keyring and clears the
+    plaintext entry in .credentials.  This runs silently on every startup
+    but only does work when there is something to migrate.
+    """
+    raw = dotenv_values(str(CREDENTIALS_FILE))
+    migrated_any = False
+
+    for key in CREDENTIAL_KEYS:
+        file_val = (raw.get(key) or "").strip()
+        if not file_val:
+            continue  # nothing to migrate
+
+        # Check if keyring already has a value for this key
+        try:
+            kr_val = _keyring.get_password(_KEYRING_SERVICE, key)
+        except Exception:
+            continue  # keyring read failed — skip this key
+
+        if kr_val:
+            # Keyring already populated — just clear the plaintext copy
+            set_key(str(CREDENTIALS_FILE), key, "")
+            migrated_any = True
+            continue
+
+        # Store in keyring, then clear from file
+        try:
+            _keyring.set_password(_KEYRING_SERVICE, key, file_val)
+            set_key(str(CREDENTIALS_FILE), key, "")
+            migrated_any = True
+        except Exception:
+            pass  # keyring write failed — keep plaintext as fallback
+
+    if migrated_any:
+        # Reload the (now-emptied) .credentials so os.environ reflects it;
+        # keyring overlay will restore the values moments later.
+        load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
+
+
 def load_config():
     """Load credentials and settings into os.environ.
 
     Reads from dotenv files first, then overlays keyring values (if available)
     so the OS keychain takes precedence over the plaintext .credentials file.
+    On the first run with a usable keyring, credentials are automatically
+    migrated from .credentials into the OS keychain and the plaintext values
+    are cleared.
     """
     ensure_env()
     load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
     load_dotenv(dotenv_path=str(SETTINGS_FILE), override=True)
+
+    # One-time migration: copy plaintext credentials into keyring and clear
+    # them from .credentials so secrets no longer sit in a flat file.
+    if _KEYRING_AVAILABLE:
+        _migrate_credentials_to_keyring()
 
     # Overlay keyring values — these take precedence over dotenv
     if _KEYRING_AVAILABLE:
@@ -384,8 +436,10 @@ def _ensure_trailing_newline(filepath):
 def save_credentials(credentials):
     """Update secret credential values and reload into os.environ.
 
-    Stores in OS keychain when available, always writes to .credentials
-    as a fallback/sync mechanism.
+    When a usable OS keychain is available, secrets are stored there and the
+    .credentials file only holds empty placeholder keys (no plaintext).
+    When keyring is unavailable (e.g. Android), secrets fall back to the
+    .credentials dotenv file.
 
     A value of ``None`` means "not provided" and is skipped.
     An empty string ``""`` explicitly clears the key.
@@ -395,18 +449,36 @@ def save_credentials(credentials):
 
     for key, value in credentials.items():
         if key in CREDENTIAL_KEYS and value is not None:
-            # Store in OS keychain
+            stored_in_keyring = False
             if _KEYRING_AVAILABLE:
                 try:
                     if value:
                         _keyring.set_password(_KEYRING_SERVICE, key, value)
                     else:
                         _keyring.delete_password(_KEYRING_SERVICE, key)
+                    stored_in_keyring = True
                 except Exception:
                     pass  # fall through to dotenv
-            # Always keep dotenv in sync
-            set_key(str(CREDENTIALS_FILE), key, value)
+
+            if stored_in_keyring:
+                # Keep the key present in .credentials but without plaintext
+                set_key(str(CREDENTIALS_FILE), key, "")
+            else:
+                # Keyring unavailable — write to dotenv as fallback
+                set_key(str(CREDENTIALS_FILE), key, value)
+
+            # Update os.environ immediately
+            os.environ[key] = value
     load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
+    # Re-overlay keyring so os.environ has the real values
+    if _KEYRING_AVAILABLE:
+        for key in CREDENTIAL_KEYS:
+            try:
+                val = _keyring.get_password(_KEYRING_SERVICE, key)
+                if val:
+                    os.environ[key] = val
+            except Exception:
+                pass
 
 
 def save_settings(settings):

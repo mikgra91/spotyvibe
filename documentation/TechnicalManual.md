@@ -195,9 +195,9 @@ The app module also pins its Python dependencies in `android/app/build.gradle`, 
 
 ### `config.py` — Configuration & Credentials
 
-Manages all application settings and credentials. Secrets (API keys) are stored in `.credentials`; non-secret preferences and app state are stored in `settings.conf`. Both files use dotenv format and live in the platform-appropriate app data directory (`%LOCALAPPDATA%\spotyvibe\` on Windows).
+Manages all application settings and credentials. Secrets (API keys) are stored in the OS keychain (Windows Credential Manager / macOS Keychain) when available, with `.credentials` as a plaintext fallback for platforms without a usable keyring (e.g. Android). Non-secret preferences and app state are stored in `settings.conf` (dotenv format) in the platform-appropriate app data directory (`%LOCALAPPDATA%\spotyvibe\` on Windows).
 
-On first load, any non-secret keys still present in `.credentials` (from older versions) are automatically migrated to `settings.conf`.
+On first load, any non-secret keys still present in `.credentials` (from older versions) are automatically migrated to `settings.conf`. Plaintext credentials in `.credentials` are automatically migrated to the OS keychain when a usable keyring is detected.
 
 **Key constants:**
 
@@ -213,7 +213,7 @@ On first load, any non-secret keys still present in `.credentials` (from older v
 | `MAX_CONSECUTIVE_EMPTY_BATCHES` | How many consecutive all-filtered batches are allowed before the loop breaks and the playlist is created with whatever was found (default: 3). |
 | `DEFAULT_OPENAI_MODEL` | Fallback model when none is configured (default: `gpt-5.4-mini`). |
 | `IS_ANDROID` | `True` when running under Chaquopy (detected via `sys.getandroidapilevel`). All Android-specific logic is gated behind this flag; desktop behaviour is unaffected. |
-| `CREDENTIALS_FILE` | Path to `%LOCALAPPDATA%\spotyvibe\.credentials` — stores only API secrets (`OPENAI_API_KEY`, `SPOTIPY_CLIENT_ID`, `SPOTIPY_CLIENT_SECRET`). |
+| `CREDENTIALS_FILE` | Path to `%LOCALAPPDATA%\spotyvibe\.credentials` — plaintext fallback for API secrets when OS keychain is unavailable. On desktop with a usable keyring, this file only holds empty placeholder keys. |
 | `SETTINGS_FILE` | Path to `%LOCALAPPDATA%\spotyvibe\settings.conf` — stores non-secret app preferences (`OPENAI_MODEL`, `DEBUG_MODE`, `PLAYLIST_SIZE`, `NEW_ARTIST_PERCENTAGE`, `GPT_LANGUAGE`, `ONBOARDING_COMPLETED`, `ACTIVE_PROFILE_ID`). |
 | `PROFILES_DIR` | Path to `%LOCALAPPDATA%\spotyvibe\profiles\` — each profile is a UUID-named `.json` file with an accompanying `.history.json` backup. |
 | `MAX_PROFILE_NAME_LEN` | Maximum character length for a profile display name (default: 40). |
@@ -227,7 +227,7 @@ On first load, any non-secret keys still present in `.credentials` (from older v
 | `MAX_FEEDBACK_ARTIST_LEN` | Maximum character length for feedback artist name (default: 200). |
 | `MAX_FEEDBACK_TRACK_LEN` | Maximum character length for feedback track name (default: 200). |
 | `MAX_FEEDBACK_REASON_LEN` | Maximum character length for feedback reason text (default: 500). |
-| `CREDENTIAL_KEYS` | List of secret key names stored in `.credentials`. |
+| `CREDENTIAL_KEYS` | List of secret key names stored in the OS keychain (or `.credentials` as fallback). |
 | `SETTINGS_KEYS` | List of non-secret key names stored in `settings.conf`. |
 
 
@@ -245,7 +245,7 @@ On first load, any non-secret keys still present in `.credentials` (from older v
 - **`get_settings()`** — Returns `{"model": str, "debug_mode": bool, "playlist_size": int, "new_artist_percentage": int, "debug_log_path": str, "debug_controls_available": bool, "is_android": bool, "gpt_language": str}` for the Settings UI. Debug controls are desktop-only; Android receives `debug_controls_available=false` and an empty `debug_log_path`.
 
 
-**Credential storage:** Credentials and settings (including the selected model) are stored in `%LOCALAPPDATA%\spotyvibe\.credentials` as a dotenv file, outside the project directory. The `load_config()` function loads them into `os.environ`. The `save_credentials()` function ensures the file always ends with a newline before appending new keys, preventing `python-dotenv` parse errors from concatenated lines.
+**Credential storage:** On desktop, credentials are stored in the OS keychain (Windows Credential Manager / macOS Keychain) via the `keyring` library. The `.credentials` file (dotenv format, at `%LOCALAPPDATA%\spotyvibe\`) only holds empty placeholder keys when keyring is available; it serves as a plaintext fallback on platforms without a usable keyring (e.g. Android). On startup, `load_config()` reads the `.credentials` file first, then overlays keyring values so the OS keychain always takes precedence. A one-time auto-migration (`_migrate_credentials_to_keyring()`) moves any plaintext secrets from `.credentials` into keyring and clears the plaintext copy. The `save_credentials()` function stores values in keyring when available and only writes to `.credentials` as a fallback.
 
 **Android storage:** On Android, `_get_app_dir()` resolves to the app's internal storage (`/data/data/com.spotyvibe.app/files/spotyvibe/`). The `.env` migration from legacy locations is guarded by `if not IS_ANDROID` so it only runs on desktop.
 
@@ -823,7 +823,7 @@ pyinstaller --noconfirm --clean spotyvibe.spec
 
 - Runtime assets are bundled via the spec file (`templates/`, `static/`, `prompts/`, `data/`, plus `documentation/help.md`).
 - `hiddenimports` includes `markdown.extensions.tables`, `markdown.extensions.fenced_code`, and `markdown.extensions.toc` so the in-app Help modal renders correctly in frozen builds.
-- Secrets are intentionally **not** bundled; credentials remain in `%LOCALAPPDATA%\spotyvibe\.credentials`.
+- Secrets are intentionally **not** bundled; credentials are stored in the OS keychain (with `.credentials` as fallback).
 
 **System Requirement (Windows Desktop):**
 The desktop executable requires a modern, patched Windows 10/11 environment. `pywebview` relies on the **WebView2 (Chromium)** runtime to embed the native browser window. If a user runs this on an outdated Windows environment missing WebView2, the application might fall back to Legacy Edge/MSHTML (Trident), causing modern CSS and JavaScript in SpotyVibe to break or render incorrectly.

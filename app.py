@@ -40,6 +40,16 @@ def _setup_logging():
     log_dir = DEBUG_LOG_FILE.parent
     log_dir.mkdir(parents=True, exist_ok=True)
 
+    # Delete stale log files *before* opening the file handler so the
+    # RotatingFileHandler doesn't hold the file open when we try to unlink.
+    from config import PROMPT_LOG_FILE
+    for log_file in (DEBUG_LOG_FILE, PROMPT_LOG_FILE):
+        try:
+            if log_file.exists():
+                log_file.unlink()
+        except OSError:
+            pass
+
     root = logging.getLogger()
     root.setLevel(logging.DEBUG)
 
@@ -102,8 +112,6 @@ def _datetimeformat(value):
     except Exception:
         return str(value)
 
-# Clear debug log on startup so it only contains data from the current session
-clear_debug_log()
 
 # Model list cache: avoid repeated OpenAI API calls for the same data
 _models_cache: dict = {"data": None, "expires": 0.0}
