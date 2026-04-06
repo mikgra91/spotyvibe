@@ -1,0 +1,305 @@
+<!-- Quickstart guide modal — paginated walkthrough -->
+<div class="modal-overlay" id="quickstartModal" role="dialog" aria-modal="true" aria-label="Quick Start Guide" onclick="if(event.target===this)closeQuickstart()">
+    <div class="quickstart-wrapper">
+        <div class="modal quickstart-modal">
+            <button class="qs-close-btn" onclick="closeQuickstart()" aria-label="Close">✕</button>
+
+            <!-- ── Page 0: Table of Contents (landing page) ── -->
+            <div class="qs-page" data-qs-page="0">
+                <h2 class="quickstart-title" data-i18n="quickstart.title">🚀 Quick Start Guide</h2>
+                <p class="quickstart-intro" data-i18n="quickstart.intro">Get up and running in 6 simple steps — from setup to your first AI-powered playlist.</p>
+
+                <!-- Workflow map -->
+                <div class="quickstart-workflow-map" aria-label="Workflow overview">
+                    <button class="quickstart-wf-node" onclick="quickstartGoTo(1)" aria-label="Step 1">1</button>
+                    <span class="quickstart-wf-arrow" aria-hidden="true">→</span>
+                    <button class="quickstart-wf-node" onclick="quickstartGoTo(2)" aria-label="Step 2">2</button>
+                    <span class="quickstart-wf-arrow" aria-hidden="true">→</span>
+                    <button class="quickstart-wf-node" onclick="quickstartGoTo(3)" aria-label="Step 3">3</button>
+                    <span class="quickstart-wf-arrow" aria-hidden="true">→</span>
+                    <button class="quickstart-wf-node" onclick="quickstartGoTo(4)" aria-label="Step 4">4</button>
+                    <span class="quickstart-wf-arrow" aria-hidden="true">→</span>
+                    <button class="quickstart-wf-node" onclick="quickstartGoTo(5)" aria-label="Step 5">5</button>
+                    <span class="quickstart-wf-arrow" aria-hidden="true">→</span>
+                    <button class="quickstart-wf-node quickstart-wf-repeat" onclick="quickstartGoTo(6)" aria-label="Step 6">⟳</button>
+                </div>
+
+                <!-- Table of contents -->
+                <nav class="qs-toc" aria-label="Quick Start steps">
+                    <button class="qs-toc-entry" onclick="quickstartGoTo(1)" aria-label="Go to step 1">
+                        <span class="qs-toc-num">1</span>
+                        <span class="qs-toc-text">
+                            <span class="qs-toc-title" data-i18n="quickstart.step1_title">Setup</span>
+                            <span class="qs-toc-tagline" data-i18n="quickstart.step1_tagline">Enter your keys, connect Spotify, pick your theme.</span>
+                        </span>
+                        <span class="qs-toc-arrow" aria-hidden="true">›</span>
+                    </button>
+                    <button class="qs-toc-entry" onclick="quickstartGoTo(2)" aria-label="Go to step 2">
+                        <span class="qs-toc-num">2</span>
+                        <span class="qs-toc-text">
+                            <span class="qs-toc-title" data-i18n="quickstart.step2_title">Build Your Profile</span>
+                            <span class="qs-toc-tagline" data-i18n="quickstart.step2_tagline">Tell SpotyVibe what you love (and what to avoid).</span>
+                        </span>
+                        <span class="qs-toc-arrow" aria-hidden="true">›</span>
+                    </button>
+                    <button class="qs-toc-entry" onclick="quickstartGoTo(3)" aria-label="Go to step 3">
+                        <span class="qs-toc-num">3</span>
+                        <span class="qs-toc-text">
+                            <span class="qs-toc-title" data-i18n="quickstart.step3_title">Generate a Playlist</span>
+                            <span class="qs-toc-tagline" data-i18n="quickstart.step3_tagline">Pick a mode, set optional filters, hit Generate.</span>
+                        </span>
+                        <span class="qs-toc-arrow" aria-hidden="true">›</span>
+                    </button>
+                    <button class="qs-toc-entry" onclick="quickstartGoTo(4)" aria-label="Go to step 4">
+                        <span class="qs-toc-num">4</span>
+                        <span class="qs-toc-text">
+                            <span class="qs-toc-title" data-i18n="quickstart.step4_title">Review &amp; Feedback</span>
+                            <span class="qs-toc-tagline" data-i18n="quickstart.step4_tagline">Preview tracks, like the gems, dislike the misses.</span>
+                        </span>
+                        <span class="qs-toc-arrow" aria-hidden="true">›</span>
+                    </button>
+                    <button class="qs-toc-entry" onclick="quickstartGoTo(5)" aria-label="Go to step 5">
+                        <span class="qs-toc-num">5</span>
+                        <span class="qs-toc-text">
+                            <span class="qs-toc-title" data-i18n="quickstart.step5_title">Refine Existing Playlists</span>
+                            <span class="qs-toc-tagline" data-i18n="quickstart.step5_tagline">Revisit any playlist — like, dislike, or dismiss.</span>
+                        </span>
+                        <span class="qs-toc-arrow" aria-hidden="true">›</span>
+                    </button>
+                    <button class="qs-toc-entry qs-toc-entry-repeat" onclick="quickstartGoTo(6)" aria-label="Go to step 6">
+                        <span class="qs-toc-num qs-toc-num-repeat">⟳</span>
+                        <span class="qs-toc-text">
+                            <span class="qs-toc-title" data-i18n="quickstart.step6_title">Repeat &amp; Improve</span>
+                            <span class="qs-toc-tagline" data-i18n="quickstart.step6_tagline">Your profile learns. Next playlist is even better.</span>
+                        </span>
+                        <span class="qs-toc-arrow" aria-hidden="true">›</span>
+                    </button>
+                </nav>
+            </div>
+
+            <!-- ── Page 1: Setup ── -->
+            <div class="qs-page qs-page-hidden" data-qs-page="1">
+                <div class="qs-page-header">
+                    <div class="quickstart-step-number">1</div>
+                    <div>
+                        <h2 class="qs-page-title" data-i18n="quickstart.step1_title">Setup</h2>
+                        <p class="quickstart-tagline" data-i18n="quickstart.step1_tagline">Enter your keys, connect Spotify, pick your theme.</p>
+                    </div>
+                </div>
+                <div class="qs-page-content">
+                    <p data-i18n="quickstart.step1_desc">Open the menu (☰) → enter your OpenAI API key, Spotify Client ID &amp; Secret → Save. Click "Connect to Spotify" and complete the sign-in. Optionally adjust AI model, playlist size, and language in Settings. When the status pills turn green, you're ready.</p>
+                    <div class="qs-key-actions">
+                        <h4 data-i18n="quickstart.key_actions">Key Actions</h4>
+                        <ul>
+                            <li data-i18n="quickstart.step1_action1">☰ Menu → 🔑 Credentials → enter keys → Save</li>
+                            <li data-i18n="quickstart.step1_action2">🔌 Connect to Spotify → complete OAuth sign-in</li>
+                            <li data-i18n="quickstart.step1_action3">⚙️ Settings → choose AI model, playlist size (optional)</li>
+                            <li data-i18n="quickstart.step1_action4">🌐 Language &amp; 🎨 Theme — top bar (optional)</li>
+                        </ul>
+                    </div>
+                    <div class="qs-demo-player" data-qs-demo="1">
+                        <div class="qs-demo-viewport"></div>
+                        <p class="qs-demo-caption"></p>
+                        <div class="qs-demo-controls">
+                            <button class="qs-demo-btn" onclick="qsDemoPrev(1)" aria-label="Previous frame">‹</button>
+                            <span class="qs-demo-counter"></span>
+                            <button class="qs-demo-btn" onclick="qsDemoNext(1)" aria-label="Next frame">›</button>
+                            <button class="qs-demo-btn qs-demo-play" onclick="qsDemoToggle(1)" aria-label="Play / Pause">▶</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Page 2: Profile ── -->
+            <div class="qs-page qs-page-hidden" data-qs-page="2">
+                <div class="qs-page-header">
+                    <div class="quickstart-step-number">2</div>
+                    <div>
+                        <h2 class="qs-page-title" data-i18n="quickstart.step2_title">Build Your Profile</h2>
+                        <p class="quickstart-tagline" data-i18n="quickstart.step2_tagline">Tell SpotyVibe what you love (and what to avoid).</p>
+                    </div>
+                </div>
+                <div class="qs-page-content">
+                    <p data-i18n="quickstart.step2_desc">Expand Music Profile → create or select a profile. Fastest path: use "Describe Your Vibe" — write what you want in everyday language and the AI structures it for you. Or fill in Core Description, Must Have, Soft Preferences, and Avoid manually. Hit "AI Profile Update" to let GPT refine it, or "Save" to store it instantly.</p>
+                    <div class="qs-key-actions">
+                        <h4 data-i18n="quickstart.key_actions">Key Actions</h4>
+                        <ul>
+                            <li data-i18n="quickstart.step2_action1">Expand "Music Profile" → click "+ Create new Profile"</li>
+                            <li data-i18n="quickstart.step2_action2">✏️ Describe Your Vibe — free-text, AI auto-classifies</li>
+                            <li data-i18n="quickstart.step2_action3">📝 Or fill Core Description, Must Have, Soft Preferences, Avoid</li>
+                            <li data-i18n="quickstart.step2_action4">🤖 "AI Profile Update" = GPT refines · 💾 "Save" = instant, no cost</li>
+                        </ul>
+                    </div>
+                    <div class="qs-demo-player" data-qs-demo="2">
+                        <div class="qs-demo-viewport"></div>
+                        <p class="qs-demo-caption"></p>
+                        <div class="qs-demo-controls">
+                            <button class="qs-demo-btn" onclick="qsDemoPrev(2)" aria-label="Previous frame">‹</button>
+                            <span class="qs-demo-counter"></span>
+                            <button class="qs-demo-btn" onclick="qsDemoNext(2)" aria-label="Next frame">›</button>
+                            <button class="qs-demo-btn qs-demo-play" onclick="qsDemoToggle(2)" aria-label="Play / Pause">▶</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Page 3: Generate ── -->
+            <div class="qs-page qs-page-hidden" data-qs-page="3">
+                <div class="qs-page-header">
+                    <div class="quickstart-step-number">3</div>
+                    <div>
+                        <h2 class="qs-page-title" data-i18n="quickstart.step3_title">Generate a Playlist</h2>
+                        <p class="quickstart-tagline" data-i18n="quickstart.step3_tagline">Pick a mode, set optional filters, hit Generate.</p>
+                    </div>
+                </div>
+                <div class="qs-page-content">
+                    <p data-i18n="quickstart.step3_desc">Expand Discover Music → choose a playlist mode (Default / Create new / Append / Replace). Set optional audio filters for energy, tempo, valence and more — or use Band/Song Analysis to auto-fill them. Click "Generate &amp; Create Playlist" — track cards appear as they're found. You can cancel early or use partial results at any time.</p>
+                    <div class="qs-key-actions">
+                        <h4 data-i18n="quickstart.key_actions">Key Actions</h4>
+                        <ul>
+                            <li data-i18n="quickstart.step3_action1">Expand "Discover Music" in the Spotify section</li>
+                            <li data-i18n="quickstart.step3_action2">🎵 Choose playlist mode — Default / New / Append / Replace</li>
+                            <li data-i18n="quickstart.step3_action3">🎛️ Set audio filters — energy, valence, tempo, … (optional)</li>
+                            <li data-i18n="quickstart.step3_action4">▶️ Click "Generate &amp; Create Playlist" — watch tracks appear</li>
+                        </ul>
+                    </div>
+                    <div class="qs-demo-player" data-qs-demo="3">
+                        <div class="qs-demo-viewport"></div>
+                        <p class="qs-demo-caption"></p>
+                        <div class="qs-demo-controls">
+                            <button class="qs-demo-btn" onclick="qsDemoPrev(3)" aria-label="Previous frame">‹</button>
+                            <span class="qs-demo-counter"></span>
+                            <button class="qs-demo-btn" onclick="qsDemoNext(3)" aria-label="Next frame">›</button>
+                            <button class="qs-demo-btn qs-demo-play" onclick="qsDemoToggle(3)" aria-label="Play / Pause">▶</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Page 4: Review ── -->
+            <div class="qs-page qs-page-hidden" data-qs-page="4">
+                <div class="qs-page-header">
+                    <div class="quickstart-step-number">4</div>
+                    <div>
+                        <h2 class="qs-page-title" data-i18n="quickstart.step4_title">Review &amp; Feedback</h2>
+                        <p class="quickstart-tagline" data-i18n="quickstart.step4_tagline">Preview tracks, like the gems, dislike the misses.</p>
+                    </div>
+                </div>
+                <div class="qs-page-content">
+                    <p data-i18n="quickstart.step4_desc">Click any album art to open a ~30 s Spotify preview. Use ‹/› arrows to browse. Like (👍) with an optional reason to improve future picks. Dislike (👎) to teach SpotyVibe what to avoid. Remove (✕) for a neutral removal with no profile impact. Each card also has quick links to open the track, artist, or album in Spotify.</p>
+                    <div class="qs-key-actions">
+                        <h4 data-i18n="quickstart.key_actions">Key Actions</h4>
+                        <ul>
+                            <li data-i18n="quickstart.step4_action1">🖼️ Click album art → ~30 s Spotify preview overlay</li>
+                            <li data-i18n="quickstart.step4_action2">◀ ▶ Navigate tracks with ‹ / › arrows</li>
+                            <li data-i18n="quickstart.step4_action3">👍 Like — improves future suggestions (optional reason)</li>
+                            <li data-i18n="quickstart.step4_action4">👎 Dislike — teaches what to avoid (optional reason)</li>
+                            <li data-i18n="quickstart.step4_action5">✕ Remove — neutral, no profile impact</li>
+                        </ul>
+                    </div>
+                    <div class="qs-demo-player" data-qs-demo="4">
+                        <div class="qs-demo-viewport"></div>
+                        <p class="qs-demo-caption"></p>
+                        <div class="qs-demo-controls">
+                            <button class="qs-demo-btn" onclick="qsDemoPrev(4)" aria-label="Previous frame">‹</button>
+                            <span class="qs-demo-counter"></span>
+                            <button class="qs-demo-btn" onclick="qsDemoNext(4)" aria-label="Next frame">›</button>
+                            <button class="qs-demo-btn qs-demo-play" onclick="qsDemoToggle(4)" aria-label="Play / Pause">▶</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Page 5: Refine ── -->
+            <div class="qs-page qs-page-hidden" data-qs-page="5">
+                <div class="qs-page-header">
+                    <div class="quickstart-step-number">5</div>
+                    <div>
+                        <h2 class="qs-page-title" data-i18n="quickstart.step5_title">Refine Existing Playlists</h2>
+                        <p class="quickstart-tagline" data-i18n="quickstart.step5_tagline">Revisit any playlist — like, dislike, or dismiss.</p>
+                    </div>
+                </div>
+                <div class="qs-page-content">
+                    <p data-i18n="quickstart.step5_desc">Expand Refine Playlist → select a playlist from the dropdown → Load Playlist. Like (👍) keeps the track and records positive feedback. Dislike (👎) removes it and records negative feedback. Dismiss (✕) removes without affecting your profile. The playlist is cleaned up and your taste profile is refined with every action.</p>
+                    <div class="qs-key-actions">
+                        <h4 data-i18n="quickstart.key_actions">Key Actions</h4>
+                        <ul>
+                            <li data-i18n="quickstart.step5_action1">Expand "Refine Playlist" in the Spotify section</li>
+                            <li data-i18n="quickstart.step5_action2">📋 Select playlist from dropdown → 🔄 Load Playlist</li>
+                            <li data-i18n="quickstart.step5_action3">👍 Like — keeps track, records positive feedback</li>
+                            <li data-i18n="quickstart.step5_action4">👎 Dislike — removes track, records negative feedback</li>
+                            <li data-i18n="quickstart.step5_action5">✕ Dismiss — removes track, no profile feedback</li>
+                        </ul>
+                    </div>
+                    <div class="qs-demo-player" data-qs-demo="5">
+                        <div class="qs-demo-viewport"></div>
+                        <p class="qs-demo-caption"></p>
+                        <div class="qs-demo-controls">
+                            <button class="qs-demo-btn" onclick="qsDemoPrev(5)" aria-label="Previous frame">‹</button>
+                            <span class="qs-demo-counter"></span>
+                            <button class="qs-demo-btn" onclick="qsDemoNext(5)" aria-label="Next frame">›</button>
+                            <button class="qs-demo-btn qs-demo-play" onclick="qsDemoToggle(5)" aria-label="Play / Pause">▶</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Page 6: Repeat ── -->
+            <div class="qs-page qs-page-hidden" data-qs-page="6">
+                <div class="qs-page-header">
+                    <div class="quickstart-step-number quickstart-step-number-repeat">⟳</div>
+                    <div>
+                        <h2 class="qs-page-title" data-i18n="quickstart.step6_title">Repeat &amp; Improve</h2>
+                        <p class="quickstart-tagline qs-tagline-repeat" data-i18n="quickstart.step6_tagline">Your profile learns. Next playlist is even better.</p>
+                    </div>
+                </div>
+                <div class="qs-page-content">
+                    <p data-i18n="quickstart.step6_desc">Every like and dislike sharpens your profile. Go back to step 3 and generate again — each playlist gets closer to your perfect mix. Use Band/Song Analysis to explore new artists, copy ready-made suggestions into your profile, and auto-fill audio filters from real data. Your run history keeps the last 5 generations for review at any time.</p>
+                    <div class="qs-key-actions">
+                        <h4 data-i18n="quickstart.key_actions">Key Actions</h4>
+                        <ul>
+                            <li data-i18n="quickstart.step6_action1">🔁 Generate again — your profile makes each run better</li>
+                            <li data-i18n="quickstart.step6_action2">🔍 Band/Song Analysis — explore artists, auto-fill filters</li>
+                            <li data-i18n="quickstart.step6_action3">📋 Copy AI suggestions directly into your profile</li>
+                            <li data-i18n="quickstart.step6_action4">📜 Run History — review the last 5 generation runs</li>
+                        </ul>
+                    </div>
+                    <div class="qs-demo-player" data-qs-demo="6">
+                        <div class="qs-demo-viewport"></div>
+                        <p class="qs-demo-caption"></p>
+                        <div class="qs-demo-controls">
+                            <button class="qs-demo-btn" onclick="qsDemoPrev(6)" aria-label="Previous frame">‹</button>
+                            <span class="qs-demo-counter"></span>
+                            <button class="qs-demo-btn" onclick="qsDemoNext(6)" aria-label="Next frame">›</button>
+                            <button class="qs-demo-btn qs-demo-play" onclick="qsDemoToggle(6)" aria-label="Play / Pause">▶</button>
+                        </div>
+                    </div>
+                </div>
+                </div>
+            </div>
+
+            <!-- ── Footer container (rounded card) ── -->
+            <div class="qs-footer-container">
+                <div class="qs-pagination" id="qsPagination">
+                    <div class="qs-pag-dots" id="qsPagDots" aria-label="Step indicator"></div>
+                    <div class="qs-pag-buttons">
+                        <button class="qs-pag-btn qs-pag-prev" id="qsPagPrev" onclick="quickstartPrev()" aria-label="Previous step">
+                            <span aria-hidden="true">‹</span> <span data-i18n="quickstart.prev">Back</span>
+                        </button>
+                        <button class="qs-pag-btn qs-pag-next" id="qsPagNext" onclick="quickstartNext()" aria-label="Next step">
+                            <span data-i18n="quickstart.next">Next</span> <span aria-hidden="true">›</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="qs-dismiss-row" id="qsDismissRow">
+                    <label class="quickstart-dismiss-label">
+                        <input type="checkbox" class="quickstartDontShowCb" />
+                        <span data-i18n="quickstart.dont_show_again">Don't show again</span>
+                    </label>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+

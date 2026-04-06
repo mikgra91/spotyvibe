@@ -4,6 +4,9 @@ import { checkCredentialStatus, checkSpotifyAuth, fetchSettingsState } from './a
 import { renderComponentWarnings } from './warnings.js';
 import { renderProviderPills } from './provider-pills.js';
 import { i18n } from './i18n.js';
+import { quickstartReset } from './quickstart-tour.js';
+import { initAllDemos, destroyAllDemos } from './quickstart-demo.js';
+import { suppressJumpBubble, unsuppressJumpBubble } from './jump-bubble.js';
 
 const CRED_KEYS = ['OPENAI_API_KEY', 'SPOTIPY_CLIENT_ID', 'SPOTIPY_CLIENT_SECRET'];
 
@@ -216,6 +219,8 @@ export async function saveSettings() {
 export async function openHelp() {
     document.getElementById('settingsDropdown').classList.remove('open');
     _lastFocusedElement = document.activeElement;
+    _hideJumpBubble();
+    _lockBodyScroll();
     document.getElementById('helpModal').classList.add('open');
 
     if (State.helpLoaded) return;
@@ -322,6 +327,10 @@ function _openModalWithFocus(id) {
 
 export function closeModal(id) {
     document.getElementById(id).classList.remove('open');
+    if (id === 'helpModal') {
+        _showJumpBubble();
+        _unlockBodyScroll();
+    }
     if (_lastFocusedElement && typeof _lastFocusedElement.focus === 'function') {
         _lastFocusedElement.focus();
         _lastFocusedElement = null;
@@ -391,6 +400,90 @@ if (document.readyState === 'loading') {
     _initScreenshotLightbox();
 }
 
+/* ── Section jump bubble visibility ── */
+function _hideJumpBubble() {
+    suppressJumpBubble();
+}
+function _showJumpBubble() {
+    // Only re-show if no overlay modals are still open
+    const anyOpen = ['helpModal', 'quickstartModal'].some(id => {
+        const el = document.getElementById(id);
+        return el && el.classList.contains('open');
+    });
+    if (anyOpen) return;
+    unsuppressJumpBubble();
+}
+
+/* ── Background scroll lock ── */
+function _lockBodyScroll() {
+    document.body.classList.add('modal-scroll-lock');
+}
+function _unlockBodyScroll() {
+    // Only unlock if no overlay modals are still open
+    const anyOpen = ['helpModal', 'quickstartModal'].some(id => {
+        const el = document.getElementById(id);
+        return el && el.classList.contains('open');
+    });
+    if (!anyOpen) document.body.classList.remove('modal-scroll-lock');
+}
+
+/* ── Quickstart guide modal ── */
+const QUICKSTART_STORAGE_KEY = 'spotyvibe-quickstart-dismissed';
+
+/**
+ * Open the quickstart guide.
+ * @param {boolean} force — true when opened from the menu (always shows, doesn't reset dismiss flag)
+ */
+export function openQuickstart(force = false) {
+    document.getElementById('settingsDropdown').classList.remove('open');
+    if (!force && _isQuickstartDismissed()) return;
+    _lastFocusedElement = document.activeElement;
+    // Reflect the stored dismiss preference in the checkbox
+    const wasDismissed = _isQuickstartDismissed();
+    document.querySelectorAll('.quickstartDontShowCb').forEach(cb => cb.checked = wasDismissed);
+    // Reset to TOC page
+    quickstartReset();
+    // Initialize demo players
+    initAllDemos();
+    _hideJumpBubble();
+    _lockBodyScroll();
+    document.getElementById('quickstartModal').classList.add('open');
+    requestAnimationFrame(() => _focusFirstInModal(document.getElementById('quickstartModal')));
+}
+
+/**
+ * Close the quickstart guide. Persists the "don't show again" preference
+ * when any dismiss checkbox is checked.
+ */
+export function closeQuickstart() {
+    const anyChecked = Array.from(document.querySelectorAll('.quickstartDontShowCb'))
+        .some(cb => cb.checked);
+    try {
+        if (anyChecked) {
+            localStorage.setItem(QUICKSTART_STORAGE_KEY, 'true');
+        } else {
+            localStorage.removeItem(QUICKSTART_STORAGE_KEY);
+        }
+    } catch (_) {}
+    destroyAllDemos();
+    closeModal('quickstartModal');
+    _showJumpBubble();
+    _unlockBodyScroll();
+}
+
+/**
+ * Auto-show quickstart on page load if the user hasn't dismissed it.
+ */
+export function maybeShowQuickstart() {
+    if (!_isQuickstartDismissed()) {
+        openQuickstart(false);
+    }
+}
+
+function _isQuickstartDismissed() {
+    try { return localStorage.getItem(QUICKSTART_STORAGE_KEY) === 'true'; } catch (_) { return false; }
+}
+
 /* ── Close any open modal on Escape key + focus trap on Tab ── */
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Tab') {
@@ -398,7 +491,7 @@ document.addEventListener('keydown', (e) => {
         return;
     }
     if (e.key !== 'Escape') return;
-    // Close in priority order: lightbox → section help → help modal → other modals
+    // Close in priority order: lightbox → section help → quickstart → help modal → other modals
     const lightbox = document.getElementById('screenshotLightbox');
     if (lightbox && lightbox.classList.contains('open')) {
         _closeScreenshotLightbox();
@@ -407,6 +500,11 @@ document.addEventListener('keydown', (e) => {
     const sectionHelp = document.getElementById('sectionHelpOverlay');
     if (sectionHelp && sectionHelp.classList.contains('open')) {
         closeSectionHelp();
+        return;
+    }
+    const quickstart = document.getElementById('quickstartModal');
+    if (quickstart && quickstart.classList.contains('open')) {
+        closeQuickstart();
         return;
     }
     for (const id of ['helpModal', 'credentialsModal', 'settingsModal']) {

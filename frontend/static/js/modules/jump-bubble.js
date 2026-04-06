@@ -15,6 +15,7 @@ let bubble = null;
 let openaiSection = null;
 let spotifySection = null;
 let spotifyHeader = null;
+let _suppressedByModal = false;
 
 /**
  * Determine direction based on whether the Spotify header is still
@@ -30,6 +31,8 @@ function shouldJumpDown() {
 
 function update() {
     if (!bubble || !openaiSection || !spotifySection) return;
+    // Don't re-show if a modal explicitly suppressed the bubble
+    if (_suppressedByModal) return;
 
     const down = shouldJumpDown();
 
@@ -80,3 +83,16 @@ export function refreshJumpBubble() {
     spotifyHeader = spotifySection ? spotifySection.querySelector('.provider-header') : null;
     update();
 }
+
+/** Hide bubble and prevent scroll from re-showing it. */
+export function suppressJumpBubble() {
+    _suppressedByModal = true;
+    if (bubble) bubble.classList.add('hidden');
+}
+
+/** Allow scroll to show the bubble again. */
+export function unsuppressJumpBubble() {
+    _suppressedByModal = false;
+    update();
+}
+

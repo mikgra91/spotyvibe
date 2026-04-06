@@ -101,6 +101,37 @@ The executable opens a native window with the SpotyVibe UI — no external brows
 
 ---
 
+## Quick Start Guide
+
+When you open SpotyVibe for the first time, a **Quick Start Guide** appears automatically. It walks you through the six key steps — from entering your API keys to generating your first playlist.
+
+### What the guide includes
+
+The guide has a **table of contents** landing page and **six step pages**:
+
+1. **Setup** — enter API keys, connect Spotify, choose theme and language.
+2. **Build Your Profile** — create a music taste profile using free-text or structured fields.
+3. **Generate a Playlist** — pick a mode, set optional audio filters, and generate.
+4. **Review & Feedback** — preview tracks, like the gems, dislike the misses.
+5. **Refine Existing Playlists** — revisit any playlist and curate it further.
+6. **Repeat & Improve** — each run gets better as your profile learns.
+
+Each step includes a **Key Actions** checklist, an **Outcome** summary, and an **interactive demo** that animates through the relevant UI area so you can see exactly what to click.
+
+### Navigation
+
+- Use the **numbered dots** at the bottom to jump to any step.
+- Use **‹ Back** and **Next ›** to page through.
+- Click any **workflow circle** (1 → 2 → 3 → 4 → 5 → ⟳) at the top of the contents page to jump directly.
+- On the last page, **Next** becomes **Get Started** and closes the guide.
+
+### Dismissing and reopening
+
+- Check **"Don't show again"** on any page to prevent the guide from appearing on future visits.
+- To reopen the guide at any time, click the **☰ menu** and select **🚀 Quick Start**.
+
+---
+
 ## First-Time Setup
 
 

@@ -11,6 +11,7 @@ This guide explains how to use the **SpotyVibe interface** to set up your prefer
   - [Overview](#overview)
   - [Before You Start](#before-you-start)
   - [Understanding the Main Screen](#understanding-the-main-screen)
+  - [Quick Start Guide](#quick-start-guide)
 - [Account Setup](#account-setup)
   - [Open the Menu](#open-the-menu)
   - [Enter Your Credentials](#enter-your-credentials)
@@ -128,6 +129,28 @@ At the top of the page, you can also access:
 - The **theme selector**
 
 ![Header with menu, language, and theme controls](/docs/screenshots/02_header_controls.png)
+
+---
+
+### Quick Start Guide
+
+When you open SpotyVibe for the first time, a **Quick Start Guide** appears automatically.
+It walks you through six steps to get up and running — from entering your API keys to generating your first playlist.
+
+**Using the guide:**
+
+- The **Contents** page lists all six steps. Click any entry to jump directly to that step.
+- Each step has a text description, a **Key Actions** checklist, and an **interactive demo** that shows exactly what to click in the app.
+- The demos auto-play — use **▶/⏸** to pause, or **‹ / ›** to step through manually.
+- Use the **numbered dots** or **Back / Next** buttons at the bottom to navigate between steps.
+- On the last step, **Next** becomes **Get Started** and closes the guide.
+
+**Dismissing and reopening:**
+
+- Check **"Don't show again"** on any page to stop the guide from showing on future visits.
+- To reopen it at any time, click **☰ → 🚀 Quick Start**.
+
+> **Screenshot placeholder:** Quick Start guide contents page with workflow map and TOC entries.
 
 ---
 

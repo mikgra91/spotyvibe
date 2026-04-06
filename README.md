@@ -79,8 +79,8 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 
 1. Install Python 3.10+ and run `pip install -r requirements.txt`.
 2. Start the app with `python app.py` and open <http://127.0.0.1:5000>.
-3. Enter your API keys (OpenAI + Spotify) via **⚙️ → Credentials**.
-4. Connect your Spotify account and start generating playlists!
+3. The **Quick Start Guide** appears automatically — follow the six interactive steps to configure your API keys, connect Spotify, and generate your first playlist.
+4. To reopen the guide later, click **☰ → 🚀 Quick Start**.
 
 ---
 
