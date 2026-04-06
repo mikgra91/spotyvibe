@@ -748,6 +748,8 @@ def write_settings():
         lang = sanitize_text(str(data["gpt_language"]).strip())
         if lang:
             payload["GPT_LANGUAGE"] = lang
+    if "ui_language" in data:
+        payload["UI_LANGUAGE"] = sanitize_text(str(data["ui_language"]).strip())
     save_settings(payload)
     app_log(f"Settings changed: {list(payload.keys())}")
     return jsonify({"status": "ok"})

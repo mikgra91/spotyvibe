@@ -178,7 +178,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     onPlaylistModeChange();
 
     // i18n
-    initI18n();
+    await initI18n();
 
     // Section jump bubble
     initJumpBubble();

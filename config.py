@@ -132,7 +132,7 @@ PROMPT_LOG_FILE = _APP_DIR / "prompt.log"      # GPT request/response log (was d
 CREDENTIAL_KEYS = ["OPENAI_API_KEY", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET"]
 
 # Non-secret keys — stored in settings.conf
-SETTINGS_KEYS = ["OPENAI_MODEL", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE", "GPT_LANGUAGE", "ONBOARDING_COMPLETED", "ACTIVE_PROFILE_ID"]
+SETTINGS_KEYS = ["OPENAI_MODEL", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE", "GPT_LANGUAGE", "ONBOARDING_COMPLETED", "ACTIVE_PROFILE_ID", "UI_LANGUAGE"]
 
 # Maximum length for profile display names
 MAX_PROFILE_NAME_LEN = 40
@@ -286,6 +286,18 @@ def set_gpt_language(language: str):
     load_dotenv(dotenv_path=str(SETTINGS_FILE), override=True)
 
 
+def get_ui_language():
+    """Return the persisted UI language code ('en', 'de', etc.), or empty string."""
+    return os.getenv("UI_LANGUAGE", "")
+
+
+def set_ui_language(lang: str):
+    """Persist the UI language setting."""
+    ensure_env()
+    set_key(str(SETTINGS_FILE), "UI_LANGUAGE", lang)
+    os.environ["UI_LANGUAGE"] = lang
+
+
 def get_settings():
     """Return non-secret settings for the Settings UI."""
     return {
@@ -294,6 +306,7 @@ def get_settings():
         "playlist_size": get_playlist_size(),
         "new_artist_percentage": get_new_artist_percentage(),
         "gpt_language": get_gpt_language(),
+        "ui_language": get_ui_language(),
         "debug_log_path": "" if IS_ANDROID else str(DEBUG_LOG_FILE),
         "prompt_log_path": "" if IS_ANDROID else str(PROMPT_LOG_FILE),
         "debug_controls_available": not IS_ANDROID,

@@ -1081,7 +1081,7 @@ Implement after TODO #23. If #23 is deferred, use `print(f"WARNING: ...", file=s
 
 ---
 
-## 25. Profile lock granularity allows lost updates
+## ~~25. Profile lock granularity allows lost updates~~ ✅
 
 - **Type:** Code quality / Bug
 - **Severity:** Medium
@@ -1233,7 +1233,7 @@ Closely related to TODO #20 (swap thread safety). Implement together.
 
 ---
 
-## 28. Remove dead code: legacy string-format track handling
+## ~~28. Remove dead code: legacy string-format track handling~~ ✅
 
 - **Type:** Dead code
 - **Severity:** Low
