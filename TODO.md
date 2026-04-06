@@ -169,7 +169,7 @@ Codebase analysis performed on 2026-04-06.
 
 ---
 
-## 6. Multiple texts missing German translation
+## ~~6. Multiple texts missing German translation~~ ✅
 
 - **Type:** i18n / Localization
 - **Severity:** Medium

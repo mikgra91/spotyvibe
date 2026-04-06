@@ -4,34 +4,46 @@ import { i18n } from './i18n.js';
 /* ── Human-readable hint descriptions ──────────────────────────────── */
 const HINT_RANGES = {
     energy: [
-        [0, 30, 'Calm, ambient'],
-        [30, 60, 'Moderate'],
-        [60, 80, 'Energetic'],
-        [80, 100, 'Intense, aggressive'],
+        [0, 15, 'Very calm, ambient'],
+        [15, 30, 'Calm, mellow'],
+        [30, 45, 'Laid-back'],
+        [45, 60, 'Moderate'],
+        [60, 75, 'Energetic'],
+        [75, 90, 'High energy'],
+        [90, 100, 'Intense, aggressive'],
     ],
     valence: [
-        [0, 30, 'Dark, melancholic'],
-        [30, 60, 'Neutral, bittersweet'],
-        [60, 80, 'Upbeat, positive'],
-        [80, 100, 'Euphoric, joyful'],
+        [0, 15, 'Very dark, bleak'],
+        [15, 30, 'Dark, melancholic'],
+        [30, 45, 'Bittersweet'],
+        [45, 60, 'Neutral'],
+        [60, 75, 'Upbeat, positive'],
+        [75, 90, 'Joyful, bright'],
+        [90, 100, 'Euphoric'],
     ],
     danceability: [
-        [0, 30, 'Not danceable'],
-        [30, 60, 'Moderate groove'],
-        [60, 80, 'Danceable'],
-        [80, 100, 'Club / dance-floor'],
+        [0, 20, 'Not danceable'],
+        [20, 40, 'Slight groove'],
+        [40, 60, 'Moderate groove'],
+        [60, 75, 'Danceable'],
+        [75, 90, 'Very danceable'],
+        [90, 100, 'Club / dance-floor'],
     ],
     acousticness: [
-        [0, 30, 'Electronic / electric'],
-        [30, 60, 'Mixed'],
-        [60, 80, 'Mostly acoustic'],
-        [80, 100, 'Fully acoustic'],
+        [0, 15, 'Fully electronic'],
+        [15, 35, 'Mostly electronic'],
+        [35, 55, 'Mixed'],
+        [55, 75, 'Mostly acoustic'],
+        [75, 90, 'Acoustic'],
+        [90, 100, 'Fully acoustic'],
     ],
     tempo: [
-        [0, 80, 'Slow'],
-        [80, 120, 'Moderate'],
-        [120, 150, 'Up-tempo'],
-        [150, 300, 'Fast'],
+        [0, 70, 'Very slow'],
+        [70, 90, 'Slow'],
+        [90, 110, 'Moderate'],
+        [110, 130, 'Up-tempo'],
+        [130, 160, 'Fast'],
+        [160, 300, 'Very fast'],
     ],
 };
 
@@ -119,6 +131,15 @@ export function clearAllFilters() {
     showToast(i18n('af.all_cleared', 'All audio filters cleared.'), 'info');
 }
 
+/* ── Adaptive offsets per feature ───────────────────────────────────── */
+const FEATURE_OFFSETS = {
+    energy:       8,   // ±8% — medium spread
+    valence:      10,  // ±10% — wider, valence varies more
+    danceability: 8,   // ±8%
+    acousticness: 6,   // ±6% — narrow, values tend to cluster
+    tempo:        12,  // ±12 BPM
+};
+
 /**
  * Apply a single analysis audio feature value as a filter range.
  * For 0–1 features: value ± 0.10, clamped to [0, 1].
@@ -128,7 +149,7 @@ export function applyAnalysisFilter(feature, value) {
     const isTempo = feature === 'tempo';
     const isPercent = !isTempo;
     const displayValue = isPercent ? value * 100 : value;
-    const offset = isTempo ? 15 : 10;
+    const offset = FEATURE_OFFSETS[feature] || (isTempo ? 12 : 8);
     const maxBound = isTempo ? 300 : 100;
     const step = isTempo ? 5 : 5;
 
@@ -175,7 +196,7 @@ export function applyAllAnalysisFilters(audioFeatures) {
             const isTempo = f === 'tempo';
             const isPercent = !isTempo;
             const displayValue = isPercent ? audioFeatures[f] * 100 : audioFeatures[f];
-            const offset = isTempo ? 15 : 10;
+            const offset = FEATURE_OFFSETS[f] || (isTempo ? 12 : 8);
             const maxBound = isTempo ? 300 : 100;
             const step = isTempo ? 5 : 5;
             const lo = Math.max(0, displayValue - offset);
