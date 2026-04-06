@@ -124,5 +124,7 @@
   "warn.no_result": "No result found",
   "warn.credentials_missing": "Spotify credentials missing",
 
-  "help.section_help_title": "Open help for this section"
+  "help.section_help_title": "Open help for this section",
+
+  "profile.duplicate_error": "A profile named \"{name}\" already exists."
 }

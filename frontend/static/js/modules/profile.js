@@ -1,6 +1,8 @@
 import * as State from './state.js';
 import { showToast, showAlert, showConfirm } from './ui.js';
 import { i18n } from './i18n.js';
+import { renderTracks } from './tracklist.js';
+import { renderReviewTracks } from './review.js';
 
 const TRAINING_TEXTS = {
     en: [
@@ -270,6 +272,12 @@ export async function switchProfile(profileId) {
         }
         _activeProfileId = profileId;
         _renderCustomDropdown();
+
+        // Clear session state belonging to the previous profile
+        State.resetSessionState();
+        renderTracks();
+        renderReviewTracks();
+
         await Promise.all([checkProfileStatus(), prefillTrainFields()]);
         showToast(i18n('msg.profile_switched', 'Profile switched.'), 'success');
     } catch (e) {
@@ -319,7 +327,12 @@ export async function createNewProfile() {
         const data = await resp.json();
 
         if (!resp.ok || data.error) {
-            error.textContent = data.error || 'Failed to create profile.';
+            let msg = data.error || 'Failed to create profile.';
+            // Check if this is the "already exists" duplicate error from the backend
+            if (msg.includes('already exists')) {
+                msg = i18n('profile.duplicate_error', msg).replace('{name}', name);
+            }
+            error.textContent = msg;
             error.classList.remove('hidden');
             input.focus();
             return;

@@ -77,7 +77,7 @@ Codebase analysis performed on 2026-04-06.
 
 ---
 
-## 3. EXE does not keep language settings after closing
+## ~~3. EXE does not keep language settings after closing~~ ✅
 
 - **Type:** Bug
 - **Severity:** High

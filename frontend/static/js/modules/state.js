@@ -49,3 +49,14 @@ export function spliceReviewTrack(idx) {
 }
 export function setCachedPlaylists(val) { cachedPlaylists = val; }
 export function invalidateCachedPlaylists() { cachedPlaylists = null; }
+
+export function resetSessionState() {
+    suggestions = [];
+    reviewTracks = [];
+    cachedPlaylists = null;
+    openFormIndex = null;
+    openFormAction = null;
+    currentRunId = null;
+    partialTrackCount = 0;
+}
+

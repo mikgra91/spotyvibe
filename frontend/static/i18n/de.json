@@ -124,5 +124,7 @@
   "warn.no_result": "Kein Ergebnis gefunden",
   "warn.credentials_missing": "Spotify-Zugangsdaten fehlen",
 
-  "help.section_help_title": "Hilfe für diesen Bereich öffnen"
+  "help.section_help_title": "Hilfe für diesen Bereich öffnen",
+
+  "profile.duplicate_error": "Ein Profil mit dem Namen \"{name}\" existiert bereits."
 }
