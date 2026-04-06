@@ -1,4 +1,6 @@
 import html
+import logging
+import logging.handlers
 import math
 import os
 import re
@@ -31,6 +33,36 @@ from config import (
 import markdown
 
 load_config()
+
+
+def _setup_logging():
+    """Configure Python logging with file rotation and console output."""
+    log_dir = DEBUG_LOG_FILE.parent
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
+
+    # File handler — always active, rotates at 5 MB, keeps 3 backups
+    fh = logging.handlers.RotatingFileHandler(
+        str(DEBUG_LOG_FILE), maxBytes=5 * 1024 * 1024, backupCount=3,
+        encoding="utf-8", errors="replace",
+    )
+    fh.setLevel(logging.INFO)
+    fh.setFormatter(logging.Formatter(
+        "[%(asctime)s] %(levelname)s %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    ))
+    root.addHandler(fh)
+
+    # Console handler — for development
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG if get_debug_mode() else logging.WARNING)
+    ch.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+    root.addHandler(ch)
+
+
+_setup_logging()
 
 from core.src.profile import (
     load_profile, save_profile, is_profile_trained,

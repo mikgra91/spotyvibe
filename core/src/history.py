@@ -5,10 +5,13 @@ Stored as a JSON array in the app data directory.
 """
 
 import json
+import logging
 import threading
 from datetime import datetime, timezone
 
 from config import _get_app_dir
+
+logger = logging.getLogger(__name__)
 
 _HISTORY_FILE = _get_app_dir() / "run_history.json"
 _MAX_HISTORY_ENTRIES = 5
@@ -23,7 +26,8 @@ def _load_history() -> list:
         with open(_HISTORY_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
             return data if isinstance(data, list) else []
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning("Failed to load run history: %s", e)
         return []
 
 

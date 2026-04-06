@@ -20,8 +20,12 @@ Technologies & patterns used:
   Principle.
 """
 
+import logging
+
 from .profile import load_profile, save_profile
 from .utils import sanitize_text
+
+logger = logging.getLogger(__name__)
 
 
 def like_track(artist, track=None, reason=None):
@@ -52,9 +56,9 @@ def like_track(artist, track=None, reason=None):
     save_profile(profile)
 
     if track:
-        print(f"👍 Liked: {artist} - {track}" + (f" ({reason})" if reason else ""))
+        logger.info("[LIKED] %s - %s%s", artist, track, f" ({reason})" if reason else "")
     else:
-        print(f"👍 Liked artist: {artist}" + (f" ({reason})" if reason else ""))
+        logger.info("[LIKED] Artist: %s%s", artist, f" ({reason})" if reason else "")
 
 
 def dislike_track(artist, track=None, reason=None):
@@ -97,8 +101,8 @@ def dislike_track(artist, track=None, reason=None):
     save_profile(profile)
 
     if track:
-        print(f"👎 Disliked: {artist} - {track} ({reason})")
+        logger.info("[DISLIKED] %s - %s (%s)", artist, track, reason)
     else:
-        print(f"👎 Excluded artist: {artist} ({reason})")
+        logger.info("[EXCLUDED] Artist: %s (%s)", artist, reason)
 
 

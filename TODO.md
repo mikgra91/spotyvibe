@@ -832,7 +832,7 @@ This issue is fully subsumed by TODO #23 (replace `print()` with `logging`). If 
 
 ---
 
-## 20. `swap_profile_with_history()` not thread-safe
+## ~~20. `swap_profile_with_history()` not thread-safe~~ ✅
 
 - **Type:** Bug
 - **Severity:** High
@@ -879,7 +879,7 @@ This is closely related to TODO #25 (lock granularity). Consider implementing bo
 
 ---
 
-## 21. `save_profile_sections()` skips input sanitisation
+## ~~21. `save_profile_sections()` skips input sanitisation~~ ✅
 
 - **Type:** Bug
 - **Severity:** Medium
@@ -1276,7 +1276,7 @@ Closely related to TODO #20 (swap thread safety). Implement together.
 
 ---
 
-## 29. `history.py` — no concurrency protection
+## ~~29. `history.py` — no concurrency protection~~ ✅
 
 - **Type:** Code quality
 - **Severity:** Low

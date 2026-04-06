@@ -30,6 +30,7 @@ Technologies & patterns used:
 
 import copy
 import json
+import logging
 import math
 import re
 import unicodedata
@@ -38,6 +39,8 @@ from pathlib import Path
 from config import BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD, get_model, get_gpt_language
 from .utils import strip_code_fences, debug_log
 from .openai_http import chat_completions_create, extract_chat_content
+
+logger = logging.getLogger(__name__)
 
 # Paths resolved from the package root using pathlib — immune to os.chdir()
 SYSTEM_PROMPT_FILE = BASE_DIR / "prompts" / "system_prompt.txt"
@@ -437,7 +440,7 @@ def normalize_response(result):
             track_raw = entry.get("track", "")
             # Only drop if the reason makes it clear this is NOT a real suggestion
             if any(w in reason for w in ("excluded", "not suggested")):
-                print(f"Dropped GPT self-excluded entry: {artist_raw} - {track_raw}")
+                logger.debug("Dropped GPT self-excluded entry: %s - %s", artist_raw, track_raw)
                 continue
 
         # Strip parenthetical GPT annotations from artist names
@@ -496,15 +499,14 @@ def call_gpt(messages, temperature=0.7):
     content = strip_code_fences(raw_content)
 
     if not content:
-        print("Warning: GPT returned empty response. Using empty playlist.")
+        logger.warning("GPT returned empty response. Using empty playlist.")
         return {"playlist": [], "new_artists": [], "profile_updates": {"suggested_artists": [], "suggested_tracks": []}}
 
     try:
         result = json.loads(content)
         return normalize_response(result)
     except json.JSONDecodeError:
-        print("Warning: GPT response could not be parsed as JSON.")
-        print("Response was:", content)
+        logger.warning("GPT response could not be parsed as JSON. Response was: %s", content)
         return {"playlist": [], "new_artists": [], "profile_updates": {"suggested_artists": [], "suggested_tracks": []}}
 
 
@@ -643,28 +645,28 @@ def filter_duplicate_suggestions(profile, result):
         key = _normalize_key(f"{artist} {track}")
 
         if artist_key in forbidden_artist_keys:
-            print(f"Filtered (rejected/disliked artist): {artist}")
+            logger.debug("Filtered (rejected/disliked artist): %s", artist)
             filtered_out.append(item)
             continue
 
         if artist_key in exhausted_artist_keys:
-            print(f"Filtered (exhausted artist): {artist}")
+            logger.debug("Filtered (exhausted artist): %s", artist)
             filtered_out.append(item)
             continue
 
         if key in exclude_keys:
-            print(f"Filtered (already suggested / disliked): {artist} - {track}")
+            logger.debug("Filtered (already suggested / disliked): %s - %s", artist, track)
             filtered_out.append(item)
             continue
 
         if key in seen_in_batch:
-            print(f"Filtered (duplicate in batch): {artist} - {track}")
+            logger.debug("Filtered (duplicate in batch): %s - %s", artist, track)
             filtered_out.append(item)
             continue
 
         artist_counts_in_batch[artist_key] += 1
         if artist_counts_in_batch[artist_key] > 2:
-            print(f"Filtered (max 2 per artist exceeded): {artist}")
+            logger.debug("Filtered (max 2 per artist exceeded): %s", artist)
             filtered_out.append(item)
             continue
 
