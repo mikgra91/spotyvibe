@@ -863,6 +863,77 @@ h1 {
     margin: 1.2rem 0;
 }
 
+/* ── Help-content screenshot thumbnails ── */
+.help-content img {
+    display: block;
+    max-width: 100%;
+    max-height: 260px;
+    width: auto;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    margin: 0.6rem 0;
+    cursor: zoom-in;
+    transition: opacity var(--transition), box-shadow var(--transition);
+    object-fit: contain;
+}
+@media (hover: hover) {
+    .help-content img:hover {
+        opacity: 0.88;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+    }
+}
+
+/* ── Screenshot lightbox overlay ── */
+.screenshot-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 20000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.82);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+.screenshot-lightbox.open {
+    opacity: 1;
+    visibility: visible;
+}
+.screenshot-lightbox-close {
+    position: absolute;
+    top: 16px;
+    right: 24px;
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 2rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px 10px;
+    opacity: 0.85;
+    transition: opacity var(--transition);
+    z-index: 20001;
+}
+@media (hover: hover) {
+    .screenshot-lightbox-close:hover {
+        opacity: 1;
+    }
+}
+.screenshot-lightbox img {
+    max-width: 92vw;
+    max-height: 90vh;
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+    object-fit: contain;
+    cursor: zoom-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .screenshot-lightbox { transition: none; }
+    .help-content img { transition: none; }
+}
+
 /* ── Custom scrollbar (soft & dark) — global ── */
 *::-webkit-scrollbar {
     width: 6px;

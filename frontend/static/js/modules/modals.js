@@ -327,6 +327,69 @@ export function closeModal(id) {
     }
 }
 
+/* ── Screenshot lightbox ── */
+
+/** Minimum natural dimension (px) to show as expandable thumbnail. */
+const LIGHTBOX_THRESHOLD = 300;
+
+function _openScreenshotLightbox(imgEl) {
+    const lb = document.getElementById('screenshotLightbox');
+    const lbImg = document.getElementById('screenshotLightboxImg');
+    if (!lb || !lbImg) return;
+    lbImg.src = imgEl.src;
+    lbImg.alt = imgEl.alt || 'Screenshot preview';
+    lb.classList.add('open');
+}
+
+function _closeScreenshotLightbox() {
+    const lb = document.getElementById('screenshotLightbox');
+    if (lb) lb.classList.remove('open');
+}
+
+/** Delegated click handler: expand help-content images in the lightbox. */
+function _handleHelpImgClick(e) {
+    const img = e.target.closest('img');
+    if (!img) return;
+    // Only expand images that exceed the thumbnail threshold in at least one
+    // natural dimension — small icons / badges stay inline.
+    if (img.naturalWidth > LIGHTBOX_THRESHOLD || img.naturalHeight > LIGHTBOX_THRESHOLD) {
+        e.preventDefault();
+        e.stopPropagation();
+        _openScreenshotLightbox(img);
+    }
+}
+
+// Attach delegated listeners once DOM is ready
+function _initScreenshotLightbox() {
+    // Delegate clicks on images inside help-content and section-help
+    for (const id of ['helpContent', 'sectionHelpContent']) {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('click', _handleHelpImgClick);
+    }
+
+    // Close lightbox via close button
+    const closeBtn = document.getElementById('screenshotLightboxClose');
+    if (closeBtn) closeBtn.addEventListener('click', _closeScreenshotLightbox);
+
+    // Close lightbox via click on backdrop or the image itself
+    const lb = document.getElementById('screenshotLightbox');
+    if (lb) {
+        lb.addEventListener('click', (e) => {
+            // Close when clicking outside the image or on the image (zoom-out)
+            if (e.target === lb || e.target.tagName === 'IMG') {
+                _closeScreenshotLightbox();
+            }
+        });
+    }
+}
+
+// Run once when module loads (DOM should be ready by then)
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _initScreenshotLightbox);
+} else {
+    _initScreenshotLightbox();
+}
+
 /* ── Close any open modal on Escape key + focus trap on Tab ── */
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Tab') {
@@ -334,7 +397,12 @@ document.addEventListener('keydown', (e) => {
         return;
     }
     if (e.key !== 'Escape') return;
-    // Close in priority order: section help → help modal → other modals
+    // Close in priority order: lightbox → section help → help modal → other modals
+    const lightbox = document.getElementById('screenshotLightbox');
+    if (lightbox && lightbox.classList.contains('open')) {
+        _closeScreenshotLightbox();
+        return;
+    }
     const sectionHelp = document.getElementById('sectionHelpOverlay');
     if (sectionHelp && sectionHelp.classList.contains('open')) {
         closeSectionHelp();

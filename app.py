@@ -15,7 +15,7 @@ from datetime import datetime
 # imports resolve correctly regardless of the working directory.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from flask import Flask, Response, render_template, jsonify, request, redirect, stream_with_context
+from flask import Flask, Response, render_template, jsonify, request, redirect, stream_with_context, send_from_directory
 from config import (
     load_config, get_credentials, save_credentials, save_settings,
     CREDENTIALS_FILE, SETTINGS_FILE,
@@ -179,6 +179,13 @@ def onboarding_complete():
         return jsonify({"status": "ok"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/docs/screenshots/<path:filename>")
+def docs_screenshot(filename):
+    """Serve documentation screenshot images."""
+    screenshot_dir = BASE_DIR / "documentation" / "assets" / "screenshots"
+    return send_from_directory(str(screenshot_dir), filename)
 
 
 @app.route("/api/help")
