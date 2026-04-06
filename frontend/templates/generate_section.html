@@ -22,7 +22,7 @@
             {% endfor %}
         </div>
         <div id="playlistNameRow" class="playlist-name-row {% if current_playlist_mode in ('create',) %}{% else %}hidden{% endif %}">
-            <input id="playlistNameInput" type="text" placeholder="Playlist name (supports {date}, {style})" maxlength="200" class="playlist-name-input" value="{{ playlist_name if playlist_name }}">
+            <input id="playlistNameInput" type="text" placeholder="Playlist name" maxlength="200" class="playlist-name-input" value="{{ playlist_name if playlist_name }}">
         </div>
         <div id="playlistPickerRow" class="playlist-picker-row {% if current_playlist_mode in ('append', 'replace') %}{% else %}hidden{% endif %}">
             <select id="playlistPicker" class="playlist-picker-select">
