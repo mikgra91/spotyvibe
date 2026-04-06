@@ -242,7 +242,7 @@ Codebase analysis performed on 2026-04-06.
 
 ---
 
-## 8. Empty/unnamed profiles shown in the list
+## ~~8. Empty/unnamed profiles shown in the list~~ ✅
 
 - **Type:** Bug
 - **Severity:** Medium
@@ -676,7 +676,7 @@ This issue is fully subsumed by TODO #23 (replace `print()` with `logging`). If 
 
 ---
 
-## 17. Path traversal via unvalidated profile ID
+## ~~17. Path traversal via unvalidated profile ID~~ ✅
 
 - **Type:** Security bug
 - **Severity:** Critical
@@ -923,7 +923,7 @@ This is closely related to TODO #25 (lock granularity). Consider implementing bo
 
 ---
 
-## 22. `add_to_playlist()` fragile `None` guard on return
+## ~~22. `add_to_playlist()` fragile `None` guard on return~~ ✅
 
 - **Type:** Bug
 - **Severity:** Medium
@@ -1161,7 +1161,7 @@ Closely related to TODO #20 (swap thread safety). Implement together.
 
 ---
 
-## 26. `normalize_history()` mutates input dict in-place
+## ~~26. `normalize_history()` mutates input dict in-place~~ ✅
 
 - **Type:** Code quality
 - **Severity:** Low
@@ -1203,7 +1203,7 @@ Closely related to TODO #20 (swap thread safety). Implement together.
 
 ---
 
-## 27. Remove dead code: `list_models()` in `openai_http.py`
+## ~~27. Remove dead code: `list_models()` in `openai_http.py`~~ ✅
 
 - **Type:** Dead code
 - **Severity:** Low

@@ -34,12 +34,13 @@ from pathlib import Path
 
 from config import (
     BASE_DIR, PROFILES_DIR, MAX_PROFILE_NAME_LEN,
+    MAX_CORE_DESCRIPTION_LEN, MAX_PROFILE_SECTION_LEN,
     get_model, get_gpt_language,
     get_active_profile_id, set_active_profile_id,
     get_active_profile_path, get_active_history_path,
     validate_profile_id,
 )
-from .utils import debug_log, strip_code_fences, sanitize_profile
+from .utils import debug_log, strip_code_fences, sanitize_profile, sanitize_text
 from .openai_http import chat_completions_create, extract_chat_content
 
 
@@ -120,6 +121,8 @@ def save_profile(profile):
 def swap_profile_with_history():
     """Swap the active profile with its one-level history backup.
 
+    Thread-safe: acquires _profile_lock for the entire swap sequence.
+
     Raises:
         ValueError: if no active profile or the history file does not exist.
 
@@ -127,23 +130,31 @@ def swap_profile_with_history():
         The new active profile dict (loaded from disk after the swap).
     """
     profile_path, history_path = _require_active_profile()
-    ensure_profile()
 
-    if not history_path.exists():
-        raise ValueError("No history profile exists yet.")
+    with _profile_lock:
+        # Ensure the profile file exists (inline, no separate lock acquisition)
+        PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+        if not profile_path.exists():
+            template = _load_template()
+            with open(profile_path, "w", encoding="utf-8") as f:
+                json.dump(template, f, indent=2)
 
-    profile_path.parent.mkdir(parents=True, exist_ok=True)
+        if not history_path.exists():
+            raise ValueError("No history profile exists yet.")
 
-    tmp = profile_path.parent / (profile_path.name + ".swap.tmp")
-    if tmp.exists():
-        tmp.unlink()
+        profile_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Atomic-ish swap via renames.
-    profile_path.rename(tmp)
-    history_path.rename(profile_path)
-    tmp.rename(history_path)
+        tmp = profile_path.parent / (profile_path.name + ".swap.tmp")
+        if tmp.exists():
+            tmp.unlink()
 
-    return load_profile()
+        # Atomic-ish swap via renames.
+        profile_path.rename(tmp)
+        history_path.rename(profile_path)
+        tmp.rename(history_path)
+
+        with open(profile_path, "r", encoding="utf-8") as f:
+            return json.load(f)
 
 
 def _deep_merge(dst, src):
@@ -347,16 +358,26 @@ def save_profile_sections(sections):
     """
     profile = load_profile()
 
-    profile["preferences"]["vibe_description"] = sections.get("vibe_description", "")
-    profile["preferences"]["core_description"] = sections.get("core_description", "")
+    profile["preferences"]["vibe_description"] = sanitize_text(
+        sections.get("vibe_description", "")
+    )[:MAX_PROFILE_SECTION_LEN]
+    profile["preferences"]["core_description"] = sanitize_text(
+        sections.get("core_description", "")
+    )[:MAX_CORE_DESCRIPTION_LEN]
     profile["preferences"]["must_have"] = [
-        line.strip() for line in sections.get("must_have", "").splitlines() if line.strip()
+        sanitize_text(line.strip())[:MAX_PROFILE_SECTION_LEN]
+        for line in sections.get("must_have", "").splitlines()
+        if line.strip()
     ]
     profile["preferences"]["soft_preferences"] = [
-        line.strip() for line in sections.get("soft_preferences", "").splitlines() if line.strip()
+        sanitize_text(line.strip())[:MAX_PROFILE_SECTION_LEN]
+        for line in sections.get("soft_preferences", "").splitlines()
+        if line.strip()
     ]
     profile["preferences"]["avoid"] = [
-        line.strip() for line in sections.get("avoid", "").splitlines() if line.strip()
+        sanitize_text(line.strip())[:MAX_PROFILE_SECTION_LEN]
+        for line in sections.get("avoid", "").splitlines()
+        if line.strip()
     ]
 
     profile["last_updated"] = datetime.now(timezone.utc).isoformat()
