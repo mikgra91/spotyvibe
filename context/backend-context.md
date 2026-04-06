@@ -14,7 +14,7 @@ Flask single-page app (`app.py`) orchestrating two external APIs: **OpenAI** (su
 
 ### `config.py` — Configuration, Credentials & Settings
 
-**Storage:** Secrets (API keys) in `%LOCALAPPDATA%\\spotyvibe\\.credentials`; app preferences in `%LOCALAPPDATA%\\spotyvibe\\settings.conf` (both dotenv format). On Android: internal app storage via `SPOTYVIBE_FILES_DIR` env var. On first load, any non-secret keys still in `.credentials` (from older versions) are automatically migrated to `settings.conf`.
+**Storage:** Secrets (API keys) are stored in the OS keychain (Windows Credential Manager / macOS Keychain) when available, with `%LOCALAPPDATA%\\spotyvibe\\.credentials` as a plaintext fallback. App preferences in `%LOCALAPPDATA%\\spotyvibe\\settings.conf` (dotenv format). On Android: internal app storage via `SPOTYVIBE_FILES_DIR` env var. On first load, any non-secret keys still in `.credentials` (from older versions) are automatically migrated to `settings.conf`. Plaintext credentials in `.credentials` are auto-migrated to keyring when available.
 
 **Key constants:**
 
@@ -34,7 +34,7 @@ Flask single-page app (`app.py`) orchestrating two external APIs: **OpenAI** (su
 
 **Key helpers:** `load_config()`, `get_model()`, `get_gpt_language()`, `get_debug_mode()`, `get_playlist_size()`, `get_new_artist_percentage()`, `get_settings()`, `get_credentials()`, `save_credentials()`, `save_settings()`, `is_onboarding_completed()`, `set_onboarding_completed()`, `set_gpt_language()`, `_migrate_settings_from_credentials()`.
 
-**Key groupings:** `CREDENTIAL_KEYS` = `[OPENAI_API_KEY, SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET]` (secrets, saved to `.credentials`). `SETTINGS_KEYS` = `[OPENAI_MODEL, DEBUG_MODE, PLAYLIST_SIZE, NEW_ARTIST_PERCENTAGE, GPT_LANGUAGE, ONBOARDING_COMPLETED]` (preferences, saved to `settings.conf`).
+**Key groupings:** `CREDENTIAL_KEYS` = `[OPENAI_API_KEY, SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET]` (secrets, stored in OS keychain; fallback: `.credentials`). `SETTINGS_KEYS` = `[OPENAI_MODEL, DEBUG_MODE, PLAYLIST_SIZE, NEW_ARTIST_PERCENTAGE, GPT_LANGUAGE, ONBOARDING_COMPLETED]` (preferences, saved to `settings.conf`).
 
 **File paths (all under `_APP_DIR`):** `CREDENTIALS_FILE` (`.credentials`), `SETTINGS_FILE` (`settings.conf`), `CACHE_FILE` (`.spotify-cache`), `PROFILE_FILE` (`personalized_music_profile.json`), `PROFILE_HISTORY_FILE` (`.history.json`), `DEBUG_LOG_FILE` (`debug.log`).
 
@@ -243,7 +243,7 @@ All runtime data lives in `%LOCALAPPDATA%\spotyvibe\` (desktop) or app internal 
 
 | File | Content |
 |---|---|
-| `.credentials` | API keys only (dotenv format) |
+| `.credentials` | Plaintext fallback for API keys (dotenv format); empty stubs when keyring is available |
 | `settings.conf` | App preferences — model, language, playlist size, etc. (dotenv format) |
 | `.spotify-cache` | Spotify OAuth token (managed by spotipy) |
 | `personalized_music_profile.json` | Active taste profile |

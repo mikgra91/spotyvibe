@@ -1,5 +1,6 @@
 import * as State from './state.js';
 import { showAlert } from './ui.js';
+import { i18n } from './i18n.js';
 
 let currentPreviewIndex = -1;
 let currentPreviewSource = 'discover'; // 'discover' or 'review'
@@ -179,10 +180,10 @@ function togglePreviewFeedbackForm(action) {
     if (reasonInput) reasonInput.value = '';
 
     if (action === 'like') {
-        submitBtn.textContent = '👍 Submit';
+        submitBtn.textContent = i18n('btn.submit_like', '👍 Submit');
         submitBtn.className = 'btn btn-submit-like';
     } else {
-        submitBtn.textContent = '👎 Submit';
+        submitBtn.textContent = i18n('btn.submit_dislike', '👎 Submit');
         submitBtn.className = 'btn btn-submit-dislike';
     }
 }
@@ -203,7 +204,7 @@ export async function submitPreviewFeedback() {
     const track = document.getElementById('previewFbTrack').value.trim();
     const reason = document.getElementById('previewFbReason').value.trim();
 
-    if (!artist) { showAlert('Artist is required.'); return; }
+    if (!artist) { showAlert(i18n('feedback.artist_required', 'Artist is required.')); return; }
 
     const submitBtn = document.getElementById('previewFbSubmit');
     submitBtn.disabled = true;
@@ -217,7 +218,7 @@ export async function submitPreviewFeedback() {
         });
         if (!resp.ok) {
             const data = await resp.json();
-            showAlert('Error: ' + (data.error || 'unknown'));
+            showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', data.error || 'unknown'));
             return;
         }
 
@@ -234,15 +235,15 @@ export async function submitPreviewFeedback() {
                     body: JSON.stringify({ artist: currentTrack.artist, track: currentTrack.track }),
                 }).catch(() => {});
             }
-            showToast(`👎 Disliked & removed: ${artist}${trackLabel}`);
+            showToast(i18n('review.disliked_removed', '👎 Disliked & removed: {track}').replace('{track}', `${artist}${trackLabel}`));
         } else {
-            showToast(`👍 Liked: ${artist}${trackLabel}`);
+            showToast(i18n('review.liked', '👍 Liked: {track}').replace('{track}', `${artist}${trackLabel}`));
         }
 
         // Remove track from source list and advance preview
         removeCurrentAndAdvance();
     } catch (e) {
-        showAlert('Network error: ' + e.message);
+        showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
     } finally {
         submitBtn.disabled = false;
     }
@@ -259,7 +260,7 @@ export async function previewDismiss() {
             body: JSON.stringify({ artist: track.artist, track: track.track }),
         });
         const { showToast } = await import('./ui.js');
-        showToast(`Removed from playlist: ${track.artist} — ${track.track}`);
+        showToast(i18n('feedback.removed_from_playlist', 'Removed from playlist: {track}').replace('{track}', `${track.artist} — ${track.track}`));
     } catch (e) {
         /* still remove from UI */
     }

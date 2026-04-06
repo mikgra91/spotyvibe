@@ -109,6 +109,7 @@ class TestGetSettings:
 
 
 class TestGetCredentials:
+    @patch("config._KEYRING_AVAILABLE", False)
     @patch("config.ensure_env")
     @patch("config.dotenv_values")
     def test_masks_secrets(self, mock_dotenv, mock_ensure):
@@ -127,6 +128,7 @@ class TestGetCredentials:
         assert "OPENAI_MODEL" not in creds
         assert "DEBUG_MODE" not in creds
 
+    @patch("config._KEYRING_AVAILABLE", False)
     @patch("config.ensure_env")
     @patch("config.dotenv_values")
     def test_empty_secret_returns_empty_mask(self, mock_dotenv, mock_ensure):
@@ -139,6 +141,7 @@ class TestGetCredentials:
         assert creds["OPENAI_API_KEY"]["masked"] == ""
         assert creds["OPENAI_API_KEY"]["is_set"] is False
 
+    @patch("config._KEYRING_AVAILABLE", False)
     @patch("config.ensure_env")
     @patch("config.dotenv_values")
     def test_short_secret_shows_stars(self, mock_dotenv, mock_ensure):
@@ -154,6 +157,7 @@ class TestGetCredentials:
 
 
 class TestSaveCredentials:
+    @patch("config._KEYRING_AVAILABLE", False)
     @patch("config.load_dotenv")
     @patch("config.set_key")
     @patch("config.ensure_env")
@@ -165,6 +169,7 @@ class TestSaveCredentials:
         )
         mock_load.assert_called_once()
 
+    @patch("config._KEYRING_AVAILABLE", False)
     @patch("config.load_dotenv")
     @patch("config.set_key")
     @patch("config.ensure_env")
@@ -175,6 +180,7 @@ class TestSaveCredentials:
             str(config.CREDENTIALS_FILE), "SPOTIPY_CLIENT_ID", "id123"
         )
 
+    @patch("config._KEYRING_AVAILABLE", False)
     @patch("config.load_dotenv")
     @patch("config.set_key")
     @patch("config.ensure_env")
@@ -183,6 +189,7 @@ class TestSaveCredentials:
         config.save_credentials({"OPENAI_MODEL": "gpt-4o", "DEBUG_MODE": "true"})
         mock_set_key.assert_not_called()
 
+    @patch("config._KEYRING_AVAILABLE", False)
     @patch("config.load_dotenv")
     @patch("config.set_key")
     @patch("config.ensure_env")

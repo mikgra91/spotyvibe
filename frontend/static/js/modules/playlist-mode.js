@@ -1,4 +1,5 @@
 import * as State from './state.js';
+import { i18n } from './i18n.js';
 
 export function getPlaylistMode() {
     const checked = document.querySelector('input[name="playlist_mode"]:checked');
@@ -14,14 +15,14 @@ async function loadDiscoverPicker() {
 
     let playlists = State.cachedPlaylists;
     if (!playlists) {
-        sel.innerHTML = '<option value="">Loading…</option>';
+        sel.innerHTML = `<option value="">${i18n('playlist_mode.loading', 'Loading…')}</option>`;
         try {
             const resp = await fetch('/api/playlists');
             const data = await resp.json();
             playlists = data.playlists || [];
             State.setCachedPlaylists(playlists);
         } catch (e) {
-            sel.innerHTML = '<option value="">Error loading playlists</option>';
+            sel.innerHTML = `<option value="">${i18n('playlist_mode.error', 'Error loading playlists')}</option>`;
             return;
         }
     }
@@ -29,7 +30,7 @@ async function loadDiscoverPicker() {
     const prevValue = sel.value;
     sel.innerHTML = '';
     if (playlists.length === 0) {
-        sel.innerHTML = '<option value="">No playlists found</option>';
+        sel.innerHTML = `<option value="">${i18n('playlist_mode.empty', 'No playlists found')}</option>`;
     } else {
         playlists.forEach(pl => {
             const opt = document.createElement('option');

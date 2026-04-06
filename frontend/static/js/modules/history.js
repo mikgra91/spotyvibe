@@ -19,20 +19,20 @@ export async function toggleHistoryBody() {
 
 export async function loadHistory() {
     const listEl = document.getElementById('historyList');
-    listEl.innerHTML = '<p style="color:var(--text-muted)">Loading…</p>';
+    listEl.innerHTML = `<p style="color:var(--text-muted)">${i18n('msg.loading', 'Loading…')}</p>`;
     try {
         const resp = await fetch('/api/runs');
         const data = await resp.json();
         const runs = data.runs || [];
         if (runs.length === 0) {
-            listEl.innerHTML = '<p style="color:var(--text-muted)">No runs yet.</p>';
+            listEl.innerHTML = `<p style="color:var(--text-muted)">${i18n('history.no_runs', 'No runs yet.')}</p>`;
             return;
         }
         listEl.innerHTML = runs.map(r => {
             const date = r.timestamp ? new Date(r.timestamp).toLocaleString() : '?';
             const trackCount = (r.tracks || []).length;
             const url = r.playlist_url
-                ? `<a href="${attr(r.playlist_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--primary)">Open playlist</a>`
+                ? `<a href="${attr(r.playlist_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--primary)">${i18n('history.open_playlist', 'Open playlist')}</a>`
                 : '';
             const trackItems = (r.tracks || [])
                 .map(t => `<li>${escHtml(t.artist)} — ${escHtml(t.track)}</li>`)
@@ -41,7 +41,7 @@ export async function loadHistory() {
                 <div class="history-run-header">
                     <div>
                         <div class="history-run-date">${escHtml(date)}</div>
-                        <div class="history-run-info">${trackCount} track(s) added ${url}</div>
+                        <div class="history-run-info">${trackCount} ${i18n('history.tracks_added', 'track(s) added')} ${url}</div>
                     </div>
                     <span class="history-run-chevron">▸</span>
                 </div>
@@ -49,7 +49,6 @@ export async function loadHistory() {
             </div>`;
         }).join('');
     } catch (e) {
-        listEl.innerHTML = '<p style="color:var(--error)">Failed to load history.</p>';
+        listEl.innerHTML = `<p style="color:var(--error)">${i18n('history.load_failed', 'Failed to load history.')}</p>`;
     }
 }
-

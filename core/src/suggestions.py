@@ -28,7 +28,9 @@ Technologies & patterns used:
   a percentage, ensuring at least one new artist even at low percentages.
 """
 
+import copy
 import json
+import logging
 import math
 import re
 import unicodedata
@@ -37,6 +39,8 @@ from pathlib import Path
 from config import BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD, get_model, get_gpt_language
 from .utils import strip_code_fences, debug_log
 from .openai_http import chat_completions_create, extract_chat_content
+
+logger = logging.getLogger(__name__)
 
 # Paths resolved from the package root using pathlib — immune to os.chdir()
 SYSTEM_PROMPT_FILE = BASE_DIR / "prompts" / "system_prompt.txt"
@@ -129,10 +133,13 @@ def _migrate_suggested_tracks(profile):
 def normalize_history(profile):
     """Lowercase, migrate, and deduplicate history so GPT never sees duplicates.
 
+    Works on a deep copy — the original profile dict is never mutated.
+
     suggested_artists stays as a list of lowercase strings.
     suggested_tracks is migrated to {"artist", "track"} dicts (idempotent) and
     then deduplicated by (artist, track) key-pair.
     """
+    profile = copy.deepcopy(profile)
     # Migrate legacy string entries to dicts before deduplication
     _migrate_suggested_tracks(profile)
 
@@ -204,12 +211,8 @@ def _build_deny_set_json(profile, ephemeral_deny_tracks=None):
     if len(tracks) > GPT_HISTORY_LIMIT:
         tracks = tracks[-GPT_HISTORY_LIMIT:]
 
-    # Legacy fallback: known_artists is only needed if unmigrated string entries exist
-    known_artists = sorted(
-        set(profile.get("history", {}).get("suggested_artists", [])),
-        key=len, reverse=True,
-    )
-
+    # _migrate_suggested_tracks() already ensures all entries are dicts.
+    # The isinstance check is a defensive fallback only.
     artist_counts: dict = defaultdict(int)
     by_artist: dict = defaultdict(list)
 
@@ -218,14 +221,7 @@ def _build_deny_set_json(profile, ephemeral_deny_tracks=None):
             a = entry.get("artist", "").lower().strip()
             t = entry.get("track", "").lower().strip()
         else:
-            # Legacy string — use longest-match (only present before first migration)
-            e_lower = str(entry).lower().strip()
-            a, t = "", e_lower
-            for artist in known_artists:
-                al = artist.lower().strip()
-                if e_lower.startswith(al + " "):
-                    a, t = al, e_lower[len(al):].strip()
-                    break
+            a, t = "", str(entry).lower().strip()
 
         if a:
             by_artist[a].append(t)
@@ -382,7 +378,10 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
             f" {effective_batch_size} entries in \"playlist\"."
         )
 
-    # Diversity hints when history is large — give GPT a concrete direction
+    # Diversity hints when history is large — give GPT a concrete direction.
+    # These are instruction-language (always English) — they tell GPT what
+    # kind of artists to explore. The output language is controlled separately
+    # via {gpt_language} in the prompt template.
     if len(profile.get("history", {}).get("suggested_tracks", [])) > 50:
         diversity_hints = [
             "Focus on artists from the 1970s-1980s that match the profile.",
@@ -430,7 +429,7 @@ def normalize_response(result):
             track_raw = entry.get("track", "")
             # Only drop if the reason makes it clear this is NOT a real suggestion
             if any(w in reason for w in ("excluded", "not suggested")):
-                print(f"Dropped GPT self-excluded entry: {artist_raw} - {track_raw}")
+                logger.debug("Dropped GPT self-excluded entry: %s - %s", artist_raw, track_raw)
                 continue
 
         # Strip parenthetical GPT annotations from artist names
@@ -489,15 +488,14 @@ def call_gpt(messages, temperature=0.7):
     content = strip_code_fences(raw_content)
 
     if not content:
-        print("Warning: GPT returned empty response. Using empty playlist.")
+        logger.warning("GPT returned empty response. Using empty playlist.")
         return {"playlist": [], "new_artists": [], "profile_updates": {"suggested_artists": [], "suggested_tracks": []}}
 
     try:
         result = json.loads(content)
         return normalize_response(result)
     except json.JSONDecodeError:
-        print("Warning: GPT response could not be parsed as JSON.")
-        print("Response was:", content)
+        logger.warning("GPT response could not be parsed as JSON. Response was: %s", content)
         return {"playlist": [], "new_artists": [], "profile_updates": {"suggested_artists": [], "suggested_tracks": []}}
 
 
@@ -600,12 +598,7 @@ def filter_duplicate_suggestions(profile, result):
         if name:
             forbidden_artist_keys.add(_normalize_key(str(name)))
 
-    # Build exhausted artist keys using longest-match against known artists
-    # Legacy fallback for any unmigrated string entries
-    known_artists = sorted(
-        set(profile.get("history", {}).get("suggested_artists", [])),
-        key=len, reverse=True,
-    )
+    # Build exhausted artist keys — after migration, all entries are dicts.
     artist_track_counts: dict = defaultdict(int)
     for entry in profile.get("history", {}).get("suggested_tracks", []):
         if isinstance(entry, dict):
@@ -613,12 +606,10 @@ def filter_duplicate_suggestions(profile, result):
             if a_key:
                 artist_track_counts[a_key] += 1
         else:
-            e_lower = str(entry).lower().strip()
-            for artist in known_artists:
-                a_lower = artist.lower().strip()
-                if e_lower.startswith(a_lower + " "):
-                    artist_track_counts[_normalize_key(a_lower)] += 1
-                    break
+            # Defensive fallback for any unmigrated entries
+            a_key = _normalize_key(str(entry))
+            if a_key:
+                artist_track_counts[a_key] += 1
     exhausted_artist_keys = {
         a for a, count in artist_track_counts.items()
         if count >= EXHAUSTED_ARTIST_THRESHOLD
@@ -636,28 +627,28 @@ def filter_duplicate_suggestions(profile, result):
         key = _normalize_key(f"{artist} {track}")
 
         if artist_key in forbidden_artist_keys:
-            print(f"Filtered (rejected/disliked artist): {artist}")
+            logger.debug("Filtered (rejected/disliked artist): %s", artist)
             filtered_out.append(item)
             continue
 
         if artist_key in exhausted_artist_keys:
-            print(f"Filtered (exhausted artist): {artist}")
+            logger.debug("Filtered (exhausted artist): %s", artist)
             filtered_out.append(item)
             continue
 
         if key in exclude_keys:
-            print(f"Filtered (already suggested / disliked): {artist} - {track}")
+            logger.debug("Filtered (already suggested / disliked): %s - %s", artist, track)
             filtered_out.append(item)
             continue
 
         if key in seen_in_batch:
-            print(f"Filtered (duplicate in batch): {artist} - {track}")
+            logger.debug("Filtered (duplicate in batch): %s - %s", artist, track)
             filtered_out.append(item)
             continue
 
         artist_counts_in_batch[artist_key] += 1
         if artist_counts_in_batch[artist_key] > 2:
-            print(f"Filtered (max 2 per artist exceeded): {artist}")
+            logger.debug("Filtered (max 2 per artist exceeded): %s", artist)
             filtered_out.append(item)
             continue
 

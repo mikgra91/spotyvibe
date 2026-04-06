@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body class="theme-equalizer">
-<a class="skip-link" href="#main-content">Skip to main content</a>
+<a class="skip-link" href="#main-content" data-i18n="nav.skip_to_content">Skip to main content</a>
 <div class="background" id="themeBackground" aria-hidden="true">
     <canvas id="equalizerCanvas"></canvas>
 </div>
@@ -57,6 +57,7 @@
     {% include "modals/credentials_modal.html" %}
     {% include "modals/settings_modal.html" %}
     {% include "modals/help_modal.html" %}
+    {% include "modals/quickstart_modal.html" %}
 
     <!-- Section jump bubble (scroll-aware navigation) -->
     <button class="section-jump-bubble hidden" id="sectionJumpBubble" aria-label="Jump to section"></button>
@@ -64,10 +65,10 @@
     <!-- Section help popup (focused single-section view) -->
     <div class="modal-overlay" id="sectionHelpOverlay" role="dialog" aria-modal="true" aria-label="Section help" onclick="if(event.target===this)closeSectionHelp()">
         <div class="section-help-wrapper">
-            <button class="help-close-btn" onclick="closeSectionHelp()" aria-label="Close">✕</button>
+            <button class="help-close-btn" onclick="closeSectionHelp()" aria-label="Close" data-i18n="help.close">✕</button>
             <div class="modal section-help-popup">
                 <div id="sectionHelpContent" class="help-content">
-                    <p class="help-loading-text">Loading…</p>
+                    <p class="help-loading-text" data-i18n="help.loading">Loading…</p>
                 </div>
             </div>
         </div>

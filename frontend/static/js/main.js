@@ -1,17 +1,19 @@
 import { checkCredentialStatus, checkSpotifyAuth, connectSpotify, toggleSpotifyConnection, fetchSettingsState } from './modules/auth.js';
 import { renderComponentWarnings } from './modules/warnings.js';
-import { toggleAccordion, prefillTrainFields, updateTrainToggleLabel, toggleTrainBody, startImportProfile, exportProfile, submitProfile, sendTrainProfile, saveProfileDirect, resetProfileToHistory, bindProfileImportInput, checkProfileStatus, loadProfileList, switchProfile, toggleCreateProfile, createNewProfile, deleteCurrentProfile, initCustomProfileDropdown } from './modules/profile.js';
+import { toggleAccordion, prefillTrainFields, updateTrainToggleLabel, toggleTrainBody, startImportProfile, exportProfile, submitProfile, sendTrainProfile, saveProfileDirect, resetProfileToHistory, bindProfileImportInput, checkProfileStatus, loadProfileList, switchProfile, toggleCreateProfile, createNewProfile, deleteCurrentProfile, initCustomProfileDropdown, toggleProfileMenu, initProfileMenu } from './modules/profile.js';
 import { toggleHistoryBody, loadHistory } from './modules/history.js';
 import { toggleAnalysisBody, runAnalysis, renderAnalysisResult, copySuggestion, jumpToAnalysis } from './modules/analysis.js';
 import { toggleGenerateBody, runPipeline, setGenerating, updateUseTracksButton, generateUUID, handleStreamEvent, showSseDisconnectBanner, resumeRun, cancelGeneration, useCurrentTracks, canGenerate } from './modules/pipeline.js';
 import { toggleAudioFilters, getAudioFilters, clearAllFilters, updateFilterHint, applyAnalysisFilter, applyAllAnalysisFilters, updateAllFilterHints } from './modules/audio-filters.js';
-import { getPlaylistMode, onPlaylistModeChange, getPlaylistModePayload } from './modules/playlist-mode.js';
+import { getPlaylistMode, onPlaylistModeChange, getPlaylistModePayload, refreshDiscoverPlaylistPicker } from './modules/playlist-mode.js';
 import { renderTracks } from './modules/tracklist.js';
 import { openPreviewOverlay, closePreviewOverlay, prevPreview, nextPreview, previewLike, previewDislike, previewDismiss, submitPreviewFeedback, closePreviewFeedback } from './modules/preview.js';
 import { toggleFeedback, closeFeedback, submitFeedback, removeTrack, animateRemove } from './modules/feedback.js';
-import { toggleReviewBody, loadPlaylistTracks, renderReviewTracks, toggleReviewFeedback, closeReviewFeedback, submitReviewFeedback, dismissReviewTrack, populateReviewPlaylistPicker } from './modules/review.js';
+import { toggleReviewBody, loadPlaylistTracks, renderReviewTracks, toggleReviewFeedback, closeReviewFeedback, submitReviewFeedback, dismissReviewTrack, populateReviewPlaylistPicker, refreshReviewPlaylistPicker, deleteSelectedPlaylist } from './modules/review.js';
 import { showStatus, showStatusHtml, showPlaylistLink, hidePlaylistLink, esc, attr, sanitizeHtml, escHtml, toggleSettingsMenu, showToast } from './modules/ui.js';
-import { openCredentials, saveCredentials, clearCredential, saveSettings, openSettings, openHelp, openSectionHelp, closeSectionHelp, openDataDir, closeModal } from './modules/modals.js';
+import { openCredentials, saveCredentials, clearCredential, saveSettings, openSettings, openHelp, openSectionHelp, closeSectionHelp, openDataDir, closeModal, openQuickstart, closeQuickstart, maybeShowQuickstart } from './modules/modals.js';
+import { quickstartGoTo, quickstartNext, quickstartPrev } from './modules/quickstart-tour.js';
+import { qsDemoNext, qsDemoPrev, qsDemoToggle, initAllDemos, destroyAllDemos } from './modules/quickstart-demo.js';
 import { switchTheme, THEME_BACKGROUNDS, THEME_RENDERERS } from './modules/theme-switcher.js';
 import { initJumpBubble } from './modules/jump-bubble.js';
 import './modules/theme-equalizer.js';
@@ -43,6 +45,7 @@ window.switchProfile = switchProfile;
 window.toggleCreateProfile = toggleCreateProfile;
 window.createNewProfile = createNewProfile;
 window.deleteCurrentProfile = deleteCurrentProfile;
+window.toggleProfileMenu = toggleProfileMenu;
 window.toggleHistoryBody = toggleHistoryBody;
 window.loadHistory = loadHistory;
 window.toggleAnalysisBody = toggleAnalysisBody;
@@ -70,6 +73,7 @@ window.applyAllAnalysisFilters = applyAllAnalysisFilters;
 window.getPlaylistMode = getPlaylistMode;
 window.onPlaylistModeChange = onPlaylistModeChange;
 window.getPlaylistModePayload = getPlaylistModePayload;
+window.refreshDiscoverPlaylistPicker = refreshDiscoverPlaylistPicker;
 window.renderTracks = renderTracks;
 window.openPreviewOverlay = openPreviewOverlay;
 window.closePreviewOverlay = closePreviewOverlay;
@@ -93,6 +97,8 @@ window.closeReviewFeedback = closeReviewFeedback;
 window.submitReviewFeedback = submitReviewFeedback;
 window.dismissReviewTrack = dismissReviewTrack;
 window.populateReviewPlaylistPicker = populateReviewPlaylistPicker;
+window.refreshReviewPlaylistPicker = refreshReviewPlaylistPicker;
+window.deleteSelectedPlaylist = deleteSelectedPlaylist;
 window.showStatus = showStatus;
 window.showPlaylistLink = showPlaylistLink;
 window.hidePlaylistLink = hidePlaylistLink;
@@ -112,6 +118,14 @@ window.openSectionHelp = openSectionHelp;
 window.closeSectionHelp = closeSectionHelp;
 window.openDataDir = openDataDir;
 window.closeModal = closeModal;
+window.openQuickstart = openQuickstart;
+window.closeQuickstart = closeQuickstart;
+window.quickstartGoTo = quickstartGoTo;
+window.quickstartNext = quickstartNext;
+window.quickstartPrev = quickstartPrev;
+window.qsDemoNext = qsDemoNext;
+window.qsDemoPrev = qsDemoPrev;
+window.qsDemoToggle = qsDemoToggle;
 window.switchTheme = switchTheme;
 window.switchLanguage = switchLanguage;
 window.applyLanguage = applyLanguage;
@@ -167,6 +181,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Profile
     initCustomProfileDropdown();
+    initProfileMenu();
     await loadProfileList();
     checkProfileStatus();
     updateTrainToggleLabel();
@@ -176,8 +191,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     onPlaylistModeChange();
 
     // i18n
-    initI18n();
+    await initI18n();
 
     // Section jump bubble
     initJumpBubble();
+
+    // Quickstart guide (auto-show on first visit)
+    maybeShowQuickstart();
 });

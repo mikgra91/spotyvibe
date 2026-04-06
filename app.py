@@ -1,4 +1,6 @@
 import html
+import logging
+import logging.handlers
 import math
 import os
 import re
@@ -15,7 +17,7 @@ from datetime import datetime
 # imports resolve correctly regardless of the working directory.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from flask import Flask, Response, render_template, jsonify, request, redirect, stream_with_context
+from flask import Flask, Response, render_template, jsonify, request, redirect, stream_with_context, send_from_directory
 from config import (
     load_config, get_credentials, save_credentials, save_settings,
     CREDENTIALS_FILE, SETTINGS_FILE,
@@ -31,6 +33,46 @@ from config import (
 import markdown
 
 load_config()
+
+
+def _setup_logging():
+    """Configure Python logging with file rotation and console output."""
+    log_dir = DEBUG_LOG_FILE.parent
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    # Delete stale log files *before* opening the file handler so the
+    # RotatingFileHandler doesn't hold the file open when we try to unlink.
+    from config import PROMPT_LOG_FILE
+    for log_file in (DEBUG_LOG_FILE, PROMPT_LOG_FILE):
+        try:
+            if log_file.exists():
+                log_file.unlink()
+        except OSError:
+            pass
+
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
+
+    # File handler — always active, rotates at 5 MB, keeps 3 backups
+    fh = logging.handlers.RotatingFileHandler(
+        str(DEBUG_LOG_FILE), maxBytes=5 * 1024 * 1024, backupCount=3,
+        encoding="utf-8", errors="replace",
+    )
+    fh.setLevel(logging.INFO)
+    fh.setFormatter(logging.Formatter(
+        "[%(asctime)s] %(levelname)s %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    ))
+    root.addHandler(fh)
+
+    # Console handler — for development
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG if get_debug_mode() else logging.WARNING)
+    ch.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+    root.addHandler(ch)
+
+
+_setup_logging()
 
 from core.src.profile import (
     load_profile, save_profile, is_profile_trained,
@@ -50,7 +92,7 @@ from core.src.history import save_run, load_runs
 from core.src.utils import get_openai_models, clear_debug_log, sanitize_text, app_log
 from core.src.openai_http import OpenAIConfigError, OpenAIError
 from core.src.playlist import (
-    search_tracks, add_to_playlist, remove_from_playlist,
+    search_tracks, add_to_playlist, remove_from_playlist, delete_playlist,
     get_spotify_auth_status, get_spotify_auth_url, handle_spotify_callback,
     disconnect_spotify, get_user_playlists, get_playlist_tracks,
 )
@@ -70,8 +112,6 @@ def _datetimeformat(value):
     except Exception:
         return str(value)
 
-# Clear debug log on startup so it only contains data from the current session
-clear_debug_log()
 
 # Model list cache: avoid repeated OpenAI API calls for the same data
 _models_cache: dict = {"data": None, "expires": 0.0}
@@ -179,6 +219,13 @@ def onboarding_complete():
         return jsonify({"status": "ok"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/docs/screenshots/<path:filename>")
+def docs_screenshot(filename):
+    """Serve documentation screenshot images."""
+    screenshot_dir = BASE_DIR / "documentation" / "assets" / "screenshots"
+    return send_from_directory(str(screenshot_dir), filename)
 
 
 @app.route("/api/help")
@@ -709,6 +756,8 @@ def write_settings():
         lang = sanitize_text(str(data["gpt_language"]).strip())
         if lang:
             payload["GPT_LANGUAGE"] = lang
+    if "ui_language" in data:
+        payload["UI_LANGUAGE"] = sanitize_text(str(data["ui_language"]).strip())
     save_settings(payload)
     app_log(f"Settings changed: {list(payload.keys())}")
     return jsonify({"status": "ok"})
@@ -1077,6 +1126,16 @@ def playlist_tracks(playlist_id):
         return jsonify({"tracks": tracks})
     except Exception as e:
         return jsonify({"error": str(e), "tracks": []}), 500
+
+
+@app.route("/api/playlist/<playlist_id>", methods=["DELETE"])
+def delete_playlist_endpoint(playlist_id):
+    """Delete (unfollow) a Spotify playlist by ID."""
+    try:
+        delete_playlist(playlist_id)
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/spotify/status")

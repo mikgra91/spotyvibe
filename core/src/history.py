@@ -5,12 +5,17 @@ Stored as a JSON array in the app data directory.
 """
 
 import json
+import logging
+import threading
 from datetime import datetime, timezone
 
 from config import _get_app_dir
 
+logger = logging.getLogger(__name__)
+
 _HISTORY_FILE = _get_app_dir() / "run_history.json"
 _MAX_HISTORY_ENTRIES = 5
+_history_lock = threading.Lock()
 
 
 def _load_history() -> list:
@@ -21,7 +26,8 @@ def _load_history() -> list:
         with open(_HISTORY_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
             return data if isinstance(data, list) else []
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning("Failed to load run history: %s", e)
         return []
 
 
@@ -36,25 +42,27 @@ def save_run(run_id: str, playlist_id: str, playlist_url: str, tracks: list) -> 
 
     tracks: list of {"artist": ..., "track": ..., "uri": ...}
     """
-    history = _load_history()
-    entry = {
-        "run_id": run_id,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "playlist_id": playlist_id,
-        "playlist_url": playlist_url,
-        "tracks": [
-            {"artist": t.get("artist", ""), "track": t.get("track", ""), "uri": t.get("uri", "")}
-            for t in tracks
-        ],
-    }
-    history.append(entry)
-    # Keep at most _MAX_HISTORY_ENTRIES runs
-    if len(history) > _MAX_HISTORY_ENTRIES:
-        history = history[-_MAX_HISTORY_ENTRIES:]
-    _save_history(history)
+    with _history_lock:
+        history = _load_history()
+        entry = {
+            "run_id": run_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "playlist_id": playlist_id,
+            "playlist_url": playlist_url,
+            "tracks": [
+                {"artist": t.get("artist", ""), "track": t.get("track", ""), "uri": t.get("uri", "")}
+                for t in tracks
+            ],
+        }
+        history.append(entry)
+        # Keep at most _MAX_HISTORY_ENTRIES runs
+        if len(history) > _MAX_HISTORY_ENTRIES:
+            history = history[-_MAX_HISTORY_ENTRIES:]
+        _save_history(history)
 
 
 def load_runs() -> list:
     """Return run history newest-first."""
-    return list(reversed(_load_history()))
+    with _history_lock:
+        return list(reversed(_load_history()))
 

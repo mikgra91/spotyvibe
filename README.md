@@ -58,7 +58,7 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 - **Debug mode (desktop only)** — logs all GPT communication to a file for prompt analysis and tuning (not available in the Android APK).
 - **Mobile responsive** — the UI automatically adapts to tablet and phone screens with touch-friendly controls and bottom-sheet modals, no app install required.
 - **Android APK ready** — project includes Chaquopy-based Android scaffolding for building a self-contained APK that bundles the full Flask app, Python runtime, and all dependencies. The Android build pins Android Gradle Plugin 8.2.2, Kotlin 1.9.22, Chaquopy 15.0.1, compile/target SDK 34, and Python 3.10 with pinned pip dependencies. Spotify OAuth works seamlessly on Android via deep-link callback (`spotyvibe://callback`); add this URI alongside `http://127.0.0.1:5000/callback` in your Spotify Developer Dashboard. Emulator testing is supported via the `x86_64` ABI filter.
-- **Android Onboarding Flow** — multi-page swipeable onboarding for first-time Android users covering intro, credentials, and Spotify connection.
+- **Android Onboarding Flow** — multi-page swipeable onboarding for first-time users covering intro, language selection, credentials, and Spotify connection.
 - **Android Packaging Polish** — share/import flows, external Spotify links, and improved OAuth deep linking.
 - **Testing & CI** — pytest suite with GitHub Actions CI on push and PR (`.github/workflows/ci.yml`).
 
@@ -79,8 +79,8 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 
 1. Install Python 3.10+ and run `pip install -r requirements.txt`.
 2. Start the app with `python app.py` and open <http://127.0.0.1:5000>.
-3. Enter your API keys (OpenAI + Spotify) via **⚙️ → Credentials**.
-4. Connect your Spotify account and start generating playlists!
+3. The **Quick Start Guide** appears automatically — follow the six interactive steps to configure your API keys, connect Spotify, and generate your first playlist.
+4. To reopen the guide later, click **☰ → 🚀 Quick Start**.
 
 ---
 
@@ -114,7 +114,8 @@ Output:
 Notes:
 - The executable runs the same local server at `http://127.0.0.1:5000`.
 - On launch, the desktop executable opens a native embedded browser window (via pywebview) — closing the window cleanly terminates the process.
-- Credentials are **not** bundled; they remain in `%LOCALAPPDATA%\\spotyvibe\\.credentials`.\n- App settings (model, playlist size, etc.) are stored in `%LOCALAPPDATA%\\spotyvibe\\settings.conf`.
+- Credentials are **not** bundled; they are stored in the OS keychain (Windows Credential Manager). Fallback: `%LOCALAPPDATA%\\spotyvibe\\.credentials`.
+- App settings (model, playlist size, etc.) are stored in `%LOCALAPPDATA%\\spotyvibe\\settings.conf`.
 - The one-file build has a slower cold start (it extracts bundled files on launch).
 
 

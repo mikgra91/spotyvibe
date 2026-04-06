@@ -1,6 +1,8 @@
 import * as State from './state.js';
 import { showToast, showAlert, showConfirm } from './ui.js';
 import { i18n } from './i18n.js';
+import { renderTracks } from './tracklist.js';
+import { renderReviewTracks } from './review.js';
 
 const TRAINING_TEXTS = {
     en: [
@@ -31,6 +33,83 @@ const TRAINING_TEXTS = {
 let _profileList = [];
 let _activeProfileId = '';
 
+/* ── Profile context menu (⋯ dropdown) ───────────────────────────── */
+
+export function toggleProfileMenu() {
+    const trigger = document.getElementById('profileMenuTrigger');
+    const menu = document.getElementById('profileMenuDropdown');
+    if (!trigger || !menu) return;
+
+    const isOpen = !menu.classList.contains('hidden');
+    if (isOpen) {
+        _closeProfileMenu();
+    } else {
+        updateProfileMenuState();
+        menu.classList.remove('hidden');
+        trigger.setAttribute('aria-expanded', 'true');
+        // Focus the first enabled menu item
+        const firstEnabled = menu.querySelector('li:not(.disabled)');
+        if (firstEnabled) firstEnabled.focus();
+    }
+}
+
+function _closeProfileMenu() {
+    const trigger = document.getElementById('profileMenuTrigger');
+    const menu = document.getElementById('profileMenuDropdown');
+    if (!trigger || !menu) return;
+    menu.classList.add('hidden');
+    trigger.setAttribute('aria-expanded', 'false');
+}
+
+export function initProfileMenu() {
+    // Close menu on outside click
+    document.addEventListener('click', (e) => {
+        const wrapper = document.querySelector('.profile-menu-wrapper');
+        if (wrapper && !wrapper.contains(e.target)) {
+            _closeProfileMenu();
+        }
+    });
+
+    // Keyboard navigation inside menu
+    const menu = document.getElementById('profileMenuDropdown');
+    if (menu) {
+        menu.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                _closeProfileMenu();
+                document.getElementById('profileMenuTrigger')?.focus();
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                const items = [...menu.querySelectorAll('li:not(.disabled)')];
+                const idx = items.indexOf(document.activeElement);
+                const next = items[idx + 1] || items[0];
+                if (next) next.focus();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                const items = [...menu.querySelectorAll('li:not(.disabled)')];
+                const idx = items.indexOf(document.activeElement);
+                const prev = items[idx - 1] || items[items.length - 1];
+                if (prev) prev.focus();
+            }
+        });
+    }
+}
+
+export function updateProfileMenuState() {
+    const hasProfile = Boolean(_activeProfileId);
+    const ids = ['profileMenuExport', 'profileMenuReset', 'profileMenuDelete'];
+    for (const id of ids) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        if (hasProfile) {
+            el.classList.remove('disabled');
+            el.removeAttribute('aria-disabled');
+        } else {
+            el.classList.add('disabled');
+            el.setAttribute('aria-disabled', 'true');
+        }
+    }
+}
+
 export async function loadProfileList() {
     try {
         const resp = await fetch('/api/profiles');
@@ -53,6 +132,7 @@ function _renderProfileDropdown() {
         opt.textContent = i18n('profile.no_profile_selected', 'No profile selected');
         select.appendChild(opt);
         _renderCustomDropdown();
+        updateProfileMenuState();
         return;
     }
 
@@ -65,6 +145,7 @@ function _renderProfileDropdown() {
     }
 
     _renderCustomDropdown();
+    updateProfileMenuState();
 }
 
 /* ── Custom dropdown rendering & interaction ─────────────────────── */
@@ -186,15 +267,21 @@ export async function switchProfile(profileId) {
         const resp = await fetch(`/api/profiles/${encodeURIComponent(profileId)}/activate`, { method: 'POST' });
         if (!resp.ok) {
             const data = await resp.json();
-            showToast(data.error || 'Failed to switch profile.', 'error');
+            showToast(data.error || i18n('profile.switch_failed', 'Failed to switch profile.'), 'error');
             return;
         }
         _activeProfileId = profileId;
         _renderCustomDropdown();
+
+        // Clear session state belonging to the previous profile
+        State.resetSessionState();
+        renderTracks();
+        renderReviewTracks();
+
         await Promise.all([checkProfileStatus(), prefillTrainFields()]);
         showToast(i18n('msg.profile_switched', 'Profile switched.'), 'success');
     } catch (e) {
-        showToast('Network error: ' + e.message, 'error');
+        showToast(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message), 'error');
     }
 }
 
@@ -240,7 +327,12 @@ export async function createNewProfile() {
         const data = await resp.json();
 
         if (!resp.ok || data.error) {
-            error.textContent = data.error || 'Failed to create profile.';
+            let msg = data.error || 'Failed to create profile.';
+            // Check if this is the "already exists" duplicate error from the backend
+            if (msg.includes('already exists')) {
+                msg = i18n('profile.duplicate_error', msg).replace('{name}', name);
+            }
+            error.textContent = msg;
             error.classList.remove('hidden');
             input.focus();
             return;
@@ -254,7 +346,7 @@ export async function createNewProfile() {
         await Promise.all([checkProfileStatus(), prefillTrainFields()]);
         showToast(i18n('msg.profile_created', 'Profile created.'), 'success');
     } catch (e) {
-        error.textContent = 'Network error: ' + e.message;
+        error.textContent = i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message);
         error.classList.remove('hidden');
     }
 }
@@ -264,7 +356,7 @@ export async function deleteCurrentProfile() {
 
     const currentName = _profileList.find(p => p.id === _activeProfileId)?.name || 'this profile';
     const ok = await showConfirm(
-        `Delete "${currentName}"?\n\nThis cannot be undone.`
+        i18n('profile.delete_confirm', 'Delete "{name}"?\n\nThis cannot be undone.').replace('{name}', currentName)
     );
     if (!ok) return;
 
@@ -273,7 +365,7 @@ export async function deleteCurrentProfile() {
         const data = await resp.json();
 
         if (!resp.ok || data.error) {
-            showToast(data.error || 'Delete failed.', 'error');
+            showToast(data.error || i18n('profile.delete_failed', 'Delete failed.'), 'error');
             return;
         }
 
@@ -290,7 +382,7 @@ export async function deleteCurrentProfile() {
 
         showToast(i18n('msg.profile_deleted', 'Profile deleted.'), 'success');
     } catch (e) {
-        showToast('Network error: ' + e.message, 'error');
+        showToast(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message), 'error');
     }
 }
 
@@ -328,12 +420,11 @@ export async function checkProfileStatus() {
         const el = document.getElementById('trainStatus');
         if (data.trained) {
             const d = new Date(data.last_updated);
-            el.textContent = '✓ Last trained: ' + d.toLocaleString();
+            el.textContent = i18n('profile.last_trained', '✓ Last trained: {date}').replace('{date}', d.toLocaleString());
         } else {
-            el.textContent = '⚠ Not yet trained — describe your taste below.';
+            el.textContent = i18n('profile.not_trained_hint', '⚠ Not yet trained — describe your taste below.');
             document.getElementById('trainBody').classList.remove('hidden');
             State.setUserProfileEditMode(true);
-            updateProfileIoVisibility();
             updateTrainToggleLabel();
             prefillTrainFields();
         }
@@ -360,12 +451,6 @@ function _hideAiWarning() {
     if (warning) warning.classList.add('hidden');
 }
 
-function updateProfileIoVisibility() {
-    const io = document.getElementById('profileIoActions');
-    if (!io) return;
-    io.classList.toggle('hidden', !State.userProfileEditMode);
-}
-
 export function updateTrainToggleLabel() {
     const body = document.getElementById('trainBody');
     const btn = document.getElementById('trainToggleBtn');
@@ -386,7 +471,6 @@ export function toggleTrainBody() {
         State.setUserProfileEditMode(false);
     }
 
-    updateProfileIoVisibility();
     updateTrainToggleLabel();
 
     // Sync aria-expanded on the section header and toggle button
@@ -402,8 +486,7 @@ export async function startImportProfile() {
     if (!input) return;
 
     const ok = await showConfirm(
-        'Import profile? This will replace your current profile file.\n\n' +
-        'Your previous profile will be backed up automatically to the history file.'
+        i18n('profile.import_confirm', 'Import profile? This will replace your current profile.\n\nYour previous profile will be automatically saved to history.')
     );
     if (!ok) return;
 
@@ -430,7 +513,7 @@ async function handleProfileImportFile(file) {
 
     const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
     if (file.size > MAX_IMPORT_BYTES) {
-        showToast('Import failed: file is larger than 10MB.', 'error');
+        showToast(i18n('profile.import_too_large', 'Import failed: file is larger than 10 MB.'), 'error');
         return;
     }
 
@@ -445,7 +528,7 @@ async function handleProfileImportFile(file) {
     try {
         parsed = JSON.parse(text);
     } catch (e) {
-        showToast('Invalid JSON file.', 'error');
+        showToast(i18n('profile.import_invalid_json', 'Invalid JSON file.'), 'error');
         return;
     }
 
@@ -458,14 +541,14 @@ async function handleProfileImportFile(file) {
         const data = await resp.json();
 
         if (!resp.ok || data.error) {
-            showToast('Import failed: ' + (data.error || 'unknown error'), 'error');
+            showToast(i18n('profile.import_failed', 'Import failed: {detail}').replace('{detail}', data.error || 'unknown error'), 'error');
             return;
         }
 
-        showToast('Profile imported. Previous profile saved to history.', 'success');
+        showToast(i18n('profile.import_success', 'Profile imported. Previous profile saved to history.'), 'success');
         await Promise.all([checkProfileStatus(), prefillTrainFields()]);
     } catch (e) {
-        showToast('Network error: ' + e.message, 'error');
+        showToast(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message), 'error');
     }
 }
 
@@ -480,7 +563,7 @@ export function bindProfileImportInput() {
 
 export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, successMsg, requireOpenAI) {
     if (requireOpenAI && !State.openaiKeySet) {
-        showToast('OpenAI API key is required. Open ⚙️ Settings.', 'error');
+        showToast(i18n('msg.openai_key_required', 'OpenAI API key is required. Open ⚙️ Settings.'), 'error');
         return;
     }
 
@@ -539,7 +622,6 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
 
         document.getElementById('trainBody').classList.add('hidden');
         State.setUserProfileEditMode(false);
-        updateProfileIoVisibility();
         updateTrainToggleLabel();
 
         const icon = document.getElementById('trainSuccessIcon');
@@ -561,17 +643,24 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
 }
 
 export function sendTrainProfile() {
-    return submitProfile('/api/train-profile', 'trainSendBtn', 'AI Profile Update', '⏳ Training…', '✅ Profile updated!', true);
+    return submitProfile('/api/train-profile', 'trainSendBtn',
+        i18n('btn.ai_profile_update', 'AI Profile Update'),
+        i18n('msg.training', '⏳ Training…'),
+        i18n('msg.profile_updated', '✅ Profile updated!'),
+        true);
 }
 
 export function saveProfileDirect() {
-    return submitProfile('/api/save-profile', 'trainSaveBtn', 'Save', '⏳ Saving…', '✅ Profile saved!', false);
+    return submitProfile('/api/save-profile', 'trainSaveBtn',
+        i18n('btn.save', 'Save'),
+        i18n('msg.saving', '⏳ Saving…'),
+        i18n('msg.profile_saved', '✅ Profile saved!'),
+        false);
 }
 
 export async function resetProfileToHistory() {
     const ok = await showConfirm(
-        'Reset profile to history?\n\n' +
-        'This swaps your current profile with the previous saved version.'
+        i18n('profile.reset_confirm', 'Reset profile to history?\n\nYour current profile will be swapped with the previous saved version.')
     );
     if (!ok) return;
 
@@ -584,13 +673,13 @@ export async function resetProfileToHistory() {
         const data = await resp.json();
 
         if (!resp.ok || data.error) {
-            showToast('Reset failed: ' + (data.error || 'unknown error'), 'error');
+            showToast(i18n('profile.reset_failed', 'Reset failed: {detail}').replace('{detail}', data.error || 'unknown error'), 'error');
             return;
         }
 
-        showToast('Profile reset to history.', 'success');
+        showToast(i18n('profile.reset_success', 'Profile reset to history.'), 'success');
         await Promise.all([checkProfileStatus(), prefillTrainFields()]);
     } catch (e) {
-        showToast('Network error: ' + e.message, 'error');
+        showToast(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message), 'error');
     }
 }

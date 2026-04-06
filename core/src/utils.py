@@ -10,9 +10,12 @@ Technologies & patterns used:
 """
 
 import json
+import logging
 import os
 import re
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 from config import (
     PROMPT_LOG_FILE, DEBUG_LOG_FILE, get_debug_mode,
     OPENAI_SUPPORTED_MODELS_JSON, OPENAI_EXTRA_ALLOWED_MODELS, get_model,
@@ -63,7 +66,7 @@ def debug_log(label, messages, response_content):
     parts.append("")
     parts.append("")
 
-    DEBUG_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    PROMPT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(PROMPT_LOG_FILE, "a", encoding="utf-8") as f:
         f.write("\n".join(parts))
 
@@ -74,8 +77,8 @@ def clear_debug_log():
         try:
             if f.exists():
                 f.unlink()
-        except OSError:
-            pass
+        except OSError as e:
+            logger.warning("Failed to delete log file %s: %s", f, e)
 
 
 def app_log(message):

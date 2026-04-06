@@ -1,6 +1,7 @@
 import * as State from './state.js';
 import { buildTrackCardHtml } from './feedback.js';
-import { showToast, showAlert } from './ui.js';
+import { showToast, showAlert, showConfirm } from './ui.js';
+import { i18n } from './i18n.js';
 import { refreshDiscoverPlaylistPicker } from './playlist-mode.js';
 
 export function toggleReviewBody() {
@@ -9,7 +10,7 @@ export function toggleReviewBody() {
     const isHidden = body.classList.toggle('hidden');
     const expanded = (!isHidden).toString();
     if (btn) {
-        btn.textContent = isHidden ? 'Show' : 'Hide';
+        btn.textContent = isHidden ? i18n('btn.show', 'Show') : i18n('btn.hide', 'Hide');
         btn.setAttribute('aria-expanded', expanded);
     }
     const header = document.querySelector('#reviewSection > .train-header');
@@ -28,7 +29,7 @@ export function toggleReviewBody() {
 export async function loadPlaylistTracks() {
     const picker = document.getElementById('reviewPlaylistPicker');
     if (!picker || !picker.value) {
-        showToast('Please select a playlist first.');
+        showToast(i18n('review.select_playlist_first', 'Please select a playlist first.'));
         return;
     }
     const playlistId = picker.value;
@@ -39,7 +40,7 @@ export async function loadPlaylistTracks() {
 
     // Show inline loading spinner
     if (loadArea) loadArea.classList.remove('hidden');
-    if (loadBtn) { loadBtn.disabled = true; loadBtn.textContent = '⏳ Loading…'; }
+    if (loadBtn) { loadBtn.disabled = true; loadBtn.textContent = i18n('msg.loading', '⏳ Loading…'); }
     listEl.innerHTML = '';
 
     try {
@@ -51,13 +52,13 @@ export async function loadPlaylistTracks() {
         }
         const tracks = data.tracks || [];
         State.setReviewTracks(tracks);
-        if (counterEl) counterEl.textContent = `${tracks.length} track(s)`;
+        if (counterEl) counterEl.textContent = i18n('review.track_count', '{count} track(s)').replace('{count}', tracks.length);
         renderReviewTracks();
     } catch (e) {
-        listEl.innerHTML = '<p style="color:var(--error)">Failed to load playlist tracks.</p>';
+        listEl.innerHTML = `<p style="color:var(--error)">${i18n('review.load_failed', 'Failed to load playlist tracks.')}</p>`;
     } finally {
         if (loadArea) loadArea.classList.add('hidden');
-        if (loadBtn) { loadBtn.disabled = false; loadBtn.textContent = '🔄 Load Playlist'; }
+        if (loadBtn) { loadBtn.disabled = false; loadBtn.textContent = '🔄 ' + i18n('btn.load_playlist', 'Load Playlist'); }
     }
 }
 
@@ -68,7 +69,7 @@ export function renderReviewTracks() {
     const tracks = State.reviewTracks;
 
     if (!tracks || tracks.filter(Boolean).length === 0) {
-        list.innerHTML = '<p style="color:var(--text-muted)">No tracks loaded.</p>';
+        list.innerHTML = `<p style="color:var(--text-muted)">${i18n('review.no_tracks', 'No tracks loaded.')}</p>`;
         if (trackArea) trackArea.classList.add('hidden');
         return;
     }
@@ -107,10 +108,10 @@ export function toggleReviewFeedback(idx, action) {
 
     const submitBtn = document.getElementById(`review-submitBtn-${idx}`);
     if (action === 'like') {
-        submitBtn.textContent = '👍 Submit';
+        submitBtn.textContent = i18n('btn.submit_like', '👍 Submit');
         submitBtn.className = 'btn btn-submit-like';
     } else {
-        submitBtn.textContent = '👎 Submit';
+        submitBtn.textContent = i18n('btn.submit_dislike', '👎 Submit');
         submitBtn.className = 'btn btn-submit-dislike';
     }
 }
@@ -127,7 +128,7 @@ export async function submitReviewFeedback(idx) {
     const form = document.getElementById(`review-form-${idx}`);
     const action = form ? form.dataset.action : 'like';
 
-    if (!artist) { showAlert('Artist is required.'); return; }
+    if (!artist) { showAlert(i18n('feedback.artist_required', 'Artist is required.')); return; }
 
     const submitBtn = document.getElementById(`review-submitBtn-${idx}`);
     submitBtn.disabled = true;
@@ -147,7 +148,7 @@ export async function submitReviewFeedback(idx) {
 
         if (!resp.ok) {
             const data = await resp.json();
-            showAlert('Error: ' + (data.error || 'unknown'));
+            showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', data.error || 'unknown'));
             return;
         }
 
@@ -163,14 +164,14 @@ export async function submitReviewFeedback(idx) {
                     body: JSON.stringify({ artist: reviewTrack.artist, track: reviewTrack.track }),
                 }).catch(() => {});
             }
-            showToast(`👎 Disliked & removed: ${artist}${trackLabel}`);
+            showToast(i18n('review.disliked_removed', '👎 Disliked & removed: {track}').replace('{track}', `${artist}${trackLabel}`));
         } else {
-            showToast(`👍 Liked: ${artist}${trackLabel}`);
+            showToast(i18n('review.liked', '👍 Liked: {track}').replace('{track}', `${artist}${trackLabel}`));
         }
 
         animateReviewRemove(idx);
     } catch (e) {
-        showAlert('Network error: ' + e.message);
+        showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
     } finally {
         submitBtn.disabled = false;
     }
@@ -191,8 +192,8 @@ export async function dismissReviewTrack(idx) {
         });
         const data = await resp.json();
         const msg = data.removed
-            ? `Removed from playlist: ${track.artist} — ${track.track}`
-            : `Removed: ${track.artist} — ${track.track}`;
+            ? i18n('feedback.removed_from_playlist', 'Removed from playlist: {track}').replace('{track}', `${track.artist} — ${track.track}`)
+            : i18n('feedback.removed', 'Removed: {track}').replace('{track}', `${track.artist} — ${track.track}`);
         showToast(msg);
     } catch (e) {
         /* Network error — still remove from UI */
@@ -229,14 +230,50 @@ export async function populateReviewPlaylistPicker() {
             playlists = data.playlists || [];
             State.setCachedPlaylists(playlists);
         } catch {
-            picker.innerHTML = '<option value="">Failed to load playlists</option>';
-            return;
+        picker.innerHTML = `<option value="">${i18n('review.playlists_load_failed', 'Failed to load playlists')}</option>`;
+        return;
         }
     }
 
-    picker.innerHTML = '<option value="">Select a playlist…</option>' +
+    picker.innerHTML = `<option value="">${i18n('review.select_placeholder', 'Select a playlist…')}</option>` +
         playlists.map(pl =>
-            `<option value="${pl.id}">${pl.name} (${pl.track_count} tracks)</option>`
+            `<option value="${pl.id}">${pl.name}</option>`
         ).join('');
 }
 
+export async function refreshReviewPlaylistPicker() {
+    State.invalidateCachedPlaylists();
+    await populateReviewPlaylistPicker();
+}
+
+export async function deleteSelectedPlaylist(pickerId) {
+    const picker = document.getElementById(pickerId);
+    if (!picker || !picker.value) {
+        showToast(i18n('review.select_playlist_first', 'Please select a playlist first.'), 'error');
+        return;
+    }
+    const playlistId = picker.value;
+    const playlistName = picker.options[picker.selectedIndex]?.text || playlistId;
+
+    const ok = await showConfirm(
+        i18n('playlist.delete_confirm', 'Delete playlist "{name}"?\n\nThis cannot be undone.')
+            .replace('{name}', playlistName)
+    );
+    if (!ok) return;
+
+    try {
+        const resp = await fetch(`/api/playlist/${encodeURIComponent(playlistId)}`, { method: 'DELETE' });
+        const data = await resp.json();
+        if (!resp.ok || data.error) {
+            showToast(data.error || i18n('playlist.delete_failed', 'Failed to delete playlist.'), 'error');
+            return;
+        }
+        showToast(i18n('playlist.deleted', 'Playlist deleted.'), 'success');
+        // Refresh both pickers
+        State.invalidateCachedPlaylists();
+        await populateReviewPlaylistPicker();
+        await refreshDiscoverPlaylistPicker();
+    } catch (e) {
+        showToast(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message), 'error');
+    }
+}

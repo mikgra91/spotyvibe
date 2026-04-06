@@ -22,6 +22,7 @@ Technologies & patterns used:
   This avoids the need to look up the user's Spotify ID.
 """
 
+import logging
 import os
 import re
 # concurrent.futures provides a high-level interface for asynchronous
@@ -41,6 +42,8 @@ from spotipy.exceptions import SpotifyException
 # access + refresh tokens, and caches them locally.
 from spotipy.oauth2 import SpotifyOAuth, CacheFileHandler
 from config import CACHE_FILE, IS_ANDROID
+
+logger = logging.getLogger(__name__)
 
 # Name used for the managed playlist. If a playlist with this name
 # already exists, new tracks are added to it (idempotent). This avoids
@@ -145,7 +148,8 @@ def get_spotify_auth_status():
         sp = spotipy.Spotify(auth_manager=oauth)
         sp.current_user()
         return "authenticated"
-    except Exception:
+    except Exception as e:
+        logger.warning("Spotify auth check failed: %s", e)
         return "not_authenticated"
 
 
@@ -158,10 +162,10 @@ def disconnect_spotify():
     try:
         if CACHE_FILE.exists():
             CACHE_FILE.unlink()
-            print("Spotify token cache removed.")
+            logger.info("Spotify token cache removed.")
         return True
     except Exception as e:
-        print(f"Error removing Spotify cache: {e}")
+        logger.error("Error removing Spotify cache: %s", e)
         return False
 
 
@@ -176,7 +180,7 @@ def handle_spotify_callback(code):
         get_spotify_oauth().get_access_token(code, as_dict=False)
         return True
     except Exception as e:
-        print(f"Spotify callback error: {e}")
+        logger.error("Spotify callback error: %s", e)
         return False
 
 
@@ -239,7 +243,7 @@ def remove_from_playlist(artist, track):
         return {"removed": False, "reason": "Track not in playlist"}
 
     sp.playlist_remove_all_occurrences_of_items(playlist["id"], [uri])
-    print(f"Removed from playlist: {artist} - {track}")
+    logger.info("Removed from playlist: %s - %s", artist, track)
 
     return {"removed": True}
 
@@ -318,12 +322,12 @@ def search_tracks(tracks, on_progress=None):
                 if result_type == "found":
                     found.append(result_data)
                 else:
-                    print(f"Not found on Spotify: {result_data}")
+                    logger.warning("Not found on Spotify: %s", result_data)
                     not_found.append(result_data)
             except Exception as e:
                 t = futures[future]
                 label = f"{t['artist']} - {t['track']}"
-                print(f"Spotify search error for {label}: {e}")
+                logger.error("Spotify search error for %s: %s", label, e)
                 not_found.append(label)
             completed += 1
             if on_progress:
@@ -443,7 +447,7 @@ def add_to_playlist(verified_tracks, mode="default", playlist_id=None,
             playlist = sp.playlist(playlist_id)
             sp.playlist_replace_items(playlist_id, [])
             sp.playlist_add_items(playlist_id, uris)
-            print(f"Replaced playlist {playlist_id} with {len(uris)} tracks.")
+            logger.info("Replaced playlist %s with %d tracks.", playlist_id, len(uris))
 
         elif mode == "append" and playlist_id:
             # Append to existing playlist, skipping duplicates
@@ -453,39 +457,39 @@ def add_to_playlist(verified_tracks, mode="default", playlist_id=None,
             if new_uris:
                 sp.playlist_add_items(playlist_id, new_uris)
             uris = new_uris
-            print(f"Appended {len(uris)} track(s) to playlist {playlist_id}.")
+            logger.info("Appended %d track(s) to playlist %s.", len(uris), playlist_id)
 
         elif mode == "create":
             # Always create a new playlist
             name = _render_playlist_name(playlist_name or PLAYLIST_NAME, profile)
             playlist = sp.current_user_playlist_create(name, public=False)
             sp.playlist_add_items(playlist["id"], uris)
-            print(f"Created new playlist '{name}' with {len(uris)} tracks.")
+            logger.info("Created new playlist '%s' with %d tracks.", name, len(uris))
 
         else:
             # Default: create or append to the SpotyVibe Playlist
             playlist = find_existing_playlist(sp)
             if playlist:
-                print(f"Found existing playlist: {playlist['name']} ({playlist['id']})")
+                logger.info("Found existing playlist: %s (%s)", playlist["name"], playlist["id"])
                 existing_uris = get_existing_track_uris(sp, playlist["id"])
             else:
                 name = _render_playlist_name(playlist_name or PLAYLIST_NAME, profile)
-                print(f"No existing playlist found — creating '{name}'.")
+                logger.info("No existing playlist found — creating '%s'.", name)
                 playlist = sp.current_user_playlist_create(name, public=False)
                 existing_uris = set()
 
             new_uris = []
             for t in verified_tracks:
                 if t["uri"] in existing_uris:
-                    print(f"Already in playlist: {t['artist']} - {t['track']}")
+                    logger.debug("Already in playlist: %s - %s", t["artist"], t["track"])
                 else:
                     new_uris.append(t["uri"])
 
             if new_uris and playlist:
                 sp.playlist_add_items(playlist["id"], new_uris)
-                print(f"Added {len(new_uris)} new track(s).")
+                logger.info("Added %d new track(s).", len(new_uris))
             else:
-                print("No new tracks to add.")
+                logger.info("No new tracks to add.")
             uris = new_uris
 
     except SpotifyException as e:
@@ -498,7 +502,22 @@ def add_to_playlist(verified_tracks, mode="default", playlist_id=None,
             ) from e
         raise
 
-    playlist_url = playlist["external_urls"]["spotify"] if playlist else ""
-    print("Playlist:", playlist_url)
+    if not playlist:
+        raise RuntimeError("No playlist resolved — unexpected state in add_to_playlist().")
 
-    return {"url": playlist_url, "added": len(uris), "playlist_id": playlist["id"] if playlist else None}
+    playlist_url = playlist["external_urls"]["spotify"]
+    logger.info("Playlist: %s", playlist_url)
+
+    return {"url": playlist_url, "added": len(uris), "playlist_id": playlist["id"]}
+
+
+def delete_playlist(playlist_id):
+    """Unfollow (delete) a Spotify playlist by ID.
+
+    Spotify does not have a true 'delete' — current_user_unfollow_playlist()
+    is the correct method. For playlists the user owns, unfollowing effectively
+    deletes them.
+    """
+    sp = get_spotify_client()
+    sp.current_user_unfollow_playlist(playlist_id)
+    logger.info("Deleted (unfollowed) playlist: %s", playlist_id)

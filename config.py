@@ -5,14 +5,29 @@ Stores data in a platform-appropriate directory:
   - Android:  internal app storage (set via SPOTYVIBE_FILES_DIR env var)
   - Fallback: ~/spotyvibe/
 
-Credentials (API keys/secrets) live in ``.credentials``.
+Credentials (API keys/secrets) are stored in the OS keychain when available
+(Windows Credential Manager / macOS Keychain) with ``.credentials`` as a
+fallback for platforms without a usable keyring (e.g. Android).
 App preferences and state live in ``settings.conf``.
 """
 
 import os
+import re as _re
 import sys
 from pathlib import Path
 from dotenv import load_dotenv, set_key, dotenv_values
+
+# OS keychain integration — graceful fallback when keyring is unavailable
+# (e.g. Android/Chaquopy where native backends don't exist).
+_KEYRING_SERVICE = "spotyvibe"
+try:
+    import keyring as _keyring
+    # Verify the backend is actually usable (not the null backend)
+    _backend_name = type(_keyring.get_keyring()).__name__
+    _KEYRING_AVAILABLE = _backend_name != "NullKeyring"
+except Exception:
+    _keyring = None
+    _KEYRING_AVAILABLE = False
 
 def _get_base_dir() -> Path:
     """Return the runtime base directory for bundled assets.
@@ -131,7 +146,7 @@ PROMPT_LOG_FILE = _APP_DIR / "prompt.log"      # GPT request/response log (was d
 CREDENTIAL_KEYS = ["OPENAI_API_KEY", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET"]
 
 # Non-secret keys — stored in settings.conf
-SETTINGS_KEYS = ["OPENAI_MODEL", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE", "GPT_LANGUAGE", "ONBOARDING_COMPLETED", "ACTIVE_PROFILE_ID"]
+SETTINGS_KEYS = ["OPENAI_MODEL", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE", "GPT_LANGUAGE", "ONBOARDING_COMPLETED", "ACTIVE_PROFILE_ID", "UI_LANGUAGE"]
 
 # Maximum length for profile display names
 MAX_PROFILE_NAME_LEN = 40
@@ -215,11 +230,75 @@ def ensure_env():
     _migrate_settings_from_credentials()
 
 
+def _migrate_credentials_to_keyring():
+    """One-time migration: move plaintext secrets from .credentials into keyring.
+
+    For each credential key that has a non-empty value in .credentials but
+    no value in keyring yet, stores the value in keyring and clears the
+    plaintext entry in .credentials.  This runs silently on every startup
+    but only does work when there is something to migrate.
+    """
+    raw = dotenv_values(str(CREDENTIALS_FILE))
+    migrated_any = False
+
+    for key in CREDENTIAL_KEYS:
+        file_val = (raw.get(key) or "").strip()
+        if not file_val:
+            continue  # nothing to migrate
+
+        # Check if keyring already has a value for this key
+        try:
+            kr_val = _keyring.get_password(_KEYRING_SERVICE, key)
+        except Exception:
+            continue  # keyring read failed — skip this key
+
+        if kr_val:
+            # Keyring already populated — just clear the plaintext copy
+            set_key(str(CREDENTIALS_FILE), key, "")
+            migrated_any = True
+            continue
+
+        # Store in keyring, then clear from file
+        try:
+            _keyring.set_password(_KEYRING_SERVICE, key, file_val)
+            set_key(str(CREDENTIALS_FILE), key, "")
+            migrated_any = True
+        except Exception:
+            pass  # keyring write failed — keep plaintext as fallback
+
+    if migrated_any:
+        # Reload the (now-emptied) .credentials so os.environ reflects it;
+        # keyring overlay will restore the values moments later.
+        load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
+
+
 def load_config():
-    """Load credentials and settings into os.environ."""
+    """Load credentials and settings into os.environ.
+
+    Reads from dotenv files first, then overlays keyring values (if available)
+    so the OS keychain takes precedence over the plaintext .credentials file.
+    On the first run with a usable keyring, credentials are automatically
+    migrated from .credentials into the OS keychain and the plaintext values
+    are cleared.
+    """
     ensure_env()
     load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
     load_dotenv(dotenv_path=str(SETTINGS_FILE), override=True)
+
+    # One-time migration: copy plaintext credentials into keyring and clear
+    # them from .credentials so secrets no longer sit in a flat file.
+    if _KEYRING_AVAILABLE:
+        _migrate_credentials_to_keyring()
+
+    # Overlay keyring values — these take precedence over dotenv
+    if _KEYRING_AVAILABLE:
+        for key in CREDENTIAL_KEYS:
+            try:
+                val = _keyring.get_password(_KEYRING_SERVICE, key)
+                if val:
+                    os.environ[key] = val
+            except Exception:
+                pass
 
 
 def get_model():
@@ -285,6 +364,18 @@ def set_gpt_language(language: str):
     load_dotenv(dotenv_path=str(SETTINGS_FILE), override=True)
 
 
+def get_ui_language():
+    """Return the persisted UI language code ('en', 'de', etc.), or empty string."""
+    return os.getenv("UI_LANGUAGE", "")
+
+
+def set_ui_language(lang: str):
+    """Persist the UI language setting."""
+    ensure_env()
+    set_key(str(SETTINGS_FILE), "UI_LANGUAGE", lang)
+    os.environ["UI_LANGUAGE"] = lang
+
+
 def get_settings():
     """Return non-secret settings for the Settings UI."""
     return {
@@ -293,6 +384,7 @@ def get_settings():
         "playlist_size": get_playlist_size(),
         "new_artist_percentage": get_new_artist_percentage(),
         "gpt_language": get_gpt_language(),
+        "ui_language": get_ui_language(),
         "debug_log_path": "" if IS_ANDROID else str(DEBUG_LOG_FILE),
         "prompt_log_path": "" if IS_ANDROID else str(PROMPT_LOG_FILE),
         "debug_controls_available": not IS_ANDROID,
@@ -302,13 +394,26 @@ def get_settings():
 
 
 def get_credentials():
-    """Return current credential values, masked for safe display."""
+    """Return current credential values, masked for safe display.
+
+    Reads from OS keychain first (if available), falling back to .credentials.
+    """
     ensure_env()
     raw = dotenv_values(str(CREDENTIALS_FILE))
 
     result = {}
     for key in CREDENTIAL_KEYS:
-        value = raw.get(key, "") or ""
+        # Try keyring first, then dotenv
+        value = ""
+        if _KEYRING_AVAILABLE:
+            try:
+                kr_val = _keyring.get_password(_KEYRING_SERVICE, key)
+                if kr_val:
+                    value = kr_val
+            except Exception:
+                pass
+        if not value:
+            value = raw.get(key, "") or ""
         if value and len(value) > 4:
             masked = "*" * (len(value) - 4) + value[-4:]
         elif value:
@@ -329,7 +434,12 @@ def _ensure_trailing_newline(filepath):
 
 
 def save_credentials(credentials):
-    """Update secret credential values in .credentials and reload.
+    """Update secret credential values and reload into os.environ.
+
+    When a usable OS keychain is available, secrets are stored there and the
+    .credentials file only holds empty placeholder keys (no plaintext).
+    When keyring is unavailable (e.g. Android), secrets fall back to the
+    .credentials dotenv file.
 
     A value of ``None`` means "not provided" and is skipped.
     An empty string ``""`` explicitly clears the key.
@@ -339,8 +449,36 @@ def save_credentials(credentials):
 
     for key, value in credentials.items():
         if key in CREDENTIAL_KEYS and value is not None:
-            set_key(str(CREDENTIALS_FILE), key, value)
+            stored_in_keyring = False
+            if _KEYRING_AVAILABLE:
+                try:
+                    if value:
+                        _keyring.set_password(_KEYRING_SERVICE, key, value)
+                    else:
+                        _keyring.delete_password(_KEYRING_SERVICE, key)
+                    stored_in_keyring = True
+                except Exception:
+                    pass  # fall through to dotenv
+
+            if stored_in_keyring:
+                # Keep the key present in .credentials but without plaintext
+                set_key(str(CREDENTIALS_FILE), key, "")
+            else:
+                # Keyring unavailable — write to dotenv as fallback
+                set_key(str(CREDENTIALS_FILE), key, value)
+
+            # Update os.environ immediately
+            os.environ[key] = value
     load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
+    # Re-overlay keyring so os.environ has the real values
+    if _KEYRING_AVAILABLE:
+        for key in CREDENTIAL_KEYS:
+            try:
+                val = _keyring.get_password(_KEYRING_SERVICE, key)
+                if val:
+                    os.environ[key] = val
+            except Exception:
+                pass
 
 
 def save_settings(settings):
@@ -356,6 +494,20 @@ def save_settings(settings):
         if key in SETTINGS_KEYS and value is not None:
             set_key(str(SETTINGS_FILE), key, value)
     load_dotenv(dotenv_path=str(SETTINGS_FILE), override=True)
+
+
+_UUID_PATTERN = _re.compile(
+    r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
+)
+
+
+def validate_profile_id(profile_id):
+    """Validate that a profile ID is a well-formed UUID.
+
+    Raises ValueError if the ID is empty or doesn't match the UUID pattern.
+    """
+    if not profile_id or not _UUID_PATTERN.match(profile_id):
+        raise ValueError(f"Invalid profile ID: {profile_id!r}")
 
 
 def get_active_profile_id():
@@ -375,6 +527,7 @@ def get_active_profile_path():
     pid = get_active_profile_id()
     if not pid:
         return None
+    validate_profile_id(pid)
     return PROFILES_DIR / f"{pid}.json"
 
 
@@ -383,4 +536,5 @@ def get_active_history_path():
     pid = get_active_profile_id()
     if not pid:
         return None
+    validate_profile_id(pid)
     return PROFILES_DIR / f"{pid}.history.json"

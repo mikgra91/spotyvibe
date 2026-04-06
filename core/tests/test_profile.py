@@ -388,6 +388,19 @@ class TestListProfiles:
         assert len(result) == 1
         assert result[0]["id"] == "good"
 
+    def test_excludes_unnamed_profiles(self, tmp_path):
+        """Profiles with empty or missing name should be filtered out."""
+        profiles_dir = tmp_path / "profiles"
+        profiles_dir.mkdir()
+        (profiles_dir / "named.json").write_text(json.dumps({"name": "My Profile", "last_updated": None}))
+        (profiles_dir / "empty.json").write_text(json.dumps({"name": "", "last_updated": None}))
+        (profiles_dir / "missing.json").write_text(json.dumps({"last_updated": None}))
+        _, _, _, p4 = _patch_active_profile(tmp_path)
+        with p4:
+            result = list_profiles()
+        assert len(result) == 1
+        assert result[0]["name"] == "My Profile"
+
 
 class TestCreateProfile:
     def test_creates_profile_with_name(self, tmp_path):
@@ -425,68 +438,87 @@ class TestCreateProfile:
 
 
 class TestDeleteProfile:
+    # Valid UUIDs for testing
+    _UUID_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    _UUID_B = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    _UUID_C = "cccccccc-cccc-cccc-cccc-cccccccccccc"
+
     def test_deletes_profile_and_history(self, tmp_path):
         profiles_dir = tmp_path / "profiles"
         profiles_dir.mkdir()
-        (profiles_dir / "abc.json").write_text("{}")
-        (profiles_dir / "abc.history.json").write_text("{}")
+        (profiles_dir / f"{self._UUID_A}.json").write_text("{}")
+        (profiles_dir / f"{self._UUID_A}.history.json").write_text("{}")
         _, _, _, p4 = _patch_active_profile(tmp_path)
-        with p4, patch("core.src.profile.get_active_profile_id", return_value="abc"), \
+        with p4, patch("core.src.profile.get_active_profile_id", return_value=self._UUID_A), \
              patch("core.src.profile.set_active_profile_id") as mock_set:
-            delete_profile("abc")
-        assert not (profiles_dir / "abc.json").exists()
-        assert not (profiles_dir / "abc.history.json").exists()
+            delete_profile(self._UUID_A)
+        assert not (profiles_dir / f"{self._UUID_A}.json").exists()
+        assert not (profiles_dir / f"{self._UUID_A}.history.json").exists()
         mock_set.assert_called_once_with("")
 
     def test_clears_active_when_deleting_active_profile(self, tmp_path):
         profiles_dir = tmp_path / "profiles"
         profiles_dir.mkdir()
-        (profiles_dir / "active-id.json").write_text("{}")
+        (profiles_dir / f"{self._UUID_B}.json").write_text("{}")
         _, _, _, p4 = _patch_active_profile(tmp_path)
-        with p4, patch("core.src.profile.get_active_profile_id", return_value="active-id"), \
+        with p4, patch("core.src.profile.get_active_profile_id", return_value=self._UUID_B), \
              patch("core.src.profile.set_active_profile_id") as mock_set:
-            delete_profile("active-id")
+            delete_profile(self._UUID_B)
         mock_set.assert_called_once_with("")
 
     def test_does_not_clear_active_when_deleting_other_profile(self, tmp_path):
         profiles_dir = tmp_path / "profiles"
         profiles_dir.mkdir()
-        (profiles_dir / "other-id.json").write_text("{}")
+        (profiles_dir / f"{self._UUID_B}.json").write_text("{}")
         _, _, _, p4 = _patch_active_profile(tmp_path)
-        with p4, patch("core.src.profile.get_active_profile_id", return_value="different-id"), \
+        with p4, patch("core.src.profile.get_active_profile_id", return_value=self._UUID_C), \
              patch("core.src.profile.set_active_profile_id") as mock_set:
-            delete_profile("other-id")
+            delete_profile(self._UUID_B)
         mock_set.assert_not_called()
 
     def test_raises_on_missing_profile(self, tmp_path):
         import pytest
         _, _, _, p4 = _patch_active_profile(tmp_path)
         with p4, pytest.raises(ValueError, match="not found"):
-            delete_profile("nonexistent")
+            delete_profile(self._UUID_C)
 
     def test_raises_on_empty_id(self):
         import pytest
         with pytest.raises(ValueError, match="required"):
             delete_profile("")
 
+    def test_rejects_path_traversal(self):
+        import pytest
+        with pytest.raises(ValueError, match="Invalid profile ID"):
+            delete_profile("../../.credentials")
+
 
 class TestActivateProfile:
+    _UUID_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    _UUID_B = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+
     def test_activates_existing_profile(self, tmp_path):
         profiles_dir = tmp_path / "profiles"
         profiles_dir.mkdir()
-        (profiles_dir / "target-id.json").write_text("{}")
+        (profiles_dir / f"{self._UUID_A}.json").write_text("{}")
         _, _, _, p4 = _patch_active_profile(tmp_path)
         with p4, patch("core.src.profile.set_active_profile_id") as mock_set:
-            activate_profile("target-id")
-        mock_set.assert_called_once_with("target-id")
+            activate_profile(self._UUID_A)
+        mock_set.assert_called_once_with(self._UUID_A)
 
     def test_raises_on_missing_profile(self, tmp_path):
         import pytest
         _, _, _, p4 = _patch_active_profile(tmp_path)
         with p4, pytest.raises(ValueError, match="not found"):
-            activate_profile("nonexistent")
+            activate_profile(self._UUID_B)
 
     def test_raises_on_empty_id(self):
         import pytest
         with pytest.raises(ValueError, match="required"):
             activate_profile("")
+
+    def test_rejects_path_traversal(self):
+        import pytest
+        with pytest.raises(ValueError, match="Invalid profile ID"):
+            activate_profile("../../.credentials")
+

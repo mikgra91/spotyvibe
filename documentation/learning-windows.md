@@ -454,7 +454,14 @@ Users can create multiple music taste profiles, each stored as a separate JSON f
 
 ### Onboarding Flow
 
-First-time users are redirected to `/onboarding`, which guides them through credential setup and initial profile creation. Completion is tracked via `ONBOARDING_COMPLETED` in `settings.conf`.
+First-time users are redirected to `/onboarding`, a 4-page swipeable flow:
+
+1. **Welcome** — feature highlights (Skip / Next)
+2. **Language** — select interface language (Back / Next)
+3. **Credentials** — enter API keys (Back / Next)
+4. **Connect & Import** — Spotify OAuth and profile import (Back / Close)
+
+Completion is tracked via `ONBOARDING_COMPLETED` in `settings.conf`.
 
 ---
 
@@ -637,7 +644,8 @@ Templates follow a **base + partials** pattern:
 
 | File | Content | Windows Location |
 |---|---|---|
-| `.credentials` | API keys only: `OPENAI_API_KEY`, `SPOTIPY_CLIENT_ID`, `SPOTIPY_CLIENT_SECRET` | `%LOCALAPPDATA%\spotyvibe\` |
+| OS keychain | API keys: `OPENAI_API_KEY`, `SPOTIPY_CLIENT_ID`, `SPOTIPY_CLIENT_SECRET` | Windows Credential Manager |
+| `.credentials` | Plaintext fallback for API keys (empty stubs when keyring is available) | `%LOCALAPPDATA%\spotyvibe\` |
 | `settings.conf` | Non-secret settings: `OPENAI_MODEL`, `DEBUG_MODE`, `PLAYLIST_SIZE`, `NEW_ARTIST_PERCENTAGE`, `GPT_LANGUAGE`, `ACTIVE_PROFILE_ID`, `ONBOARDING_COMPLETED` | Same directory |
 | `profiles/` | One JSON file per profile (UUID-named) | Same directory |
 | `.spotify-cache` | Spotipy OAuth token cache | Same directory |
@@ -658,7 +666,7 @@ Templates follow a **base + partials** pattern:
 
 **Curated model allowlist:** `OPENAI_SUPPORTED_MODELS_JSON` lists verified chat models (`gpt-5.4`, `gpt-5.4-mini`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`). This avoids showing hundreds of irrelevant models from the Models API.
 
-**Migration logic:** On startup, `ensure_env()` handles legacy paths (`.env` → `.credentials`) and moves non-secret settings from `.credentials` to `settings.conf`.
+**Migration logic:** On startup, `ensure_env()` handles legacy paths (`.env` → `.credentials`) and moves non-secret settings from `.credentials` to `settings.conf`. Additionally, `_migrate_credentials_to_keyring()` moves plaintext secrets from `.credentials` into the OS keychain and clears the plaintext copies.
 
 ---
 
@@ -705,7 +713,8 @@ The Windows desktop build uses **PyInstaller** to create a standalone executable
 - Profile import: 10 MB cap; general requests: 1 MB cap
 
 **Credential Safety:**
-- API keys stored in `%LOCALAPPDATA%\spotyvibe\.credentials` (outside project directory)
+- API keys stored in OS keychain (Windows Credential Manager) when available; `.credentials` file at `%LOCALAPPDATA%\spotyvibe\` is a plaintext fallback only
+- Plaintext secrets auto-migrated to keyring on startup; `.credentials` retains only empty placeholder keys
 - Never logged; only displayed in masked format (`***ABC123`)
 - Separate file for non-secret settings (no accidental credential exposure)
 
@@ -790,11 +799,16 @@ SSE is the streaming protocol between Flask and the browser during playlist gene
 
 **Cancellation** uses a separate `POST /api/cancel` endpoint that sets a `threading.Event`, checked by the generator before each batch.
 
-### python-dotenv for Credential Management
+### Credential Management: Keyring + python-dotenv
 
-Credentials live in `%LOCALAPPDATA%\spotyvibe\.credentials` (dotenv format).
+Credentials are stored in the **OS keychain** (Windows Credential Manager / macOS Keychain) via the `keyring` library. The `.credentials` file at `%LOCALAPPDATA%\spotyvibe\` (dotenv format) serves as a plaintext fallback when keyring is unavailable (e.g. Android).
 
-**Why dotenv?**
+**Why keyring as primary?**
+- Secrets are encrypted at rest by the OS — never stored as plain text on desktop
+- Auto-migration on startup moves any plaintext secrets from `.credentials` into keyring and clears the file
+- `save_credentials()` writes to keyring first; `.credentials` only gets empty placeholder keys
+
+**Why dotenv as fallback?**
 - Human-readable key=value format
 - `load_dotenv()` injects values into `os.environ` — the standard twelve-factor-app approach
 - `set_key()` updates individual values without rewriting the entire file

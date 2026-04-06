@@ -3,11 +3,15 @@ import { showStatus, showToast, showAlert, showConfirm, esc, sanitizeHtml } from
 import { checkCredentialStatus, checkSpotifyAuth, fetchSettingsState } from './auth.js';
 import { renderComponentWarnings } from './warnings.js';
 import { renderProviderPills } from './provider-pills.js';
+import { i18n } from './i18n.js';
+import { quickstartReset } from './quickstart-tour.js';
+import { initAllDemos, destroyAllDemos } from './quickstart-demo.js';
+import { suppressJumpBubble, unsuppressJumpBubble } from './jump-bubble.js';
 
 const CRED_KEYS = ['OPENAI_API_KEY', 'SPOTIPY_CLIENT_ID', 'SPOTIPY_CLIENT_SECRET'];
 
 export async function clearCredential(key) {
-    const ok = await showConfirm('Remove ' + key + '?');
+    const ok = await showConfirm(i18n('cred.remove_confirm', 'Remove {key}?').replace('{key}', key));
     if (!ok) return;
 
     try {
@@ -18,7 +22,7 @@ export async function clearCredential(key) {
         });
         if (resp.ok) {
             const el = document.getElementById('status-' + key);
-            el.textContent = '✗ Not set';
+            el.textContent = i18n('cred.status_not_set', '✗ Not set');
             el.className = 'cred-status unset';
             document.getElementById('clear-' + key).classList.add('hidden');
             document.getElementById('cred-' + key).value = '';
@@ -26,10 +30,10 @@ export async function clearCredential(key) {
             await Promise.all([checkCredentialStatus(), checkSpotifyAuth()]);
             renderComponentWarnings();
 
-            showToast(key + ' cleared.', 'info');
+            showToast(i18n('cred.cleared', '{key} cleared.').replace('{key}', key), 'info');
         }
     } catch (e) {
-        showAlert('Network error: ' + e.message);
+        showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
     }
 }
 
@@ -46,16 +50,16 @@ export async function openCredentials() {
             const clearBtn = document.getElementById('clear-' + k);
             const info = data[k];
             if (info && info.is_set) {
-                el.textContent = '✓ Set (' + info.masked + ')';
+                el.textContent = i18n('cred.status_set', '✓ Set ({masked})').replace('{masked}', info.masked);
                 el.className = 'cred-status set';
                 clearBtn.classList.remove('hidden');
             } else {
-                el.textContent = '✗ Not set';
+                el.textContent = i18n('cred.status_not_set', '✗ Not set');
                 el.className = 'cred-status unset';
                 clearBtn.classList.add('hidden');
             }
         });
-    } catch (e) { /* ignore — status will just be empty */ }
+    } catch (e) { /* ignore */ }
 
     document.getElementById('credentialsModal').classList.add('open');
     _lastFocusedElement = _lastFocusedElement || document.activeElement;
@@ -82,15 +86,15 @@ export async function saveCredentials() {
         });
         if (resp.ok) {
             closeModal('credentialsModal');
-            showStatus('✅ Credentials saved.', 'success');
+            showStatus(i18n('cred.saved', '✅ Credentials saved.'), 'success');
             await Promise.all([checkCredentialStatus(), checkSpotifyAuth()]);
             renderComponentWarnings();
         } else {
             const d = await resp.json();
-            showAlert('Error: ' + (d.error || 'unknown'));
+            showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', d.error || 'unknown'));
         }
     } catch (e) {
-        showAlert('Network error: ' + e.message);
+        showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
     }
 }
 
@@ -115,7 +119,7 @@ export async function openSettings() {
             const debugLogPath = data.debug_log_path || 'debug.log';
             function updateDebugStatus() {
                 const on = debugCheckbox.checked;
-                debugStatus.textContent = on ? '✓ Enabled — log: ' + debugLogPath : 'Disabled';
+                debugStatus.textContent = on ? i18n('settings.debug_enabled', '✓ Enabled — log: {path}').replace('{path}', debugLogPath) : i18n('settings.debug_disabled', 'Disabled');
                 debugStatus.className = 'cred-status ' + (on ? 'set' : 'unset');
             }
             updateDebugStatus();
@@ -123,26 +127,26 @@ export async function openSettings() {
         }
 
         const modelStatus = document.getElementById('status-settings-model');
-        modelStatus.textContent = '✓ Using: ' + (data.model || 'gpt-5.4-mini');
+        modelStatus.textContent = i18n('settings.model_status', '✓ Using: {model}').replace('{model}', data.model || 'gpt-5.4-mini');
         modelStatus.className = 'cred-status set';
 
         const playlistSize = data.playlist_size || 10;
         document.getElementById('settings-playlist-size').value = playlistSize;
         const sizeStatus = document.getElementById('status-settings-playlist-size');
-        sizeStatus.textContent = '✓ Current: ' + playlistSize + ' tracks';
+        sizeStatus.textContent = i18n('settings.playlist_size_status', '✓ Current: {size} tracks').replace('{size}', playlistSize);
         sizeStatus.className = 'cred-status set';
 
         const pct = data.new_artist_percentage || 30;
         document.getElementById('settings-new-artist-pct').value = pct;
         const pctStatus = document.getElementById('status-settings-new-artist-pct');
-        pctStatus.textContent = '✓ At least ' + pct + '% of tracks from new artists';
+        pctStatus.textContent = i18n('settings.new_artist_pct_status', '✓ At least {pct}% of tracks from new artists').replace('{pct}', pct);
         pctStatus.className = 'cred-status set';
 
 
     } catch (e) { /* ignore */ }
 
     const select = document.getElementById('settings-model');
-    select.innerHTML = '<option value="">Loading models…</option>';
+    select.innerHTML = `<option value="">${i18n('settings.loading_models', 'Loading models…')}</option>`;
 
     try {
         const resp = await fetch('/api/settings/models');
@@ -161,10 +165,10 @@ export async function openSettings() {
                 select.appendChild(opt);
             });
         } else {
-            select.innerHTML = '<option value="">' + (data.error ? 'Enter API key first' : 'No models available') + '</option>';
+            select.innerHTML = '<option value="">' + (data.error ? i18n('settings.enter_key_first', 'Enter API key first') : i18n('settings.no_models', 'No models available')) + '</option>';
         }
     } catch (e) {
-        select.innerHTML = '<option value="">Could not load models</option>';
+        select.innerHTML = `<option value="">${i18n('settings.models_load_failed', 'Could not load models')}</option>`;
     }
 
     document.getElementById('settingsLoading').classList.remove('active');
@@ -201,20 +205,22 @@ export async function saveSettings() {
         });
         if (resp.ok) {
             closeModal('settingsModal');
-            showStatus('✅ Settings saved.', 'success');
+            showStatus(i18n('settings.saved', '✅ Settings saved.'), 'success');
             fetchSettingsState().then(() => renderProviderPills());
         } else {
             const d = await resp.json();
-            showAlert('Error: ' + (d.error || 'unknown'));
+            showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', d.error || 'unknown'));
         }
     } catch (e) {
-        showAlert('Network error: ' + e.message);
+        showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
     }
 }
 
 export async function openHelp() {
     document.getElementById('settingsDropdown').classList.remove('open');
     _lastFocusedElement = document.activeElement;
+    _hideJumpBubble();
+    _lockBodyScroll();
     document.getElementById('helpModal').classList.add('open');
 
     if (State.helpLoaded) return;
@@ -238,18 +244,18 @@ export async function openHelp() {
             });
         } else {
             document.getElementById('helpContent').innerHTML =
-                '<p style="color:#e74c3c;">Could not load help content.</p>';
+                '<p style="color:#e74c3c;">' + esc(i18n('help.load_failed', 'Could not load help content.')) + '</p>';
         }
     } catch (e) {
         document.getElementById('helpContent').innerHTML =
-            '<p style="color:#e74c3c;">Failed to load help: ' + esc(e.message) + '</p>';
+            '<p style="color:#e74c3c;">' + esc(i18n('help.load_error', 'Failed to load help: {detail}').replace('{detail}', e.message)) + '</p>';
     }
 }
 
 export async function openSectionHelp(anchor) {
     const overlay = document.getElementById('sectionHelpOverlay');
     const content = document.getElementById('sectionHelpContent');
-    content.innerHTML = '<p class="help-loading-text">Loading…</p>';
+    content.innerHTML = `<p class="help-loading-text">${i18n('help.loading', 'Loading…')}</p>`;
     overlay.classList.add('open');
 
     try {
@@ -259,11 +265,11 @@ export async function openSectionHelp(anchor) {
             content.innerHTML = sanitizeHtml(data.html);
         } else {
             content.innerHTML =
-                '<p style="color:#e74c3c;">Section not found.</p>';
+                '<p style="color:#e74c3c;">' + esc(i18n('help.section_not_found', 'Section not found.')) + '</p>';
         }
     } catch (e) {
         content.innerHTML =
-            '<p style="color:#e74c3c;">Failed to load help: ' + esc(e.message) + '</p>';
+            '<p style="color:#e74c3c;">' + esc(i18n('help.load_error', 'Failed to load help: {detail}').replace('{detail}', e.message)) + '</p>';
     }
 }
 
@@ -276,10 +282,10 @@ export async function openDataDir() {
         const resp = await fetch('/api/settings/open-data-dir', { method: 'POST' });
         const data = await resp.json();
         if (!resp.ok) {
-            showToast(data.error || 'Could not open folder.', 'error');
+            showToast(data.error || i18n('data_dir.open_failed', 'Could not open folder.'), 'error');
         }
     } catch (e) {
-        showToast('Network error: ' + e.message, 'error');
+        showToast(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message), 'error');
     }
 }
 
@@ -321,10 +327,161 @@ function _openModalWithFocus(id) {
 
 export function closeModal(id) {
     document.getElementById(id).classList.remove('open');
+    if (id === 'helpModal') {
+        _showJumpBubble();
+        _unlockBodyScroll();
+    }
     if (_lastFocusedElement && typeof _lastFocusedElement.focus === 'function') {
         _lastFocusedElement.focus();
         _lastFocusedElement = null;
     }
+}
+
+/* ── Screenshot lightbox ── */
+
+/** Minimum natural dimension (px) to show as expandable thumbnail. */
+const LIGHTBOX_THRESHOLD = 300;
+
+function _openScreenshotLightbox(imgEl) {
+    const lb = document.getElementById('screenshotLightbox');
+    const lbImg = document.getElementById('screenshotLightboxImg');
+    if (!lb || !lbImg) return;
+    lbImg.src = imgEl.src;
+    lbImg.alt = imgEl.alt || 'Screenshot preview';
+    lb.classList.add('open');
+}
+
+function _closeScreenshotLightbox() {
+    const lb = document.getElementById('screenshotLightbox');
+    if (lb) lb.classList.remove('open');
+}
+
+/** Delegated click handler: expand help-content images in the lightbox. */
+function _handleHelpImgClick(e) {
+    const img = e.target.closest('img');
+    if (!img) return;
+    // Only expand images that exceed the thumbnail threshold in at least one
+    // natural dimension — small icons / badges stay inline.
+    if (img.naturalWidth > LIGHTBOX_THRESHOLD || img.naturalHeight > LIGHTBOX_THRESHOLD) {
+        e.preventDefault();
+        e.stopPropagation();
+        _openScreenshotLightbox(img);
+    }
+}
+
+// Attach delegated listeners once DOM is ready
+function _initScreenshotLightbox() {
+    // Delegate clicks on images inside help-content and section-help
+    for (const id of ['helpContent', 'sectionHelpContent']) {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('click', _handleHelpImgClick);
+    }
+
+    // Close lightbox via close button
+    const closeBtn = document.getElementById('screenshotLightboxClose');
+    if (closeBtn) closeBtn.addEventListener('click', _closeScreenshotLightbox);
+
+    // Close lightbox via click on backdrop or the image itself
+    const lb = document.getElementById('screenshotLightbox');
+    if (lb) {
+        lb.addEventListener('click', (e) => {
+            // Close when clicking outside the image or on the image (zoom-out)
+            if (e.target === lb || e.target.tagName === 'IMG') {
+                _closeScreenshotLightbox();
+            }
+        });
+    }
+}
+
+// Run once when module loads (DOM should be ready by then)
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _initScreenshotLightbox);
+} else {
+    _initScreenshotLightbox();
+}
+
+/* ── Section jump bubble visibility ── */
+function _hideJumpBubble() {
+    suppressJumpBubble();
+}
+function _showJumpBubble() {
+    // Only re-show if no overlay modals are still open
+    const anyOpen = ['helpModal', 'quickstartModal'].some(id => {
+        const el = document.getElementById(id);
+        return el && el.classList.contains('open');
+    });
+    if (anyOpen) return;
+    unsuppressJumpBubble();
+}
+
+/* ── Background scroll lock ── */
+function _lockBodyScroll() {
+    document.body.classList.add('modal-scroll-lock');
+}
+function _unlockBodyScroll() {
+    // Only unlock if no overlay modals are still open
+    const anyOpen = ['helpModal', 'quickstartModal'].some(id => {
+        const el = document.getElementById(id);
+        return el && el.classList.contains('open');
+    });
+    if (!anyOpen) document.body.classList.remove('modal-scroll-lock');
+}
+
+/* ── Quickstart guide modal ── */
+const QUICKSTART_STORAGE_KEY = 'spotyvibe-quickstart-dismissed';
+
+/**
+ * Open the quickstart guide.
+ * @param {boolean} force — true when opened from the menu (always shows, doesn't reset dismiss flag)
+ */
+export function openQuickstart(force = false) {
+    document.getElementById('settingsDropdown').classList.remove('open');
+    if (!force && _isQuickstartDismissed()) return;
+    _lastFocusedElement = document.activeElement;
+    // Reflect the stored dismiss preference in the checkbox
+    const wasDismissed = _isQuickstartDismissed();
+    document.querySelectorAll('.quickstartDontShowCb').forEach(cb => cb.checked = wasDismissed);
+    // Reset to TOC page
+    quickstartReset();
+    // Initialize demo players
+    initAllDemos();
+    _hideJumpBubble();
+    _lockBodyScroll();
+    document.getElementById('quickstartModal').classList.add('open');
+    requestAnimationFrame(() => _focusFirstInModal(document.getElementById('quickstartModal')));
+}
+
+/**
+ * Close the quickstart guide. Persists the "don't show again" preference
+ * when any dismiss checkbox is checked.
+ */
+export function closeQuickstart() {
+    const anyChecked = Array.from(document.querySelectorAll('.quickstartDontShowCb'))
+        .some(cb => cb.checked);
+    try {
+        if (anyChecked) {
+            localStorage.setItem(QUICKSTART_STORAGE_KEY, 'true');
+        } else {
+            localStorage.removeItem(QUICKSTART_STORAGE_KEY);
+        }
+    } catch (_) {}
+    destroyAllDemos();
+    closeModal('quickstartModal');
+    _showJumpBubble();
+    _unlockBodyScroll();
+}
+
+/**
+ * Auto-show quickstart on page load if the user hasn't dismissed it.
+ */
+export function maybeShowQuickstart() {
+    if (!_isQuickstartDismissed()) {
+        openQuickstart(false);
+    }
+}
+
+function _isQuickstartDismissed() {
+    try { return localStorage.getItem(QUICKSTART_STORAGE_KEY) === 'true'; } catch (_) { return false; }
 }
 
 /* ── Close any open modal on Escape key + focus trap on Tab ── */
@@ -334,10 +491,20 @@ document.addEventListener('keydown', (e) => {
         return;
     }
     if (e.key !== 'Escape') return;
-    // Close in priority order: section help → help modal → other modals
+    // Close in priority order: lightbox → section help → quickstart → help modal → other modals
+    const lightbox = document.getElementById('screenshotLightbox');
+    if (lightbox && lightbox.classList.contains('open')) {
+        _closeScreenshotLightbox();
+        return;
+    }
     const sectionHelp = document.getElementById('sectionHelpOverlay');
     if (sectionHelp && sectionHelp.classList.contains('open')) {
         closeSectionHelp();
+        return;
+    }
+    const quickstart = document.getElementById('quickstartModal');
+    if (quickstart && quickstart.classList.contains('open')) {
+        closeQuickstart();
         return;
     }
     for (const id of ['helpModal', 'credentialsModal', 'settingsModal']) {

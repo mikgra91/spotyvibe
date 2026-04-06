@@ -4,16 +4,16 @@ export async function switchLanguage(lang) {
     localStorage.setItem('svLang', lang);
     await applyLanguage(lang);
 
-    // Sync GPT language to match app language
+    // Sync both GPT language and UI language to the server
     const langMap = { en: 'English', de: 'German' };
     const gptLang = langMap[lang];
-    if (gptLang) {
-        fetch('/api/settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ gpt_language: gptLang }),
-        }).catch(() => {}); // best-effort, don't block UI
-    }
+    const payload = { ui_language: lang };
+    if (gptLang) payload.gpt_language = gptLang;
+    fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    }).catch(() => {}); // best-effort, don't block UI
 }
 
 function _syncToggle(lang) {
@@ -49,12 +49,22 @@ export function i18n(key, fallback) {
     return _i18nStrings[key] !== undefined ? _i18nStrings[key] : (fallback || key);
 }
 
-export function initI18n() {
-    let saved = localStorage.getItem('svLang');
+export async function initI18n() {
+    // Fallback chain: server setting → localStorage → browser language
+    let saved = null;
+    try {
+        const resp = await fetch('/api/settings');
+        if (resp.ok) {
+            const settings = await resp.json();
+            if (settings.ui_language) saved = settings.ui_language;
+        }
+    } catch { /* ignore — use fallbacks */ }
+    if (!saved) saved = localStorage.getItem('svLang');
     if (!saved) {
         const browserLang = (navigator.language || '').split('-')[0].toLowerCase();
         saved = (browserLang === 'de') ? 'de' : 'en';
     }
+    localStorage.setItem('svLang', saved);
     _syncToggle(saved);
-    setTimeout(() => applyLanguage(saved), 0);
+    await applyLanguage(saved);
 }

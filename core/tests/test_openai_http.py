@@ -19,7 +19,6 @@ from core.src.openai_http import (
     OpenAIUnsupportedModelError,
     _get_api_key,
     _request_json,
-    list_models,
     chat_completions_create,
     extract_chat_content,
 )
@@ -143,24 +142,6 @@ class TestRequestJson:
             with pytest.raises(OpenAIConfigError):
                 _request_json("GET", "/models", retries=0)
 
-
-# ── list_models ──────────────────────────────────────────────────────
-
-class TestListModels:
-    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"})
-    @patch("core.src.openai_http._request_json")
-    def test_returns_data_list(self, mock_req):
-        mock_req.return_value = {"data": [{"id": "gpt-4o"}, {"id": "gpt-3.5-turbo"}]}
-        result = list_models()
-        assert result == [{"id": "gpt-4o"}, {"id": "gpt-3.5-turbo"}]
-        mock_req.assert_called_once_with("GET", "/models", retries=2)
-
-    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"})
-    @patch("core.src.openai_http._request_json")
-    def test_returns_empty_list_when_no_data_key(self, mock_req):
-        mock_req.return_value = {}
-        result = list_models()
-        assert result == []
 
 
 # ── chat_completions_create ──────────────────────────────────────────

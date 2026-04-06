@@ -11,6 +11,7 @@ This guide explains how to use the **SpotyVibe interface** to set up your prefer
   - [Overview](#overview)
   - [Before You Start](#before-you-start)
   - [Understanding the Main Screen](#understanding-the-main-screen)
+  - [Quick Start Guide](#quick-start-guide)
 - [Account Setup](#account-setup)
   - [Open the Menu](#open-the-menu)
   - [Enter Your Credentials](#enter-your-credentials)
@@ -70,7 +71,7 @@ You describe what you like, connect your Spotify account, and let the app genera
 
 The more feedback you give, the better the recommendations become.
 
-> **Screenshot placeholder:** Main home screen / dashboard
+![Main home screen](/docs/screenshots/01_main_home_screen.png)
 
 ---
 
@@ -85,7 +86,7 @@ To use SpotyVibe, make sure you have:
 
 You will enter these in the app during setup.
 
-> **Screenshot placeholder:** Credentials screen
+![Credentials screen](/docs/screenshots/24_onboarding_credentials.png)
 
 ---
 
@@ -127,7 +128,29 @@ At the top of the page, you can also access:
 - The **language selector**
 - The **theme selector**
 
-> **Screenshot placeholder:** Header with menu, language, and theme controls
+![Header with menu, language, and theme controls](/docs/screenshots/02_header_controls.png)
+
+---
+
+### Quick Start Guide
+
+When you open SpotyVibe for the first time, a **Quick Start Guide** appears automatically.
+It walks you through six steps to get up and running — from entering your API keys to generating your first playlist.
+
+**Using the guide:**
+
+- The **Contents** page lists all six steps. Click any entry to jump directly to that step.
+- Each step has a text description, a **Key Actions** checklist, and an **interactive demo** that shows exactly what to click in the app.
+- The demos auto-play — use **▶/⏸** to pause, or **‹ / ›** to step through manually.
+- Use the **numbered dots** or **Back / Next** buttons at the bottom to navigate between steps.
+- On the last step, **Next** becomes **Get Started** and closes the guide.
+
+**Dismissing and reopening:**
+
+- Check **"Don't show again"** on any page to stop the guide from showing on future visits.
+- To reopen it at any time, click **☰ → 🚀 Quick Start**.
+
+> **Screenshot placeholder:** Quick Start guide contents page with workflow map and TOC entries.
 
 ---
 
@@ -143,7 +166,7 @@ From here, you can access:
 - **Settings**
 - **Disconnect Spotify** (if already connected)
 
-> **Screenshot placeholder:** Burger menu open
+![Burger menu open](/docs/screenshots/03_burger_menu_open.png)
 
 ---
 
@@ -155,11 +178,11 @@ Open **Credentials** and enter:
 - **Spotify Client ID**
 - **Spotify Client Secret**
 
-Click **Save** when finished. Your API keys are stored securely in a separate credentials file — app preferences (model, playlist size, etc.) are stored in a separate settings file.
+Click **Save** when finished. Your API keys are stored securely in your operating system's keychain (e.g. Windows Credential Manager) — they are never saved as plain text. App preferences (model, playlist size, etc.) are stored in a separate settings file.
 
 If the information is correct, you can proceed to connect Spotify.
 
-> **Screenshot placeholder:** Credentials form filled in
+![Credentials form](/docs/screenshots/04_credentials_modal.png)
 
 ---
 
@@ -203,7 +226,7 @@ Available settings include:
 
 Click **Save** after making changes.
 
-> **Screenshot placeholder:** Settings panel
+![Settings panel](/docs/screenshots/05_settings_modal.png)
 
 ---
 
@@ -218,7 +241,7 @@ This changes text such as:
 - Messages
 - Menus
 
-> **Screenshot placeholder:** Language selector
+![Language selector](/docs/screenshots/06_language_selector.png)
 
 ---
 
@@ -230,7 +253,7 @@ Use the **theme switcher** near the top of the page to select your preferred loo
 
 Themes change the visual style of the interface but do not affect playlist results.
 
-> **Screenshot placeholder:** Theme switcher
+![Theme switcher](/docs/screenshots/07_theme_switcher.png)
 
 ---
 
@@ -244,7 +267,7 @@ In the **OpenAI** section, click **Edit profile** or click anywhere on the **Mus
 
 The editor is organized into **collapsible accordion panels**. Click any panel header to expand or collapse it. The first panel — **Profiles** — is where you manage your profiles.
 
-> **Screenshot placeholder:** Music Profile editor open with accordion panels
+![Music Profile editor with accordion panels](/docs/screenshots/08_profile_editor_open.png)
 
 ---
 
@@ -260,7 +283,7 @@ You can create as many profiles as you want. Each profile is completely independ
 
 To switch profiles, select a different one from the dropdown. Your form fields update automatically when you switch.
 
-> **Screenshot placeholder:** Profiles accordion with dropdown and create input
+![Profiles accordion with dropdown and create input](/docs/screenshots/09_profiles_accordion.png)
 
 ---
 
@@ -271,7 +294,7 @@ Below the section header you will see a status line:
 - **✓ Last trained: [date/time]** — The profile has been saved or AI-updated at least once. This shows when the last save happened, not how good the profile is.
 - **⚠ Not yet trained** — The profile has never been saved. Describe your taste and save it to get started.
 
-> **Screenshot placeholder:** Profile status indicators
+![Profile status indicators](/docs/screenshots/10_profile_status.png)
 
 ---
 
@@ -298,7 +321,7 @@ This means you can write everything in one place and let the AI sort it out. Aft
 
 If you fill in this field, the **Core Description** below becomes optional — the AI will generate one for you.
 
-> **Screenshot placeholder:** Describe Your Vibe field with example text
+![Describe Your Vibe field with example text](/docs/screenshots/11_vibe_description.png)
 
 ---
 
@@ -318,7 +341,7 @@ Describe the kind of music you want using your own words, such as:
 
 This field should clearly explain your overall taste.
 
-> **Screenshot placeholder:** Core Description field
+![Core Description field](/docs/screenshots/12_core_description.png)
 
 ---
 
@@ -335,7 +358,7 @@ Examples:
 
 Enter one preference per line.
 
-> **Screenshot placeholder:** Must Have section
+![Must Have section](/docs/screenshots/13_must_have.png)
 
 ---
 
@@ -351,7 +374,7 @@ Examples:
 
 Enter one preference per line.
 
-> **Screenshot placeholder:** Soft Preferences section
+![Soft Preferences section](/docs/screenshots/14_soft_preferences.png)
 
 ---
 
@@ -368,7 +391,7 @@ Examples:
 
 Enter one item per line.
 
-> **Screenshot placeholder:** Avoid section
+![Avoid section](/docs/screenshots/15_avoid.png)
 
 ---
 
@@ -395,7 +418,7 @@ After editing your profile, two action buttons appear at the bottom of the edito
 
 A loading spinner with rotating status messages appears during AI Profile Update.
 
-> **Screenshot placeholder:** Save and AI Profile Update buttons
+![Save and AI Profile Update buttons](/docs/screenshots/16_save_buttons.png)
 
 ---
 
@@ -413,23 +436,25 @@ These fields are invisible in the UI but are included in every playlist generati
 
 ### Import, Export, Reset, and Delete Your Profile
 
-When the profile editor is open, profile management buttons appear below the **Last trained** status line in the section header:
+The **Profiles** accordion header contains a **⋯** (three-dot) menu button next to the collapse chevron. Click it to open a dropdown with the following actions:
 
-- **Import**  
+- **Upload profile**  
   Load a saved profile JSON file into the current profile. A confirmation dialog appears first. Your previous profile is automatically backed up to a history file before the import overwrites it. Unknown fields in the imported file are silently stripped; missing fields are filled from the default template.
 
-- **Export**  
+- **Export profile**  
   Download your current profile as a `spotyvibe_profile.json` file (full JSON including all AI-generated internal fields).
 
-- **Reset to history**  
+- **Reset profile**  
   Restore the previous version of your profile (one-step undo). This loads the automatic backup that was created before the last save, AI update, or import.
 
-- **Delete**  
+- **Delete profile**  
   Permanently remove the current profile and its history. A confirmation dialog appears first. This cannot be undone. If other profiles exist, the first one is automatically selected.
+
+**Disabled items:** When no profile is selected, **Export**, **Reset**, and **Delete** are grayed out because they require an active profile. **Upload** is always available — it creates or replaces the active profile.
 
 This is useful if you want to back up your profile, move it to another device, clean up unused profiles, or undo a recent change.
 
-> **Screenshot placeholder:** Import / Export / Reset / Delete controls
+![Import / Export / Reset / Delete controls](/docs/screenshots/17_profile_io_controls.png)
 
 ---
 
@@ -469,7 +494,7 @@ How to use it:
 
 This is especially helpful if you know what you like, but are not sure how to describe it.
 
-> **Screenshot placeholder:** Band/Song Analysis panel
+![Band/Song Analysis panel](/docs/screenshots/18_analysis_panel.png)
 
 ---
 
@@ -479,7 +504,7 @@ Once your profile is ready and Spotify is connected, go to the **Spotify** secti
 
 This is where SpotyVibe creates playlist suggestions based on your taste. The section is collapsed by default to keep the page compact.
 
-> **Screenshot placeholder:** Discover Music section expanded
+![Discover Music section expanded](/docs/screenshots/19_discover_section.png)
 
 ---
 
@@ -503,7 +528,7 @@ Common options include:
 
 If you create a new playlist, you can usually enter a custom playlist name.
 
-> **Screenshot placeholder:** Playlist mode selector
+![Playlist mode selector](/docs/screenshots/20_playlist_mode_selector.png)
 
 ---
 
@@ -535,9 +560,9 @@ The easiest way to fill in audio filters is via the **Band/Song Analysis** featu
 
 This bridges the gap between analysis and generation — no more memorising numbers.
 
-> **Screenshot placeholder:** Audio Filters sub-panel inside Discover Music
+![Audio Filters sub-panel inside Discover Music](/docs/screenshots/21_audio_filters.png)
 
-> **Screenshot placeholder:** Band/Song Analysis with ⇒ Filter buttons
+![Band/Song Analysis with Filter buttons](/docs/screenshots/18_analysis_panel.png)
 
 ---
 
@@ -685,7 +710,7 @@ This is useful when you want to:
 
 To open it, click **Show** on the **🔄 Refine Playlist** header (or click anywhere on the header) inside the Spotify section.
 
-> **Screenshot placeholder:** Refine Playlist section expanded
+![Refine Playlist section expanded](/docs/screenshots/22_refine_playlist_section.png)
 
 ---
 
@@ -773,7 +798,7 @@ For each run you can see:
 
 Older runs beyond the most recent 5 are automatically removed to keep the list concise.
 
-> **Screenshot placeholder:** Run History section with expanded entry
+![Run History section with expanded entry](/docs/screenshots/23_run_history.png)
 
 ---
 

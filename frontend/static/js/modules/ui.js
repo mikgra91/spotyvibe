@@ -1,3 +1,5 @@
+import { i18n } from './i18n.js';
+
 export function showStatus(msg, type) {
     const box = document.getElementById('statusBox');
     box.className = `status ${type}`;
@@ -39,7 +41,7 @@ export function showStatusHtml(html, type) {
 
 export function showPlaylistLink(url) {
     const box = document.getElementById('playlistLinkBox');
-    box.innerHTML = `🎶 <strong>Playlist:</strong> <a href="${attr(url)}" target="_blank" rel="noopener">${esc(url)}</a>`;
+    box.innerHTML = `🎶 <strong>${i18n('generate.title', 'Playlist')}:</strong> <a href="${attr(url)}" target="_blank" rel="noopener">${esc(url)}</a>`;
     box.classList.remove('hidden');
     // Ensure track area is visible
     const trackArea = document.getElementById('discoverTrackArea');
@@ -122,7 +124,7 @@ export function showConfirm(message) {
         overlay.style.zIndex = '10000';
         overlay.setAttribute('role', 'alertdialog');
         overlay.setAttribute('aria-modal', 'true');
-        overlay.setAttribute('aria-label', 'Confirmation');
+        overlay.setAttribute('aria-label', i18n('confirm.title', 'Confirmation'));
 
         const modal = document.createElement('div');
         modal.className = 'modal';
@@ -137,12 +139,12 @@ export function showConfirm(message) {
 
         const confirmBtn = document.createElement('button');
         confirmBtn.className = 'btn btn-save';
-        confirmBtn.textContent = 'OK';
+        confirmBtn.textContent = i18n('msg.ok', 'OK');
         confirmBtn.onclick = () => { overlay.remove(); resolve(true); };
 
         const cancelBtn = document.createElement('button');
         cancelBtn.className = 'btn btn-cancel';
-        cancelBtn.textContent = 'Cancel';
+        cancelBtn.textContent = i18n('btn.cancel', 'Cancel');
         cancelBtn.onclick = () => { overlay.remove(); resolve(false); };
 
         actions.append(confirmBtn, cancelBtn);
@@ -168,4 +170,3 @@ export function showConfirm(message) {
 export function showAlert(message, type = 'error') {
     showToast(message, type, 5000);
 }
-

@@ -31,7 +31,7 @@ python -m pytest core/tests/ frontend/tests/ -v
 
 Playwright's Chromium browser is auto-installed on the first frontend test run (via `frontend/tests/conftest.py`). No manual `playwright install` step is needed.
 
-Credentials (OpenAI key, Spotify Client ID/Secret) are configured via the UI and stored in `%LOCALAPPDATA%\spotyvibe\.credentials`.
+Credentials (OpenAI key, Spotify Client ID/Secret) are configured via the UI and stored in the OS keychain (Windows Credential Manager) when available, with `%LOCALAPPDATA%\spotyvibe\.credentials` as a plaintext fallback.
 Spotify app must have `http://127.0.0.1:5000/callback` as a Redirect URI.
 
 ## Android (Chaquopy) Constraints
@@ -108,6 +108,19 @@ Every feature change must be reflected in all four:
 - Only remove an import after verifying no usages remain.
 - After new features, create/update unit tests.
 
+### Internationalization (i18n)
+All user-facing text in the frontend **must** use the i18n system — **never** hardcode strings directly in HTML templates or JavaScript modules.
+
+- **Language files** are at `frontend/static/i18n/en.json` (English) and `frontend/static/i18n/de.json` (German). Both files must always have the same set of keys.
+- **HTML templates:** Use `data-i18n="key"` for visible text content, `data-i18n-placeholder="key"` for input placeholders, and `data-i18n-title="key"` for title/tooltip attributes. The English text in the HTML serves as a fallback; the i18n system overwrites it on page load.
+- **JavaScript modules:** Import `{ i18n } from './i18n.js'` and use `i18n('key', 'Fallback text')` for any user-visible string (toasts, alerts, status messages, dynamically built HTML labels, button text, etc.).
+- **Onboarding page** (`onboarding.html`): Uses its own lightweight `obI18n()` / `obApplyLang()` functions (no ES module imports). Follow the same `data-i18n` attribute pattern for static text and `obI18n()` for dynamic JS strings.
+- **Adding new strings:** When adding any new user-facing text, always:
+  1. Add the key + English value to `en.json`.
+  2. Add the key + German translation to `de.json`.
+  3. Use `data-i18n` in HTML or `i18n()` in JS — never leave a raw string.
+- **Key naming convention:** Use dot-separated namespaces matching the feature area (e.g., `profile.title`, `feedback.like`, `pipeline.cancelled`, `ob.skip`).
+
 ### Accessibility (a11y)
 Every frontend change **must** consider visually impaired and assistive-technology users:
 - **ARIA attributes** — All interactive elements must have descriptive `aria-label` or `aria-labelledby`. Use `aria-expanded`, `aria-controls`, `aria-modal`, `aria-live`, and `role` attributes where applicable.
@@ -139,6 +152,10 @@ Every frontend change **must** consider visually impaired and assistive-technolo
 - Skip for documentation-only changes.
 - Mock all external API calls (OpenAI, Spotify).
 - Playwright Chromium is auto-installed by `frontend/tests/conftest.py` on the first run — no manual step needed after `pip install -r requirements.txt`.
+- **Screenshot tests** (`frontend/tests/test_documentation_screenshots.py`) are marked `@pytest.mark.screenshots` and excluded from routine runs via `pytest.ini` (`-m "not screenshots"`). Run them manually when documentation screenshots need refreshing:
+  ```bash
+  python -m pytest frontend/tests/test_documentation_screenshots.py -v -m screenshots
+  ```
 
 ---
 

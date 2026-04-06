@@ -6,6 +6,8 @@
  * - When the Spotify section header is visible or above → arrow up (jump to OpenAI)
  */
 
+import { i18n } from './i18n.js';
+
 const ARROW_DOWN = '▼';
 const ARROW_UP = '▲';
 
@@ -13,6 +15,7 @@ let bubble = null;
 let openaiSection = null;
 let spotifySection = null;
 let spotifyHeader = null;
+let _suppressedByModal = false;
 
 /**
  * Determine direction based on whether the Spotify header is still
@@ -28,11 +31,13 @@ function shouldJumpDown() {
 
 function update() {
     if (!bubble || !openaiSection || !spotifySection) return;
+    // Don't re-show if a modal explicitly suppressed the bubble
+    if (_suppressedByModal) return;
 
     const down = shouldJumpDown();
 
     bubble.textContent = down ? ARROW_DOWN : ARROW_UP;
-    bubble.title = down ? 'Jump to Spotify' : 'Jump to OpenAI';
+    bubble.title = down ? i18n('jump.to_spotify', 'Jump to Spotify') : i18n('jump.to_openai', 'Jump to OpenAI');
     bubble.classList.remove('hidden');
 }
 
@@ -78,3 +83,16 @@ export function refreshJumpBubble() {
     spotifyHeader = spotifySection ? spotifySection.querySelector('.provider-header') : null;
     update();
 }
+
+/** Hide bubble and prevent scroll from re-showing it. */
+export function suppressJumpBubble() {
+    _suppressedByModal = true;
+    if (bubble) bubble.classList.add('hidden');
+}
+
+/** Allow scroll to show the bubble again. */
+export function unsuppressJumpBubble() {
+    _suppressedByModal = false;
+    update();
+}
+

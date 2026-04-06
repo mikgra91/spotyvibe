@@ -114,7 +114,7 @@ spotyvibe/
 │   │   ├── base.html       # Root layout with shared head/scripts
 │   │   ├── onboarding.html # Multi-page swipeable onboarding
 │   │   ├── tracklist.html  # Track list partial
-│   │   ├── modals/         # Modal partials (credentials, settings, help)
+│   │   ├── modals/         # Modal partials (credentials, settings, help, quickstart)
 │   │   └── ...             # Other UI partials
 │   └── static/js/
 │       ├── main.js         # Entry point — wires up all modules
@@ -195,9 +195,9 @@ The app module also pins its Python dependencies in `android/app/build.gradle`, 
 
 ### `config.py` — Configuration & Credentials
 
-Manages all application settings and credentials. Secrets (API keys) are stored in `.credentials`; non-secret preferences and app state are stored in `settings.conf`. Both files use dotenv format and live in the platform-appropriate app data directory (`%LOCALAPPDATA%\spotyvibe\` on Windows).
+Manages all application settings and credentials. Secrets (API keys) are stored in the OS keychain (Windows Credential Manager / macOS Keychain) when available, with `.credentials` as a plaintext fallback for platforms without a usable keyring (e.g. Android). Non-secret preferences and app state are stored in `settings.conf` (dotenv format) in the platform-appropriate app data directory (`%LOCALAPPDATA%\spotyvibe\` on Windows).
 
-On first load, any non-secret keys still present in `.credentials` (from older versions) are automatically migrated to `settings.conf`.
+On first load, any non-secret keys still present in `.credentials` (from older versions) are automatically migrated to `settings.conf`. Plaintext credentials in `.credentials` are automatically migrated to the OS keychain when a usable keyring is detected.
 
 **Key constants:**
 
@@ -213,7 +213,7 @@ On first load, any non-secret keys still present in `.credentials` (from older v
 | `MAX_CONSECUTIVE_EMPTY_BATCHES` | How many consecutive all-filtered batches are allowed before the loop breaks and the playlist is created with whatever was found (default: 3). |
 | `DEFAULT_OPENAI_MODEL` | Fallback model when none is configured (default: `gpt-5.4-mini`). |
 | `IS_ANDROID` | `True` when running under Chaquopy (detected via `sys.getandroidapilevel`). All Android-specific logic is gated behind this flag; desktop behaviour is unaffected. |
-| `CREDENTIALS_FILE` | Path to `%LOCALAPPDATA%\spotyvibe\.credentials` — stores only API secrets (`OPENAI_API_KEY`, `SPOTIPY_CLIENT_ID`, `SPOTIPY_CLIENT_SECRET`). |
+| `CREDENTIALS_FILE` | Path to `%LOCALAPPDATA%\spotyvibe\.credentials` — plaintext fallback for API secrets when OS keychain is unavailable. On desktop with a usable keyring, this file only holds empty placeholder keys. |
 | `SETTINGS_FILE` | Path to `%LOCALAPPDATA%\spotyvibe\settings.conf` — stores non-secret app preferences (`OPENAI_MODEL`, `DEBUG_MODE`, `PLAYLIST_SIZE`, `NEW_ARTIST_PERCENTAGE`, `GPT_LANGUAGE`, `ONBOARDING_COMPLETED`, `ACTIVE_PROFILE_ID`). |
 | `PROFILES_DIR` | Path to `%LOCALAPPDATA%\spotyvibe\profiles\` — each profile is a UUID-named `.json` file with an accompanying `.history.json` backup. |
 | `MAX_PROFILE_NAME_LEN` | Maximum character length for a profile display name (default: 40). |
@@ -227,7 +227,7 @@ On first load, any non-secret keys still present in `.credentials` (from older v
 | `MAX_FEEDBACK_ARTIST_LEN` | Maximum character length for feedback artist name (default: 200). |
 | `MAX_FEEDBACK_TRACK_LEN` | Maximum character length for feedback track name (default: 200). |
 | `MAX_FEEDBACK_REASON_LEN` | Maximum character length for feedback reason text (default: 500). |
-| `CREDENTIAL_KEYS` | List of secret key names stored in `.credentials`. |
+| `CREDENTIAL_KEYS` | List of secret key names stored in the OS keychain (or `.credentials` as fallback). |
 | `SETTINGS_KEYS` | List of non-secret key names stored in `settings.conf`. |
 
 
@@ -245,7 +245,7 @@ On first load, any non-secret keys still present in `.credentials` (from older v
 - **`get_settings()`** — Returns `{"model": str, "debug_mode": bool, "playlist_size": int, "new_artist_percentage": int, "debug_log_path": str, "debug_controls_available": bool, "is_android": bool, "gpt_language": str}` for the Settings UI. Debug controls are desktop-only; Android receives `debug_controls_available=false` and an empty `debug_log_path`.
 
 
-**Credential storage:** Credentials and settings (including the selected model) are stored in `%LOCALAPPDATA%\spotyvibe\.credentials` as a dotenv file, outside the project directory. The `load_config()` function loads them into `os.environ`. The `save_credentials()` function ensures the file always ends with a newline before appending new keys, preventing `python-dotenv` parse errors from concatenated lines.
+**Credential storage:** On desktop, credentials are stored in the OS keychain (Windows Credential Manager / macOS Keychain) via the `keyring` library. The `.credentials` file (dotenv format, at `%LOCALAPPDATA%\spotyvibe\`) only holds empty placeholder keys when keyring is available; it serves as a plaintext fallback on platforms without a usable keyring (e.g. Android). On startup, `load_config()` reads the `.credentials` file first, then overlays keyring values so the OS keychain always takes precedence. A one-time auto-migration (`_migrate_credentials_to_keyring()`) moves any plaintext secrets from `.credentials` into keyring and clears the plaintext copy. The `save_credentials()` function stores values in keyring when available and only writes to `.credentials` as a fallback.
 
 **Android storage:** On Android, `_get_app_dir()` resolves to the app's internal storage (`/data/data/com.spotyvibe.app/files/spotyvibe/`). The `.env` migration from legacy locations is guarded by `if not IS_ANDROID` so it only runs on desktop.
 
@@ -539,10 +539,11 @@ Both sections are wrapped in styled provider cards (`.provider-section`) for vis
 - **Refine Playlist** — collapsible section with a playlist dropdown (lazy-loaded on first expand via `populateReviewPlaylistPicker()`), a "Load Playlist" button with an inline loading spinner, and a review track list inside the section. The `#reviewTrackArea` wrapper is hidden until tracks are loaded. Each track card supports like, dislike, and dismiss (✕) actions. Dislike removes the track from the Spotify playlist; dismiss removes without recording feedback.
 - **Preview overlay** — bottom-sheet three-zone layout: (1) Spotify embed player (centered, responsive width 50vw / min 420px / max 700px), (2) file-cabinet register-tab action buttons (👍 👎 ✕) with rounded-right-edge shape, (3) sliding feedback form that fills remaining space to the right screen edge via `flex: 1`. Like/dislike tabs toggle: clicking the same tab again closes the form. Active tabs glow green (like) or red (dislike) via CSS `box-shadow`. The ✕ button triggers dismiss directly without a form. Embed URLs include a `_cb=<timestamp>` cache-bust parameter to avoid caching stale iframe state. **Playback limitation:** The Spotify embed iframe provides ~30-second previews only; full-length playback is not available because the cross-origin iframe cannot access the user's Spotify session cookies (blocked by browser third-party cookie policies and storage partitioning). The Spotify Web Playback SDK could theoretically enable full playback but requires the `streaming` OAuth scope, a Premium subscription, and Spotify's written approval for commercial use — none of which are in scope for SpotyVibe.
 - **Feedback form** — expandable per-track form with artist, track, and reason fields. In the preview overlay, it slides in from the right as part of the three-zone layout.
-- **Gear dropdown menu** — Credentials, Settings, Disconnect Spotify (visible only when connected), and Help.
+- **Gear dropdown menu** — Credentials, Settings, Disconnect Spotify (visible only when connected), Help, and Quick Start.
 - **Credentials modal** (`🔑 Credentials`) — manages API keys (OpenAI, Spotify). Secrets only.
 - **Settings modal** (`⚙️ Settings`) — model selection ("Used Model" dropdown) and debug mode toggle. Non-secret configuration.
 - **Help modal** — loads the User Manual content from `/api/help`.
+- **Quickstart guide modal** — paginated storyboard-style 6-step onboarding walkthrough (Setup → Profile → Generate → Review → Refine → Repeat) in a full-height flex-column modal (828 px max-width, 82 vh max-height). The modal uses a three-zone flex layout: (1) scrollable page content, (2) fixed pagination bar, (3) fixed dismiss row — ensuring the navigation footer is always visible without scrolling. **Page 0** is a table-of-contents landing page with a visual workflow map (`1 → 2 → 3 → 4 → 5 → ⟳`) — each node is a clickable button that jumps directly to the corresponding step. Six clickable TOC entries list each step's title and tagline. **Pages 1–6** are individual step detail pages with a header (number badge + tagline), description paragraph, "Key Actions" checklist, an "Outcome" summary, and an **interactive storyboard demo player**. The demo player renders a simplified mockup of the relevant app UI area and auto-plays through 3–4 interaction frames per step (3.5 s interval). Each frame shows the mockup state, a pulsing cursor highlighting the interaction point, and a caption describing the action. Controls: ‹ / › for manual frame navigation, ▶/⏸ for play/pause. Mockups use compact HTML elements (`qd-*` CSS classes) styled to resemble the app's dark glass design at miniature scale. A unified pagination footer appears on all pages (including TOC): dot indicators (with ⌂ home dot), Back/Next buttons pushed to left/right edges. On the TOC page, the left button reads "Get Started" (closes the modal); on the last step page, the right button becomes a green "Get Started ✓" CTA. The "Don't show again" checkbox is visible on every page; checking it persists the preference to `localStorage` (`spotyvibe-quickstart-dismissed`). The close button (✕) is inside the modal card at the top-right corner. Opening from the burger menu ("🚀 Quick Start") always shows the guide without resetting the dismiss preference. When the quickstart or help modals are open, the section jump bubble is hidden and restored on close. Pagination logic lives in `frontend/static/js/modules/quickstart-tour.js`, demo player engine in `frontend/static/js/modules/quickstart-demo.js`. All text is i18n-enabled (`quickstart.*` keys, 406 total keys in en/de).
 - **Toast notifications** — brief confirmation messages after feedback/remove actions.
 
 **Debug mode (desktop only):** When enabled via the Settings modal on desktop, all GPT interactions (both suggestion generation and profile training) are logged to `%LOCALAPPDATA%\spotyvibe\debug.log` via the `debug_log()` utility. Android builds do not expose debug controls and do not write prompt logs.
@@ -823,7 +824,7 @@ pyinstaller --noconfirm --clean spotyvibe.spec
 
 - Runtime assets are bundled via the spec file (`templates/`, `static/`, `prompts/`, `data/`, plus `documentation/help.md`).
 - `hiddenimports` includes `markdown.extensions.tables`, `markdown.extensions.fenced_code`, and `markdown.extensions.toc` so the in-app Help modal renders correctly in frozen builds.
-- Secrets are intentionally **not** bundled; credentials remain in `%LOCALAPPDATA%\spotyvibe\.credentials`.
+- Secrets are intentionally **not** bundled; credentials are stored in the OS keychain (with `.credentials` as fallback).
 
 **System Requirement (Windows Desktop):**
 The desktop executable requires a modern, patched Windows 10/11 environment. `pywebview` relies on the **WebView2 (Chromium)** runtime to embed the native browser window. If a user runs this on an outdated Windows environment missing WebView2, the application might fall back to Legacy Edge/MSHTML (Trident), causing modern CSS and JavaScript in SpotyVibe to break or render incorrectly.

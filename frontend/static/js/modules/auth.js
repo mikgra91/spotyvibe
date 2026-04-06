@@ -1,6 +1,7 @@
 import * as State from './state.js';
 import { renderComponentWarnings } from './warnings.js';
 import { showToast, showAlert } from './ui.js';
+import { i18n } from './i18n.js';
 
 export async function checkCredentialStatus() {
     try {
@@ -58,11 +59,11 @@ export async function toggleSpotifyConnection() {
     if (State.spotifyAuthStatus === 'authenticated') {
         try {
             await fetch('/api/spotify/disconnect', { method: 'POST' });
-            showToast('Spotify disconnected.', 'info');
+            showToast(i18n('msg.spotify_disconnected', 'Spotify disconnected.'), 'info');
             await checkSpotifyAuth();
             renderComponentWarnings();
         } catch (e) {
-            showAlert('Network error: ' + e.message);
+            showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
         }
     } else {
         connectSpotify();
