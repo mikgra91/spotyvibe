@@ -10,7 +10,7 @@ export function toggleReviewBody() {
     const isHidden = body.classList.toggle('hidden');
     const expanded = (!isHidden).toString();
     if (btn) {
-        btn.textContent = isHidden ? 'Show' : 'Hide';
+        btn.textContent = isHidden ? i18n('btn.show', 'Show') : i18n('btn.hide', 'Hide');
         btn.setAttribute('aria-expanded', expanded);
     }
     const header = document.querySelector('#reviewSection > .train-header');
@@ -40,7 +40,7 @@ export async function loadPlaylistTracks() {
 
     // Show inline loading spinner
     if (loadArea) loadArea.classList.remove('hidden');
-    if (loadBtn) { loadBtn.disabled = true; loadBtn.textContent = '⏳ Loading…'; }
+    if (loadBtn) { loadBtn.disabled = true; loadBtn.textContent = i18n('msg.loading', '⏳ Loading…'); }
     listEl.innerHTML = '';
 
     try {
@@ -58,7 +58,7 @@ export async function loadPlaylistTracks() {
         listEl.innerHTML = `<p style="color:var(--error)">${i18n('review.load_failed', 'Failed to load playlist tracks.')}</p>`;
     } finally {
         if (loadArea) loadArea.classList.add('hidden');
-        if (loadBtn) { loadBtn.disabled = false; loadBtn.textContent = '🔄 Load Playlist'; }
+        if (loadBtn) { loadBtn.disabled = false; loadBtn.textContent = '🔄 ' + i18n('btn.load_playlist', 'Load Playlist'); }
     }
 }
 
@@ -108,10 +108,10 @@ export function toggleReviewFeedback(idx, action) {
 
     const submitBtn = document.getElementById(`review-submitBtn-${idx}`);
     if (action === 'like') {
-        submitBtn.textContent = '👍 Submit';
+        submitBtn.textContent = i18n('btn.submit_like', '👍 Submit');
         submitBtn.className = 'btn btn-submit-like';
     } else {
-        submitBtn.textContent = '👎 Submit';
+        submitBtn.textContent = i18n('btn.submit_dislike', '👎 Submit');
         submitBtn.className = 'btn btn-submit-dislike';
     }
 }
@@ -128,7 +128,7 @@ export async function submitReviewFeedback(idx) {
     const form = document.getElementById(`review-form-${idx}`);
     const action = form ? form.dataset.action : 'like';
 
-    if (!artist) { showAlert('Artist is required.'); return; }
+    if (!artist) { showAlert(i18n('feedback.artist_required', 'Artist is required.')); return; }
 
     const submitBtn = document.getElementById(`review-submitBtn-${idx}`);
     submitBtn.disabled = true;
@@ -148,7 +148,7 @@ export async function submitReviewFeedback(idx) {
 
         if (!resp.ok) {
             const data = await resp.json();
-            showAlert('Error: ' + (data.error || 'unknown'));
+            showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', data.error || 'unknown'));
             return;
         }
 
@@ -164,14 +164,14 @@ export async function submitReviewFeedback(idx) {
                     body: JSON.stringify({ artist: reviewTrack.artist, track: reviewTrack.track }),
                 }).catch(() => {});
             }
-            showToast(`👎 Disliked & removed: ${artist}${trackLabel}`);
+            showToast(i18n('review.disliked_removed', '👎 Disliked & removed: {track}').replace('{track}', `${artist}${trackLabel}`));
         } else {
-            showToast(`👍 Liked: ${artist}${trackLabel}`);
+            showToast(i18n('review.liked', '👍 Liked: {track}').replace('{track}', `${artist}${trackLabel}`));
         }
 
         animateReviewRemove(idx);
     } catch (e) {
-        showAlert('Network error: ' + e.message);
+        showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
     } finally {
         submitBtn.disabled = false;
     }
@@ -192,8 +192,8 @@ export async function dismissReviewTrack(idx) {
         });
         const data = await resp.json();
         const msg = data.removed
-            ? `Removed from playlist: ${track.artist} — ${track.track}`
-            : `Removed: ${track.artist} — ${track.track}`;
+            ? i18n('feedback.removed_from_playlist', 'Removed from playlist: {track}').replace('{track}', `${track.artist} — ${track.track}`)
+            : i18n('feedback.removed', 'Removed: {track}').replace('{track}', `${track.artist} — ${track.track}`);
         showToast(msg);
     } catch (e) {
         /* Network error — still remove from UI */
@@ -277,4 +277,3 @@ export async function deleteSelectedPlaylist(pickerId) {
         showToast(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message), 'error');
     }
 }
-

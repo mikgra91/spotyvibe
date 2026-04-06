@@ -107,7 +107,6 @@
             margin: -6px 0 10px;
             min-height: 1em;
         }
-        /* ── Credential row: set-state (green checkmark) ── */
         .ob-cred-row {
             width: 100%;
             margin-bottom: 14px;
@@ -149,9 +148,25 @@
         .ob-cred-input-wrap {
             margin-top: 8px;
         }
+        /* Language toggle positioned top-right on all pages */
+        .ob-lang-toggle {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            z-index: 100;
+        }
     </style>
 </head>
 <body class="onboarding-body" style="background: var(--bg-deep); min-height: 100vh;">
+
+<!-- Language toggle (reuses main app styling) -->
+<div class="ob-lang-toggle">
+    <div class="lang-toggle" role="group" aria-label="Language">
+        <button class="lang-toggle-btn active" data-lang="en" onclick="obSwitchLang('en')" aria-label="English">EN</button>
+        <span class="lang-toggle-sep" aria-hidden="true">|</span>
+        <button class="lang-toggle-btn" data-lang="de" onclick="obSwitchLang('de')" aria-label="Deutsch">DE</button>
+    </div>
+</div>
 
 <div class="ob-wrap" id="obWrap">
     <div class="ob-pages" id="obPages">
@@ -165,24 +180,24 @@
             </div>
             <div class="ob-logo">🎵</div>
             <div class="ob-title">SpotyVibe</div>
-            <div class="ob-subtitle">AI-powered music discovery. Describe your taste, get the perfect playlist.</div>
+            <div class="ob-subtitle" data-i18n="ob.subtitle">AI-powered music discovery. Describe your taste, get the perfect playlist.</div>
             <div class="ob-feature-list">
                 <div class="ob-feature">
                     <span class="ob-feature-icon">🎯</span>
-                    <div><strong>Personalised Playlists</strong><p>AI learns your taste and discovers tracks you'll love.</p></div>
+                    <div><strong data-i18n="ob.feature_playlists">Personalised Playlists</strong><p data-i18n="ob.feature_playlists_desc">AI learns your taste and discovers tracks you'll love.</p></div>
                 </div>
                 <div class="ob-feature">
                     <span class="ob-feature-icon">🎧</span>
-                    <div><strong>Spotify Integration</strong><p>Songs are verified on Spotify and added directly to your library.</p></div>
+                    <div><strong data-i18n="ob.feature_spotify">Spotify Integration</strong><p data-i18n="ob.feature_spotify_desc">Songs are verified on Spotify and added directly to your library.</p></div>
                 </div>
                 <div class="ob-feature">
                     <span class="ob-feature-icon">🔁</span>
-                    <div><strong>Refine & Improve</strong><p>Like or dislike suggestions. The AI learns your feedback.</p></div>
+                    <div><strong data-i18n="ob.feature_refine">Refine & Improve</strong><p data-i18n="ob.feature_refine_desc">Like or dislike suggestions. The AI learns your feedback.</p></div>
                 </div>
             </div>
             <div class="ob-nav">
-                <button class="ob-btn-skip" onclick="skipOnboarding()">Skip</button>
-                <button class="onboarding-continue-btn" style="width:auto;padding:12px 28px;" onclick="goPage(1)">Next →</button>
+                <button class="ob-btn-skip" onclick="skipOnboarding()" data-i18n="ob.skip">Skip</button>
+                <button class="onboarding-continue-btn" style="width:auto;padding:12px 28px;" onclick="goPage(1)" data-i18n="ob.next">Next →</button>
             </div>
         </div>
 
@@ -194,18 +209,18 @@
                 <div class="ob-dot"></div>
             </div>
             <div class="ob-logo">🔑</div>
-            <div class="ob-title">Set Up Credentials</div>
-            <div class="ob-subtitle">SpotyVibe needs your API keys to generate playlists.</div>
+            <div class="ob-title" data-i18n="ob.credentials_title">Set Up Credentials</div>
+            <div class="ob-subtitle" data-i18n="ob.credentials_subtitle">SpotyVibe needs your API keys to generate playlists.</div>
             <div class="ob-cred-section" style="text-align:center;">
-                <p class="ob-explain" style="text-align:left;">Your <strong>OpenAI API key</strong> powers the music recommendations. Your <strong>Spotify credentials</strong> let the app create playlists in your library. Keys are stored locally on your device only.</p>
+                <p class="ob-explain" style="text-align:left;" data-i18n="ob.credentials_explain">Your <strong>OpenAI API key</strong> powers the music recommendations. Your <strong>Spotify credentials</strong> let the app create playlists in your library. Keys are stored locally on your device only.</p>
 
                 <!-- OpenAI API Key -->
                 <div class="ob-cred-row" id="ob-row-openai">
-                    <label for="ob-openai-key" class="ob-cred-label" style="text-align:left;display:block;">OpenAI API Key</label>
+                    <label for="ob-openai-key" class="ob-cred-label" style="text-align:left;display:block;" data-i18n="ob.openai_key_label">OpenAI API Key</label>
                     <div class="ob-cred-set-row hidden" id="ob-set-openai">
                         <span class="ob-cred-set-icon">✓</span>
-                        <span class="ob-cred-set-label">API Key — OK</span>
-                        <button class="ob-cred-edit-btn" onclick="editObCredential('openai')" title="Edit" aria-label="Edit OpenAI API Key">✎</button>
+                        <span class="ob-cred-set-label" data-i18n="ob.key_ok">API Key — OK</span>
+                        <button class="ob-cred-edit-btn" onclick="editObCredential('openai')" data-i18n-title="ob.edit" title="Edit" aria-label="Edit OpenAI API Key">✎</button>
                     </div>
                     <div class="ob-cred-input-wrap" id="ob-input-wrap-openai">
                         <input class="ob-cred-input" id="ob-openai-key" type="password" placeholder="sk-…" autocomplete="off" oninput="onObCredentialInput()">
@@ -214,36 +229,36 @@
 
                 <!-- Spotify Client ID -->
                 <div class="ob-cred-row" id="ob-row-spotify-id">
-                    <label for="ob-spotify-id" class="ob-cred-label" style="text-align:left;display:block;">Spotify Client ID</label>
+                    <label for="ob-spotify-id" class="ob-cred-label" style="text-align:left;display:block;" data-i18n="ob.spotify_id_label">Spotify Client ID</label>
                     <div class="ob-cred-set-row hidden" id="ob-set-spotify-id">
                         <span class="ob-cred-set-icon">✓</span>
-                        <span class="ob-cred-set-label">Client ID — OK</span>
-                        <button class="ob-cred-edit-btn" onclick="editObCredential('spotify-id')" title="Edit" aria-label="Edit Spotify Client ID">✎</button>
+                        <span class="ob-cred-set-label" data-i18n="ob.id_ok">Client ID — OK</span>
+                        <button class="ob-cred-edit-btn" onclick="editObCredential('spotify-id')" data-i18n-title="ob.edit" title="Edit" aria-label="Edit Spotify Client ID">✎</button>
                     </div>
                     <div class="ob-cred-input-wrap" id="ob-input-wrap-spotify-id">
-                        <input class="ob-cred-input" id="ob-spotify-id" type="text" placeholder="Enter client ID…" autocomplete="off" oninput="onObCredentialInput()">
+                        <input class="ob-cred-input" id="ob-spotify-id" type="text" data-i18n-placeholder="cred.enter_id" placeholder="Enter client ID…" autocomplete="off" oninput="onObCredentialInput()">
                     </div>
                 </div>
 
                 <!-- Spotify Client Secret -->
                 <div class="ob-cred-row" id="ob-row-spotify-secret">
-                    <label for="ob-spotify-secret" class="ob-cred-label" style="text-align:left;display:block;">Spotify Client Secret</label>
+                    <label for="ob-spotify-secret" class="ob-cred-label" style="text-align:left;display:block;" data-i18n="ob.spotify_secret_label">Spotify Client Secret</label>
                     <div class="ob-cred-set-row hidden" id="ob-set-spotify-secret">
                         <span class="ob-cred-set-icon">✓</span>
-                        <span class="ob-cred-set-label">Client Secret — OK</span>
-                        <button class="ob-cred-edit-btn" onclick="editObCredential('spotify-secret')" title="Edit" aria-label="Edit Spotify Client Secret">✎</button>
+                        <span class="ob-cred-set-label" data-i18n="ob.secret_ok">Client Secret — OK</span>
+                        <button class="ob-cred-edit-btn" onclick="editObCredential('spotify-secret')" data-i18n-title="ob.edit" title="Edit" aria-label="Edit Spotify Client Secret">✎</button>
                     </div>
                     <div class="ob-cred-input-wrap" id="ob-input-wrap-spotify-secret">
-                        <input class="ob-cred-input" id="ob-spotify-secret" type="password" placeholder="Enter client secret…" autocomplete="off" oninput="onObCredentialInput()">
+                        <input class="ob-cred-input" id="ob-spotify-secret" type="password" data-i18n-placeholder="cred.enter_secret" placeholder="Enter client secret…" autocomplete="off" oninput="onObCredentialInput()">
                     </div>
                 </div>
 
                 <div id="ob-cred-status" class="ob-explain" style="margin-top:0;"></div>
-                <button class="ob-action-btn hidden" id="ob-save-cred-btn" onclick="saveObCredentials()">Save Credentials</button>
+                <button class="ob-action-btn hidden" id="ob-save-cred-btn" onclick="saveObCredentials()" data-i18n="ob.save_credentials">Save Credentials</button>
             </div>
             <div class="ob-nav">
-                <button class="ob-btn-skip" onclick="skipOnboarding()">Skip</button>
-                <button class="onboarding-continue-btn" style="width:auto;padding:12px 28px;" onclick="goPage(2)">Next →</button>
+                <button class="ob-btn-skip" onclick="skipOnboarding()" data-i18n="ob.skip">Skip</button>
+                <button class="onboarding-continue-btn" style="width:auto;padding:12px 28px;" onclick="goPage(2)" data-i18n="ob.next">Next →</button>
             </div>
         </div>
 
@@ -255,18 +270,18 @@
                 <div class="ob-dot active"></div>
             </div>
             <div class="ob-logo">🎶</div>
-            <div class="ob-title">Connect Spotify</div>
-            <div class="ob-subtitle">Authenticate with Spotify and optionally import an existing taste profile.</div>
+            <div class="ob-title" data-i18n="ob.connect_title">Connect Spotify</div>
+            <div class="ob-subtitle" data-i18n="ob.connect_subtitle">Authenticate with Spotify and optionally import an existing taste profile.</div>
             <div style="width:100%;max-width:380px;">
-                <button class="ob-action-btn" id="ob-spotify-btn" onclick="toggleObSpotify()">🔌 Connect to Spotify</button>
+                <button class="ob-action-btn" id="ob-spotify-btn" onclick="toggleObSpotify()" data-i18n="ob.connect_btn">🔌 Connect to Spotify</button>
                 <div id="ob-spotify-status" class="ob-explain" style="margin-top:-4px;"></div>
-                <button class="ob-action-btn secondary" onclick="importProfile()">⬆ Import Preference Profile</button>
+                <button class="ob-action-btn secondary" onclick="importProfile()" data-i18n="ob.import_profile">⬆ Import Preference Profile</button>
                 <div id="ob-import-status" class="ob-explain" style="margin-top:-4px;"></div>
                 <input id="ob-import-input" type="file" accept="application/json,.json" style="display:none;">
             </div>
             <div class="ob-nav">
-                <button class="ob-btn-skip" onclick="skipOnboarding()">Skip</button>
-                <button class="onboarding-continue-btn" style="width:auto;padding:12px 28px;" onclick="finishOnboarding()">Close ✓</button>
+                <button class="ob-btn-skip" onclick="skipOnboarding()" data-i18n="ob.skip">Skip</button>
+                <button class="onboarding-continue-btn" style="width:auto;padding:12px 28px;" onclick="finishOnboarding()" data-i18n="ob.close">Close ✓</button>
             </div>
         </div>
 
@@ -274,6 +289,63 @@
 </div>
 
 <script>
+    /* ── Lightweight i18n for onboarding ─────────────────────────── */
+    let _obStrings = {};
+
+    async function obSwitchLang(lang) {
+        localStorage.setItem('svLang', lang);
+        // Sync to server (best-effort)
+        const langMap = { en: 'English', de: 'German' };
+        const gptLang = langMap[lang];
+        const payload = { ui_language: lang };
+        if (gptLang) payload.gpt_language = gptLang;
+        fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        }).catch(() => {});
+        await obApplyLang(lang);
+    }
+
+    async function obApplyLang(lang) {
+        try {
+            const resp = await fetch(`/static/i18n/${lang}.json`);
+            if (!resp.ok) return;
+            _obStrings = await resp.json();
+        } catch (e) { return; }
+
+        // Update data-i18n text content
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (_obStrings[key] !== undefined) {
+                // For elements that may contain HTML (like ob.credentials_explain)
+                if (key === 'ob.credentials_explain' || key === 'af.hint_text') {
+                    el.innerHTML = _obStrings[key];
+                } else {
+                    el.textContent = _obStrings[key];
+                }
+            }
+        });
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+            const key = el.getAttribute('data-i18n-placeholder');
+            if (_obStrings[key] !== undefined) el.placeholder = _obStrings[key];
+        });
+        document.querySelectorAll('[data-i18n-title]').forEach(el => {
+            const key = el.getAttribute('data-i18n-title');
+            if (_obStrings[key] !== undefined) el.title = _obStrings[key];
+        });
+
+        // Sync toggle buttons
+        document.querySelectorAll('.lang-toggle-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.lang === lang);
+        });
+    }
+
+    function obI18n(key, fallback) {
+        return _obStrings[key] !== undefined ? _obStrings[key] : (fallback || key);
+    }
+
+    /* ── Onboarding page logic ───────────────────────────────────── */
     let currentPage = 0;
     const totalPages = 3;
 
@@ -315,7 +387,7 @@
         const status = document.getElementById('ob-cred-status');
 
         if (!key && !id && !secret) {
-            status.textContent = 'Nothing to save — enter at least one credential.';
+            status.textContent = obI18n('ob.nothing_to_save', 'Nothing to save — enter at least one credential.');
             status.className = 'ob-explain ob-error';
             return;
         }
@@ -332,37 +404,30 @@
                 body: JSON.stringify(payload),
             });
             if (resp.ok) {
-                status.textContent = '✅ Credentials saved.';
+                status.textContent = obI18n('ob.cred_saved', '✅ Credentials saved.');
                 status.className = 'ob-explain ob-success';
-                // Clear inputs and refresh the credential status display
                 document.getElementById('ob-openai-key').value = '';
                 document.getElementById('ob-spotify-id').value = '';
                 document.getElementById('ob-spotify-secret').value = '';
                 await prefillCredentials();
             } else {
-                status.textContent = '❌ Error saving credentials.';
+                status.textContent = obI18n('ob.cred_error', '❌ Error saving credentials.');
                 status.className = 'ob-explain ob-error';
             }
         } catch (e) {
-            status.textContent = '❌ Network error.';
+            status.textContent = obI18n('ob.network_error', '❌ Network error.');
             status.className = 'ob-explain ob-error';
         }
     }
 
-    // Track which credential fields are in editing mode
     const _obEditingFields = new Set();
 
-    /**
-     * Toggle a credential row into edit mode — hide the green status bar,
-     * show the input field, and reveal the Save button.
-     */
     function editObCredential(field) {
         const setRow = document.getElementById('ob-set-' + field);
         const inputWrap = document.getElementById('ob-input-wrap-' + field);
         if (setRow) setRow.classList.add('hidden');
         if (inputWrap) inputWrap.classList.remove('hidden');
         _obEditingFields.add(field);
-        // Focus the input
         const inputMap = {
             'openai': 'ob-openai-key',
             'spotify-id': 'ob-spotify-id',
@@ -373,10 +438,6 @@
         _updateSaveButtonVisibility();
     }
 
-    /**
-     * Called on any credential input change — show the Save button if any
-     * input field has content.
-     */
     function onObCredentialInput() {
         _updateSaveButtonVisibility();
     }
@@ -403,13 +464,11 @@
 
     function connectObSpotify() {
         const statusEl = document.getElementById('ob-spotify-status');
-        statusEl.textContent = 'Opening Spotify…';
-        // On Android WebView, navigate directly; on desktop open a popup
+        statusEl.textContent = obI18n('ob.opening_spotify', 'Opening Spotify…');
         if (/; wv\)/.test(navigator.userAgent)) {
             window.location.href = '/api/spotify/auth';
         } else {
             window.open('/api/spotify/auth', 'spotifyAuth', 'width=480,height=640');
-            // Listen for callback message
             window.addEventListener('message', async (e) => {
                 if (e.data === 'spotify-auth-complete') {
                     _setObSpotifyState(true);
@@ -424,7 +483,7 @@
             _setObSpotifyState(false);
         } catch (e) {
             const statusEl = document.getElementById('ob-spotify-status');
-            statusEl.textContent = '❌ Network error.';
+            statusEl.textContent = obI18n('ob.network_error', '❌ Network error.');
             statusEl.className = 'ob-explain ob-error';
         }
     }
@@ -434,11 +493,11 @@
         const btn = document.getElementById('ob-spotify-btn');
         const statusEl = document.getElementById('ob-spotify-status');
         if (connected) {
-            btn.textContent = '🔌 Disconnect from Spotify';
-            statusEl.textContent = '✅ Spotify connected!';
+            btn.textContent = obI18n('ob.disconnect_btn', '🔌 Disconnect from Spotify');
+            statusEl.textContent = obI18n('ob.spotify_connected', '✅ Spotify connected!');
             statusEl.className = 'ob-explain ob-success';
         } else {
-            btn.textContent = '🔌 Connect to Spotify';
+            btn.textContent = obI18n('ob.connect_btn', '🔌 Connect to Spotify');
             statusEl.textContent = '';
             statusEl.className = 'ob-explain';
         }
@@ -469,10 +528,10 @@
                 });
                 const data = await resp.json();
                 if (resp.ok) {
-                    statusEl.textContent = '✅ Profile imported.';
+                    statusEl.textContent = obI18n('ob.profile_imported', '✅ Profile imported.');
                     statusEl.className = 'ob-explain ob-success';
                 } else {
-                    statusEl.textContent = '❌ ' + (data.error || 'Import failed.');
+                    statusEl.textContent = '❌ ' + (data.error || obI18n('ob.import_failed', 'Import failed.'));
                     statusEl.className = 'ob-explain ob-error';
                 }
             } catch (e) {
@@ -483,7 +542,7 @@
         input.click();
     }
 
-    // Check if onboarding already completed → redirect to main app
+    // Init: check onboarding status, prefill, load language
     (async function() {
         try {
             const resp = await fetch('/api/onboarding/status');
@@ -491,7 +550,23 @@
             if (data.completed) window.location.href = '/';
         } catch (e) { /* stay on page */ }
 
-        // Prefill credential status so user sees what's already configured
+        // Determine language: server setting → localStorage → browser
+        let lang = null;
+        try {
+            const resp = await fetch('/api/settings');
+            if (resp.ok) {
+                const settings = await resp.json();
+                if (settings.ui_language) lang = settings.ui_language;
+            }
+        } catch { /* ignore */ }
+        if (!lang) lang = localStorage.getItem('svLang');
+        if (!lang) {
+            const browserLang = (navigator.language || '').split('-')[0].toLowerCase();
+            lang = (browserLang === 'de') ? 'de' : 'en';
+        }
+        localStorage.setItem('svLang', lang);
+        await obApplyLang(lang);
+
         await prefillCredentials();
         await _checkObSpotifyStatus();
     })();
@@ -502,9 +577,9 @@
             const data = await resp.json();
 
             const map = {
-                'OPENAI_API_KEY':        { field: 'openai',         input: 'ob-openai-key',      label: 'API Key' },
-                'SPOTIPY_CLIENT_ID':     { field: 'spotify-id',     input: 'ob-spotify-id',      label: 'Client ID' },
-                'SPOTIPY_CLIENT_SECRET': { field: 'spotify-secret', input: 'ob-spotify-secret',  label: 'Client Secret' },
+                'OPENAI_API_KEY':        { field: 'openai',         input: 'ob-openai-key',      i18nKey: 'ob.key_ok',     label: 'API Key' },
+                'SPOTIPY_CLIENT_ID':     { field: 'spotify-id',     input: 'ob-spotify-id',      i18nKey: 'ob.id_ok',      label: 'Client ID' },
+                'SPOTIPY_CLIENT_SECRET': { field: 'spotify-secret', input: 'ob-spotify-secret',  i18nKey: 'ob.secret_ok',  label: 'Client Secret' },
             };
 
             _obEditingFields.clear();
@@ -517,20 +592,18 @@
                 const labelEl = setRow ? setRow.querySelector('.ob-cred-set-label') : null;
 
                 if (info && info.is_set) {
-                    // Show green checkmark status, hide input
                     if (setRow) setRow.classList.remove('hidden');
                     if (inputWrap) inputWrap.classList.add('hidden');
-                    if (labelEl) labelEl.textContent = ids.label + ' — OK';
+                    if (labelEl) labelEl.textContent = obI18n(ids.i18nKey, ids.label + ' — OK');
                     if (inputEl) inputEl.value = '';
                 } else {
-                    // Not set — show input field
                     if (setRow) setRow.classList.add('hidden');
                     if (inputWrap) inputWrap.classList.remove('hidden');
                 }
             }
 
             _updateSaveButtonVisibility();
-        } catch (e) { /* ignore — fields stay in default state */ }
+        } catch (e) { /* ignore */ }
     }
 </script>
 </body>

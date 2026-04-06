@@ -1,5 +1,6 @@
 import * as State from './state.js';
 import { showToast, showAlert, esc, attr } from './ui.js';
+import { i18n } from './i18n.js';
 
 /**
  * Build the inner HTML for a track card (shared by discover and review lists).
@@ -21,17 +22,17 @@ export function buildTrackCardHtml(track, idx, source = 'discover') {
 
     const coverHtml = track.cover_url
         ? (track.track_id
-            ? `<div class="track-cover-wrap" onclick="openPreviewOverlay('${attr(track.track_id)}','${attr(track.artist)} — ${attr(track.track)}','${source}')" title="Preview on Spotify">
-                   <img class="track-cover" src="${attr(track.cover_url)}" alt="Album cover" loading="lazy">
+            ? `<div class="track-cover-wrap" onclick="openPreviewOverlay('${attr(track.track_id)}','${attr(track.artist)} — ${attr(track.track)}','${source}')" title="${attr(i18n('feedback.preview_on_spotify', 'Preview on Spotify'))}">
+                   <img class="track-cover" src="${attr(track.cover_url)}" alt="${attr(i18n('feedback.album_cover', 'Album cover'))}" loading="lazy">
                    <span class="cover-play">▶</span>
                </div>`
-            : `<img class="track-cover" src="${attr(track.cover_url)}" alt="Album cover" loading="lazy">`)
+            : `<img class="track-cover" src="${attr(track.cover_url)}" alt="${attr(i18n('feedback.album_cover', 'Album cover'))}" loading="lazy">`)
         : '';
-    const noPreviewHtml = !track.track_id ? '<span class="track-no-preview">No preview</span>' : '';
+    const noPreviewHtml = !track.track_id ? `<span class="track-no-preview">${esc(i18n('feedback.no_preview', 'No preview'))}</span>` : '';
     const spotifyLinks = [
-        track.spotify_url ? `<a class="track-link" href="${attr(track.spotify_url)}" target="_blank" rel="noopener" title="Open track on Spotify">🎵</a>` : '',
-        track.artist_url ? `<a class="track-link" href="${attr(track.artist_url)}" target="_blank" rel="noopener" title="Open artist on Spotify">🎤</a>` : '',
-        track.album_url ? `<a class="track-link" href="${attr(track.album_url)}" target="_blank" rel="noopener" title="Open album on Spotify">💿</a>` : '',
+        track.spotify_url ? `<a class="track-link" href="${attr(track.spotify_url)}" target="_blank" rel="noopener" title="${attr(i18n('feedback.open_track', 'Open track on Spotify'))}">🎵</a>` : '',
+        track.artist_url ? `<a class="track-link" href="${attr(track.artist_url)}" target="_blank" rel="noopener" title="${attr(i18n('feedback.open_artist', 'Open artist on Spotify'))}">🎤</a>` : '',
+        track.album_url ? `<a class="track-link" href="${attr(track.album_url)}" target="_blank" rel="noopener" title="${attr(i18n('feedback.open_album', 'Open album on Spotify'))}">💿</a>` : '',
     ].join('');
 
     return `
@@ -43,28 +44,28 @@ export function buildTrackCardHtml(track, idx, source = 'discover') {
                 ${noPreviewHtml}
             </div>
             <div class="track-actions">
-                <button class="btn btn-like"    onclick="${feedbackFn}(${idx},'like')">👍 Like</button>
-                <button class="btn btn-dislike" onclick="${feedbackFn}(${idx},'dislike')">👎 Dislike</button>
+                <button class="btn btn-like"    onclick="${feedbackFn}(${idx},'like')">👍 ${esc(i18n('feedback.like', 'Like'))}</button>
+                <button class="btn btn-dislike" onclick="${feedbackFn}(${idx},'dislike')">👎 ${esc(i18n('feedback.dislike', 'Dislike'))}</button>
                 <button class="btn btn-remove"  onclick="${removeFn}(${idx})">✕</button>
             </div>
         </div>
         <div class="feedback-form" id="${formId}">
             <div class="form-row">
-                <label for="${artistId}">Artist</label>
+                <label for="${artistId}">${esc(i18n('feedback.artist_label', 'Artist'))}</label>
                 <input id="${artistId}" type="text" value="${attr(track.artist)}">
             </div>
             <div class="form-row">
-                <label for="${titleId}">Track</label>
+                <label for="${titleId}">${esc(i18n('feedback.track_label', 'Track'))}</label>
                 <input id="${titleId}" type="text" value="${attr(track.track)}">
-                <div class="form-hint">Leave empty to apply feedback to the artist in general.</div>
+                <div class="form-hint">${esc(i18n('feedback.form_hint', 'Leave empty to apply feedback to the artist in general.'))}</div>
             </div>
             <div class="form-row">
-                <label for="${reasonId}">Reason (optional)</label>
-                <input id="${reasonId}" type="text" placeholder="e.g. perfect energy, boring melody…">
+                <label for="${reasonId}">${esc(i18n('feedback.reason_label', 'Reason (optional)'))}</label>
+                <input id="${reasonId}" type="text" placeholder="${attr(i18n('feedback.reason_placeholder', 'e.g. perfect energy, boring melody…'))}">
             </div>
             <div class="form-actions">
-                <button class="btn" id="${submitBtnId}" onclick="${submitFn}(${idx})">Submit</button>
-                <button class="btn btn-cancel" onclick="${closeFn}(${idx})">Cancel</button>
+                <button class="btn" id="${submitBtnId}" onclick="${submitFn}(${idx})">${esc(i18n('btn.submit', 'Submit'))}</button>
+                <button class="btn btn-cancel" onclick="${closeFn}(${idx})">${esc(i18n('btn.cancel', 'Cancel'))}</button>
             </div>
         </div>`;
 }
@@ -88,10 +89,10 @@ export function toggleFeedback(idx, action) {
 
     const submitBtn = document.getElementById(`submitBtn-${idx}`);
     if (action === 'like') {
-        submitBtn.textContent = '👍 Submit';
+        submitBtn.textContent = i18n('btn.submit_like', '👍 Submit');
         submitBtn.className = 'btn btn-submit-like';
     } else {
-        submitBtn.textContent = '👎 Submit';
+        submitBtn.textContent = i18n('btn.submit_dislike', '👎 Submit');
         submitBtn.className = 'btn btn-submit-dislike';
     }
 }
@@ -110,7 +111,7 @@ export async function submitFeedback(idx) {
     const track  = document.getElementById(`title-${idx}`).value.trim();
     const reason = document.getElementById(`reason-${idx}`).value.trim();
 
-    if (!artist) { showAlert('Artist is required.'); return; }
+    if (!artist) { showAlert(i18n('feedback.artist_required', 'Artist is required.')); return; }
 
     const submitBtn = document.getElementById(`submitBtn-${idx}`);
     submitBtn.disabled = true;
@@ -130,7 +131,7 @@ export async function submitFeedback(idx) {
 
         if (!resp.ok) {
             const data = await resp.json();
-            showAlert('Error: ' + (data.error || 'unknown'));
+            showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', data.error || 'unknown'));
             return;
         }
 
@@ -140,11 +141,11 @@ export async function submitFeedback(idx) {
         if (State.openFormAction === 'dislike') {
             const removed = data.removal && data.removal.removed;
             const msg = removed
-                ? `👎 Disliked & removed from playlist: ${artist}${trackLabel}`
-                : `👎 Disliked: ${artist}${trackLabel}`;
+                ? i18n('feedback.disliked_removed_playlist', '👎 Disliked & removed from playlist: {track}').replace('{track}', `${artist}${trackLabel}`)
+                : i18n('feedback.disliked', '👎 Disliked: {track}').replace('{track}', `${artist}${trackLabel}`);
             showToast(msg);
         } else {
-            showToast(`👍 Liked: ${artist}${trackLabel}`);
+            showToast(i18n('feedback.liked', '👍 Liked: {track}').replace('{track}', `${artist}${trackLabel}`));
         }
 
         const fbTrack = State.suggestions[idx];
@@ -158,7 +159,7 @@ export async function submitFeedback(idx) {
             }).catch(() => {});
         }
     } catch (e) {
-        showAlert('Network error: ' + e.message);
+        showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
     } finally {
         submitBtn.disabled = false;
     }
@@ -176,8 +177,8 @@ export async function removeTrack(idx) {
         });
         const data = await resp.json();
         const msg = data.removed
-            ? `Removed from playlist: ${track.artist} — ${track.track}`
-            : `Removed: ${track.artist} — ${track.track}`;
+            ? i18n('feedback.removed_from_playlist', 'Removed from playlist: {track}').replace('{track}', `${track.artist} — ${track.track}`)
+            : i18n('feedback.removed', 'Removed: {track}').replace('{track}', `${track.artist} — ${track.track}`);
         showToast(msg);
     } catch (e) {
         /* Network error — still remove from UI */

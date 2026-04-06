@@ -81,9 +81,9 @@ export function renderAnalysisResult(d) {
     // Audio features — GPT-estimated values
     const af = d.audio_features || {};
     const featureLabels = {
-        energy: 'Energy', valence: 'Valence', danceability: 'Danceability',
-        acousticness: 'Acousticness', instrumentalness: 'Instrumentalness',
-        speechiness: 'Speechiness', liveness: 'Liveness', tempo: 'Tempo',
+        energy: i18n('analysis.energy', 'Energy'), valence: i18n('analysis.valence', 'Valence'), danceability: i18n('analysis.danceability', 'Danceability'),
+        acousticness: i18n('analysis.acousticness', 'Acousticness'), instrumentalness: i18n('analysis.instrumentalness', 'Instrumentalness'),
+        speechiness: i18n('analysis.speechiness', 'Speechiness'), liveness: i18n('analysis.liveness', 'Liveness'), tempo: i18n('analysis.tempo', 'Tempo'),
     };
     // Features that can be applied as filters (match audio-filters.js supported set)
     const filterableFeatures = new Set(['energy', 'valence', 'danceability', 'acousticness', 'tempo']);
@@ -92,7 +92,7 @@ export function renderAnalysisResult(d) {
         .map(([k, label]) => {
             const val = af[k];
             const filterBtn = filterableFeatures.has(k)
-                ? ` <button class="af-use-btn" onclick="applyAnalysisFilter('${k}', ${val})" title="Use as audio filter">${escHtml(i18n('analysis.use_as_filter', '⇒ Filter'))}</button>`
+                ? ` <button class="af-use-btn" onclick="applyAnalysisFilter('${k}', ${val})" title="${escHtml(i18n('analysis.use_as_filter_title', 'Use as audio filter'))}">${escHtml(i18n('analysis.use_as_filter', '⇒ Filter'))}</button>`
                 : '';
             if (k === 'tempo') {
                 return `<div class="af-row">

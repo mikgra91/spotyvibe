@@ -3,12 +3,12 @@
     <div class="preview-layout">
         <!-- Player container -->
         <div class="spotify-preview-panel">
-            <button class="spotify-preview-close" onclick="closePreviewOverlay()" title="Close" aria-label="Close preview">✕</button>
+            <button class="spotify-preview-close" onclick="closePreviewOverlay()" data-i18n-title="help.close" title="Close" aria-label="Close preview">✕</button>
             <div class="spotify-preview-title" id="spotifyPreviewTitle">
                 {% if preview_track %}{{ preview_track.artist|e }} — {{ preview_track.title|e }}{% endif %}
             </div>
             <div class="spotify-preview-slider">
-                <button class="spotify-preview-nav spotify-preview-prev" id="previewPrev" onclick="prevPreview()" title="Previous track" aria-label="Previous track">‹</button>
+                <button class="spotify-preview-nav spotify-preview-prev" id="previewPrev" onclick="prevPreview()" data-i18n-title="preview.previous" title="Previous track" aria-label="Previous track">‹</button>
                 <iframe id="spotifyPreviewIframe"
                     title="Spotify track player"
                     width="100%"
@@ -21,20 +21,20 @@
                     src="https://open.spotify.com/embed/track/{{ preview_track.track_id }}?utm_source=generator&theme=0&_cb={{ range(1000000)|random }}"
                     {% endif %}>
                 </iframe>
-                <button class="spotify-preview-nav spotify-preview-next" id="previewNext" onclick="nextPreview()" title="Next track" aria-label="Next track">›</button>
+                <button class="spotify-preview-nav spotify-preview-next" id="previewNext" onclick="nextPreview()" data-i18n-title="preview.next" title="Next track" aria-label="Next track">›</button>
             </div>
             <div class="spotify-preview-counter" id="previewCounter"></div>
         </div>
 
         <!-- Action tabs (file-cabinet register style) -->
         <div class="preview-tab-actions" id="previewInlineActions" role="group" aria-label="Track actions">
-            <button class="preview-tab preview-tab-like" id="previewTabLike" onclick="previewLike()" title="Like" aria-label="Like this track">
+            <button class="preview-tab preview-tab-like" id="previewTabLike" onclick="previewLike()" data-i18n-title="feedback.like" title="Like" aria-label="Like this track">
                 <span class="preview-tab-icon" aria-hidden="true">👍</span>
             </button>
-            <button class="preview-tab preview-tab-dislike" id="previewTabDislike" onclick="previewDislike()" title="Dislike" aria-label="Dislike this track">
+            <button class="preview-tab preview-tab-dislike" id="previewTabDislike" onclick="previewDislike()" data-i18n-title="feedback.dislike" title="Dislike" aria-label="Dislike this track">
                 <span class="preview-tab-icon" aria-hidden="true">👎</span>
             </button>
-            <button class="preview-tab preview-tab-dismiss" onclick="previewDismiss()" title="Remove from playlist" aria-label="Remove from playlist">
+            <button class="preview-tab preview-tab-dismiss" onclick="previewDismiss()" data-i18n-title="preview.remove" title="Remove from playlist" aria-label="Remove from playlist">
                 <span class="preview-tab-icon" aria-hidden="true">✕</span>
             </button>
         </div>
@@ -43,21 +43,21 @@
         <div class="preview-feedback-panel" id="previewFeedbackPanel">
             <div class="preview-feedback-form">
                 <div class="form-row">
-                    <label for="previewFbArtist">Artist</label>
+                    <label for="previewFbArtist" data-i18n="feedback.artist_label">Artist</label>
                     <input id="previewFbArtist" type="text">
                 </div>
                 <div class="form-row">
-                    <label for="previewFbTrack">Track</label>
+                    <label for="previewFbTrack" data-i18n="feedback.track_label">Track</label>
                     <input id="previewFbTrack" type="text">
-                    <div class="form-hint">Leave empty to apply feedback to the artist in general.</div>
+                    <div class="form-hint" data-i18n="feedback.form_hint">Leave empty to apply feedback to the artist in general.</div>
                 </div>
                 <div class="form-row">
-                    <label for="previewFbReason">Reason (optional)</label>
-                    <input id="previewFbReason" type="text" placeholder="e.g. perfect energy, boring melody…">
+                    <label for="previewFbReason" data-i18n="feedback.reason_label">Reason (optional)</label>
+                    <input id="previewFbReason" type="text" data-i18n-placeholder="feedback.reason_placeholder" placeholder="e.g. perfect energy, boring melody…">
                 </div>
                 <div class="form-actions">
-                    <button class="btn" id="previewFbSubmit" onclick="submitPreviewFeedback()">Submit</button>
-                    <button class="btn btn-cancel" onclick="closePreviewFeedback()">Cancel</button>
+                    <button class="btn" id="previewFbSubmit" onclick="submitPreviewFeedback()" data-i18n="btn.submit">Submit</button>
+                    <button class="btn btn-cancel" onclick="closePreviewFeedback()" data-i18n="btn.cancel">Cancel</button>
                 </div>
             </div>
         </div>

@@ -7,13 +7,14 @@ import { getAudioFilters } from './audio-filters.js';
 import { renderTracks } from './tracklist.js';
 import { loadHistory } from './history.js';
 import { populateReviewPlaylistPicker } from './review.js';
+import { i18n } from './i18n.js';
 
 export function toggleGenerateBody() {
     const body = document.getElementById('generateBody');
     const btn = document.getElementById('generateToggleBtn');
     const isHidden = body.classList.toggle('hidden');
     if (btn) {
-        btn.textContent = isHidden ? 'Show' : 'Hide';
+        btn.textContent = isHidden ? i18n('btn.show', 'Show') : i18n('btn.hide', 'Hide');
         btn.setAttribute('aria-expanded', (!isHidden).toString());
     }
     const header = document.querySelector('#generateSection > .train-header');
@@ -40,7 +41,7 @@ export function setGenerating(generating) {
     const loadArea  = document.getElementById('generateLoadingArea');
 
     runBtn.disabled  = generating;
-    runBtn.textContent = generating ? '⏳ Generating…' : '▶ Generate & Create Playlist';
+    runBtn.textContent = generating ? i18n('msg.generating', '⏳ Generating…') : '▶ ' + i18n('btn.generate', 'Generate & Create Playlist');
 
     cancelBtn.classList.toggle('hidden', !generating);
 
@@ -59,7 +60,7 @@ export function updateUseTracksButton(count) {
     State.setPartialTrackCount(count);
     const useBtn = document.getElementById('useTracksBtn');
     if (State.isGenerating && count > 0) {
-        useBtn.textContent = `▶ Use ${count} track${count !== 1 ? 's' : ''} now`;
+        useBtn.textContent = '▶ ' + i18n('generate.use_tracks_now', 'Use {count} tracks now').replace('{count}', count);
         useBtn.classList.remove('hidden');
     } else {
         useBtn.classList.add('hidden');
@@ -71,16 +72,16 @@ export async function runPipeline() {
     renderComponentWarnings();
 
     if (!State.openaiKeySet) {
-        showStatus('⚠️ OpenAI API key is missing. Open ⚙️ Settings.', 'error');
+        showStatus(i18n('msg.openai_key_missing', '⚠️ OpenAI API key is missing. Open ⚙️ Settings.'), 'error');
         return;
     }
     if (State.spotifyAuthStatus !== 'authenticated') {
-        showStatus('⚠️ Spotify is not connected. Check the warning below the Generate button.', 'error');
+        showStatus(i18n('msg.spotify_not_connected', '⚠️ Spotify is not connected. Check the warning below the Generate button.'), 'error');
         return;
     }
 
     if (!State.profileTrained) {
-        showStatus('⚠️ Please train your taste profile first before generating suggestions.', 'error');
+        showStatus(i18n('pipeline.train_first', '⚠️ Please train your taste profile first before generating suggestions.'), 'error');
         return;
     }
 
@@ -90,7 +91,7 @@ export async function runPipeline() {
     State.setCurrentRunId(generateUUID());
     State.setCurrentAbortController(new AbortController());
     setGenerating(true);
-    showStatus('Starting pipeline…', 'info');
+    showStatus(i18n('pipeline.starting', 'Starting pipeline…'), 'info');
     hidePlaylistLink();
 
     const playlistPayload = getPlaylistModePayload();
@@ -105,7 +106,7 @@ export async function runPipeline() {
         } else if (e.name === 'TypeError' || e.message?.toLowerCase().includes('network')) {
             showSseDisconnectBanner();
         } else {
-            showStatus('❌ Network error: ' + e.message, 'error');
+            showStatus(i18n('msg.network_error', '❌ Network error: {detail}').replace('{detail}', e.message), 'error');
         }
     } finally {
         setGenerating(false);
@@ -162,7 +163,7 @@ async function _startSseStream(runId, signal, payload) {
 export function showSseDisconnectBanner() {
     const savedRunId = State.currentRunId;
     showStatusHtml(
-        '⚠️ Connection lost. <button onclick="resumeRun(\'' + savedRunId + '\')" class="btn btn-save" style="margin-left:8px;padding:4px 12px;font-size:0.82rem;">Resume</button>',
+        i18n('pipeline.connection_lost', '⚠️ Connection lost.') + ' <button onclick="resumeRun(\'' + savedRunId + '\')" class="btn btn-save" style="margin-left:8px;padding:4px 12px;font-size:0.82rem;">' + i18n('pipeline.resume', 'Resume') + '</button>',
         'error'
     );
 }
@@ -171,12 +172,11 @@ export async function resumeRun(runId) {
     if (!runId) return;
     try {
         const resp = await fetch(`/api/run/${runId}/status`);
-        if (!resp.ok) { showStatus('Run no longer active.', 'info'); return; }
+        if (!resp.ok) { showStatus(i18n('pipeline.run_inactive', 'Run no longer active.'), 'info'); return; }
         const data = await resp.json();
 
         if (data.status === 'running') {
-            // Re-initiate the SSE stream to continue receiving events
-            showStatus(`⏳ Reconnecting… (${data.tracks_found} tracks found so far)`, 'info');
+            showStatus(i18n('pipeline.reconnecting', '⏳ Reconnecting… ({count} tracks found so far)').replace('{count}', data.tracks_found), 'info');
             State.setCurrentRunId(runId);
             State.setCurrentAbortController(new AbortController());
             setGenerating(true);
@@ -193,10 +193,10 @@ export async function resumeRun(runId) {
                 setGenerating(false);
             }
         } else {
-            showStatus(`Run state: ${data.status}, ${data.tracks_found} tracks found.`, 'info');
+            showStatus(i18n('pipeline.run_state', 'Run state: {status}, {count} tracks found.').replace('{status}', data.status).replace('{count}', data.tracks_found), 'info');
         }
     } catch (e) {
-        showStatus('Could not recover run state.', 'error');
+        showStatus(i18n('pipeline.recover_failed', 'Could not recover run state.'), 'error');
     }
 }
 
@@ -216,7 +216,7 @@ document.addEventListener('visibilitychange', () => {
 export async function cancelGeneration() {
     if (!State.isGenerating || !State.currentRunId) return;
 
-    showStatus('⛔ Cancelling…', 'info');
+    showStatus(i18n('pipeline.cancelling', '⛔ Cancelling…'), 'info');
 
     if (State.currentAbortController) State.currentAbortController.abort();
 
@@ -228,7 +228,7 @@ export async function cancelGeneration() {
         });
     } catch (e) { /* ignore */ }
 
-    showStatus('⛔ Generation cancelled.', 'info');
+    showStatus(i18n('pipeline.cancelled', '⛔ Generation cancelled.'), 'info');
 }
 
 export async function useCurrentTracks() {
@@ -236,9 +236,9 @@ export async function useCurrentTracks() {
 
     const useBtn = document.getElementById('useTracksBtn');
     useBtn.disabled = true;
-    useBtn.textContent = '⏳ Finalising…';
+    useBtn.textContent = i18n('pipeline.finalising', '⏳ Finalising…');
 
-    showStatus(`⏳ Creating playlist with ${State.partialTrackCount} track(s)…`, 'info');
+    showStatus(i18n('pipeline.creating_playlist', '⏳ Creating playlist with {count} track(s)…').replace('{count}', State.partialTrackCount), 'info');
 
     try {
         await fetch('/api/cancel', {
@@ -268,12 +268,12 @@ export function handleStreamEvent(event) {
             if (event.playlist_url) showPlaylistLink(event.playlist_url);
             const parts = [
                 event.was_cancelled
-                    ? `⛔ Generation stopped early. Playlist created with ${_batchCount} track(s).`
-                    : `✅ ${_batchCount} suggestions generated.`
+                    ? i18n('pipeline.stopped_early', '⛔ Generation stopped early. Playlist created with {count} track(s).').replace('{count}', _batchCount)
+                    : i18n('pipeline.suggestions_generated', '✅ {count} suggestions generated.').replace('{count}', _batchCount)
             ];
-            if (event.added) parts.push(`${event.added} new track(s) added to playlist.`);
+            if (event.added) parts.push(i18n('pipeline.tracks_added', '{count} new track(s) added to playlist.').replace('{count}', event.added));
             if (event.not_found && event.not_found.length)
-                parts.push(`${event.not_found.length} track(s) not found on Spotify.`);
+                parts.push(i18n('pipeline.tracks_not_found', '{count} track(s) not found on Spotify.').replace('{count}', event.not_found.length));
             showStatus(parts.join(' '), event.was_cancelled ? 'info' : 'success');
             // Playlist was created or modified — refresh both pickers
             refreshDiscoverPlaylistPicker().then(() => populateReviewPlaylistPicker());

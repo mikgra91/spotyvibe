@@ -1,5 +1,6 @@
 import * as State from './state.js';
 import { buildTrackCardHtml } from './feedback.js';
+import { i18n } from './i18n.js';
 
 export function renderTracks() {
     const list = document.getElementById('trackList');
@@ -11,7 +12,7 @@ export function renderTracks() {
     // Update song list counter
     const maxSize = window._maxSongListSize || 100;
     const counterEl = document.getElementById('songlistCounter');
-    if (counterEl) counterEl.textContent = `${State.suggestions.length} / ${maxSize} songs`;
+    if (counterEl) counterEl.textContent = i18n('songlist.counter', '{count} / {max} songs').replace('{count}', State.suggestions.length).replace('{max}', maxSize);
 
     if (State.suggestions.length === 0) {
         if (trackArea) trackArea.classList.add('hidden');

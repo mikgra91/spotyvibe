@@ -3,11 +3,12 @@ import { showStatus, showToast, showAlert, showConfirm, esc, sanitizeHtml } from
 import { checkCredentialStatus, checkSpotifyAuth, fetchSettingsState } from './auth.js';
 import { renderComponentWarnings } from './warnings.js';
 import { renderProviderPills } from './provider-pills.js';
+import { i18n } from './i18n.js';
 
 const CRED_KEYS = ['OPENAI_API_KEY', 'SPOTIPY_CLIENT_ID', 'SPOTIPY_CLIENT_SECRET'];
 
 export async function clearCredential(key) {
-    const ok = await showConfirm('Remove ' + key + '?');
+    const ok = await showConfirm(i18n('cred.remove_confirm', 'Remove {key}?').replace('{key}', key));
     if (!ok) return;
 
     try {
@@ -18,7 +19,7 @@ export async function clearCredential(key) {
         });
         if (resp.ok) {
             const el = document.getElementById('status-' + key);
-            el.textContent = '✗ Not set';
+            el.textContent = i18n('cred.status_not_set', '✗ Not set');
             el.className = 'cred-status unset';
             document.getElementById('clear-' + key).classList.add('hidden');
             document.getElementById('cred-' + key).value = '';
@@ -26,10 +27,10 @@ export async function clearCredential(key) {
             await Promise.all([checkCredentialStatus(), checkSpotifyAuth()]);
             renderComponentWarnings();
 
-            showToast(key + ' cleared.', 'info');
+            showToast(i18n('cred.cleared', '{key} cleared.').replace('{key}', key), 'info');
         }
     } catch (e) {
-        showAlert('Network error: ' + e.message);
+        showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
     }
 }
 
@@ -46,16 +47,16 @@ export async function openCredentials() {
             const clearBtn = document.getElementById('clear-' + k);
             const info = data[k];
             if (info && info.is_set) {
-                el.textContent = '✓ Set (' + info.masked + ')';
+                el.textContent = i18n('cred.status_set', '✓ Set ({masked})').replace('{masked}', info.masked);
                 el.className = 'cred-status set';
                 clearBtn.classList.remove('hidden');
             } else {
-                el.textContent = '✗ Not set';
+                el.textContent = i18n('cred.status_not_set', '✗ Not set');
                 el.className = 'cred-status unset';
                 clearBtn.classList.add('hidden');
             }
         });
-    } catch (e) { /* ignore — status will just be empty */ }
+    } catch (e) { /* ignore */ }
 
     document.getElementById('credentialsModal').classList.add('open');
     _lastFocusedElement = _lastFocusedElement || document.activeElement;
@@ -82,15 +83,15 @@ export async function saveCredentials() {
         });
         if (resp.ok) {
             closeModal('credentialsModal');
-            showStatus('✅ Credentials saved.', 'success');
+            showStatus(i18n('cred.saved', '✅ Credentials saved.'), 'success');
             await Promise.all([checkCredentialStatus(), checkSpotifyAuth()]);
             renderComponentWarnings();
         } else {
             const d = await resp.json();
-            showAlert('Error: ' + (d.error || 'unknown'));
+            showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', d.error || 'unknown'));
         }
     } catch (e) {
-        showAlert('Network error: ' + e.message);
+        showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
     }
 }
 
@@ -115,7 +116,7 @@ export async function openSettings() {
             const debugLogPath = data.debug_log_path || 'debug.log';
             function updateDebugStatus() {
                 const on = debugCheckbox.checked;
-                debugStatus.textContent = on ? '✓ Enabled — log: ' + debugLogPath : 'Disabled';
+                debugStatus.textContent = on ? i18n('settings.debug_enabled', '✓ Enabled — log: {path}').replace('{path}', debugLogPath) : i18n('settings.debug_disabled', 'Disabled');
                 debugStatus.className = 'cred-status ' + (on ? 'set' : 'unset');
             }
             updateDebugStatus();
@@ -123,26 +124,26 @@ export async function openSettings() {
         }
 
         const modelStatus = document.getElementById('status-settings-model');
-        modelStatus.textContent = '✓ Using: ' + (data.model || 'gpt-5.4-mini');
+        modelStatus.textContent = i18n('settings.model_status', '✓ Using: {model}').replace('{model}', data.model || 'gpt-5.4-mini');
         modelStatus.className = 'cred-status set';
 
         const playlistSize = data.playlist_size || 10;
         document.getElementById('settings-playlist-size').value = playlistSize;
         const sizeStatus = document.getElementById('status-settings-playlist-size');
-        sizeStatus.textContent = '✓ Current: ' + playlistSize + ' tracks';
+        sizeStatus.textContent = i18n('settings.playlist_size_status', '✓ Current: {size} tracks').replace('{size}', playlistSize);
         sizeStatus.className = 'cred-status set';
 
         const pct = data.new_artist_percentage || 30;
         document.getElementById('settings-new-artist-pct').value = pct;
         const pctStatus = document.getElementById('status-settings-new-artist-pct');
-        pctStatus.textContent = '✓ At least ' + pct + '% of tracks from new artists';
+        pctStatus.textContent = i18n('settings.new_artist_pct_status', '✓ At least {pct}% of tracks from new artists').replace('{pct}', pct);
         pctStatus.className = 'cred-status set';
 
 
     } catch (e) { /* ignore */ }
 
     const select = document.getElementById('settings-model');
-    select.innerHTML = '<option value="">Loading models…</option>';
+    select.innerHTML = `<option value="">${i18n('settings.loading_models', 'Loading models…')}</option>`;
 
     try {
         const resp = await fetch('/api/settings/models');
@@ -161,10 +162,10 @@ export async function openSettings() {
                 select.appendChild(opt);
             });
         } else {
-            select.innerHTML = '<option value="">' + (data.error ? 'Enter API key first' : 'No models available') + '</option>';
+            select.innerHTML = '<option value="">' + (data.error ? i18n('settings.enter_key_first', 'Enter API key first') : i18n('settings.no_models', 'No models available')) + '</option>';
         }
     } catch (e) {
-        select.innerHTML = '<option value="">Could not load models</option>';
+        select.innerHTML = `<option value="">${i18n('settings.models_load_failed', 'Could not load models')}</option>`;
     }
 
     document.getElementById('settingsLoading').classList.remove('active');
@@ -201,14 +202,14 @@ export async function saveSettings() {
         });
         if (resp.ok) {
             closeModal('settingsModal');
-            showStatus('✅ Settings saved.', 'success');
+            showStatus(i18n('settings.saved', '✅ Settings saved.'), 'success');
             fetchSettingsState().then(() => renderProviderPills());
         } else {
             const d = await resp.json();
-            showAlert('Error: ' + (d.error || 'unknown'));
+            showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', d.error || 'unknown'));
         }
     } catch (e) {
-        showAlert('Network error: ' + e.message);
+        showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
     }
 }
 
@@ -238,18 +239,18 @@ export async function openHelp() {
             });
         } else {
             document.getElementById('helpContent').innerHTML =
-                '<p style="color:#e74c3c;">Could not load help content.</p>';
+                '<p style="color:#e74c3c;">' + esc(i18n('help.load_failed', 'Could not load help content.')) + '</p>';
         }
     } catch (e) {
         document.getElementById('helpContent').innerHTML =
-            '<p style="color:#e74c3c;">Failed to load help: ' + esc(e.message) + '</p>';
+            '<p style="color:#e74c3c;">' + esc(i18n('help.load_error', 'Failed to load help: {detail}').replace('{detail}', e.message)) + '</p>';
     }
 }
 
 export async function openSectionHelp(anchor) {
     const overlay = document.getElementById('sectionHelpOverlay');
     const content = document.getElementById('sectionHelpContent');
-    content.innerHTML = '<p class="help-loading-text">Loading…</p>';
+    content.innerHTML = `<p class="help-loading-text">${i18n('help.loading', 'Loading…')}</p>`;
     overlay.classList.add('open');
 
     try {
@@ -259,11 +260,11 @@ export async function openSectionHelp(anchor) {
             content.innerHTML = sanitizeHtml(data.html);
         } else {
             content.innerHTML =
-                '<p style="color:#e74c3c;">Section not found.</p>';
+                '<p style="color:#e74c3c;">' + esc(i18n('help.section_not_found', 'Section not found.')) + '</p>';
         }
     } catch (e) {
         content.innerHTML =
-            '<p style="color:#e74c3c;">Failed to load help: ' + esc(e.message) + '</p>';
+            '<p style="color:#e74c3c;">' + esc(i18n('help.load_error', 'Failed to load help: {detail}').replace('{detail}', e.message)) + '</p>';
     }
 }
 
@@ -276,10 +277,10 @@ export async function openDataDir() {
         const resp = await fetch('/api/settings/open-data-dir', { method: 'POST' });
         const data = await resp.json();
         if (!resp.ok) {
-            showToast(data.error || 'Could not open folder.', 'error');
+            showToast(data.error || i18n('data_dir.open_failed', 'Could not open folder.'), 'error');
         }
     } catch (e) {
-        showToast('Network error: ' + e.message, 'error');
+        showToast(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message), 'error');
     }
 }
 

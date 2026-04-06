@@ -6,6 +6,8 @@
  * - When the Spotify section header is visible or above → arrow up (jump to OpenAI)
  */
 
+import { i18n } from './i18n.js';
+
 const ARROW_DOWN = '▼';
 const ARROW_UP = '▲';
 
@@ -32,7 +34,7 @@ function update() {
     const down = shouldJumpDown();
 
     bubble.textContent = down ? ARROW_DOWN : ARROW_UP;
-    bubble.title = down ? 'Jump to Spotify' : 'Jump to OpenAI';
+    bubble.title = down ? i18n('jump.to_spotify', 'Jump to Spotify') : i18n('jump.to_openai', 'Jump to OpenAI');
     bubble.classList.remove('hidden');
 }
 

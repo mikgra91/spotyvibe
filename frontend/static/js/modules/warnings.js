@@ -1,4 +1,5 @@
 import * as State from './state.js';
+import { i18n } from './i18n.js';
 
 export function renderComponentWarnings() {
     const trainWarn = document.getElementById('trainWarn');
@@ -8,12 +9,12 @@ export function renderComponentWarnings() {
     if (!State.openaiKeySet) {
         trainWarn.className = 'component-warn';
         trainWarn.textContent = '';
-        trainWarn.append('⚠️ OpenAI API key is missing. Open ');
+        trainWarn.append(i18n('warn.openai_missing_prefix', '⚠️ OpenAI API key is missing. Open '));
         const trainLink = document.createElement('a');
-        trainLink.textContent = '⚙️ Settings';
+        trainLink.textContent = '⚙️ ' + i18n('nav.settings', 'Settings');
         trainLink.style.cursor = 'pointer';
         trainLink.addEventListener('click', openCredentials);
-        trainWarn.append(trainLink, ' to enter it.');
+        trainWarn.append(trainLink, i18n('warn.openai_missing_suffix', ' to enter it.'));
         trainBtn.disabled = true;
         trainToggle.disabled = true;
     } else {
@@ -36,16 +37,16 @@ export function renderComponentWarnings() {
     const warnFragments = [];
     if (!State.openaiKeySet) {
         const f = document.createDocumentFragment();
-        f.append('OpenAI API key is missing — open ', _warnLink('⚙️ Settings', openCredentials), '.');
+        f.append(i18n('warn.openai_missing_run', 'OpenAI API key is missing — open '), _warnLink('⚙️ ' + i18n('nav.settings', 'Settings'), openCredentials), '.');
         warnFragments.push(f);
     }
     if (State.spotifyAuthStatus === 'not_configured') {
         const f = document.createDocumentFragment();
-        f.append('Spotify credentials are missing — open ', _warnLink('⚙️ Settings', openCredentials), '.');
+        f.append(i18n('warn.spotify_missing_run', 'Spotify credentials are missing — open '), _warnLink('⚙️ ' + i18n('nav.settings', 'Settings'), openCredentials), '.');
         warnFragments.push(f);
     } else if (State.spotifyAuthStatus === 'not_authenticated') {
         const f = document.createDocumentFragment();
-        f.append('Spotify login required — ', _warnLink('Connect to Spotify', () => import('./auth.js').then(m => m.connectSpotify())), '.');
+        f.append(i18n('warn.spotify_login_required', 'Spotify login required — '), _warnLink(i18n('warn.connect_spotify', 'Connect to Spotify'), () => import('./auth.js').then(m => m.connectSpotify())), '.');
         warnFragments.push(f);
     }
 
@@ -64,9 +65,9 @@ export function renderComponentWarnings() {
 
     const spotifyBtn = document.getElementById('spotifyToggleBtn');
     if (State.spotifyAuthStatus === 'authenticated') {
-        spotifyBtn.textContent = '🔌 Disconnect Spotify';
+        spotifyBtn.textContent = '🔌 ' + i18n('nav.disconnect_spotify', 'Disconnect Spotify');
     } else {
-        spotifyBtn.textContent = '🔌 Connect Spotify';
+        spotifyBtn.textContent = '🔌 ' + i18n('nav.connect_spotify', 'Connect Spotify');
     }
 }
 
