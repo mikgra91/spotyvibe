@@ -22,7 +22,7 @@ Technologies & patterns used:
 
 import logging
 
-from .profile import load_profile, save_profile
+from .profile import profile_transaction
 from .utils import sanitize_text
 
 logger = logging.getLogger(__name__)
@@ -38,22 +38,23 @@ def like_track(artist, track=None, reason=None):
     The optional `reason` field captures WHY the user liked the track,
     which enriches the context GPT receives in future prompts.
     """
-    profile = load_profile()
-
     artist = sanitize_text(artist or "")
     track = sanitize_text(track) if track else None
     reason = sanitize_text(reason) if reason else None
 
-    if track:
-        entry = {"artist": artist, "track": track}
-        if reason:
-            entry["reason"] = reason
-        profile["feedback"]["liked_tracks"].append(entry)
+    with profile_transaction() as (load_fn, save_fn):
+        profile = load_fn()
 
-    if artist not in profile["artists"]["confirmed"]:
-        profile["artists"]["confirmed"].append(artist)
+        if track:
+            entry = {"artist": artist, "track": track}
+            if reason:
+                entry["reason"] = reason
+            profile["feedback"]["liked_tracks"].append(entry)
 
-    save_profile(profile)
+        if artist not in profile["artists"]["confirmed"]:
+            profile["artists"]["confirmed"].append(artist)
+
+        save_fn(profile)
 
     if track:
         logger.info("[LIKED] %s - %s%s", artist, track, f" ({reason})" if reason else "")
@@ -76,29 +77,30 @@ def dislike_track(artist, track=None, reason=None):
     an explanation — this context helps GPT understand the rejection
     pattern (e.g. "too slow", "wrong genre") and avoid similar tracks.
     """
-    profile = load_profile()
-
     artist = sanitize_text(artist or "")
     track = sanitize_text(track) if track else None
     reason = sanitize_text(reason or "user feedback")
 
-    if track:
-        # Track-level dislike — only record the track, don't reject the whole artist
-        profile["feedback"]["disliked_tracks"].append({
-            "artist": artist,
-            "track": track,
-            "reason": reason
-        })
-    else:
-        # Artist-level dislike — reject the entire artist
-        rejected_names = [r["name"] if isinstance(r, dict) else r for r in profile["artists"]["rejected"]]
-        if artist not in rejected_names:
-            profile["artists"]["rejected"].append({
-                "name": artist,
+    with profile_transaction() as (load_fn, save_fn):
+        profile = load_fn()
+
+        if track:
+            # Track-level dislike — only record the track, don't reject the whole artist
+            profile["feedback"]["disliked_tracks"].append({
+                "artist": artist,
+                "track": track,
                 "reason": reason
             })
+        else:
+            # Artist-level dislike — reject the entire artist
+            rejected_names = [r["name"] if isinstance(r, dict) else r for r in profile["artists"]["rejected"]]
+            if artist not in rejected_names:
+                profile["artists"]["rejected"].append({
+                    "name": artist,
+                    "reason": reason
+                })
 
-    save_profile(profile)
+        save_fn(profile)
 
     if track:
         logger.info("[DISLIKED] %s - %s (%s)", artist, track, reason)

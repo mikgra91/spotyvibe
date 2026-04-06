@@ -211,12 +211,8 @@ def _build_deny_set_json(profile, ephemeral_deny_tracks=None):
     if len(tracks) > GPT_HISTORY_LIMIT:
         tracks = tracks[-GPT_HISTORY_LIMIT:]
 
-    # Legacy fallback: known_artists is only needed if unmigrated string entries exist
-    known_artists = sorted(
-        set(profile.get("history", {}).get("suggested_artists", [])),
-        key=len, reverse=True,
-    )
-
+    # _migrate_suggested_tracks() already ensures all entries are dicts.
+    # The isinstance check is a defensive fallback only.
     artist_counts: dict = defaultdict(int)
     by_artist: dict = defaultdict(list)
 
@@ -225,14 +221,7 @@ def _build_deny_set_json(profile, ephemeral_deny_tracks=None):
             a = entry.get("artist", "").lower().strip()
             t = entry.get("track", "").lower().strip()
         else:
-            # Legacy string — use longest-match (only present before first migration)
-            e_lower = str(entry).lower().strip()
-            a, t = "", e_lower
-            for artist in known_artists:
-                al = artist.lower().strip()
-                if e_lower.startswith(al + " "):
-                    a, t = al, e_lower[len(al):].strip()
-                    break
+            a, t = "", str(entry).lower().strip()
 
         if a:
             by_artist[a].append(t)
@@ -609,12 +598,7 @@ def filter_duplicate_suggestions(profile, result):
         if name:
             forbidden_artist_keys.add(_normalize_key(str(name)))
 
-    # Build exhausted artist keys using longest-match against known artists
-    # Legacy fallback for any unmigrated string entries
-    known_artists = sorted(
-        set(profile.get("history", {}).get("suggested_artists", [])),
-        key=len, reverse=True,
-    )
+    # Build exhausted artist keys — after migration, all entries are dicts.
     artist_track_counts: dict = defaultdict(int)
     for entry in profile.get("history", {}).get("suggested_tracks", []):
         if isinstance(entry, dict):
@@ -622,12 +606,10 @@ def filter_duplicate_suggestions(profile, result):
             if a_key:
                 artist_track_counts[a_key] += 1
         else:
-            e_lower = str(entry).lower().strip()
-            for artist in known_artists:
-                a_lower = artist.lower().strip()
-                if e_lower.startswith(a_lower + " "):
-                    artist_track_counts[_normalize_key(a_lower)] += 1
-                    break
+            # Defensive fallback for any unmigrated entries
+            a_key = _normalize_key(str(entry))
+            if a_key:
+                artist_track_counts[a_key] += 1
     exhausted_artist_keys = {
         a for a, count in artist_track_counts.items()
         if count >= EXHAUSTED_ARTIST_THRESHOLD

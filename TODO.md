@@ -333,7 +333,7 @@ Codebase analysis performed on 2026-04-06.
 
 ---
 
-## 10. `charmap` codec error with emoji characters
+## ~~10. `charmap` codec error with emoji characters~~ ✅
 
 - **Type:** Bug
 - **Severity:** High
@@ -952,7 +952,7 @@ This is closely related to TODO #25 (lock granularity). Consider implementing bo
 
 ---
 
-## 23. Replace `print()` with Python `logging` module
+## ~~23. Replace `print()` with Python `logging` module~~ ✅
 
 - **Type:** Logging / Operational
 - **Severity:** High
@@ -1044,7 +1044,7 @@ Resolves TODO #10 (`charmap` codec emoji error) as a side effect.
 
 ---
 
-## 24. Silent exception swallowing in multiple locations
+## ~~24. Silent exception swallowing in multiple locations~~ ✅
 
 - **Type:** Bug / Logging
 - **Severity:** Medium

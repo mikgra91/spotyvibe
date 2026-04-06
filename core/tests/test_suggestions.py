@@ -180,10 +180,10 @@ class TestBuildDenySetJson:
             "history": {
                 "suggested_artists": ["artist x"],
                 "suggested_tracks": [
-                    "artist x t1",
-                    "artist x t2",
-                    "artist x t3",
-                    "artist x t4",
+                    {"artist": "artist x", "track": "t1"},
+                    {"artist": "artist x", "track": "t2"},
+                    {"artist": "artist x", "track": "t3"},
+                    {"artist": "artist x", "track": "t4"},
                 ],
             },
             "artists": {"rejected": []},

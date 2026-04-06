@@ -29,6 +29,7 @@ import json
 import shutil
 import threading
 import uuid as _uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -116,6 +117,41 @@ def save_profile(profile):
             shutil.copy2(str(profile_path), str(history_path))
         with open(profile_path, "w", encoding="utf-8") as f:
             json.dump(profile, f, indent=2)
+
+
+@contextmanager
+def profile_transaction():
+    """Hold _profile_lock for an entire read-modify-write cycle.
+
+    Prevents lost updates when load→modify→save would otherwise release
+    the lock between load and save.
+
+    Usage::
+
+        with profile_transaction() as (load_fn, save_fn):
+            data = load_fn()
+            data["field"] = "value"
+            save_fn(data)
+    """
+    profile_path, history_path = _require_active_profile()
+
+    with _profile_lock:
+        def _load():
+            PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+            if not profile_path.exists():
+                template = _load_template()
+                with open(profile_path, "w", encoding="utf-8") as f:
+                    json.dump(template, f, indent=2)
+            with open(profile_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+
+        def _save(profile):
+            if profile_path.exists():
+                shutil.copy2(str(profile_path), str(history_path))
+            with open(profile_path, "w", encoding="utf-8") as f:
+                json.dump(profile, f, indent=2)
+
+        yield _load, _save
 
 
 def swap_profile_with_history():
