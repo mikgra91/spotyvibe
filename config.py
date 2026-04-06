@@ -15,6 +15,18 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv, set_key, dotenv_values
 
+# OS keychain integration — graceful fallback when keyring is unavailable
+# (e.g. Android/Chaquopy where native backends don't exist).
+_KEYRING_SERVICE = "spotyvibe"
+try:
+    import keyring as _keyring
+    # Verify the backend is actually usable (not the null backend)
+    _backend_name = type(_keyring.get_keyring()).__name__
+    _KEYRING_AVAILABLE = _backend_name != "NullKeyring"
+except Exception:
+    _keyring = None
+    _KEYRING_AVAILABLE = False
+
 def _get_base_dir() -> Path:
     """Return the runtime base directory for bundled assets.
 
@@ -217,10 +229,24 @@ def ensure_env():
 
 
 def load_config():
-    """Load credentials and settings into os.environ."""
+    """Load credentials and settings into os.environ.
+
+    Reads from dotenv files first, then overlays keyring values (if available)
+    so the OS keychain takes precedence over the plaintext .credentials file.
+    """
     ensure_env()
     load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
     load_dotenv(dotenv_path=str(SETTINGS_FILE), override=True)
+
+    # Overlay keyring values — these take precedence over dotenv
+    if _KEYRING_AVAILABLE:
+        for key in CREDENTIAL_KEYS:
+            try:
+                val = _keyring.get_password(_KEYRING_SERVICE, key)
+                if val:
+                    os.environ[key] = val
+            except Exception:
+                pass
 
 
 def get_model():
@@ -316,13 +342,26 @@ def get_settings():
 
 
 def get_credentials():
-    """Return current credential values, masked for safe display."""
+    """Return current credential values, masked for safe display.
+
+    Reads from OS keychain first (if available), falling back to .credentials.
+    """
     ensure_env()
     raw = dotenv_values(str(CREDENTIALS_FILE))
 
     result = {}
     for key in CREDENTIAL_KEYS:
-        value = raw.get(key, "") or ""
+        # Try keyring first, then dotenv
+        value = ""
+        if _KEYRING_AVAILABLE:
+            try:
+                kr_val = _keyring.get_password(_KEYRING_SERVICE, key)
+                if kr_val:
+                    value = kr_val
+            except Exception:
+                pass
+        if not value:
+            value = raw.get(key, "") or ""
         if value and len(value) > 4:
             masked = "*" * (len(value) - 4) + value[-4:]
         elif value:
@@ -343,7 +382,10 @@ def _ensure_trailing_newline(filepath):
 
 
 def save_credentials(credentials):
-    """Update secret credential values in .credentials and reload.
+    """Update secret credential values and reload into os.environ.
+
+    Stores in OS keychain when available, always writes to .credentials
+    as a fallback/sync mechanism.
 
     A value of ``None`` means "not provided" and is skipped.
     An empty string ``""`` explicitly clears the key.
@@ -353,6 +395,16 @@ def save_credentials(credentials):
 
     for key, value in credentials.items():
         if key in CREDENTIAL_KEYS and value is not None:
+            # Store in OS keychain
+            if _KEYRING_AVAILABLE:
+                try:
+                    if value:
+                        _keyring.set_password(_KEYRING_SERVICE, key, value)
+                    else:
+                        _keyring.delete_password(_KEYRING_SERVICE, key)
+                except Exception:
+                    pass  # fall through to dotenv
+            # Always keep dotenv in sync
             set_key(str(CREDENTIALS_FILE), key, value)
     load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
 

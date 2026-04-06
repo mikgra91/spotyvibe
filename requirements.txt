@@ -9,4 +9,6 @@ pyinstaller>=6.0,<7.0
 pillow>=10.0,<12.0
 # Embedded browser window for the Windows desktop build (desktop_launcher.py)
 pywebview>=5.0,<7.0
+# OS keychain integration — stores API keys in Windows Credential Manager / macOS Keychain
+keyring>=25.0,<26.0
 

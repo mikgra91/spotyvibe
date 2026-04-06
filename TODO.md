@@ -370,7 +370,7 @@ This issue is fully subsumed by TODO #23 (replace `print()` with `logging`). If 
 
 ---
 
-## 11. Delete button in playlist dropdowns
+## ~~11. Delete button in playlist dropdowns~~ ✅
 
 - **Type:** Feature request
 - **Severity:** Medium
