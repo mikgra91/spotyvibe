@@ -1,4 +1,5 @@
 import { showToast } from './ui.js';
+import { i18n } from './i18n.js';
 
 /* ── Human-readable hint descriptions ──────────────────────────────── */
 const HINT_RANGES = {
@@ -115,7 +116,7 @@ export function clearAllFilters() {
         if (maxEl) maxEl.value = '';
         if (hintEl) hintEl.textContent = '';
     });
-    showToast('All audio filters cleared.', 'info');
+    showToast(i18n('af.all_cleared', 'All audio filters cleared.'), 'info');
 }
 
 /**
@@ -158,7 +159,7 @@ export function applyAnalysisFilter(feature, value) {
 
     const label = feature.charAt(0).toUpperCase() + feature.slice(1);
     const desc = isTempo ? `${loRounded}–${hiRounded} BPM` : `${loRounded}–${hiRounded}%`;
-    showToast(`${label} filter set to ${desc}`, 'success');
+    showToast(i18n('af.filter_set', '{label} filter set to {range}').replace('{label}', label).replace('{range}', desc), 'success');
 }
 
 /**
@@ -200,5 +201,5 @@ export function applyAllAnalysisFilters(audioFeatures) {
         if (genBtn) genBtn.click();
     }
 
-    showToast(`${count} audio filter(s) applied from analysis.`, 'success');
+    showToast(i18n('af.filters_applied', '{count} audio filter(s) applied from analysis.').replace('{count}', count), 'success');
 }

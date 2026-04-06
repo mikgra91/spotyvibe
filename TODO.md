@@ -40,7 +40,7 @@ Codebase analysis performed on 2026-04-06.
 
 ---
 
-## 2. Reload function to re-fetch Spotify playlists
+## ~~2. Reload function to re-fetch Spotify playlists~~ ✅
 
 - **Type:** Feature request
 - **Severity:** Medium

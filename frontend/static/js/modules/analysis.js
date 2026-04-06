@@ -40,14 +40,14 @@ export async function runAnalysis() {
     const btn = document.getElementById('analysisSendBtn');
 
     if (!artist) {
-        resultDiv.innerHTML = '<p style="color:var(--error)">Artist name is required.</p>';
+        resultDiv.innerHTML = `<p style="color:var(--error)">${escHtml(i18n('analysis.artist_required', 'Artist name is required.'))}</p>`;
         resultDiv.classList.remove('hidden');
         return;
     }
 
     btn.disabled = true;
-    btn.textContent = 'Analysing…';
-    resultDiv.innerHTML = '<p style="color:var(--text-secondary)">Analysing…</p>';
+    btn.textContent = i18n('analysis.analysing', 'Analysing…');
+    resultDiv.innerHTML = `<p style="color:var(--text-secondary)">${escHtml(i18n('analysis.analysing', 'Analysing…'))}</p>`;
     resultDiv.classList.remove('hidden');
 
     try {
@@ -58,15 +58,15 @@ export async function runAnalysis() {
         });
         const data = await resp.json();
         if (!resp.ok) {
-            resultDiv.innerHTML = '<p style="color:var(--error)">' + escHtml(data.error || 'Error') + '</p>';
+            resultDiv.innerHTML = '<p style="color:var(--error)">' + escHtml(data.error || i18n('msg.error_prefix', 'Error')) + '</p>';
             return;
         }
         resultDiv.innerHTML = renderAnalysisResult(data);
     } catch (e) {
-        resultDiv.innerHTML = '<p style="color:var(--error)">Network error: ' + escHtml(e.message) + '</p>';
+        resultDiv.innerHTML = '<p style="color:var(--error)">' + escHtml(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message)) + '</p>';
     } finally {
         btn.disabled = false;
-        btn.textContent = 'Analyse';
+        btn.textContent = i18n('btn.analyse', 'Analyse');
     }
 }
 
@@ -92,7 +92,7 @@ export function renderAnalysisResult(d) {
         .map(([k, label]) => {
             const val = af[k];
             const filterBtn = filterableFeatures.has(k)
-                ? ` <button class="af-use-btn" onclick="applyAnalysisFilter('${k}', ${val})" title="Use as audio filter">⇒ Filter</button>`
+                ? ` <button class="af-use-btn" onclick="applyAnalysisFilter('${k}', ${val})" title="Use as audio filter">${escHtml(i18n('analysis.use_as_filter', '⇒ Filter'))}</button>`
                 : '';
             if (k === 'tempo') {
                 return `<div class="af-row">
@@ -111,7 +111,7 @@ export function renderAnalysisResult(d) {
     // "Use All as Filters" button — only if there are filterable features
     const hasFilterable = Object.keys(af).some(k => filterableFeatures.has(k) && af[k] != null);
     const useAllBtn = hasFilterable
-        ? `<button class="af-use-all-btn" onclick='applyAllAnalysisFilters(${JSON.stringify(af)})'>⇒ Use All as Filters</button>`
+        ? `<button class="af-use-all-btn" onclick='applyAllAnalysisFilters(${JSON.stringify(af)})'>${escHtml(i18n('analysis.use_all_filters', '⇒ Use All as Filters'))}</button>`
         : '';
 
     const suggestions = (d.profile_suggestions || []).map((s, i) =>
@@ -123,11 +123,11 @@ export function renderAnalysisResult(d) {
 
     return `<div class="analysis-card">
         <div class="analysis-title">${escHtml(d.artist)}${d.track ? ' — ' + escHtml(d.track) : ''}</div>
-        <div class="analysis-row"><strong>Genre:</strong> ${escHtml(genres)}</div>
+        <div class="analysis-row"><strong>${escHtml(i18n('analysis.genre', 'Genre:'))}</strong> ${escHtml(genres)}</div>
         <div class="analysis-row">${tags}</div>
         ${charRows ? `<table class="analysis-ch-table">${charRows}</table>` : ''}
-        ${afRows ? `<div class="analysis-suggestions-header">Audio Features (GPT estimate) ${useAllBtn}</div><div class="af-grid">${afRows}</div>` : ''}
-        ${suggestions ? `<div class="analysis-suggestions-header">Profile Suggestions (click 📋 to copy)</div>${suggestions}` : ''}
+        ${afRows ? `<div class="analysis-suggestions-header">${escHtml(i18n('analysis.audio_features_header', 'Audio Features (GPT estimate)'))} ${useAllBtn}</div><div class="af-grid">${afRows}</div>` : ''}
+        ${suggestions ? `<div class="analysis-suggestions-header">${escHtml(i18n('analysis.profile_suggestions', 'Profile Suggestions (click 📋 to copy)'))}</div>${suggestions}` : ''}
     </div>`;
 }
 
@@ -136,5 +136,5 @@ export function copySuggestion(idx) {
     const btn = btns[idx];
     const text = btn ? btn.getAttribute('data-suggestion') : '';
     if (!text) return;
-    navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard!', 'success', 1800));
+    navigator.clipboard.writeText(text).then(() => showToast(i18n('msg.copied', 'Copied to clipboard!'), 'success', 1800));
 }

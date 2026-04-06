@@ -1,6 +1,7 @@
 import * as State from './state.js';
 import { buildTrackCardHtml } from './feedback.js';
 import { showToast, showAlert } from './ui.js';
+import { i18n } from './i18n.js';
 import { refreshDiscoverPlaylistPicker } from './playlist-mode.js';
 
 export function toggleReviewBody() {
@@ -28,7 +29,7 @@ export function toggleReviewBody() {
 export async function loadPlaylistTracks() {
     const picker = document.getElementById('reviewPlaylistPicker');
     if (!picker || !picker.value) {
-        showToast('Please select a playlist first.');
+        showToast(i18n('review.select_playlist_first', 'Please select a playlist first.'));
         return;
     }
     const playlistId = picker.value;
@@ -51,10 +52,10 @@ export async function loadPlaylistTracks() {
         }
         const tracks = data.tracks || [];
         State.setReviewTracks(tracks);
-        if (counterEl) counterEl.textContent = `${tracks.length} track(s)`;
+        if (counterEl) counterEl.textContent = i18n('review.track_count', '{count} track(s)').replace('{count}', tracks.length);
         renderReviewTracks();
     } catch (e) {
-        listEl.innerHTML = '<p style="color:var(--error)">Failed to load playlist tracks.</p>';
+        listEl.innerHTML = `<p style="color:var(--error)">${i18n('review.load_failed', 'Failed to load playlist tracks.')}</p>`;
     } finally {
         if (loadArea) loadArea.classList.add('hidden');
         if (loadBtn) { loadBtn.disabled = false; loadBtn.textContent = '🔄 Load Playlist'; }
@@ -68,7 +69,7 @@ export function renderReviewTracks() {
     const tracks = State.reviewTracks;
 
     if (!tracks || tracks.filter(Boolean).length === 0) {
-        list.innerHTML = '<p style="color:var(--text-muted)">No tracks loaded.</p>';
+        list.innerHTML = `<p style="color:var(--text-muted)">${i18n('review.no_tracks', 'No tracks loaded.')}</p>`;
         if (trackArea) trackArea.classList.add('hidden');
         return;
     }
@@ -229,12 +230,12 @@ export async function populateReviewPlaylistPicker() {
             playlists = data.playlists || [];
             State.setCachedPlaylists(playlists);
         } catch {
-            picker.innerHTML = '<option value="">Failed to load playlists</option>';
-            return;
+        picker.innerHTML = `<option value="">${i18n('review.playlists_load_failed', 'Failed to load playlists')}</option>`;
+        return;
         }
     }
 
-    picker.innerHTML = '<option value="">Select a playlist…</option>' +
+    picker.innerHTML = `<option value="">${i18n('review.select_placeholder', 'Select a playlist…')}</option>` +
         playlists.map(pl =>
             `<option value="${pl.id}">${pl.name}</option>`
         ).join('');
