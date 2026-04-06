@@ -1223,9 +1223,9 @@ class TestSseReconnection:
 class TestOnboardingCredentialPrefill:
     """Onboarding page prefills credential status when keys are already set."""
 
-    def test_shows_already_set_hints(self, page: Page, base_url):
+    def test_shows_green_status_when_credentials_set(self, page: Page, base_url):
         """When credentials are already configured, the onboarding page shows
-        'Already set' hints next to each field."""
+        green checkmark status rows (e.g. 'API Key — OK') instead of input fields."""
         # Intercept the onboarding status check that auto-redirects to /
         def handle_onboarding_status(route):
             route.fulfill(
@@ -1244,10 +1244,21 @@ class TestOnboardingCredentialPrefill:
         page.locator("text=Next →").first.click()
         page.wait_for_timeout(400)
 
-        # Verify hints show "Already set" with masked values
-        expect(page.locator("#ob-status-openai")).to_contain_text("Already set")
-        expect(page.locator("#ob-status-spotify-id")).to_contain_text("Already set")
-        expect(page.locator("#ob-status-spotify-secret")).to_contain_text("Already set")
+        # Verify green status rows are visible with "OK" text
+        expect(page.locator("#ob-set-openai")).to_be_visible()
+        expect(page.locator("#ob-set-openai")).to_contain_text("OK")
+        expect(page.locator("#ob-set-spotify-id")).to_be_visible()
+        expect(page.locator("#ob-set-spotify-id")).to_contain_text("OK")
+        expect(page.locator("#ob-set-spotify-secret")).to_be_visible()
+        expect(page.locator("#ob-set-spotify-secret")).to_contain_text("OK")
+
+        # Input fields should be hidden when credentials are already set
+        expect(page.locator("#ob-input-wrap-openai")).to_be_hidden()
+        expect(page.locator("#ob-input-wrap-spotify-id")).to_be_hidden()
+        expect(page.locator("#ob-input-wrap-spotify-secret")).to_be_hidden()
+
+        # Save button should be hidden when nothing needs saving
+        expect(page.locator("#ob-save-cred-btn")).to_be_hidden()
 
     def test_no_duplicate_skip_button(self, page: Page, base_url):
         """The credentials page should not have a duplicate Skip button

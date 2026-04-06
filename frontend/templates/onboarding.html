@@ -107,6 +107,48 @@
             margin: -6px 0 10px;
             min-height: 1em;
         }
+        /* ── Credential row: set-state (green checkmark) ── */
+        .ob-cred-row {
+            width: 100%;
+            margin-bottom: 14px;
+        }
+        .ob-cred-set-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: var(--radius-md);
+            background: rgba(29, 185, 84, 0.08);
+            border: 1px solid rgba(29, 185, 84, 0.25);
+        }
+        .ob-cred-set-icon {
+            color: var(--primary);
+            font-size: 1.15rem;
+            flex-shrink: 0;
+        }
+        .ob-cred-set-label {
+            flex: 1;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+        .ob-cred-edit-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 4px 6px;
+            border-radius: var(--radius-sm);
+            transition: color var(--transition), background var(--transition);
+        }
+        .ob-cred-edit-btn:hover {
+            color: var(--text-primary);
+            background: rgba(255,255,255,0.06);
+        }
+        .ob-cred-input-wrap {
+            margin-top: 8px;
+        }
     </style>
 </head>
 <body class="onboarding-body" style="background: var(--bg-deep); min-height: 100vh;">
@@ -156,17 +198,48 @@
             <div class="ob-subtitle">SpotyVibe needs your API keys to generate playlists.</div>
             <div class="ob-cred-section" style="text-align:center;">
                 <p class="ob-explain" style="text-align:left;">Your <strong>OpenAI API key</strong> powers the music recommendations. Your <strong>Spotify credentials</strong> let the app create playlists in your library. Keys are stored locally on your device only.</p>
-                <label for="ob-openai-key" class="ob-cred-label" style="text-align:left;display:block;">OpenAI API Key</label>
-                <input class="ob-cred-input" id="ob-openai-key" type="password" placeholder="sk-…" autocomplete="off">
-                <div class="ob-cred-status-hint" id="ob-status-openai" style="text-align:left;"></div>
-                <label for="ob-spotify-id" class="ob-cred-label" style="text-align:left;display:block;">Spotify Client ID</label>
-                <input class="ob-cred-input" id="ob-spotify-id" type="text" placeholder="Enter client ID…" autocomplete="off">
-                <div class="ob-cred-status-hint" id="ob-status-spotify-id" style="text-align:left;"></div>
-                <label for="ob-spotify-secret" class="ob-cred-label" style="text-align:left;display:block;">Spotify Client Secret</label>
-                <input class="ob-cred-input" id="ob-spotify-secret" type="password" placeholder="Enter client secret…" autocomplete="off">
-                <div class="ob-cred-status-hint" id="ob-status-spotify-secret" style="text-align:left;"></div>
+
+                <!-- OpenAI API Key -->
+                <div class="ob-cred-row" id="ob-row-openai">
+                    <label for="ob-openai-key" class="ob-cred-label" style="text-align:left;display:block;">OpenAI API Key</label>
+                    <div class="ob-cred-set-row hidden" id="ob-set-openai">
+                        <span class="ob-cred-set-icon">✓</span>
+                        <span class="ob-cred-set-label">API Key — OK</span>
+                        <button class="ob-cred-edit-btn" onclick="editObCredential('openai')" title="Edit" aria-label="Edit OpenAI API Key">✎</button>
+                    </div>
+                    <div class="ob-cred-input-wrap" id="ob-input-wrap-openai">
+                        <input class="ob-cred-input" id="ob-openai-key" type="password" placeholder="sk-…" autocomplete="off" oninput="onObCredentialInput()">
+                    </div>
+                </div>
+
+                <!-- Spotify Client ID -->
+                <div class="ob-cred-row" id="ob-row-spotify-id">
+                    <label for="ob-spotify-id" class="ob-cred-label" style="text-align:left;display:block;">Spotify Client ID</label>
+                    <div class="ob-cred-set-row hidden" id="ob-set-spotify-id">
+                        <span class="ob-cred-set-icon">✓</span>
+                        <span class="ob-cred-set-label">Client ID — OK</span>
+                        <button class="ob-cred-edit-btn" onclick="editObCredential('spotify-id')" title="Edit" aria-label="Edit Spotify Client ID">✎</button>
+                    </div>
+                    <div class="ob-cred-input-wrap" id="ob-input-wrap-spotify-id">
+                        <input class="ob-cred-input" id="ob-spotify-id" type="text" placeholder="Enter client ID…" autocomplete="off" oninput="onObCredentialInput()">
+                    </div>
+                </div>
+
+                <!-- Spotify Client Secret -->
+                <div class="ob-cred-row" id="ob-row-spotify-secret">
+                    <label for="ob-spotify-secret" class="ob-cred-label" style="text-align:left;display:block;">Spotify Client Secret</label>
+                    <div class="ob-cred-set-row hidden" id="ob-set-spotify-secret">
+                        <span class="ob-cred-set-icon">✓</span>
+                        <span class="ob-cred-set-label">Client Secret — OK</span>
+                        <button class="ob-cred-edit-btn" onclick="editObCredential('spotify-secret')" title="Edit" aria-label="Edit Spotify Client Secret">✎</button>
+                    </div>
+                    <div class="ob-cred-input-wrap" id="ob-input-wrap-spotify-secret">
+                        <input class="ob-cred-input" id="ob-spotify-secret" type="password" placeholder="Enter client secret…" autocomplete="off" oninput="onObCredentialInput()">
+                    </div>
+                </div>
+
                 <div id="ob-cred-status" class="ob-explain" style="margin-top:0;"></div>
-                <button class="ob-action-btn" onclick="saveObCredentials()">Save Credentials</button>
+                <button class="ob-action-btn hidden" id="ob-save-cred-btn" onclick="saveObCredentials()">Save Credentials</button>
             </div>
             <div class="ob-nav">
                 <button class="ob-btn-skip" onclick="skipOnboarding()">Skip</button>
@@ -242,7 +315,7 @@
         const status = document.getElementById('ob-cred-status');
 
         if (!key && !id && !secret) {
-            status.textContent = 'Nothing to save.';
+            status.textContent = 'Nothing to save — enter at least one credential.';
             status.className = 'ob-explain ob-error';
             return;
         }
@@ -261,7 +334,7 @@
             if (resp.ok) {
                 status.textContent = '✅ Credentials saved.';
                 status.className = 'ob-explain ob-success';
-                // Clear inputs and refresh status hints
+                // Clear inputs and refresh the credential status display
                 document.getElementById('ob-openai-key').value = '';
                 document.getElementById('ob-spotify-id').value = '';
                 document.getElementById('ob-spotify-secret').value = '';
@@ -274,6 +347,48 @@
             status.textContent = '❌ Network error.';
             status.className = 'ob-explain ob-error';
         }
+    }
+
+    // Track which credential fields are in editing mode
+    const _obEditingFields = new Set();
+
+    /**
+     * Toggle a credential row into edit mode — hide the green status bar,
+     * show the input field, and reveal the Save button.
+     */
+    function editObCredential(field) {
+        const setRow = document.getElementById('ob-set-' + field);
+        const inputWrap = document.getElementById('ob-input-wrap-' + field);
+        if (setRow) setRow.classList.add('hidden');
+        if (inputWrap) inputWrap.classList.remove('hidden');
+        _obEditingFields.add(field);
+        // Focus the input
+        const inputMap = {
+            'openai': 'ob-openai-key',
+            'spotify-id': 'ob-spotify-id',
+            'spotify-secret': 'ob-spotify-secret',
+        };
+        const inputEl = document.getElementById(inputMap[field]);
+        if (inputEl) setTimeout(() => inputEl.focus(), 50);
+        _updateSaveButtonVisibility();
+    }
+
+    /**
+     * Called on any credential input change — show the Save button if any
+     * input field has content.
+     */
+    function onObCredentialInput() {
+        _updateSaveButtonVisibility();
+    }
+
+    function _updateSaveButtonVisibility() {
+        const key = document.getElementById('ob-openai-key').value.trim();
+        const id = document.getElementById('ob-spotify-id').value.trim();
+        const secret = document.getElementById('ob-spotify-secret').value.trim();
+        const btn = document.getElementById('ob-save-cred-btn');
+        const hasInput = key || id || secret;
+        const hasEditing = _obEditingFields.size > 0;
+        btn.classList.toggle('hidden', !hasInput && !hasEditing);
     }
 
     let _obSpotifyConnected = false;
@@ -387,22 +502,35 @@
             const data = await resp.json();
 
             const map = {
-                'OPENAI_API_KEY':        { input: 'ob-openai-key',      hint: 'ob-status-openai' },
-                'SPOTIPY_CLIENT_ID':     { input: 'ob-spotify-id',      hint: 'ob-status-spotify-id' },
-                'SPOTIPY_CLIENT_SECRET': { input: 'ob-spotify-secret',  hint: 'ob-status-spotify-secret' },
+                'OPENAI_API_KEY':        { field: 'openai',         input: 'ob-openai-key',      label: 'API Key' },
+                'SPOTIPY_CLIENT_ID':     { field: 'spotify-id',     input: 'ob-spotify-id',      label: 'Client ID' },
+                'SPOTIPY_CLIENT_SECRET': { field: 'spotify-secret', input: 'ob-spotify-secret',  label: 'Client Secret' },
             };
+
+            _obEditingFields.clear();
 
             for (const [key, ids] of Object.entries(map)) {
                 const info = data[key];
-                const hintEl = document.getElementById(ids.hint);
+                const setRow = document.getElementById('ob-set-' + ids.field);
+                const inputWrap = document.getElementById('ob-input-wrap-' + ids.field);
                 const inputEl = document.getElementById(ids.input);
+                const labelEl = setRow ? setRow.querySelector('.ob-cred-set-label') : null;
+
                 if (info && info.is_set) {
-                    const short = info.masked.length > 20 ? info.masked.slice(0, 17) + '…' + info.masked.slice(-4) : info.masked;
-                    hintEl.textContent = '✓ Already set (' + short + ')';
-                    inputEl.placeholder = short;
+                    // Show green checkmark status, hide input
+                    if (setRow) setRow.classList.remove('hidden');
+                    if (inputWrap) inputWrap.classList.add('hidden');
+                    if (labelEl) labelEl.textContent = ids.label + ' — OK';
+                    if (inputEl) inputEl.value = '';
+                } else {
+                    // Not set — show input field
+                    if (setRow) setRow.classList.add('hidden');
+                    if (inputWrap) inputWrap.classList.remove('hidden');
                 }
             }
-        } catch (e) { /* ignore — fields stay empty */ }
+
+            _updateSaveButtonVisibility();
+        } catch (e) { /* ignore — fields stay in default state */ }
     }
 </script>
 </body>
