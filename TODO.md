@@ -449,7 +449,7 @@ This issue is fully subsumed by TODO #23 (replace `print()` with `logging`). If 
 
 ---
 
-## 12. Jump bubble overlaps interactive elements on mobile
+## ~~12. Jump bubble overlaps interactive elements on mobile~~ ✅
 
 - **Type:** UI bug / Mobile UX
 - **Severity:** High
@@ -492,7 +492,7 @@ This issue is fully subsumed by TODO #23 (replace `print()` with `logging`). If 
 
 ---
 
-## 13. Toast notification overlaps jump bubble and bottom buttons on mobile
+## ~~13. Toast notification overlaps jump bubble and bottom buttons on mobile~~ ✅
 
 - **Type:** UI bug / Mobile UX
 - **Severity:** Medium
@@ -550,7 +550,7 @@ This issue is fully subsumed by TODO #23 (replace `print()` with `logging`). If 
 
 ---
 
-## 14. Preview overlay feedback panel overflows on small phones
+## ~~14. Preview overlay feedback panel overflows on small phones~~ ✅
 
 - **Type:** UI bug / Mobile UX
 - **Severity:** Medium
@@ -582,7 +582,7 @@ This issue is fully subsumed by TODO #23 (replace `print()` with `logging`). If 
 
 ---
 
-## 15. Audio filter hint text truncated / overflows on narrow phones
+## ~~15. Audio filter hint text truncated / overflows on narrow phones~~ ✅
 
 - **Type:** UI bug / Mobile UX
 - **Severity:** Low
@@ -615,7 +615,7 @@ This issue is fully subsumed by TODO #23 (replace `print()` with `logging`). If 
 
 ---
 
-## 16. Section help (?) icon too small for touch on mobile
+## ~~16. Section help (?) icon too small for touch on mobile~~ ✅
 
 - **Type:** Accessibility / Mobile UX
 - **Severity:** Medium

@@ -10,6 +10,7 @@ App preferences and state live in ``settings.conf``.
 """
 
 import os
+import re as _re
 import sys
 from pathlib import Path
 from dotenv import load_dotenv, set_key, dotenv_values
@@ -358,6 +359,20 @@ def save_settings(settings):
     load_dotenv(dotenv_path=str(SETTINGS_FILE), override=True)
 
 
+_UUID_PATTERN = _re.compile(
+    r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
+)
+
+
+def validate_profile_id(profile_id):
+    """Validate that a profile ID is a well-formed UUID.
+
+    Raises ValueError if the ID is empty or doesn't match the UUID pattern.
+    """
+    if not profile_id or not _UUID_PATTERN.match(profile_id):
+        raise ValueError(f"Invalid profile ID: {profile_id!r}")
+
+
 def get_active_profile_id():
     """Return the active profile UUID, or empty string if none set."""
     return os.getenv("ACTIVE_PROFILE_ID", "")
@@ -375,6 +390,7 @@ def get_active_profile_path():
     pid = get_active_profile_id()
     if not pid:
         return None
+    validate_profile_id(pid)
     return PROFILES_DIR / f"{pid}.json"
 
 
@@ -383,4 +399,5 @@ def get_active_history_path():
     pid = get_active_profile_id()
     if not pid:
         return None
+    validate_profile_id(pid)
     return PROFILES_DIR / f"{pid}.history.json"

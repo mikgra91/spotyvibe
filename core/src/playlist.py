@@ -498,7 +498,10 @@ def add_to_playlist(verified_tracks, mode="default", playlist_id=None,
             ) from e
         raise
 
-    playlist_url = playlist["external_urls"]["spotify"] if playlist else ""
+    if not playlist:
+        raise RuntimeError("No playlist resolved — unexpected state in add_to_playlist().")
+
+    playlist_url = playlist["external_urls"]["spotify"]
     print("Playlist:", playlist_url)
 
-    return {"url": playlist_url, "added": len(uris), "playlist_id": playlist["id"] if playlist else None}
+    return {"url": playlist_url, "added": len(uris), "playlist_id": playlist["id"]}

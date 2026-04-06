@@ -28,6 +28,7 @@ Technologies & patterns used:
   a percentage, ensuring at least one new artist even at low percentages.
 """
 
+import copy
 import json
 import math
 import re
@@ -129,10 +130,13 @@ def _migrate_suggested_tracks(profile):
 def normalize_history(profile):
     """Lowercase, migrate, and deduplicate history so GPT never sees duplicates.
 
+    Works on a deep copy — the original profile dict is never mutated.
+
     suggested_artists stays as a list of lowercase strings.
     suggested_tracks is migrated to {"artist", "track"} dicts (idempotent) and
     then deduplicated by (artist, track) key-pair.
     """
+    profile = copy.deepcopy(profile)
     # Migrate legacy string entries to dicts before deduplication
     _migrate_suggested_tracks(profile)
 

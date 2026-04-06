@@ -8,7 +8,6 @@ This allows the module to run on Android/Chaquopy without any native
 
 Endpoints used:
   POST /v1/chat/completions
-  GET  /v1/models
 """
 
 import json
@@ -203,18 +202,6 @@ def _request_json(method: str, path: str, body=None, retries: int = 1) -> dict:
 
 
 # ── Public API ───────────────────────────────────────────────────────
-
-def list_models() -> list:
-    """GET /v1/models — return a list of model dicts from the API.
-
-    Retries up to 2 extra times on transient errors.
-
-    Returns:
-        List of model dicts as returned by the API (each has at least an
-        "id" key).
-    """
-    data = _request_json("GET", "/models", retries=2)
-    return data.get("data", [])
 
 
 def chat_completions_create(

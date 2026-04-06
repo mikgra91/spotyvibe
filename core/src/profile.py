@@ -37,6 +37,7 @@ from config import (
     get_model, get_gpt_language,
     get_active_profile_id, set_active_profile_id,
     get_active_profile_path, get_active_history_path,
+    validate_profile_id,
 )
 from .utils import debug_log, strip_code_fences, sanitize_profile
 from .openai_http import chat_completions_create, extract_chat_content
@@ -514,9 +515,12 @@ def list_profiles():
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            name = data.get("name", "")
+            if not name:
+                continue
             profiles.append({
                 "id": path.stem,
-                "name": data.get("name", ""),
+                "name": name,
                 "trained": bool(data.get("last_updated")),
                 "last_updated": data.get("last_updated"),
             })
@@ -561,12 +565,13 @@ def create_profile(name):
 def delete_profile(profile_id):
     """Delete a profile by ID.
 
-    Raises ValueError if the profile doesn't exist.
+    Raises ValueError if the profile doesn't exist or ID is invalid.
     Removes both the profile and its history file.
     If the deleted profile was active, clears the active pointer.
     """
     if not profile_id:
         raise ValueError("Profile ID is required.")
+    validate_profile_id(profile_id)
 
     profile_path = PROFILES_DIR / f"{profile_id}.json"
     history_path = PROFILES_DIR / f"{profile_id}.history.json"
@@ -586,10 +591,11 @@ def delete_profile(profile_id):
 def activate_profile(profile_id):
     """Set a profile as the active one.
 
-    Raises ValueError if the profile doesn't exist.
+    Raises ValueError if the profile doesn't exist or ID is invalid.
     """
     if not profile_id:
         raise ValueError("Profile ID is required.")
+    validate_profile_id(profile_id)
 
     profile_path = PROFILES_DIR / f"{profile_id}.json"
     if not profile_path.exists():
