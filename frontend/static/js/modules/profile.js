@@ -31,6 +31,83 @@ const TRAINING_TEXTS = {
 let _profileList = [];
 let _activeProfileId = '';
 
+/* ── Profile context menu (⋯ dropdown) ───────────────────────────── */
+
+export function toggleProfileMenu() {
+    const trigger = document.getElementById('profileMenuTrigger');
+    const menu = document.getElementById('profileMenuDropdown');
+    if (!trigger || !menu) return;
+
+    const isOpen = !menu.classList.contains('hidden');
+    if (isOpen) {
+        _closeProfileMenu();
+    } else {
+        updateProfileMenuState();
+        menu.classList.remove('hidden');
+        trigger.setAttribute('aria-expanded', 'true');
+        // Focus the first enabled menu item
+        const firstEnabled = menu.querySelector('li:not(.disabled)');
+        if (firstEnabled) firstEnabled.focus();
+    }
+}
+
+function _closeProfileMenu() {
+    const trigger = document.getElementById('profileMenuTrigger');
+    const menu = document.getElementById('profileMenuDropdown');
+    if (!trigger || !menu) return;
+    menu.classList.add('hidden');
+    trigger.setAttribute('aria-expanded', 'false');
+}
+
+export function initProfileMenu() {
+    // Close menu on outside click
+    document.addEventListener('click', (e) => {
+        const wrapper = document.querySelector('.profile-menu-wrapper');
+        if (wrapper && !wrapper.contains(e.target)) {
+            _closeProfileMenu();
+        }
+    });
+
+    // Keyboard navigation inside menu
+    const menu = document.getElementById('profileMenuDropdown');
+    if (menu) {
+        menu.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                _closeProfileMenu();
+                document.getElementById('profileMenuTrigger')?.focus();
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                const items = [...menu.querySelectorAll('li:not(.disabled)')];
+                const idx = items.indexOf(document.activeElement);
+                const next = items[idx + 1] || items[0];
+                if (next) next.focus();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                const items = [...menu.querySelectorAll('li:not(.disabled)')];
+                const idx = items.indexOf(document.activeElement);
+                const prev = items[idx - 1] || items[items.length - 1];
+                if (prev) prev.focus();
+            }
+        });
+    }
+}
+
+export function updateProfileMenuState() {
+    const hasProfile = Boolean(_activeProfileId);
+    const ids = ['profileMenuExport', 'profileMenuReset', 'profileMenuDelete'];
+    for (const id of ids) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        if (hasProfile) {
+            el.classList.remove('disabled');
+            el.removeAttribute('aria-disabled');
+        } else {
+            el.classList.add('disabled');
+            el.setAttribute('aria-disabled', 'true');
+        }
+    }
+}
+
 export async function loadProfileList() {
     try {
         const resp = await fetch('/api/profiles');
@@ -53,6 +130,7 @@ function _renderProfileDropdown() {
         opt.textContent = i18n('profile.no_profile_selected', 'No profile selected');
         select.appendChild(opt);
         _renderCustomDropdown();
+        updateProfileMenuState();
         return;
     }
 
@@ -65,6 +143,7 @@ function _renderProfileDropdown() {
     }
 
     _renderCustomDropdown();
+    updateProfileMenuState();
 }
 
 /* ── Custom dropdown rendering & interaction ─────────────────────── */
@@ -333,7 +412,6 @@ export async function checkProfileStatus() {
             el.textContent = '⚠ Not yet trained — describe your taste below.';
             document.getElementById('trainBody').classList.remove('hidden');
             State.setUserProfileEditMode(true);
-            updateProfileIoVisibility();
             updateTrainToggleLabel();
             prefillTrainFields();
         }
@@ -360,12 +438,6 @@ function _hideAiWarning() {
     if (warning) warning.classList.add('hidden');
 }
 
-function updateProfileIoVisibility() {
-    const io = document.getElementById('profileIoActions');
-    if (!io) return;
-    io.classList.toggle('hidden', !State.userProfileEditMode);
-}
-
 export function updateTrainToggleLabel() {
     const body = document.getElementById('trainBody');
     const btn = document.getElementById('trainToggleBtn');
@@ -386,7 +458,6 @@ export function toggleTrainBody() {
         State.setUserProfileEditMode(false);
     }
 
-    updateProfileIoVisibility();
     updateTrainToggleLabel();
 
     // Sync aria-expanded on the section header and toggle button
@@ -539,7 +610,6 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
 
         document.getElementById('trainBody').classList.add('hidden');
         State.setUserProfileEditMode(false);
-        updateProfileIoVisibility();
         updateTrainToggleLabel();
 
         const icon = document.getElementById('trainSuccessIcon');

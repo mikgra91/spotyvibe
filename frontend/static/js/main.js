@@ -1,6 +1,6 @@
 import { checkCredentialStatus, checkSpotifyAuth, connectSpotify, toggleSpotifyConnection, fetchSettingsState } from './modules/auth.js';
 import { renderComponentWarnings } from './modules/warnings.js';
-import { toggleAccordion, prefillTrainFields, updateTrainToggleLabel, toggleTrainBody, startImportProfile, exportProfile, submitProfile, sendTrainProfile, saveProfileDirect, resetProfileToHistory, bindProfileImportInput, checkProfileStatus, loadProfileList, switchProfile, toggleCreateProfile, createNewProfile, deleteCurrentProfile, initCustomProfileDropdown } from './modules/profile.js';
+import { toggleAccordion, prefillTrainFields, updateTrainToggleLabel, toggleTrainBody, startImportProfile, exportProfile, submitProfile, sendTrainProfile, saveProfileDirect, resetProfileToHistory, bindProfileImportInput, checkProfileStatus, loadProfileList, switchProfile, toggleCreateProfile, createNewProfile, deleteCurrentProfile, initCustomProfileDropdown, toggleProfileMenu, initProfileMenu } from './modules/profile.js';
 import { toggleHistoryBody, loadHistory } from './modules/history.js';
 import { toggleAnalysisBody, runAnalysis, renderAnalysisResult, copySuggestion, jumpToAnalysis } from './modules/analysis.js';
 import { toggleGenerateBody, runPipeline, setGenerating, updateUseTracksButton, generateUUID, handleStreamEvent, showSseDisconnectBanner, resumeRun, cancelGeneration, useCurrentTracks, canGenerate } from './modules/pipeline.js';
@@ -43,6 +43,7 @@ window.switchProfile = switchProfile;
 window.toggleCreateProfile = toggleCreateProfile;
 window.createNewProfile = createNewProfile;
 window.deleteCurrentProfile = deleteCurrentProfile;
+window.toggleProfileMenu = toggleProfileMenu;
 window.toggleHistoryBody = toggleHistoryBody;
 window.loadHistory = loadHistory;
 window.toggleAnalysisBody = toggleAnalysisBody;
@@ -167,6 +168,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Profile
     initCustomProfileDropdown();
+    initProfileMenu();
     await loadProfileList();
     checkProfileStatus();
     updateTrainToggleLabel();

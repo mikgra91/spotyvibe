@@ -351,7 +351,7 @@ class TestDocumentationScreenshotAcquire:
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
         page.locator("#trainToggleBtn").click()
-        page.wait_for_timeout(400)
+        page.wait_for_timeout(600)
         _shot_element(page, "09_profiles_accordion", "#accProfiles")
 
     def test_10_profile_status(self, page: Page, screenshot_url):
@@ -423,12 +423,15 @@ class TestDocumentationScreenshotAcquire:
         _shot_element(page, "16_save_buttons", ".train-actions")
 
     def test_17_profile_io_controls(self, page: Page, screenshot_url):
-        """Screenshot: Import / Export / Reset / Delete controls"""
+        """Screenshot: Profile ⋯ menu dropdown open"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
         page.locator("#trainToggleBtn").click()
         page.wait_for_timeout(400)
-        _shot_element(page, "17_profile_io_controls", "#profileIoActions")
+        # Open the profile context menu
+        page.locator("#profileMenuTrigger").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "17_profile_io_controls", "#accProfiles")
 
     # -- Band/Song Analysis -------------------------------------------------
 

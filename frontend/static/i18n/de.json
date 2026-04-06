@@ -36,6 +36,10 @@
   "profile.soft_preferences_hint": "Wünschenswerte Merkmale, die einen Vorschlag verbessern, aber nicht erforderlich sind. Eines pro Zeile.",
   "profile.avoid": "Vermeiden",
   "profile.avoid_hint": "Merkmale, die einen Track sofort disqualifizieren. Eines pro Zeile.",
+  "profile.menu_upload": "Profil hochladen",
+  "profile.menu_export": "Profil exportieren",
+  "profile.menu_reset": "Profil zurücksetzen",
+  "profile.menu_delete": "Profil löschen",
 
   "btn.ai_profile_update": "KI-Profil aktualisieren",
   "btn.save": "Speichern",

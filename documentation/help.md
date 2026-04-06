@@ -413,19 +413,21 @@ These fields are invisible in the UI but are included in every playlist generati
 
 ### Import, Export, Reset, and Delete Your Profile
 
-When the profile editor is open, profile management buttons appear below the **Last trained** status line in the section header:
+The **Profiles** accordion header contains a **⋯** (three-dot) menu button next to the collapse chevron. Click it to open a dropdown with the following actions:
 
-- **Import**  
+- **Upload profile**  
   Load a saved profile JSON file into the current profile. A confirmation dialog appears first. Your previous profile is automatically backed up to a history file before the import overwrites it. Unknown fields in the imported file are silently stripped; missing fields are filled from the default template.
 
-- **Export**  
+- **Export profile**  
   Download your current profile as a `spotyvibe_profile.json` file (full JSON including all AI-generated internal fields).
 
-- **Reset to history**  
+- **Reset profile**  
   Restore the previous version of your profile (one-step undo). This loads the automatic backup that was created before the last save, AI update, or import.
 
-- **Delete**  
+- **Delete profile**  
   Permanently remove the current profile and its history. A confirmation dialog appears first. This cannot be undone. If other profiles exist, the first one is automatically selected.
+
+**Disabled items:** When no profile is selected, **Export**, **Reset**, and **Delete** are grayed out because they require an active profile. **Upload** is always available — it creates or replaces the active profile.
 
 This is useful if you want to back up your profile, move it to another device, clean up unused profiles, or undo a recent change.
 

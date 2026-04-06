@@ -36,6 +36,10 @@
   "profile.soft_preferences_hint": "Nice-to-have traits that improve a suggestion but aren't required. One per line.",
   "profile.avoid": "Avoid",
   "profile.avoid_hint": "Traits that immediately disqualify a track. One per line.",
+  "profile.menu_upload": "Upload profile",
+  "profile.menu_export": "Export profile",
+  "profile.menu_reset": "Reset profile",
+  "profile.menu_delete": "Delete profile",
 
   "btn.ai_profile_update": "AI Profile Update",
   "btn.save": "Save",

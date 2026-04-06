@@ -23,7 +23,18 @@
         <div class="accordion-panel open" id="accProfiles">
             <div class="accordion-header" role="button" tabindex="0" onclick="toggleAccordion('accProfiles')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAccordion('accProfiles')}" aria-expanded="true">
                 <h3><span aria-hidden="true">👤</span> <span data-i18n="profile.profiles_title">Profiles</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('music-profile')" data-i18n-title="help.section_help_title" title="Open help for this section" aria-label="Help for Profiles">?</button></h3>
-                <span class="accordion-chevron" aria-hidden="true">▼</span>
+                <div class="accordion-header-actions">
+                    <div class="profile-menu-wrapper" onclick="event.stopPropagation()">
+                        <button class="profile-menu-trigger" id="profileMenuTrigger" onclick="toggleProfileMenu()" aria-expanded="false" aria-controls="profileMenuDropdown" aria-label="Profile actions menu" title="Profile actions">⋯</button>
+                        <ul class="profile-menu-dropdown hidden" id="profileMenuDropdown" role="menu" aria-label="Profile actions">
+                            <li role="menuitem" tabindex="-1" id="profileMenuUpload" onclick="startImportProfile(); toggleProfileMenu()"><span class="profile-menu-icon" aria-hidden="true">⬆</span> <span data-i18n="profile.menu_upload">Upload profile</span></li>
+                            <li role="menuitem" tabindex="-1" id="profileMenuExport" onclick="exportProfile(); toggleProfileMenu()"><span class="profile-menu-icon" aria-hidden="true">⬇</span> <span data-i18n="profile.menu_export">Export profile</span></li>
+                            <li role="menuitem" tabindex="-1" id="profileMenuReset" onclick="resetProfileToHistory(); toggleProfileMenu()"><span class="profile-menu-icon" aria-hidden="true">↩</span> <span data-i18n="profile.menu_reset">Reset profile</span></li>
+                            <li role="menuitem" tabindex="-1" id="profileMenuDelete" class="profile-menu-item-delete" onclick="deleteCurrentProfile(); toggleProfileMenu()"><span class="profile-menu-icon" aria-hidden="true">🗑</span> <span data-i18n="profile.menu_delete">Delete profile</span></li>
+                        </ul>
+                    </div>
+                    <span class="accordion-chevron" aria-hidden="true">▼</span>
+                </div>
             </div>
             <div class="accordion-body">
                 <div class="accordion-body-inner">
@@ -43,12 +54,6 @@
                                 </span>
                             </div>
                             <ul class="custom-dropdown-list hidden" id="profileDropdownList" role="listbox" aria-label="Profiles"></ul>
-                        </div>
-                        <div class="profile-io-row {% if not profile_edit_mode %}hidden{% endif %}" id="profileIoActions" role="toolbar" aria-label="Profile actions" onclick="event.stopPropagation()">
-                            <button class="btn btn-profile-io" id="profileImportBtn" onclick="startImportProfile()" title="Upload profile" aria-label="Upload profile"><span aria-hidden="true">⬆</span></button>
-                            <button class="btn btn-profile-io" id="profileExportBtn" onclick="exportProfile()" title="Download profile" aria-label="Download profile"><span aria-hidden="true">⬇</span></button>
-                            <button class="btn btn-profile-io" id="profileResetBtn" onclick="resetProfileToHistory()" title="Reset to last saved version" aria-label="Reset to history"><span aria-hidden="true">↩</span></button>
-                            <button class="btn btn-profile-io btn-profile-delete" id="profileDeleteBtn" onclick="deleteCurrentProfile()" title="Delete profile" aria-label="Delete profile"><span aria-hidden="true">🗑</span></button>
                         </div>
                         <input id="profileImportInput" type="file" accept="application/json,.json" style="display:none;" aria-hidden="true" />
                         <div class="profile-create-card" id="profileCreateRow">
