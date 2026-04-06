@@ -729,7 +729,7 @@ This issue is fully subsumed by TODO #23 (replace `print()` with `logging`). If 
 
 ---
 
-## 18. Credential storage with OS keychain (keyring library)
+## ~~18. Credential storage with OS keychain (keyring library)~~ ✅
 
 - **Type:** Security improvement
 - **Severity:** Medium
