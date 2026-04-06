@@ -194,5 +194,9 @@
   "af.range_to": " to ",
   "af.range_up_to": "Up to ",
 
-  "playlist.refresh_aria": "Refresh playlist list"
+  "playlist.refresh_aria": "Refresh playlist list",
+  "playlist.delete_aria": "Delete selected playlist",
+  "playlist.delete_confirm": "Delete playlist \"{name}\"?\n\nThis cannot be undone.",
+  "playlist.delete_failed": "Failed to delete playlist.",
+  "playlist.deleted": "Playlist deleted."
 }

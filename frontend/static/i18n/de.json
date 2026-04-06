@@ -194,5 +194,9 @@
   "af.range_to": " bis ",
   "af.range_up_to": "Bis ",
 
-  "playlist.refresh_aria": "Playlist-Liste aktualisieren"
+  "playlist.refresh_aria": "Playlist-Liste aktualisieren",
+  "playlist.delete_aria": "Ausgewählte Playlist löschen",
+  "playlist.delete_confirm": "Playlist „{name}" löschen?\n\nDas kann nicht rückgängig gemacht werden.",
+  "playlist.delete_failed": "Playlist konnte nicht gelöscht werden.",
+  "playlist.deleted": "Playlist gelöscht."
 }

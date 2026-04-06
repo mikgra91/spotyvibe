@@ -9,7 +9,7 @@ import { getPlaylistMode, onPlaylistModeChange, getPlaylistModePayload, refreshD
 import { renderTracks } from './modules/tracklist.js';
 import { openPreviewOverlay, closePreviewOverlay, prevPreview, nextPreview, previewLike, previewDislike, previewDismiss, submitPreviewFeedback, closePreviewFeedback } from './modules/preview.js';
 import { toggleFeedback, closeFeedback, submitFeedback, removeTrack, animateRemove } from './modules/feedback.js';
-import { toggleReviewBody, loadPlaylistTracks, renderReviewTracks, toggleReviewFeedback, closeReviewFeedback, submitReviewFeedback, dismissReviewTrack, populateReviewPlaylistPicker, refreshReviewPlaylistPicker } from './modules/review.js';
+import { toggleReviewBody, loadPlaylistTracks, renderReviewTracks, toggleReviewFeedback, closeReviewFeedback, submitReviewFeedback, dismissReviewTrack, populateReviewPlaylistPicker, refreshReviewPlaylistPicker, deleteSelectedPlaylist } from './modules/review.js';
 import { showStatus, showStatusHtml, showPlaylistLink, hidePlaylistLink, esc, attr, sanitizeHtml, escHtml, toggleSettingsMenu, showToast } from './modules/ui.js';
 import { openCredentials, saveCredentials, clearCredential, saveSettings, openSettings, openHelp, openSectionHelp, closeSectionHelp, openDataDir, closeModal } from './modules/modals.js';
 import { switchTheme, THEME_BACKGROUNDS, THEME_RENDERERS } from './modules/theme-switcher.js';
@@ -96,6 +96,7 @@ window.submitReviewFeedback = submitReviewFeedback;
 window.dismissReviewTrack = dismissReviewTrack;
 window.populateReviewPlaylistPicker = populateReviewPlaylistPicker;
 window.refreshReviewPlaylistPicker = refreshReviewPlaylistPicker;
+window.deleteSelectedPlaylist = deleteSelectedPlaylist;
 window.showStatus = showStatus;
 window.showPlaylistLink = showPlaylistLink;
 window.hidePlaylistLink = hidePlaylistLink;

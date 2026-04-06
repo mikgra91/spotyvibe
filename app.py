@@ -82,7 +82,7 @@ from core.src.history import save_run, load_runs
 from core.src.utils import get_openai_models, clear_debug_log, sanitize_text, app_log
 from core.src.openai_http import OpenAIConfigError, OpenAIError
 from core.src.playlist import (
-    search_tracks, add_to_playlist, remove_from_playlist,
+    search_tracks, add_to_playlist, remove_from_playlist, delete_playlist,
     get_spotify_auth_status, get_spotify_auth_url, handle_spotify_callback,
     disconnect_spotify, get_user_playlists, get_playlist_tracks,
 )
@@ -1118,6 +1118,16 @@ def playlist_tracks(playlist_id):
         return jsonify({"tracks": tracks})
     except Exception as e:
         return jsonify({"error": str(e), "tracks": []}), 500
+
+
+@app.route("/api/playlist/<playlist_id>", methods=["DELETE"])
+def delete_playlist_endpoint(playlist_id):
+    """Delete (unfollow) a Spotify playlist by ID."""
+    try:
+        delete_playlist(playlist_id)
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/spotify/status")

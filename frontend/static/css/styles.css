@@ -3624,6 +3624,30 @@ input {
     }
 }
 
+.playlist-delete-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: color var(--transition), border-color var(--transition);
+    padding: 0;
+    flex-shrink: 0;
+}
+@media (hover: hover) {
+    .playlist-delete-btn:hover {
+        color: var(--error);
+        border-color: var(--error);
+    }
+}
+
 .playlist-name-input {
     width: 100%;
     height: 50px;

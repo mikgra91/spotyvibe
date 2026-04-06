@@ -16,6 +16,7 @@
                 <option value="">Select a playlist…</option>
             </select>
             <button class="playlist-refresh-btn" onclick="refreshReviewPlaylistPicker()" aria-label="Refresh playlist list" data-i18n-title="playlist.refresh_aria" title="Refresh playlist list">↻</button>
+            <button class="playlist-delete-btn" onclick="deleteSelectedPlaylist('reviewPlaylistPicker')" aria-label="Delete selected playlist" data-i18n-title="playlist.delete_aria" title="Delete selected playlist">🗑</button>
         </div>
         <div class="run-section">
             <button class="btn-run" id="reviewLoadBtn" onclick="loadPlaylistTracks()"><span aria-hidden="true">🔄</span> <span data-i18n="btn.load_playlist">Load Playlist</span></button>

@@ -1,6 +1,6 @@
 import * as State from './state.js';
 import { buildTrackCardHtml } from './feedback.js';
-import { showToast, showAlert } from './ui.js';
+import { showToast, showAlert, showConfirm } from './ui.js';
 import { i18n } from './i18n.js';
 import { refreshDiscoverPlaylistPicker } from './playlist-mode.js';
 
@@ -244,5 +244,37 @@ export async function populateReviewPlaylistPicker() {
 export async function refreshReviewPlaylistPicker() {
     State.invalidateCachedPlaylists();
     await populateReviewPlaylistPicker();
+}
+
+export async function deleteSelectedPlaylist(pickerId) {
+    const picker = document.getElementById(pickerId);
+    if (!picker || !picker.value) {
+        showToast(i18n('review.select_playlist_first', 'Please select a playlist first.'), 'error');
+        return;
+    }
+    const playlistId = picker.value;
+    const playlistName = picker.options[picker.selectedIndex]?.text || playlistId;
+
+    const ok = await showConfirm(
+        i18n('playlist.delete_confirm', 'Delete playlist "{name}"?\n\nThis cannot be undone.')
+            .replace('{name}', playlistName)
+    );
+    if (!ok) return;
+
+    try {
+        const resp = await fetch(`/api/playlist/${encodeURIComponent(playlistId)}`, { method: 'DELETE' });
+        const data = await resp.json();
+        if (!resp.ok || data.error) {
+            showToast(data.error || i18n('playlist.delete_failed', 'Failed to delete playlist.'), 'error');
+            return;
+        }
+        showToast(i18n('playlist.deleted', 'Playlist deleted.'), 'success');
+        // Refresh both pickers
+        State.invalidateCachedPlaylists();
+        await populateReviewPlaylistPicker();
+        await refreshDiscoverPlaylistPicker();
+    } catch (e) {
+        showToast(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message), 'error');
+    }
 }
 

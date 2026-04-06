@@ -509,3 +509,15 @@ def add_to_playlist(verified_tracks, mode="default", playlist_id=None,
     logger.info("Playlist: %s", playlist_url)
 
     return {"url": playlist_url, "added": len(uris), "playlist_id": playlist["id"]}
+
+
+def delete_playlist(playlist_id):
+    """Unfollow (delete) a Spotify playlist by ID.
+
+    Spotify does not have a true 'delete' — current_user_unfollow_playlist()
+    is the correct method. For playlists the user owns, unfollowing effectively
+    deletes them.
+    """
+    sp = get_spotify_client()
+    sp.current_user_unfollow_playlist(playlist_id)
+    logger.info("Deleted (unfollowed) playlist: %s", playlist_id)
