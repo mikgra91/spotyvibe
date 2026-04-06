@@ -240,3 +240,8 @@ export async function populateReviewPlaylistPicker() {
         ).join('');
 }
 
+export async function refreshReviewPlaylistPicker() {
+    State.invalidateCachedPlaylists();
+    await populateReviewPlaylistPicker();
+}
+

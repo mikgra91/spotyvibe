@@ -126,5 +126,7 @@
 
   "help.section_help_title": "Hilfe für diesen Bereich öffnen",
 
-  "profile.duplicate_error": "Ein Profil mit dem Namen \"{name}\" existiert bereits."
+  "profile.duplicate_error": "Ein Profil mit dem Namen \"{name}\" existiert bereits.",
+
+  "playlist.refresh_aria": "Playlist-Liste aktualisieren"
 }

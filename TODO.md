@@ -117,7 +117,7 @@ Codebase analysis performed on 2026-04-06.
 
 ---
 
-## 4. Duplicate profile creation should be prevented (UI-side)
+## ~~4. Duplicate profile creation should be prevented (UI-side)~~ ✅
 
 - **Type:** Bug / UX improvement
 - **Severity:** Medium
@@ -280,7 +280,7 @@ Codebase analysis performed on 2026-04-06.
 
 ---
 
-## 9. Bug when changing profile mid-session
+## ~~9. Bug when changing profile mid-session~~ ✅
 
 - **Type:** Bug
 - **Severity:** High

@@ -3594,6 +3594,34 @@ input {
 .playlist-name-row,
 .playlist-picker-row {
     margin-top: 30px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.playlist-refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: color var(--transition), border-color var(--transition), transform 0.3s ease;
+    padding: 0;
+    flex-shrink: 0;
+}
+@media (hover: hover) {
+    .playlist-refresh-btn:hover {
+        color: var(--primary);
+        border-color: var(--primary);
+        transform: rotate(180deg);
+    }
 }
 
 .playlist-name-input {
@@ -3616,7 +3644,8 @@ input {
 }
 
 .playlist-picker-select {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     height: 50px;
     border-radius: var(--radius-sm);
     padding: 0 40px 0 17px;
