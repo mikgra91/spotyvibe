@@ -139,6 +139,10 @@ Every frontend change **must** consider visually impaired and assistive-technolo
 - Skip for documentation-only changes.
 - Mock all external API calls (OpenAI, Spotify).
 - Playwright Chromium is auto-installed by `frontend/tests/conftest.py` on the first run — no manual step needed after `pip install -r requirements.txt`.
+- **Screenshot tests** (`frontend/tests/test_documentation_screenshots.py`) are marked `@pytest.mark.screenshots` and excluded from routine runs via `pytest.ini` (`-m "not screenshots"`). Run them manually when documentation screenshots need refreshing:
+  ```bash
+  python -m pytest frontend/tests/test_documentation_screenshots.py -v -m screenshots
+  ```
 
 ---
 
