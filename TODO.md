@@ -4,7 +4,7 @@ Codebase analysis performed on 2026-04-06.
 
 ---
 
-## 1. Refine Playlist shows track count in dropdown
+## ~~1. Refine Playlist shows track count in dropdown~~ ✅
 
 - **Type:** UI bug
 - **Severity:** Low
@@ -144,7 +144,7 @@ Codebase analysis performed on 2026-04-06.
 
 ---
 
-## 5. Enter key does not trigger Band/Song Analysis
+## ~~5. Enter key does not trigger Band/Song Analysis~~ ✅
 
 - **Type:** Bug
 - **Severity:** Low
@@ -800,7 +800,7 @@ This issue is fully subsumed by TODO #23 (replace `print()` with `logging`). If 
 
 ---
 
-## 19. `debug_log()` creates directory for wrong file
+## ~~19. `debug_log()` creates directory for wrong file~~ ✅
 
 - **Type:** Bug
 - **Severity:** High
@@ -1319,7 +1319,7 @@ Closely related to TODO #20 (swap thread safety). Implement together.
 
 ---
 
-## 30. Diversity hints ignore `gpt_language` setting
+## ~~30. Diversity hints ignore `gpt_language` setting~~ ✅
 
 - **Type:** Bug
 - **Severity:** Low
@@ -1349,7 +1349,7 @@ Closely related to TODO #20 (swap thread safety). Implement together.
 
 ---
 
-## 31. Inconsistent `sanitize_text` pattern in `feedback.py`
+## ~~31. Inconsistent `sanitize_text` pattern in `feedback.py`~~ ✅
 
 - **Type:** Bug
 - **Severity:** Low

@@ -2265,11 +2265,13 @@ h1 {
         min-width: 180px;
     }
 
-    /* Toast full-width on phone */
+    /* Toast full-width on phone — positioned at top to avoid bottom-UI overlap */
     .toast {
+        bottom: auto;
+        top: max(1rem, env(safe-area-inset-top));
         left: 1rem;
         right: 1rem;
-        transform: translateY(80px);
+        transform: translateY(-80px);
         max-width: none;
     }
 
@@ -2451,17 +2453,45 @@ h1 {
         font-size: 16px !important;
     }
 
-    /* ── Jump bubble — thumb-friendly position ─────────────────────────── */
+    /* ── Jump bubble — hide on phone to avoid overlap (#12) ───────────── */
     .section-jump-bubble {
-        left: auto;
-        right: 16px;
-        right: max(16px, env(safe-area-inset-right));
-        bottom: 20px;
-        bottom: max(20px, calc(env(safe-area-inset-bottom) + 12px));
-        width: 56px;
-        height: 56px;
-        line-height: 56px;
-        font-size: 1.4rem;
+        display: none !important;
+    }
+
+    /* ── Preview overlay — enable scroll on small phones (#14) ────────── */
+    .preview-layout {
+        overflow-y: auto;
+    }
+    .preview-layout iframe {
+        height: 152px;
+    }
+
+    /* ── Audio filter hint — prevent overflow on narrow phones (#15) ──── */
+    .audio-filter-hint-text {
+        white-space: normal;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        word-break: break-word;
+    }
+    .af-use-btn {
+        min-height: 36px;
+        padding: 6px 12px;
+    }
+    .audio-filter-clear-btn {
+        min-height: 36px;
+    }
+
+    /* ── Section help icon — enlarge touch target (#16) ───────────────── */
+    .section-help-icon {
+        position: relative;
+    }
+    .section-help-icon::after {
+        content: '';
+        position: absolute;
+        top: -12px;
+        left: -12px;
+        right: -12px;
+        bottom: -12px;
     }
 
     /* ── Metadata grid — stack on phone ─────────────────────────────── */
@@ -2512,10 +2542,6 @@ h1 {
         width: 40%;
     }
 
-    /* ── Safe area insets for fixed positioned elements ───────────────── */
-    .toast {
-        bottom: max(1rem, env(safe-area-inset-bottom));
-    }
 
     /* ── Container safe area ─────────────────────────────────────────── */
     .container {
