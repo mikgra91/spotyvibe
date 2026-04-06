@@ -382,7 +382,10 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
             f" {effective_batch_size} entries in \"playlist\"."
         )
 
-    # Diversity hints when history is large — give GPT a concrete direction
+    # Diversity hints when history is large — give GPT a concrete direction.
+    # These are instruction-language (always English) — they tell GPT what
+    # kind of artists to explore. The output language is controlled separately
+    # via {gpt_language} in the prompt template.
     if len(profile.get("history", {}).get("suggested_tracks", [])) > 50:
         diversity_hints = [
             "Focus on artists from the 1970s-1980s that match the profile.",

@@ -14,9 +14,9 @@
         <div class="analysis-inputs">
             <div class="analysis-input-row">
                 <label for="analysisArtist" class="sr-only">Artist / band name</label>
-                <input id="analysisArtist" type="text" placeholder="Artist / band name" maxlength="200" value="{{ artist_input if artist_input }}" data-i18n-placeholder="analysis.artist_placeholder">
+                <input id="analysisArtist" type="text" placeholder="Artist / band name" maxlength="200" value="{{ artist_input if artist_input }}" data-i18n-placeholder="analysis.artist_placeholder" onkeydown="if(event.key==='Enter'){event.preventDefault();runAnalysis()}">
                 <label for="analysisTrack" class="sr-only">Track name (optional)</label>
-                <input id="analysisTrack" type="text" placeholder="Track name (optional)" maxlength="200" value="{{ track_input if track_input }}" data-i18n-placeholder="analysis.track_placeholder">
+                <input id="analysisTrack" type="text" placeholder="Track name (optional)" maxlength="200" value="{{ track_input if track_input }}" data-i18n-placeholder="analysis.track_placeholder" onkeydown="if(event.key==='Enter'){event.preventDefault();runAnalysis()}">
             </div>
         <div class="run-section">
             <button class="btn-run btn-run-narrow" id="analysisSendBtn" onclick="runAnalysis()" data-i18n="btn.analyse">Analyse</button>

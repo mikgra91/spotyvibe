@@ -236,7 +236,7 @@ export async function populateReviewPlaylistPicker() {
 
     picker.innerHTML = '<option value="">Select a playlist…</option>' +
         playlists.map(pl =>
-            `<option value="${pl.id}">${pl.name} (${pl.track_count} tracks)</option>`
+            `<option value="${pl.id}">${pl.name}</option>`
         ).join('');
 }
 

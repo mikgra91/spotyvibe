@@ -37,8 +37,8 @@ def like_track(artist, track=None, reason=None):
     profile = load_profile()
 
     artist = sanitize_text(artist or "")
-    track = sanitize_text(track or "") if track else track
-    reason = sanitize_text(reason or "") if reason else reason
+    track = sanitize_text(track) if track else None
+    reason = sanitize_text(reason) if reason else None
 
     if track:
         entry = {"artist": artist, "track": track}
@@ -75,7 +75,7 @@ def dislike_track(artist, track=None, reason=None):
     profile = load_profile()
 
     artist = sanitize_text(artist or "")
-    track = sanitize_text(track or "") if track else track
+    track = sanitize_text(track) if track else None
     reason = sanitize_text(reason or "user feedback")
 
     if track:

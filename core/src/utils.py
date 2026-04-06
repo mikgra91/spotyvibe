@@ -63,7 +63,7 @@ def debug_log(label, messages, response_content):
     parts.append("")
     parts.append("")
 
-    DEBUG_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    PROMPT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(PROMPT_LOG_FILE, "a", encoding="utf-8") as f:
         f.write("\n".join(parts))
 
