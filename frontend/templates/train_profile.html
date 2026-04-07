@@ -24,6 +24,12 @@
             <div class="accordion-header" role="button" tabindex="0" onclick="toggleAccordion('accProfiles')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAccordion('accProfiles')}" aria-expanded="true">
                 <h3><span aria-hidden="true">👤</span> <span data-i18n="profile.profiles_title">Profiles</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('music-profile')" data-i18n-title="help.section_help_title" title="Open help for this section" aria-label="Help for Profiles">?</button></h3>
                 <div class="accordion-header-actions">
+                    <span class="accordion-chevron" aria-hidden="true">▼</span>
+                </div>
+            </div>
+            <div class="accordion-body">
+                <div class="accordion-body-inner">
+                    <p class="acc-hint" data-i18n="profile.profiles_hint" id="profilesHint">Select or create profiles based on your musical taste.</p>
                     <div class="profile-menu-wrapper" onclick="event.stopPropagation()">
                         <button class="profile-menu-trigger" id="profileMenuTrigger" onclick="toggleProfileMenu()" aria-expanded="false" aria-controls="profileMenuDropdown" aria-label="Profile actions menu" title="Profile actions">⋯</button>
                         <ul class="profile-menu-dropdown hidden" id="profileMenuDropdown" role="menu" aria-label="Profile actions">
@@ -33,12 +39,6 @@
                             <li role="menuitem" tabindex="-1" id="profileMenuDelete" class="profile-menu-item-delete" onclick="deleteCurrentProfile(); toggleProfileMenu()"><span class="profile-menu-icon" aria-hidden="true">🗑</span> <span data-i18n="profile.menu_delete">Delete profile</span></li>
                         </ul>
                     </div>
-                    <span class="accordion-chevron" aria-hidden="true">▼</span>
-                </div>
-            </div>
-            <div class="accordion-body">
-                <div class="accordion-body-inner">
-                    <p class="acc-hint" data-i18n="profile.profiles_hint" id="profilesHint">Select or create profiles based on your musical taste.</p>
                     <div class="profile-selector" id="profileSelector">
                         <div class="profile-select-card">
                             <span class="profile-select-icon" aria-hidden="true">🎸</span>

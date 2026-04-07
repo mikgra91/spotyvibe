@@ -1866,6 +1866,9 @@ body.modal-scroll-lock {
 
 .profile-menu-wrapper {
     position: relative;
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 8px;
 }
 
 .profile-menu-trigger {
