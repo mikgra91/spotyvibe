@@ -798,8 +798,8 @@ body.modal-scroll-lock {
     flex-direction: column;
     align-items: stretch;
     max-width: 828px;
-    height: 92vh;
-    max-height: 92vh;
+    height: calc(92vh - var(--titlebar-h, 0px));
+    max-height: calc(92vh - var(--titlebar-h, 0px));
     width: 94%;
 }
 .quickstart-modal {
