@@ -513,12 +513,12 @@ class TestProfileEditor:
         # Open
         page.locator("#trainToggleBtn").click()
         expect(body).to_be_visible()
-        expect(page.locator("#trainToggleBtn")).to_have_text("Hide profile")
+        expect(page.locator("#trainToggleBtn")).to_have_text("Hide")
 
         # Close
         page.locator("#trainToggleBtn").click()
         expect(body).to_be_hidden()
-        expect(page.locator("#trainToggleBtn")).to_have_text("Edit profile")
+        expect(page.locator("#trainToggleBtn")).to_have_text("Show")
 
     def test_accordion_sections_present(self, page: Page, base_url):
         page.goto(base_url)
@@ -589,10 +589,14 @@ class TestProfileEditor:
             page.locator("#trainToggleBtn").click()
 
         page.locator("#trainToggleBtn").click()
-        expect(page.locator("#profileIoActions")).to_be_visible()
-        expect(page.locator("#profileImportBtn")).to_be_visible()
-        expect(page.locator("#profileExportBtn")).to_be_visible()
-        expect(page.locator("#profileResetBtn")).to_be_visible()
+        # Profile actions are now in the profile-menu-wrapper inside the Profiles accordion body.
+        # The accordion is open by default; click the trigger to open the dropdown.
+        expect(page.locator("#profileMenuTrigger")).to_be_visible()
+        page.locator("#profileMenuTrigger").click()
+        expect(page.locator("#profileMenuUpload")).to_be_visible()
+        expect(page.locator("#profileMenuExport")).to_be_visible()
+        expect(page.locator("#profileMenuReset")).to_be_visible()
+        expect(page.locator("#profileMenuDelete")).to_be_visible()
 
 
 class TestGenerateSection:
@@ -725,7 +729,7 @@ class TestGenerationPipeline:
         page.locator("#generateToggleBtn").click()
         page.locator("#runBtn").click()
         # The button should change to "Generating…" and stay there
-        expect(page.locator("#runBtn")).to_have_text("⏳ Generating…", timeout=2500)
+        expect(page.locator("#runBtn")).to_have_text("Generating suggestions…", timeout=2500)
 
         # Clean up: unroute so hanging request doesn't leak into other tests
         page.unroute("**/api/run")
@@ -942,14 +946,15 @@ class TestProfileExport:
         page.goto(base_url)
         page.wait_for_load_state("networkidle")
 
-        # Open editor via button (to show import/export/reset)
+        # Open editor via button (to show the profiles accordion with the menu)
         if page.locator("#trainBody").is_visible():
             page.locator("#trainToggleBtn").click()
         page.locator("#trainToggleBtn").click()
 
-        # Click export and wait for download
+        # Open the profile actions menu and click Export
+        page.locator("#profileMenuTrigger").click()
         with page.expect_download() as download_info:
-            page.locator("#profileExportBtn").click()
+            page.locator("#profileMenuExport").click()
         download = download_info.value
         assert download.suggested_filename == "spotyvibe_profile.json"
 
