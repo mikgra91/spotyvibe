@@ -72,6 +72,7 @@
   "settings.open_data_dir": "📂 Zu lokalen Dateien",
 
   "msg.export_saved": "Profil exportiert — Prüfe deinen Downloads-Ordner nach spotyvibe_profile.json",
+  "msg.export_fail": "Export fehlgeschlagen",
   "msg.profile_switched": "Profil gewechselt.",
   "msg.profile_created": "Profil erstellt.",
   "msg.profile_deleted": "Profil gelöscht.",

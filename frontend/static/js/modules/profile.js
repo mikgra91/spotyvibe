@@ -496,15 +496,24 @@ export async function startImportProfile() {
 
 export async function exportProfile() {
     try {
-        const a = document.createElement('a');
-        a.href = '/api/profile/export';
-        a.download = 'spotyvibe_profile.json';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+        const resp = await fetch('/api/profile/export');
+        const text = await resp.text();
+        if (window.pywebview) {
+            await pywebview.api.save_profile_export(text);
+        } else {
+            const blob = new Blob([text], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'spotyvibe_profile.json';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
         showToast(i18n('msg.export_saved', 'Profile exported — check your Downloads folder for spotyvibe_profile.json'), 'success', 5000);
     } catch (e) {
-        window.location.href = '/api/profile/export';
+        showToast(i18n('msg.export_fail', 'Export failed'), 'error');
     }
 }
 
