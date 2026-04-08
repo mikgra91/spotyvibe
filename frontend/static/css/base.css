@@ -128,18 +128,19 @@ body::after {
 }
 
 
-/* --- Scrollbar (dark theme, green thumb – matches app palette) --- */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: transparent; }
+/* --- Scrollbar (dark theme, muted green – matches app palette) --- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg-main, #050608); }
 ::-webkit-scrollbar-thumb {
-    background: var(--primary, #1DB954);
-    border-radius: 4px;
+    background: rgba(30, 215, 96, 0.35);
+    border-radius: 5px;
 }
-::-webkit-scrollbar-thumb:hover { background: #1ed760; }
-::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb:hover { background: rgba(30, 215, 96, 0.55); }
+::-webkit-scrollbar-corner { background: var(--bg-main, #050608); }
+::-webkit-scrollbar-button { background: rgba(30, 215, 96, 0.25); height: 4px; }
 /* Firefox */
 * {
-    scrollbar-width: thin;
-    scrollbar-color: var(--primary) transparent;
+    scrollbar-width: auto;
+    scrollbar-color: rgba(30, 215, 96, 0.35) var(--bg-main, #050608);
 }
 
