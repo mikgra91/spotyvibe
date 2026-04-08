@@ -425,16 +425,25 @@
     border-radius: var(--radius-md);
     overflow: hidden;
     background: rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
 }
 .qs-demo-viewport {
     position: relative;
-    min-height: 150px;
     padding: 10px;
     overflow: hidden;
     transition: opacity 150ms ease;
 }
+/* Scale down scene content inside the inline player */
+.qs-demo-viewport > .qd-scene {
+    --qs-scale: 0.72;
+    transform: scale(var(--qs-scale));
+    transform-origin: top left;
+    width: calc(100% / var(--qs-scale));
+}
 .qs-demo-viewport.qd-transitioning { opacity: 0; }
 .qs-demo-caption {
+    flex-shrink: 0;
     padding: 0 10px 6px;
     font-size: 0.76rem;
     color: var(--text-secondary);
@@ -443,12 +452,17 @@
     text-align: center;
 }
 .qs-demo-controls {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
     padding: 4px 10px 8px;
     border-top: 1px solid rgba(255,255,255,0.06);
+}
+.qs-demo-expand {
+    margin-left: auto;
+    font-size: 0.78rem;
 }
 .qs-demo-btn {
     width: 26px;
@@ -481,7 +495,7 @@
 
 .qd-scene {
     position: relative;
-    min-height: 156px;
+    min-height: 100%;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -1052,4 +1066,75 @@
 /* Typing cursor blink */
 .qd-typing { overflow: hidden; border-right: 2px solid var(--primary); animation: qd-typing-cursor 800ms step-end infinite; }
 @keyframes qd-typing-cursor { 50% { border-color: transparent; } }
+
+/* ── Demo lightbox (expanded view) ── */
+.qs-demo-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.82);
+    backdrop-filter: blur(6px);
+    animation: qd-fade 250ms ease forwards;
+}
+.qs-demo-lightbox-card {
+    position: relative;
+    width: 90%;
+    max-width: 700px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--glass-bg);
+    border: var(--glass-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-elevated), 0 0 60px rgba(30,215,96,0.08);
+    overflow: hidden;
+}
+.qs-demo-lightbox-viewport {
+    flex: 1 1 auto;
+    padding: 16px;
+    overflow: hidden;
+}
+.qs-demo-lightbox-caption {
+    flex-shrink: 0;
+    padding: 0 16px 8px;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    font-style: italic;
+    text-align: center;
+}
+.qs-demo-lightbox-controls {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    padding: 8px 16px 12px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+.qs-demo-lightbox-close {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.3rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: color var(--transition), background var(--transition);
+    z-index: 2;
+}
+@media (hover: hover) {
+    .qs-demo-lightbox-close:hover { color: var(--text-primary); background: rgba(255,255,255,0.06); }
+}
+.qs-demo-lightbox-counter {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    min-width: 40px;
+    text-align: center;
+}
 

@@ -475,6 +475,8 @@ const DEMOS = [null, _step1Frames, _step2Frames, _step3Frames, _step4Frames, _st
 /* ── State management ── */
 const _state = new Map();
 const AUTO_PLAY_MS = 3500;
+const QS_DEMO_SCALE = 0.72;   // inline player scale-down factor
+let _lightboxStep = null;      // step currently shown in lightbox (null = closed)
 
 function _getFrames(step) {
     const fn = DEMOS[step];
@@ -531,10 +533,43 @@ export function qsDemoReset(step) {
 
 /** Initialize all demo players, render first frames, and auto-play. */
 export function initAllDemos() {
+    // ── Measure the tallest frame across ALL steps.
+    //    Hidden pages (display:none) report scrollHeight 0, so we use an
+    //    off-screen probe element with the same width as the real viewport.
+    const refVp = document.querySelector('.qs-demo-viewport');
+    if (!refVp) return;
+
+    const probe = document.createElement('div');
+    probe.className = 'qs-demo-viewport';
+    Object.assign(probe.style, {
+        position: 'fixed', top: '-9999px', left: '-9999px',
+        width: refVp.offsetWidth ? refVp.offsetWidth + 'px' : '100%',
+        visibility: 'hidden', height: 'auto', overflow: 'visible'
+    });
+    document.body.appendChild(probe);
+
+    let maxH = 0;
+    for (let i = 1; i <= 6; i++) {
+        const frames = _getFrames(i);
+        for (const f of frames) {
+            probe.innerHTML = f.html;
+            if (probe.scrollHeight > maxH) maxH = probe.scrollHeight;
+        }
+    }
+    document.body.removeChild(probe);
+
+    // Apply uniform *scaled* height to every viewport
+    if (maxH > 0) {
+        const scaledH = Math.ceil(maxH * QS_DEMO_SCALE);
+        document.querySelectorAll('.qs-demo-viewport').forEach(vp => {
+            vp.style.height = scaledH + 'px';
+        });
+    }
+
+    // Render first frame & start auto-play
     for (let i = 1; i <= 6; i++) {
         const s = _ensureState(i);
         _renderFrame(i);
-        // Auto-start playback
         if (!s.playing) {
             s.playing = true;
             s.timer = setInterval(() => qsDemoNext(i), AUTO_PLAY_MS);
@@ -549,6 +584,88 @@ export function destroyAllDemos() {
         if (s.timer) clearInterval(s.timer);
     }
     _state.clear();
+    _closeLightbox();
+}
+
+/* ── Lightbox (expanded demo view) ── */
+
+/** Open the demo lightbox for the given step at the current frame. */
+export function qsDemoExpand(step) {
+    _lightboxStep = step;
+    // Pause inline auto-play while lightbox is open
+    const s = _ensureState(step);
+    if (s.playing) {
+        clearInterval(s.timer); s.timer = null; s.playing = false;
+        _updatePlayBtn(step);
+    }
+    _renderLightbox();
+}
+
+function _closeLightbox() {
+    const lb = document.querySelector('.qs-demo-lightbox');
+    if (lb) {
+        if (lb._onKey) document.removeEventListener('keydown', lb._onKey);
+        lb.remove();
+    }
+    _lightboxStep = null;
+}
+
+function _lbPrev() {
+    if (_lightboxStep == null) return;
+    qsDemoPrev(_lightboxStep);
+}
+function _lbNext() {
+    if (_lightboxStep == null) return;
+    qsDemoNext(_lightboxStep);
+}
+function _lbToggle() {
+    if (_lightboxStep == null) return;
+    qsDemoToggle(_lightboxStep);
+}
+
+function _renderLightbox() {
+    const step = _lightboxStep;
+    if (step == null) return;
+    const s = _ensureState(step);
+    const frames = _getFrames(step);
+    if (!frames.length) return;
+    const frame = frames[s.frame];
+
+    let lb = document.querySelector('.qs-demo-lightbox');
+    if (!lb) {
+        lb = document.createElement('div');
+        lb.className = 'qs-demo-lightbox';
+        lb.addEventListener('click', e => { if (e.target === lb) _closeLightbox(); });
+        lb.innerHTML = `
+            <div class="qs-demo-lightbox-card">
+                <button class="qs-demo-lightbox-close" aria-label="Close">✕</button>
+                <div class="qs-demo-lightbox-viewport"></div>
+                <p class="qs-demo-lightbox-caption"></p>
+                <div class="qs-demo-lightbox-controls">
+                    <button class="qs-demo-btn qs-lb-prev" aria-label="Previous frame">‹</button>
+                    <span class="qs-demo-lightbox-counter"></span>
+                    <button class="qs-demo-btn qs-lb-next" aria-label="Next frame">›</button>
+                    <button class="qs-demo-btn qs-lb-play" aria-label="Play / Pause">▶</button>
+                </div>
+            </div>`;
+        lb.querySelector('.qs-demo-lightbox-close').onclick = _closeLightbox;
+        lb.querySelector('.qs-lb-prev').onclick = _lbPrev;
+        lb.querySelector('.qs-lb-next').onclick = _lbNext;
+        lb.querySelector('.qs-lb-play').onclick = _lbToggle;
+        lb._onKey = e => { if (e.key === 'Escape') _closeLightbox(); };
+        document.addEventListener('keydown', lb._onKey);
+        document.body.appendChild(lb);
+    }
+
+    const vp = lb.querySelector('.qs-demo-lightbox-viewport');
+    const cap = lb.querySelector('.qs-demo-lightbox-caption');
+    const ctr = lb.querySelector('.qs-demo-lightbox-counter');
+    const playBtn = lb.querySelector('.qs-lb-play');
+
+    if (vp) vp.innerHTML = frame.html;
+    if (cap) cap.textContent = frame.caption;
+    if (ctr) ctr.textContent = `${s.frame + 1} / ${frames.length}`;
+    if (playBtn) playBtn.textContent = s.playing ? '⏸' : '▶';
 }
 
 /* ── Rendering ── */
@@ -574,6 +691,9 @@ function _renderFrame(step) {
     if (caption) caption.textContent = frame.caption;
     if (counter) counter.textContent = `${s.frame + 1} / ${frames.length}`;
     _updatePlayBtn(step);
+
+    // Keep lightbox in sync if it's showing this step
+    if (_lightboxStep === step) _renderLightbox();
 }
 
 function _updatePlayBtn(step) {

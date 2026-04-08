@@ -13,7 +13,7 @@ import { toggleReviewBody, loadPlaylistTracks, renderReviewTracks, toggleReviewF
 import { showStatus, showStatusHtml, showPlaylistLink, hidePlaylistLink, esc, attr, sanitizeHtml, escHtml, toggleSettingsMenu, showToast } from './modules/ui.js';
 import { openCredentials, saveCredentials, clearCredential, saveSettings, openSettings, openHelp, openSectionHelp, closeSectionHelp, openDataDir, closeModal, openQuickstart, closeQuickstart, maybeShowQuickstart } from './modules/modals.js';
 import { quickstartGoTo, quickstartNext, quickstartPrev } from './modules/quickstart-tour.js';
-import { qsDemoNext, qsDemoPrev, qsDemoToggle, initAllDemos, destroyAllDemos } from './modules/quickstart-demo.js';
+import { qsDemoNext, qsDemoPrev, qsDemoToggle, qsDemoExpand, initAllDemos, destroyAllDemos } from './modules/quickstart-demo.js';
 import { switchTheme, THEME_BACKGROUNDS, THEME_RENDERERS } from './modules/theme-switcher.js';
 import { initJumpBubble } from './modules/jump-bubble.js';
 import './modules/theme-equalizer.js';
@@ -126,6 +126,7 @@ window.quickstartPrev = quickstartPrev;
 window.qsDemoNext = qsDemoNext;
 window.qsDemoPrev = qsDemoPrev;
 window.qsDemoToggle = qsDemoToggle;
+window.qsDemoExpand = qsDemoExpand;
 window.switchTheme = switchTheme;
 window.switchLanguage = switchLanguage;
 window.applyLanguage = applyLanguage;

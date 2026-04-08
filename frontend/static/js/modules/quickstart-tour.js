@@ -6,6 +6,7 @@
  * and shown on step pages. On the last step, Next becomes "Get Started".
  */
 import { i18n } from './i18n.js';
+import { qsDemoReset } from './quickstart-demo.js';
 
 const TOTAL_PAGES = 7;   // 0 (TOC) + 6 steps
 const LAST_STEP = 6;
@@ -54,6 +55,9 @@ function _renderPage() {
         // Scroll the visible page to top
         if (idx === _currentPage) p.scrollTop = 0;
     });
+
+    // Reset demo preview to frame 1 for the newly visible step page
+    if (_currentPage >= 1) qsDemoReset(_currentPage);
 
     // Pagination bar — always visible (including TOC page)
     const pag = document.getElementById('qsPagination');
