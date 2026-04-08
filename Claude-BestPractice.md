@@ -128,6 +128,23 @@ AGENTS.md files have been adopted by **60,000+ repositories** as a "README for a
 
 - **Source:** [Anthropic — Manage Costs Effectively](https://code.claude.com/docs/en/costs)
 
+### Small Fast Model Override
+
+Claude Code uses a lightweight "small fast model" internally for background operations (`/compact` summaries, commit message generation, tool result summarization). By default this is Haiku. You can explicitly set it via the `ANTHROPIC_SMALL_FAST_MODEL` environment variable in your Claude Code `settings.json`:
+
+```jsonc
+// ~/.claude/settings.json (user-level) or .claude/settings.json (project-level)
+{
+  "env": {
+    "ANTHROPIC_SMALL_FAST_MODEL": "claude-haiku-3-5-20241022"
+  }
+}
+```
+
+This does **not** route user prompts to Haiku — only background operations. For switching the main model, use `/model` interactively.
+
+- **Source:** [Anthropic — Claude Code Configuration](https://code.claude.com/docs/en/configuration)
+
 ---
 
 ## 8. Prompt Caching
