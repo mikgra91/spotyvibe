@@ -1,0 +1,81 @@
+/* layout.css — Container, typography, sr-only, skip-link, focus-visible, hidden */
+/* --- Layout --- */
+.container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 3.5rem 2rem;
+    padding-left: max(2rem, env(safe-area-inset-left));
+    padding-right: max(2rem, env(safe-area-inset-right));
+    padding-bottom: max(2rem, env(safe-area-inset-bottom));
+    position: relative;
+    z-index: 1;
+}
+
+/* --- Typography --- */
+h1 {
+    color: var(--primary);
+    font-size: 2.8rem;
+    font-weight: 800;
+    margin-bottom: 0.2rem;
+    text-shadow:
+        0 0 60px rgba(30,215,96,0.18),
+        0 0 120px rgba(30,215,96,0.06);
+    letter-spacing: -0.5px;
+}
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 1.05rem;
+    margin-bottom: 2.8rem;
+    letter-spacing: 0.3px;
+}
+
+.inline-divider {
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin: 15px 0;
+}
+
+
+.hidden { display: none !important; }
+
+/* =============================================
+   Focus ring for accessibility
+   ============================================= */
+
+/* Screen-reader-only utility — visually hidden but accessible to assistive tech */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Skip-to-main-content link */
+.skip-link {
+    position: absolute;
+    top: -100%;
+    left: 16px;
+    z-index: 600;  /* skip link — above modals */
+    padding: 12px 24px;
+    background: var(--primary);
+    color: var(--btn-cta-text);
+    font-weight: 700;
+    border-radius: var(--radius-sm);
+    text-decoration: none;
+    font-size: 1rem;
+    transition: top 0.2s ease;
+}
+.skip-link:focus {
+    top: 16px;
+}
+
+:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+

@@ -1,0 +1,1172 @@
+/* sections.css — Train profile, profile menus, analysis, audio filters, providers, metadata */
+
+/* =============================================
+   Train taste profile
+   ============================================= */
+.train-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+}
+.train-header h2 {
+    font-size: 1rem;
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.train-header-left {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+}
+
+.train-subtitle {
+    opacity: 0.7;
+}
+
+.train-header-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    position: relative;
+}
+
+/* ── Profile context menu (⋯ button + dropdown) ──────────────────── */
+.accordion-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.profile-menu-wrapper {
+    position: relative;
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 8px;
+}
+
+.profile-menu-trigger {
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 4px 8px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+@media (hover: hover) {
+    .profile-menu-trigger:hover {
+        background: rgba(255,255,255,0.08);
+        color: var(--text-primary);
+        border-color: var(--border);
+    }
+}
+.profile-menu-trigger:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+.profile-menu-trigger[aria-expanded="true"] {
+    background: rgba(255,255,255,0.08);
+    color: var(--text-primary);
+    border-color: var(--border);
+}
+
+/* Shared dropdown panel base */
+.dropdown-panel {
+    position: absolute;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 6px 0;
+    margin: 0;
+    list-style: none;
+    animation: dropdownFadeIn 0.15s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+    .dropdown-panel { animation: none; }
+}
+.dropdown-panel li {
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background var(--transition);
+    white-space: nowrap;
+}
+@media (hover: hover) {
+    .dropdown-panel li:hover {
+        background: rgba(255, 255, 255, 0.06);
+    }
+}
+.dropdown-panel li:focus {
+    background: rgba(255, 255, 255, 0.06);
+    outline: none;
+}
+
+.profile-menu-dropdown {
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 100;
+    min-width: 190px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+}
+.profile-menu-dropdown li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    user-select: none;
+}
+.profile-menu-dropdown li.disabled {
+    opacity: 0.35;
+    pointer-events: none;
+    cursor: default;
+}
+.profile-menu-icon {
+    font-size: 0.9rem;
+    flex-shrink: 0;
+    width: 18px;
+    text-align: center;
+}
+.profile-menu-item-delete {
+    color: var(--error) !important;
+}
+@media (hover: hover) {
+    .profile-menu-item-delete:hover {
+        background: rgba(255, 80, 80, 0.10) !important;
+    }
+}
+
+/* ── Profile selector & multi-profile controls ─────────────────────── */
+.profile-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+
+/* Card container for the dropdown row */
+.profile-select-card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+@media (hover: hover) {
+    .profile-select-card:hover {
+        border-color: var(--glass-hover-border);
+    }
+}
+.profile-select-card:focus-within {
+    border-color: var(--primary);
+    box-shadow: var(--focus-glow);
+}
+
+.profile-select-icon {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.profile-select-card .profile-dropdown {
+    flex: 1;
+    min-height: 32px;
+    padding: 4px 28px 4px 8px;
+    background: transparent;
+    border: none;
+    font-size: 0.88rem;
+    color: var(--text-primary);
+}
+.profile-select-card .profile-dropdown:focus {
+    box-shadow: none;
+}
+
+/* ── Custom styled dropdown ─────────────────────────────────────────── */
+.custom-dropdown {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 32px;
+    padding: 4px 10px 4px 8px;
+    cursor: pointer;
+    user-select: none;
+    outline: none;
+}
+.custom-dropdown:focus {
+    outline: none;
+}
+.custom-dropdown-label {
+    font-size: 0.88rem;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.custom-dropdown-chevron {
+    color: var(--text-muted);
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+}
+.custom-dropdown[aria-expanded="true"] .custom-dropdown-chevron {
+    transform: rotate(180deg);
+}
+
+.custom-dropdown-list {
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 100;
+    max-height: 200px;
+    overflow-y: auto;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+@keyframes dropdownFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.custom-dropdown-list li {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.custom-dropdown-list li[aria-selected="true"] {
+    color: var(--primary);
+    font-weight: 600;
+}
+.custom-dropdown-list li[aria-selected="true"]::before {
+    content: "✓ ";
+    font-size: 0.75rem;
+}
+
+
+/* Card container for the create profile button */
+.profile-create-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 90px;
+    padding: 14px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+@media (hover: hover) {
+    .profile-create-card:hover {
+        border-color: var(--glass-hover-border);
+    }
+}
+
+.profile-create-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    animation: slideDown 0.15s ease-out;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .profile-create-input-wrap { animation: none; }
+}
+
+.profile-create-input {
+    flex: 1;
+    min-width: 140px;
+    min-height: 30px;
+    padding: 5px 10px;
+    font-size: 0.82rem;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+.profile-create-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--focus-glow);
+}
+
+.profile-create-confirm {
+    background: none;
+    border: 1px solid var(--accent-teal);
+    color: var(--accent-teal);
+    font-size: 0.9rem;
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition);
+}
+@media (hover: hover) {
+    .profile-create-confirm:hover {
+        background: var(--accent-teal);
+        color: #fff;
+    }
+}
+
+.profile-create-error {
+    font-size: 0.78rem;
+    color: var(--error);
+    width: 100%;
+}
+
+/* ── AI training advisory warning ──────────────────────────────────── */
+.train-ai-warning {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    margin-top: 8px;
+    font-size: 0.82rem;
+    color: var(--warning);
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: var(--radius-sm);
+}
+
+
+
+
+.train-status {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.btn-train {
+    background: rgba(27,33,42,0.8);
+    color: var(--text-primary);
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 10px 24px;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: inherit;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    transition: all var(--transition);
+}
+@media (hover: hover) {
+    .btn-train:hover {
+        background: rgba(40,48,60,0.85);
+        border-color: rgba(255,255,255,0.18);
+        transform: translateY(-1px);
+    }
+}
+.btn-train:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.train-body { margin-top: 14px; }
+.train-body textarea,
+.accordion-body-inner textarea {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    resize: vertical;
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+.train-body textarea {
+    min-height: 110px;
+    padding: 12px 14px;
+    font-size: 0.9rem;
+}
+.train-body textarea:focus,
+.accordion-body-inner textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--focus-glow);
+}
+.train-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 12px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+/* --- Train success --- */
+.train-success {
+    color: var(--success);
+    font-size: 1.3rem;
+    margin-top: 10px;
+    animation: fadeOut 5s forwards;
+}
+@keyframes fadeOut {
+    0%, 70% { opacity: 1; }
+    100%    { opacity: 0; }
+}
+
+/* --- Train spinner --- */
+.train-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 24px 0 8px;
+}
+.train-spinner.hidden { display: none; }
+
+
+
+
+/* ── Band/Song Analysis ─────────────────────────────────────────────── */
+
+.analysis-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 14px;
+    min-height: 25px;
+}
+
+
+.analysis-input-row {
+    display: flex;
+    gap: 10px;
+}
+
+.analysis-input-row input {
+    flex: 1;
+    min-width: 0;
+    margin-left: 5px;
+    margin-right: 5px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.analysis-input-row input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--focus-glow);
+}
+
+.analysis-input-row input,
+.analysis-inputs input {
+    min-height: 30px;
+    border-radius: var(--radius-sm);
+    padding: 15px 17px;
+    font-size: 0.9rem;
+    box-sizing: border-box;
+}
+
+.analysis-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-top: 12px;
+}
+
+.analysis-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+}
+
+.analysis-row {
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+}
+
+.analysis-tag {
+    display: inline-block;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    padding: 3px 10px;
+    font-size: 0.78rem;
+    color: var(--accent-teal);
+    margin: 2px 3px 2px 0;
+}
+
+.analysis-ch-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.83rem;
+    margin: 8px 0 12px;
+}
+
+.analysis-ch-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+}
+
+.analysis-ch-key {
+    font-weight: 600;
+    color: var(--text-primary);
+    width: 30%;
+    text-transform: capitalize;
+}
+
+.analysis-suggestions-header {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 12px 0 6px;
+}
+
+.analysis-suggestion {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 6px;
+    font-size: 0.86rem;
+    color: var(--text-secondary);
+}
+
+.analysis-suggestion span { flex: 1; }
+
+.btn-copy-suggestion {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0 2px;
+    opacity: 0.7;
+    flex-shrink: 0;
+}
+@media (hover: hover) {
+    .btn-copy-suggestion:hover { opacity: 1; }
+}
+
+/* ── Audio feature bars (GPT-estimated) ─────────────────────────────── */
+.af-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.af-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.af-label {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    width: 120px;
+    flex-shrink: 0;
+}
+
+.af-bar-track {
+    flex: 1;
+    height: 8px;
+    background: var(--bg-input);
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+.af-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-dark), var(--primary));
+    border-radius: 4px;
+    transition: width 0.4s ease;
+}
+
+.af-value {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    width: 50px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+
+/* ── Playlist mode selector ─────────────────────────────────────────── */
+.playlist-mode-row {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+
+.playlist-mode-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.playlist-mode-option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+}
+
+.playlist-mode-option input[type="radio"] {
+    accent-color: var(--primary);
+    cursor: pointer;
+    width: auto;
+}
+
+/* ── Run History ────────────────────────────────────────────────────── */
+
+.history-run-item {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.history-run-item:last-child { border-bottom: none; }
+@media (hover: hover) {
+    .history-run-item:hover { background: rgba(255, 255, 255, 0.03); }
+}
+
+.history-run-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.history-run-chevron {
+    color: var(--text-muted);
+    font-size: 1rem;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+    margin-left: 12px;
+}
+.history-run-item.expanded .history-run-chevron {
+    transform: rotate(90deg);
+}
+
+.history-run-date {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 3px;
+}
+
+.history-run-info { color: var(--text-secondary); }
+.history-run-info a {
+    color: var(--primary);
+    text-decoration: none;
+}
+@media (hover: hover) {
+    .history-run-info a:hover { text-decoration: underline; }
+}
+
+.history-run-tracks {
+    display: none;
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 8px 0 0;
+    border-top: 1px solid var(--border);
+}
+.history-run-item.expanded .history-run-tracks {
+    display: block;
+}
+.history-run-tracks li {
+    padding: 3px 0;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+}
+
+/* ── Audio feature filters (sub-panel inside Discover) ──────────────── */
+.audio-filter-subpanel {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    margin-bottom: 12px;
+}
+
+.audio-filter-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+}
+
+.audio-filter-label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.audio-filter-optional {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 400;
+}
+
+.audio-filter-chevron {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    user-select: none;
+}
+
+.audio-filter-body {
+    margin-top: 10px;
+}
+
+.audio-filter-hint {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
+.audio-filter-jump {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+}
+@media (hover: hover) {
+    .audio-filter-jump:hover {
+        text-decoration: underline;
+    }
+}
+
+.audio-filter-grid-header {
+    display: grid;
+    grid-template-columns: max-content 1fr 1fr auto;
+    gap: 4px 8px;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.audio-filter-col-label {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    text-align: center;
+}
+
+.audio-filter-clear-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    transition: color var(--transition), background var(--transition);
+    white-space: nowrap;
+}
+@media (hover: hover) {
+    .audio-filter-clear-btn:hover {
+        color: var(--error);
+        background: rgba(255, 80, 80, 0.1);
+    }
+}
+
+/* Flat grid: label, min, max, hint share four column tracks */
+.audio-filter-grid {
+    display: grid;
+    grid-template-columns: max-content 1fr 1fr auto;
+    gap: 8px 8px;
+    align-items: center;
+}
+
+.audio-filter-row {
+    display: contents;
+}
+
+.audio-filter-row label {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    font-weight: 400;
+    padding-right: 4px;
+}
+
+.audio-filter-row input {
+    width: 100%;
+    min-width: 0;
+    padding: 6px 10px;
+    font-size: 0.82rem;
+}
+
+.audio-filter-hint-text {
+    font-size: 0.72rem;
+    color: var(--primary);
+    white-space: nowrap;
+    min-width: 100px;
+}
+
+/* ── "⇒ Filter" buttons in analysis results ────────────────────────── */
+.af-use-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--primary);
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background var(--transition), color var(--transition);
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-left: 4px;
+}
+@media (hover: hover) {
+    .af-use-btn:hover {
+        background: var(--primary);
+        color: #fff;
+    }
+}
+
+.af-use-all-btn {
+    background: var(--primary-dark);
+    border: 1px solid var(--primary);
+    color: #fff;
+    font-size: 0.75rem;
+    padding: 3px 10px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background var(--transition);
+    white-space: nowrap;
+    margin-left: 8px;
+}
+@media (hover: hover) {
+    .af-use-all-btn:hover {
+        background: var(--primary);
+    }
+}
+
+
+
+/* ── Analysis / Metadata shared ─────────────────────────────────────── */
+.btn-run-narrow {
+    min-width: 220px;
+    height: 56px;
+    padding: 0 40px;
+    font-size: 16px;
+    width: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+}
+
+/* Secondary variant — dark, no glow */
+.btn-run-secondary {
+    background: rgba(27,33,42,0.8);
+    color: var(--text-secondary);
+    border: none;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1);
+}
+@media (hover: hover) {
+    .btn-run-secondary:hover {
+        background: rgba(40,48,60,0.85);
+        color: var(--text-primary);
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18);
+        transform: translateY(-2px);
+    }
+}
+.btn-run-secondary:active { transform: translateY(0); }
+
+.analysis-hint {
+    margin-bottom: 12px;
+}
+
+/* ── Metadata market row ────────────────────────────────────────────── */
+.metadata-market-row {
+    margin-top: 8px;
+    align-items: center;
+}
+
+.metadata-market-label {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.metadata-market-select {
+    max-width: 120px;
+    min-height: 30px;
+    border-radius: var(--radius-sm);
+    padding-left: 10px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+
+/* =============================================
+   Provider Sections
+   ============================================= */
+.provider-section {
+    margin-top: 60px;
+    background: var(--glass-bg);
+    border: var(--glass-border);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: 28px 28px 24px;
+    position: relative;
+}
+
+.provider-section + .provider-section {
+    margin-top: 32px;
+}
+
+.provider-section.provider-openai {
+    border-color: rgba(16, 185, 129, 0.12);
+}
+
+.provider-section.provider-spotify {
+    border-color: rgba(30, 215, 96, 0.12);
+}
+
+.provider-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.provider-header-title {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.provider-badge {
+    display: inline-block;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+}
+
+
+.provider-subtitle {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    max-width: 480px;
+}
+
+/* --- Status pills --- */
+.provider-status-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    padding-top: 4px;
+}
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    white-space: nowrap;
+}
+
+.status-pill::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.status-pill--ok {
+    background: rgba(34, 197, 94, 0.12);
+    color: var(--success);
+    border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.status-pill--ok::before { background: var(--success); }
+
+.status-pill--warn {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--warning);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.status-pill--warn::before { background: var(--warning); }
+
+.status-pill--err {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--error);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.status-pill--err::before { background: var(--error); }
+
+/* --- Dependency chips (Generate Playlist) --- */
+.generate-deps-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.dep-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    padding: 4px 12px;
+}
+
+.dep-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.dep-dot--ok { background: var(--success); }
+.dep-dot--warn { background: var(--warning); }
+.dep-dot--unknown { background: var(--text-muted); }
+
+/* =============================================
+   Spotify Metadata Result Cards
+   ============================================= */
+.metadata-result {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.meta-block {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+}
+
+.meta-block-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+}
+
+.meta-grid {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 6px 12px;
+    align-items: baseline;
+}
+
+.meta-key {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.meta-val {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+.meta-id {
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+
+/* Confidence badge */
+.confidence-badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+}
+
+.confidence-high {
+    background: rgba(34,197,94,0.15);
+    color: var(--success);
+    border: 1px solid rgba(34,197,94,0.3);
+}
+
+.confidence-mid {
+    background: rgba(245,158,11,0.15);
+    color: var(--warning);
+    border: 1px solid rgba(245,158,11,0.3);
+}
+
+.confidence-low {
+    background: rgba(239,68,68,0.15);
+    color: var(--error);
+    border: 1px solid rgba(239,68,68,0.3);
+}
+
+/* Warning badges */
+.warning-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: var(--radius-pill);
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--warning);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+

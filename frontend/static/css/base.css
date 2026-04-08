@@ -1,0 +1,145 @@
+/* base.css — Design tokens, reset, body, background, reduced-motion, scrollbar */
+/* =============================================
+   SpotyVibe — Premium Dark-Mode Stylesheet
+   ============================================= */
+
+/* --- z-index scale ---
+   -1   Background canvas
+    1   Main container
+   2-5  Local stacking (demo elements, close btns)
+   10   Tooltips, modal-loading spinner
+   100  Dropdowns (settings, profile menu, custom)
+   200  Modal overlays
+   250  Modal close buttons (help, quickstart)
+   300  Toasts
+   400  Section jump bubble
+   500  Spotify preview overlay
+   600  Skip link
+   800  Screenshot lightbox
+   801  Screenshot lightbox close
+   900  Vignette overlay (pointer-events: none)
+*/
+
+/* --- Design tokens --- */
+:root {
+    --bg-main: #050608;
+    --bg-deep: #0b0f14;
+    --bg-card: #151b22;
+    --bg-elevated: #1b212a;
+    --bg-input: #0f1318;
+    --border: rgba(255,255,255,0.07);
+    --text-primary: #f4f7fb;
+    --text-secondary: #b5bfd0;
+    --text-muted: #6B7280;
+    --primary: #1ed760;
+    --primary-hover: #24f06b;
+    --primary-dark: #11b84c;
+    --accent-teal: #19d3c5;
+    --accent-cyan: #4ca8ff;
+    --accent-purple: #8c3dff;
+    --accent-violet: #b14dff;
+    --accent-pink: #ff4db8;
+    --success: #22C55E;
+    --error: #EF4444;
+    --warning: #F59E0B;
+    --glow-green: rgba(30, 215, 96, 0.35);
+    --radius-sm: 12px;
+    --radius-md: 18px;
+    --radius-lg: 24px;
+    --radius-pill: 999px;
+    --shadow-card: 0 12px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.05);
+    --shadow-elevated: 0 16px 56px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,0.04);
+    --transition: 200ms ease;
+    --glass-bg: linear-gradient(180deg, rgba(21,27,34,0.85), rgba(16,20,26,0.90));
+    --glass-blur: blur(16px);
+    --glass-border: 1px solid rgba(255,255,255,0.07);
+    --glass-hover-border: rgba(255,255,255,0.12);
+    --shadow-card-hover: 0 16px 56px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.05), inset 0 1px 0 rgba(255,255,255,0.06);
+    --focus-glow: 0 0 0 3px rgba(30,215,96,.15), 0 0 20px rgba(30,215,96,.06);
+    --btn-cta-text: #041108;
+    --error-hover: #DC2626;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* --- Mobile touch & scroll --- */
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    overscroll-behavior: none;           /* prevent pull-to-refresh in WebView */
+}
+
+body {
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    background:
+        radial-gradient(ellipse at 50% 18%, rgba(30,215,96,0.07), transparent 36%),
+        radial-gradient(ellipse at 50% 82%, rgba(140,61,255,0.09), transparent 38%),
+        linear-gradient(180deg, var(--bg-main) 0%, var(--bg-deep) 100%);
+    color: var(--text-primary);
+    min-height: 100vh;
+    font-size: 16px;
+    line-height: 1.5;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;  /* remove Android blue tap flash */
+}
+
+/* Prevent double-tap zoom on interactive elements (Android) */
+button, a, input, select, textarea, label, [role="button"], [tabindex] {
+    touch-action: manipulation;
+}
+
+/* Vignette overlay */
+body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 900;  /* vignette — above everything, pointer-events: none */
+    box-shadow:
+        inset 0 0 200px 60px rgba(0,0,0,0.45),
+        inset 0 0 80px 20px rgba(0,0,0,0.25);
+}
+
+/* --- Background container (shared by all themes) --- */
+.background {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: -1;
+    overflow: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+    .btn-run,
+    .btn,
+    .status-pill,
+    .dep-chip,
+    .confidence-badge,
+    .warning-badge,
+    .section-jump-bubble,
+    .train-success {
+        animation: none !important;
+        transition: none !important;
+    }
+    .ob-pages { transition: none !important; }
+    .background canvas { display: none; }
+    .accordion-body { transition: none !important; }
+    .spotify-preview-overlay,
+    .preview-feedback-panel { transition: none !important; }
+}
+
+
+/* --- Scrollbar (dark theme, green thumb – matches app palette) --- */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+    background: var(--primary, #1DB954);
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover { background: #1ed760; }
+::-webkit-scrollbar-corner { background: transparent; }
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary) transparent;
+}
+

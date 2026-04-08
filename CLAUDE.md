@@ -28,7 +28,7 @@ bash build-tools/build_apk.sh debug                  # Chaquopy Android APK
 | Run history | `core/src/history.py` |
 | Artist analysis | `core/src/analysis.py` |
 | Page layout / HTML structure | `frontend/templates/base.html` + partials |
-| Styling | `frontend/static/css/styles.css` (single file, ~5000 lines) |
+| Styling | `frontend/static/css/` (11 modular files: base → layout → buttons → forms → components → tracks → modals → quickstart → sections → preview → responsive) |
 | JS feature logic | `frontend/static/js/modules/<feature>.js` |
 | App entry / module wiring | `frontend/static/js/main.js` |
 | Translations | `frontend/static/i18n/en.json` + `de.json` (must stay in sync) |
@@ -82,6 +82,18 @@ spotyvibe/
 │   ├── preview_overlay.html       # Audio preview overlay
 │   ├── theme_switcher.html, settings_gear.html, toast.html
 │   └── modals/                    # credentials, help, quickstart, settings
+├── frontend/static/css/           # Modular CSS (11 files, no bundler)
+│   ├── base.css                   # Design tokens, reset, body, scrollbar
+│   ├── layout.css                 # Container, typography, sr-only, focus
+│   ├── buttons.css                # All .btn-* variants
+│   ├── forms.css                  # Form rows, inputs, selects, checkboxes
+│   ├── components.css             # Glass panels, toast, tooltip, spinner, accordion
+│   ├── tracks.css                 # Track list, items, covers, feedback
+│   ├── modals.css                 # Modal overlay, help modal, lightbox
+│   ├── quickstart.css             # Quickstart guide (qs-*/qd-* prefixes)
+│   ├── sections.css               # Profile, analysis, providers, metadata
+│   ├── preview.css                # Spotify preview overlay
+│   └── responsive.css             # All @media queries
 ├── frontend/static/js/modules/   # JS feature modules
 │   ├── state.js                   # Central app state
 │   ├── ui.js, auth.js, profile.js, pipeline.js, playlist-mode.js
@@ -103,7 +115,7 @@ spotyvibe/
 ## Architecture
 
 - **Single-page Flask app** — `base.html` includes partials; JS modules handle SPA behavior.
-- **No build step** — vanilla JS (ES modules), single CSS file.
+- **No build step** — vanilla JS (ES modules), modular CSS (11 files, no bundler).
 - **Spotify isolation** — all API calls in `core/src/playlist.py`.
 - **OpenAI isolation** — all calls via `core/src/openai_http.py` (raw HTTP).
 

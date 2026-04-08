@@ -1,0 +1,148 @@
+/* buttons.css — All button variants */
+/* =============================================
+   Buttons
+   ============================================= */
+.btn {
+    border: none;
+    padding: 10px 22px;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: inherit;
+    transition: all var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+@media (hover: hover) {
+    .btn:hover {
+        filter: brightness(1.15);
+        transform: translateY(-1px);
+    }
+}
+.btn:active { transform: translateY(0); }
+.btn:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+    transform: none;
+    filter: none;
+}
+
+.btn-like,
+.btn-submit-like,
+.btn-save {
+    background: var(--primary);
+    color: var(--btn-cta-text);
+}
+.btn-dislike,
+.btn-submit-dislike {
+    background: var(--error);
+    color: var(--text-primary);
+}
+.btn-remove,
+.btn-cancel {
+    background: rgba(27,33,42,0.8);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+}
+.btn-cancel {
+    border-color: rgba(255,255,255,0.1);
+}
+@media (hover: hover) {
+    .btn-cancel:hover {
+        background: rgba(40,48,60,0.85);
+        border-color: rgba(255,255,255,0.16);
+    }
+}
+.btn-secondary {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    margin-left: auto;
+    font-size: 0.82rem;
+}
+@media (hover: hover) {
+    .btn-secondary:hover {
+        background: rgba(40,48,60,0.6);
+        color: var(--text-primary);
+        border-color: rgba(255,255,255,0.18);
+    }
+}
+/* Primary CTA — shared base */
+.btn-run,
+.btn-run-cancel {
+    border: none;
+    font-size: 16px;
+    font-weight: 700;
+    font-family: inherit;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.btn-run {
+    background: linear-gradient(180deg, var(--primary-hover), var(--primary-dark));
+    color: var(--btn-cta-text);
+    padding: 18px 40px;
+    box-shadow:
+        0 10px 30px rgba(30, 215, 96, 0.35),
+        0 0 60px rgba(30, 215, 96, 0.12),
+        inset 0 1px 0 rgba(255,255,255,0.28);
+}
+@media (hover: hover) {
+    .btn-run:hover {
+        transform: translateY(-2px) scale(1.02);
+        box-shadow:
+            0 14px 40px rgba(30, 215, 96, 0.45),
+            0 0 80px rgba(30, 215, 96, 0.18),
+            inset 0 1px 0 rgba(255,255,255,0.3);
+    }
+}
+.btn-run:active { transform: translateY(0) scale(1); }
+.btn-run:disabled {
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Cancel run */
+.btn-run-cancel {
+    background: var(--error);
+    color: var(--btn-cta-text);
+    padding: 18px 32px;
+    box-shadow: 0 6px 20px rgba(239,68,68,.25);
+}
+@media (hover: hover) {
+    .btn-run-cancel:hover {
+        background: var(--error-hover);
+        transform: translateY(-2px);
+        box-shadow: 0 10px 30px rgba(239,68,68,.35);
+    }
+}
+.btn-run-cancel:active { transform: translateY(0); }
+
+/* Use tracks outline button */
+.btn-use-tracks {
+    background: transparent;
+    color: var(--primary);
+    border: 1.5px solid var(--primary);
+    padding: 10px 24px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    transition: all var(--transition);
+}
+@media (hover: hover) {
+    .btn-use-tracks:hover {
+        background: rgba(30,215,96,.08);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 16px rgba(30,215,96,.12);
+    }
+}
+.btn-use-tracks:active { transform: translateY(0); }
+

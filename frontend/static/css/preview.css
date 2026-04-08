@@ -1,0 +1,240 @@
+/* preview.css — Spotify preview overlay, tabs, feedback panel */
+/* ---- Spotify Preview Overlay ---- */
+.spotify-preview-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 500;  /* Spotify preview overlay */
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+.spotify-preview-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Horizontal layout: [player] [tabs] [form] */
+.preview-layout {
+    display: flex;
+    align-items: flex-start;      /* top-align all items flush */
+    margin-bottom: 0;
+}
+
+.spotify-preview-panel {
+    position: relative;
+    background: #121212;
+    border-radius: 16px 0 0 0;
+    padding: 20px 24px;
+    width: 42vw;
+    min-width: 400px;
+    max-width: 620px;
+    flex-shrink: 0;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.6);
+}
+
+.spotify-preview-close {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    background: none;
+    border: none;
+    color: #b3b3b3;
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 4px 8px;
+    border-radius: 4px;
+    z-index: 2;
+}
+@media (hover: hover) {
+    .spotify-preview-close:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.1);
+    }
+}
+
+.spotify-preview-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #fff;
+    margin-bottom: 12px;
+    padding-right: 32px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Slider layout: arrows flanking the iframe */
+.spotify-preview-slider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.spotify-preview-slider iframe {
+    flex: 1;
+    min-width: 0;
+    display: block;
+    border-radius: var(--radius-sm);
+}
+
+.spotify-preview-nav {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    font-size: 1.4rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, opacity 0.15s;
+    line-height: 1;
+    padding: 0;
+}
+@media (hover: hover) {
+    .spotify-preview-nav:hover {
+        background: rgba(255, 255, 255, 0.18);
+    }
+}
+.spotify-preview-nav:disabled {
+    opacity: 0.25;
+    cursor: default;
+    pointer-events: none;
+}
+
+.spotify-preview-counter {
+    text-align: center;
+    font-size: 0.78rem;
+    color: #b3b3b3;
+    margin-top: 8px;
+}
+
+
+/* ── Action tabs — rounded icon strip ── */
+.preview-tab-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+    background: #121212;          /* same colour as the preview panel */
+    border-radius: 0 14px 14px 0;
+    padding: 12px 8px;
+}
+
+.preview-tab {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    border: none;
+    background: transparent;      /* sits on the container bg */
+    color: #fff;
+    font-size: 1.3rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+    border-radius: 12px;
+}
+@media (hover: hover) {
+    .preview-tab:hover {
+        background: rgba(255, 255, 255, 0.12);
+    }
+}
+
+/* Active tab state */
+.preview-tab.active {
+    z-index: 2;
+}
+.preview-tab-like.active {
+    background: rgba(29, 185, 84, 0.35);
+    box-shadow: 0 0 12px rgba(29, 185, 84, 0.3);
+}
+.preview-tab-dislike.active {
+    background: rgba(231, 76, 60, 0.35);
+    box-shadow: 0 0 12px rgba(231, 76, 60, 0.3);
+}
+
+/* Hover colours per type */
+@media (hover: hover) {
+    .preview-tab-like:hover { background: rgba(29, 185, 84, 0.22); }
+}
+@media (hover: hover) {
+    .preview-tab-dislike:hover { background: rgba(231, 76, 60, 0.22); }
+}
+@media (hover: hover) {
+    .preview-tab-dismiss:hover { background: rgba(255, 255, 255, 0.15); }
+}
+
+.preview-tab-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+/* ── Sliding feedback panel ── */
+.preview-feedback-panel {
+    flex: 0 0 0px;                /* collapsed: zero width */
+    overflow: hidden;
+    opacity: 0;
+    background: #121212;          /* same colour as the preview panel */
+    border-radius: 0 14px 0 0;
+    box-shadow: 4px -4px 16px rgba(0, 0, 0, 0.4);
+    transition: flex-basis 0.25s ease, opacity 0.2s ease, max-width 0.25s ease;
+    max-width: 0;
+}
+.preview-feedback-panel.visible {
+    flex: 0 0 auto;
+    max-width: 450px;
+    opacity: 1;
+}
+/* Green top border for like, red for dislike */
+.preview-feedback-panel.action-like {
+    border-top: 3px solid #1DB954;
+}
+.preview-feedback-panel.action-dislike {
+    border-top: 3px solid #e74c3c;
+}
+
+.preview-feedback-form {
+    min-width: 260px;
+    padding: 18px 20px;
+}
+.preview-feedback-form .form-row {
+    margin-bottom: 8px;
+}
+.preview-feedback-form label {
+    display: block;
+    color: #b3b3b3;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+}
+.preview-feedback-form input[type="text"] {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: var(--radius-sm);
+    background: rgba(255,255,255,0.06);
+    color: #fff;
+    font-size: 0.85rem;
+}
+.preview-feedback-form .form-hint {
+    font-size: 0.7rem;
+    color: #888;
+    margin-top: 2px;
+}
+.preview-feedback-form .form-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 10px;
+}
+

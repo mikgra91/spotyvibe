@@ -1,0 +1,162 @@
+/* tracks.css — Track list, track items, covers, feedback form, track links, counter */
+/* =============================================
+   Track list
+   ============================================= */
+.track-list { list-style: none; }
+
+.track-item {
+    border-radius: var(--radius-lg);
+    padding: 20px 24px;
+    margin-bottom: 10px;
+    transition: all var(--transition);
+    box-shadow: var(--shadow-card);
+}
+@media (hover: hover) {
+    .track-item:hover {
+        border-color: var(--glass-hover-border);
+        transform: translateY(-2px);
+        box-shadow: 0 0 14px rgba(30, 215, 96, 0.25), 0 0 4px rgba(30, 215, 96, 0.15);
+    }
+}
+
+.track-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.track-cover-wrap {
+    position: relative;
+    width: 62px;
+    height: 62px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    background: var(--bg-elevated);
+}
+
+.track-cover-wrap .cover-play {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    transition: opacity var(--transition);
+    pointer-events: none;
+    font-size: 0;
+    color: transparent;
+}
+.track-cover-wrap .cover-play::before {
+    content: '';
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, var(--primary-hover), var(--primary-dark));
+    box-shadow: 0 4px 14px rgba(30, 215, 96, 0.45), 0 0 24px rgba(30, 215, 96, 0.15);
+    position: absolute;
+}
+.track-cover-wrap .cover-play::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 7px 0 7px 12px;
+    border-color: transparent transparent transparent #fff;
+    margin-left: 2px;
+}
+@media (hover: hover) {
+    .track-item:hover .cover-play { opacity: 1; }
+}
+/* Touch devices: always show play overlay at reduced opacity */
+@media (hover: none) {
+    .track-cover-wrap .cover-play { opacity: 0.5; }
+    .track-cover-wrap:active .cover-play { opacity: 1; }
+}
+
+.track-cover {
+    width: 62px;
+    height: 62px;
+    border-radius: 10px;
+    object-fit: cover;
+    display: block;
+    background: var(--bg-elevated);
+}
+
+.track-info { flex: 1; min-width: 0; }
+.track-name { font-size: 1rem; font-weight: 600; }
+.track-reason {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
+.track-no-preview {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: var(--error);
+    margin-top: 4px;
+}
+
+.track-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+/* =============================================
+   Feedback form
+   ============================================= */
+.feedback-form {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    display: none;
+}
+.feedback-form.open { display: block; }
+
+
+/* ── Richer track cards ─────────────────────────────────────────────── */
+
+.track-links {
+    margin-left: 8px;
+    display: inline-flex;
+    gap: 4px;
+    vertical-align: middle;
+}
+
+.track-link {
+    font-size: 0.9rem;
+    text-decoration: none;
+    opacity: 0.6;
+    transition: opacity var(--transition);
+}
+@media (hover: hover) {
+    .track-link:hover { opacity: 1; }
+}
+
+
+/* ---- Song list counter ---- */
+.songlist-counter-row {
+    min-height: 1.4em;
+    padding: 4px 0 2px;
+}
+.songlist-counter {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+
+/* ── Review section (Refine Playlist) ─────────────────────────────── */
+.review-section .btn-run {
+    margin-top: 10px;
+}
+
+.help-loading-text {
+    color: var(--text-muted);
+}
+
