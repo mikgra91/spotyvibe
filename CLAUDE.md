@@ -82,6 +82,7 @@ spotyvibe/
 │   ├── preview_overlay.html       # Audio preview overlay
 │   ├── theme_switcher.html, settings_gear.html, toast.html
 │   └── modals/                    # credentials, help, quickstart, settings
+├── frontend/static/favicon.ico    # Browser favicon
 ├── frontend/static/css/           # Modular CSS (11 files, no bundler)
 │   ├── base.css                   # Design tokens, reset, body, scrollbar
 │   ├── layout.css                 # Container, typography, sr-only, focus

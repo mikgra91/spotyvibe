@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#050608">
     <title>SpotyVibe</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -75,7 +76,7 @@
     <!-- Section help popup (focused single-section view) -->
     <div class="modal-overlay" id="sectionHelpOverlay" role="dialog" aria-modal="true" aria-label="Section help" onclick="if(event.target===this)closeSectionHelp()">
         <div class="section-help-wrapper">
-            <button class="help-close-btn" onclick="closeSectionHelp()" aria-label="Close" data-i18n="help.close">✕</button>
+            <button class="help-close-btn" onclick="closeSectionHelp()" aria-label="Close">✕</button>
             <div class="modal section-help-popup">
                 <div id="sectionHelpContent" class="help-content">
                     <p class="help-loading-text" data-i18n="help.loading">Loading…</p>
