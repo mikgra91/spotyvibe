@@ -129,7 +129,7 @@ function _renderProfileDropdown() {
     if (_profileList.length === 0) {
         const opt = document.createElement('option');
         opt.value = '';
-        opt.textContent = i18n('profile.no_profile_selected', 'No profile selected');
+        opt.textContent = i18n('profile.no_profiles_yet', 'No profiles yet');
         select.appendChild(opt);
         _renderCustomDropdown();
         updateProfileMenuState();
@@ -159,13 +159,15 @@ function _renderCustomDropdown() {
     const active = _profileList.find(p => p.id === _activeProfileId);
     label.textContent = active
         ? (active.name || active.id)
-        : i18n('profile.no_profile_selected', 'No profile selected');
+        : _profileList.length === 0
+            ? i18n('profile.no_profiles_yet', 'No profiles yet')
+            : i18n('profile.no_profile_selected', 'No profile selected');
 
     // Build list items
     list.innerHTML = '';
     if (_profileList.length === 0) {
         const li = document.createElement('li');
-        li.textContent = i18n('profile.no_profile_selected', 'No profile selected');
+        li.textContent = i18n('profile.no_profiles_yet', 'No profiles yet');
         li.style.color = 'var(--text-muted)';
         li.style.cursor = 'default';
         list.appendChild(li);
