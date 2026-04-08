@@ -16,6 +16,7 @@ import { quickstartGoTo, quickstartNext, quickstartPrev } from './modules/quicks
 import { qsDemoNext, qsDemoPrev, qsDemoToggle, qsDemoExpand, initAllDemos, destroyAllDemos } from './modules/quickstart-demo.js';
 import { switchTheme, THEME_BACKGROUNDS, THEME_RENDERERS } from './modules/theme-switcher.js';
 import { initJumpBubble } from './modules/jump-bubble.js';
+import './modules/theme-calm.js';
 import './modules/theme-equalizer.js';
 import './modules/theme-pulse.js';
 import './modules/theme-spectrum.js';
@@ -166,7 +167,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const saved = localStorage.getItem('spotyvibe-theme');
         if (saved && THEME_BACKGROUNDS[saved]) _pendingTheme = saved;
     } catch(e) {}
-    switchTheme(_pendingTheme || 'equalizer');
+    switchTheme(_pendingTheme || 'calm');
 
     // Show refresh button when running inside pywebview desktop wrapper
     if (window.pywebview) {

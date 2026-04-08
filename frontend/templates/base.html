@@ -31,7 +31,6 @@
         {% include "settings_gear.html" %}
         <h1>SpotyVibe</h1>
         <p class="subtitle" data-i18n="app.subtitle">AI-powered music discovery &amp; playlist generation — discover, curate, refine.</p>
-        {% include "theme_switcher.html" %}
     </header>
 
     <main id="main-content">
@@ -62,6 +61,10 @@
         {% include "run_history.html" %}
     </section>
     </main>
+
+    <div class="page-footer">
+        {% include "theme_switcher.html" %}
+    </div>
 
     {% include "preview_overlay.html" %}
     {% include "toast.html" %}

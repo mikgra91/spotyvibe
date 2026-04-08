@@ -39,7 +39,7 @@
   "profile.avoid_hint": "Traits that immediately disqualify a track. One per line.",
   "profile.menu_upload": "Upload profile",
   "profile.menu_export": "Export profile",
-  "profile.menu_reset": "Reset profile",
+  "profile.menu_reset": "Undo last change",
   "profile.menu_delete": "Delete profile",
 
   "btn.ai_profile_update": "AI Profile Update",
@@ -140,7 +140,7 @@
   "profile.import_invalid_json": "Invalid JSON file.",
   "profile.import_failed": "Import failed: {detail}",
   "profile.import_success": "Profile imported. Previous profile saved to history.",
-  "profile.reset_confirm": "Reset profile to history?\n\nYour current profile will be swapped with the previous saved version.",
+  "profile.reset_confirm": "Undo last change?\n\nYour current profile will be swapped with the previous saved version.",
   "profile.reset_failed": "Reset failed: {detail}",
   "profile.reset_success": "Profile reset to history.",
 
@@ -317,6 +317,7 @@
   "preview.dislike_aria": "Dislike this track",
   "preview.remove_aria": "Remove from playlist",
 
+  "theme.calm": "Calm",
   "theme.equalizer": "Equalizer",
   "theme.pulse": "Pulse",
   "theme.spectrum": "Spectrum",

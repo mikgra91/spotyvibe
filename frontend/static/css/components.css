@@ -499,11 +499,16 @@
 /* =============================================
    Style switcher
    ============================================= */
+.page-footer {
+    display: flex;
+    justify-content: center;
+    margin-top: 2rem;
+    margin-bottom: 1.6rem;
+}
 .style-switcher {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 1.6rem;
 }
 .style-switcher-label {
     font-size: 0.8rem;

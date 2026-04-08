@@ -276,11 +276,11 @@ class TestThemeSwitcher:
         expect(page.locator('[data-theme="equalizer"]')).to_be_visible()
         expect(page.locator('[data-theme="pulse"]')).to_be_visible()
 
-    def test_equalizer_is_default(self, page: Page, base_url):
+    def test_calm_is_default(self, page: Page, base_url):
         page.goto(base_url)
-        eq_btn = page.locator('[data-theme="equalizer"]')
-        expect(eq_btn).to_have_class(re.compile(r"active"))
-        expect(page.locator("body")).to_have_class(re.compile(r"theme-equalizer"))
+        calm_btn = page.locator('[data-theme="calm"]')
+        expect(calm_btn).to_have_class(re.compile(r"active"))
+        expect(page.locator("body")).to_have_class(re.compile(r"theme-calm"))
 
     def test_switch_to_pulse(self, page: Page, base_url):
         page.goto(base_url)

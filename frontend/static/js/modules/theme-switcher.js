@@ -1,4 +1,5 @@
 export const THEME_BACKGROUNDS = {
+    calm: `<canvas id="calmCanvas"></canvas>`,
     equalizer: `<canvas id="equalizerCanvas"></canvas>`,
     pulse: `<canvas id="pulseCanvas"></canvas>`,
     spectrum: `<canvas id="spectrumCanvas"></canvas>`,
