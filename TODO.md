@@ -2,9 +2,37 @@
 
 ## Features
 
-### Suggest New Artists from Spotify
-- [ ] Add a feature that suggests new/similar artists based on the user's taste profile using Spotify's recommendation or related-artists API.
-- [ ] Could complement the existing GPT-based suggestion pipeline with pure Spotify data.
+### Discover New / Emerging Artists Only
+Checkbox that restricts suggestions to artists who are new or emerged in the last ~6 months.
+
+**Spotify API research (Apr 2026):**
+- No dedicated "new artists" endpoint exists on Spotify.
+- `GET /browse/new-releases`, `GET /artists/{id}/related-artists`, and `popularity` field were all **removed** in the Feb 2026 API changes.
+- `GET /recommendations` — unconfirmed availability, not currently used.
+- **What still works:** Spotify search `year:YYYY` filter, and `release_date` on album objects.
+
+**Approach — GPT-first with Spotify release-date validation:**
+1. **UI:** Add a checkbox "Only new / emerging artists" in the Generate section (near audio filters or playlist mode).
+2. **GPT prompt:** When active, inject an additional hard constraint into the system prompt: *"Only suggest tracks by artists whose debut release is within the last 6 months."* (The diversity hints in `suggestions.py` already have a similar pattern — line ~382.)
+3. **Over-request strategy:** GPT requests `user_count + 20` tracks (instead of the normal `+5` buffer) because many suggestions will be filtered out by the release-date check. This avoids expensive retry loops.
+   - Normal mode: `effective_batch = user_count + 5` (current default).
+   - New artists mode: `effective_batch = user_count + 20`.
+4. **Spotify validation:** After GPT suggests tracks and they are searched on Spotify, check the album `release_date`. Reject tracks where the artist's earliest album predates the cutoff window.
+5. **Result count:** Show all tracks that survive the filter — this may be more or fewer than `user_count`. No truncation to `user_count`.
+6. **Fallback:** If too many suggestions get rejected by the date check, retry GPT with a wider window or a prompt nudge.
+
+**Sub-task — UX wording for variable result count:**
+- [ ] Design and implement user-facing messaging when the new-artists filter is active. The user should understand why they may see more or fewer tracks than they requested (e.g., "Showing 14 of 30 checked tracks — only tracks by recently emerged artists are included.").
+- [ ] Affected files: i18n keys, `pipeline.js` (result display logic), possibly `playlist_review.html` or track list rendering.
+
+**Files to change:**
+- `frontend/templates/generate_section.html` — checkbox UI
+- `frontend/static/i18n/en.json` + `de.json` — i18n keys
+- `frontend/static/js/modules/pipeline.js` — pass flag to backend
+- `app.py` — accept and forward the flag
+- `core/src/suggestions.py` — modify `build_messages()` to inject the constraint + adjust `effective_batch_size`
+- `prompts/system_prompt.txt` (+ model-specific variants) — optional: add conditional block
+- `core/src/playlist.py` — after search, check album `release_date` and filter; return all survivors
 
 ### Tab Groups Instead of Scrollbar
 - [ ] Replace the current vertical scroll-based section navigation with a tabbed UI (tab groups).
