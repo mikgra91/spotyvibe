@@ -215,7 +215,7 @@ body.modal-scroll-lock {
 .screenshot-lightbox {
     position: fixed;
     inset: 0;
-    z-index: 800;  /* screenshot lightbox */
+    z-index: 9999;  /* screenshot lightbox — must be above all modals */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -241,7 +241,7 @@ body.modal-scroll-lock {
     padding: 4px 10px;
     opacity: 0.85;
     transition: opacity var(--transition);
-    z-index: 801;  /* screenshot lightbox close */
+    z-index: 10000;  /* screenshot lightbox close */
 }
 @media (hover: hover) {
     .screenshot-lightbox-close:hover {
