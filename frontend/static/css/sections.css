@@ -591,6 +591,45 @@
     flex-shrink: 0;
 }
 
+/* Hoverable description tooltip on audio feature labels */
+.af-label-tip {
+    position: relative;
+    cursor: help;
+    border-bottom: 1px dotted var(--text-muted);
+    transition: color var(--transition);
+}
+@media (hover: hover) {
+    .af-label-tip:hover { color: var(--text-primary); }
+    .af-label-tip[data-tooltip]:hover::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        left: 0;
+        bottom: calc(100% + 8px);
+        background: var(--bg-elevated);
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        font-weight: 400;
+        line-height: 1.4;
+        padding: 10px 14px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-elevated);
+        white-space: normal;
+        width: 240px;
+        z-index: 10;
+        pointer-events: none;
+    }
+    .af-label-tip[data-tooltip]:hover::before {
+        content: '';
+        position: absolute;
+        left: 16px;
+        bottom: calc(100% + 2px);
+        border: 6px solid transparent;
+        border-top-color: var(--border);
+        z-index: 10;
+    }
+}
+
 .af-bar-track {
     flex: 1;
     height: 8px;
@@ -822,11 +861,17 @@
     padding-right: 4px;
 }
 
+/* Tooltip on filter labels — needs overflow visible in grid context */
+.audio-filter-row .af-label-tip {
+    overflow: visible;
+}
+
 .audio-filter-row input {
     width: 100%;
     min-width: 0;
     padding: 6px 10px;
     font-size: 0.82rem;
+    border-radius: var(--radius-sm);
 }
 
 .audio-filter-hint-text {

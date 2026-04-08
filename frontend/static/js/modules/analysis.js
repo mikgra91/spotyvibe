@@ -85,24 +85,36 @@ export function renderAnalysisResult(d) {
         acousticness: i18n('analysis.acousticness', 'Acousticness'), instrumentalness: i18n('analysis.instrumentalness', 'Instrumentalness'),
         speechiness: i18n('analysis.speechiness', 'Speechiness'), liveness: i18n('analysis.liveness', 'Liveness'), tempo: i18n('analysis.tempo', 'Tempo'),
     };
+    const featureDescs = {
+        energy: i18n('analysis.energy_desc', 'How intense and active the track feels.'),
+        valence: i18n('analysis.valence_desc', 'Musical positiveness — happy vs. sad.'),
+        danceability: i18n('analysis.danceability_desc', 'How suitable for dancing based on tempo and rhythm.'),
+        acousticness: i18n('analysis.acousticness_desc', 'How acoustic a track sounds.'),
+        instrumentalness: i18n('analysis.instrumentalness_desc', 'Whether a track contains vocals.'),
+        speechiness: i18n('analysis.speechiness_desc', 'How much spoken word is present.'),
+        liveness: i18n('analysis.liveness_desc', 'Whether the track sounds like a live performance.'),
+        tempo: i18n('analysis.tempo_desc', 'The speed of the track in BPM.'),
+    };
     // Features that can be applied as filters (match audio-filters.js supported set)
     const filterableFeatures = new Set(['energy', 'valence', 'danceability', 'acousticness', 'tempo']);
     const afRows = Object.entries(featureLabels)
         .filter(([k]) => af[k] != null)
         .map(([k, label]) => {
             const val = af[k];
+            const desc = featureDescs[k] || '';
+            const tooltipAttr = desc ? ` data-tooltip="${escHtml(desc)}"` : '';
             const filterBtn = filterableFeatures.has(k)
                 ? ` <button class="af-use-btn" onclick="applyAnalysisFilter('${k}', ${val})" title="${escHtml(i18n('analysis.use_as_filter_title', 'Use as audio filter'))}">${escHtml(i18n('analysis.use_as_filter', '⇒ Filter'))}</button>`
                 : '';
             if (k === 'tempo') {
                 return `<div class="af-row">
-                    <span class="af-label">${escHtml(label)}</span>
+                    <span class="af-label af-label-tip"${tooltipAttr}>${escHtml(label)}</span>
                     <span class="af-value">${val.toFixed(0)} BPM</span>${filterBtn}
                 </div>`;
             }
             const pct = Math.round(val * 100);
             return `<div class="af-row">
-                <span class="af-label">${escHtml(label)}</span>
+                <span class="af-label af-label-tip"${tooltipAttr}>${escHtml(label)}</span>
                 <div class="af-bar-track"><div class="af-bar-fill" style="width:${pct}%"></div></div>
                 <span class="af-value">${pct}%</span>${filterBtn}
             </div>`;

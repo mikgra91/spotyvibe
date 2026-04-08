@@ -41,6 +41,10 @@ export async function applyLanguage(lang) {
         const key = el.getAttribute('data-i18n-title');
         if (_i18nStrings[key] !== undefined) el.title = _i18nStrings[key];
     });
+    document.querySelectorAll('[data-i18n-tooltip]').forEach(el => {
+        const key = el.getAttribute('data-i18n-tooltip');
+        if (_i18nStrings[key] !== undefined) el.setAttribute('data-tooltip', _i18nStrings[key]);
+    });
 
     _syncToggle(lang);
 }
