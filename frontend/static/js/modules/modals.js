@@ -256,6 +256,8 @@ export async function openSectionHelp(anchor) {
     const overlay = document.getElementById('sectionHelpOverlay');
     const content = document.getElementById('sectionHelpContent');
     content.innerHTML = `<p class="help-loading-text">${i18n('help.loading', 'Loading…')}</p>`;
+    _hideJumpBubble();
+    _lockBodyScroll();
     overlay.classList.add('open');
 
     try {
@@ -275,6 +277,8 @@ export async function openSectionHelp(anchor) {
 
 export function closeSectionHelp() {
     document.getElementById('sectionHelpOverlay').classList.remove('open');
+    _showJumpBubble();
+    _unlockBodyScroll();
 }
 
 export async function openDataDir() {
@@ -360,13 +364,15 @@ function _closeScreenshotLightbox() {
 function _handleHelpImgClick(e) {
     const img = e.target.closest('img');
     if (!img) return;
-    // Only expand images that exceed the thumbnail threshold in at least one
-    // natural dimension — small icons / badges stay inline.
-    if (img.naturalWidth > LIGHTBOX_THRESHOLD || img.naturalHeight > LIGHTBOX_THRESHOLD) {
-        e.preventDefault();
-        e.stopPropagation();
-        _openScreenshotLightbox(img);
+    // If image is fully loaded, check natural dimensions; otherwise allow
+    // expansion by default (images fetched via AJAX may not be decoded yet).
+    const loaded = img.naturalWidth > 0 && img.naturalHeight > 0;
+    if (loaded && img.naturalWidth <= LIGHTBOX_THRESHOLD && img.naturalHeight <= LIGHTBOX_THRESHOLD) {
+        return; // small icon/badge — don't expand
     }
+    e.preventDefault();
+    e.stopPropagation();
+    _openScreenshotLightbox(img);
 }
 
 // Attach delegated listeners once DOM is ready
@@ -406,7 +412,7 @@ function _hideJumpBubble() {
 }
 function _showJumpBubble() {
     // Only re-show if no overlay modals are still open
-    const anyOpen = ['helpModal', 'quickstartModal'].some(id => {
+    const anyOpen = ['helpModal', 'quickstartModal', 'sectionHelpOverlay'].some(id => {
         const el = document.getElementById(id);
         return el && el.classList.contains('open');
     });
@@ -420,7 +426,7 @@ function _lockBodyScroll() {
 }
 function _unlockBodyScroll() {
     // Only unlock if no overlay modals are still open
-    const anyOpen = ['helpModal', 'quickstartModal'].some(id => {
+    const anyOpen = ['helpModal', 'quickstartModal', 'sectionHelpOverlay'].some(id => {
         const el = document.getElementById(id);
         return el && el.classList.contains('open');
     });
