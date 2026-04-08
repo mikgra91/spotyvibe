@@ -12,4 +12,4 @@ Here is my music taste profile:
 
 {audio_filters_block}
 
-Suggest exactly {batch_size} tracks following all system instructions. Return only JSON.
+Suggest at least {batch_size} tracks following all system instructions. Return only JSON.

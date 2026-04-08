@@ -306,7 +306,7 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
     """Build the system + user message pair for the OpenAI API.
 
     Key design decisions:
-    - Over-requests by +3 (effective_batch_size) to absorb expected filtering.
+    - Over-requests by +5 (effective_batch_size) to absorb expected filtering.
     - On retries, filtered tracks go into an ephemeral deny set — never
       mentioned in prose (mentioning them primes GPT to repeat them).
     - DENY_LIST JSON comes before profile in the user message (positional bias).
@@ -316,8 +316,8 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
     if batch_size is None:
         batch_size = BATCH_SIZE
 
-    # Over-request by +3 to absorb filtering; caller truncates after filter
-    effective_batch_size = batch_size + 3
+    # Over-request by +5 to absorb filtering; caller truncates after filter
+    effective_batch_size = batch_size + 5
     min_new_artists = math.ceil(effective_batch_size * new_artist_percentage / 100)
 
     gpt_language = get_gpt_language()
