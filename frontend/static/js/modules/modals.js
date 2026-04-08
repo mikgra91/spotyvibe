@@ -6,7 +6,6 @@ import { renderProviderPills } from './provider-pills.js';
 import { i18n } from './i18n.js';
 import { quickstartReset } from './quickstart-tour.js';
 import { initAllDemos, destroyAllDemos } from './quickstart-demo.js';
-import { suppressJumpBubble, unsuppressJumpBubble } from './jump-bubble.js';
 
 const CRED_KEYS = ['OPENAI_API_KEY', 'SPOTIPY_CLIENT_ID', 'SPOTIPY_CLIENT_SECRET'];
 
@@ -406,19 +405,9 @@ if (document.readyState === 'loading') {
     _initScreenshotLightbox();
 }
 
-/* ── Section jump bubble visibility ── */
-function _hideJumpBubble() {
-    suppressJumpBubble();
-}
-function _showJumpBubble() {
-    // Only re-show if no overlay modals are still open
-    const anyOpen = ['helpModal', 'quickstartModal', 'sectionHelpOverlay'].some(id => {
-        const el = document.getElementById(id);
-        return el && el.classList.contains('open');
-    });
-    if (anyOpen) return;
-    unsuppressJumpBubble();
-}
+/* ── Jump bubble visibility (no-op after tab navigation replaced the bubble) ── */
+function _hideJumpBubble() {}
+function _showJumpBubble() {}
 
 /* ── Background scroll lock ── */
 function _lockBodyScroll() {

@@ -101,7 +101,7 @@ spotyvibe/
 │   ├── review.js, feedback.js, preview.js, tracklist.js
 │   ├── history.js, analysis.js, audio-filters.js
 │   ├── modals.js, i18n.js, warnings.js, provider-pills.js
-│   ├── quickstart-demo.js, quickstart-tour.js, jump-bubble.js
+│   ├── quickstart-demo.js, quickstart-tour.js, tabs.js
 │   └── theme-switcher.js, theme-equalizer.js, theme-pulse.js,
 │       theme-spectrum.js, theme-starfield.js
 ├── frontend/static/i18n/          # en.json + de.json

@@ -79,3 +79,51 @@ h1 {
     outline-offset: 2px;
 }
 
+/* =============================================
+   Tab bar navigation
+   ============================================= */
+.tab-bar {
+    display: flex;
+    gap: 2px;
+    background: rgba(10, 10, 14, 0.65);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 4px;
+    margin-bottom: 2rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+
+.tab-bar-btn {
+    flex: 1;
+    min-width: max-content;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 8px 14px;
+    border-radius: calc(var(--radius-sm) - 2px);
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all var(--transition);
+    border-bottom: 2px solid transparent;
+}
+@media (hover: hover) {
+    .tab-bar-btn:hover {
+        background: rgba(255,255,255,0.05);
+        color: var(--text-primary);
+    }
+}
+.tab-bar-btn.active,
+.tab-bar-btn[aria-selected="true"] {
+    background: rgba(30,215,96,0.08);
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+

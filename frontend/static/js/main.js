@@ -15,7 +15,7 @@ import { openCredentials, saveCredentials, clearCredential, saveSettings, openSe
 import { quickstartGoTo, quickstartNext, quickstartPrev } from './modules/quickstart-tour.js';
 import { qsDemoNext, qsDemoPrev, qsDemoToggle, qsDemoExpand, initAllDemos, destroyAllDemos } from './modules/quickstart-demo.js';
 import { switchTheme, THEME_BACKGROUNDS, THEME_RENDERERS } from './modules/theme-switcher.js';
-import { initJumpBubble } from './modules/jump-bubble.js';
+import { initTabs, switchTab } from './modules/tabs.js';
 import './modules/theme-calm.js';
 import './modules/theme-equalizer.js';
 import './modules/theme-pulse.js';
@@ -129,6 +129,7 @@ window.qsDemoPrev = qsDemoPrev;
 window.qsDemoToggle = qsDemoToggle;
 window.qsDemoExpand = qsDemoExpand;
 window.switchTheme = switchTheme;
+window.switchTab = switchTab;
 window.switchLanguage = switchLanguage;
 window.applyLanguage = applyLanguage;
 window.i18n = i18n;
@@ -195,8 +196,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // i18n
     await initI18n();
 
-    // Section jump bubble
-    initJumpBubble();
+    // Tab navigation
+    initTabs();
 
     // Quickstart guide (auto-show on first visit)
     maybeShowQuickstart();

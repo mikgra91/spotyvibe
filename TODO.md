@@ -141,7 +141,7 @@ In `pipeline.js`, when `emerging_only` is active, display the `pipeline.emerging
 
 ---
 
-### 2. Tab Groups Instead of Scrollbar
+### 2. Tab Groups Instead of Scrollbar ✅
 
 Replace the current vertical scroll-based section navigation with a tabbed UI (tab groups). Each major section (Profile, Generate, Review, Analysis, History) becomes a tab.
 
@@ -197,17 +197,17 @@ Add i18n keys for each tab label. The section titles already exist (`"profile.ti
 </details>
 
 **Definition of Done:**
-- [ ] Horizontal tab bar visible below header with 5 tabs (Profile, Generate, Review, Analysis, History)
-- [ ] Clicking a tab shows only that section, hides all others
-- [ ] Active tab is visually distinct (highlight/underline)
-- [ ] Inner "Show/Hide" body toggles still work within each tab
-- [ ] Jump bubble removed from HTML, JS, and CSS
-- [ ] Tab bar is keyboard-navigable (arrow keys between tabs, Enter/Space to activate)
-- [ ] `role="tablist"`, `role="tab"`, `role="tabpanel"`, `aria-selected` attributes present
-- [ ] Tab labels use existing i18n keys (`data-i18n`)
-- [ ] Responsive: tabs stack or scroll horizontally on mobile
-- [ ] Active tab persists via `localStorage` across page reloads
-- [ ] Tests pass
+- [x] Horizontal tab bar visible below header with 5 tabs (Profile, Generate, Review, Analysis, History)
+- [x] Clicking a tab shows only that section, hides all others
+- [x] Active tab is visually distinct (highlight/underline)
+- [x] Inner "Show/Hide" body toggles still work within each tab
+- [x] Jump bubble removed from HTML, JS, and CSS
+- [x] Tab bar is keyboard-navigable (arrow keys between tabs, Enter/Space to activate)
+- [x] `role="tablist"`, `role="tab"`, `role="tabpanel"`, `aria-selected` attributes present
+- [x] Tab labels use existing i18n keys (`data-i18n`)
+- [x] Responsive: tabs stack or scroll horizontally on mobile
+- [x] Active tab persists via `localStorage` across page reloads
+- [x] Tests pass
 
 ---
 
@@ -335,6 +335,8 @@ Check `frontend/static/js/modules/quickstart-tour.js` lines 111–127 for dot in
 ---
 
 ### 6. Move Feedback/Retry to a Different Help Container After Profile Creation
+
+STOP! Do not implement this. This needs to be designed further!
 
 Once the user has created a music profile, relocate the feedback/retry controls into a separate help or utility container. Avoids cluttering the main workflow area post-profile-creation.
 

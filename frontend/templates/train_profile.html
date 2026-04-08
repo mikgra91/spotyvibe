@@ -1,4 +1,4 @@
-<div class="train-section" id="trainSection">
+<div class="train-section" id="trainSection" role="tabpanel" aria-labelledby="tab-profile" tabindex="0">
     <div class="train-header" role="button" tabindex="0" onclick="toggleTrainBody()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleTrainBody()}" aria-expanded="{% if profile_edit_mode %}true{% else %}false{% endif %}" aria-controls="trainBody">
         <div class="train-header-left">
             <h2><span aria-hidden="true">🎯</span> <span data-i18n="profile.title">Music Profile</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('music-profile')" data-i18n-title="help.section_help_title" title="Open help for this section" aria-label="Help for Music Profile">?</button></h2>

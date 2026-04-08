@@ -33,6 +33,14 @@
         <p class="subtitle" data-i18n="app.subtitle">AI-powered music discovery &amp; playlist generation — discover, curate, refine.</p>
     </header>
 
+    <nav class="tab-bar" role="tablist" aria-label="Main navigation">
+        <button class="tab-bar-btn" role="tab" id="tab-profile" data-tab="profile" aria-selected="true" aria-controls="trainSection" tabindex="0" data-i18n="profile.title">Music Profile</button>
+        <button class="tab-bar-btn" role="tab" id="tab-generate" data-tab="generate" aria-selected="false" aria-controls="generateSection" tabindex="-1" data-i18n="generate.title">Discover Music</button>
+        <button class="tab-bar-btn" role="tab" id="tab-review" data-tab="review" aria-selected="false" aria-controls="reviewSection" tabindex="-1" data-i18n="review.title">Refine Playlist</button>
+        <button class="tab-bar-btn" role="tab" id="tab-analysis" data-tab="analysis" aria-selected="false" aria-controls="analysisSection" tabindex="-1" data-i18n="analysis.title">Band/Song Analysis</button>
+        <button class="tab-bar-btn" role="tab" id="tab-history" data-tab="history" aria-selected="false" aria-controls="historySection" tabindex="-1" data-i18n="history.title">History</button>
+    </nav>
+
     <main id="main-content">
     <!-- ── OpenAI Provider Section ── -->
     <section class="provider-section provider-openai" aria-label="OpenAI tools">
@@ -72,9 +80,6 @@
     {% include "modals/settings_modal.html" %}
     {% include "modals/help_modal.html" %}
     {% include "modals/quickstart_modal.html" %}
-
-    <!-- Section jump bubble (scroll-aware navigation) -->
-    <button class="section-jump-bubble hidden" id="sectionJumpBubble" aria-label="Jump to section"></button>
 
     <!-- Section help popup (focused single-section view) -->
     <div class="modal-overlay" id="sectionHelpOverlay" role="dialog" aria-modal="true" aria-label="Section help" onclick="if(event.target===this)closeSectionHelp()">

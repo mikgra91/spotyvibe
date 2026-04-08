@@ -295,8 +295,6 @@
 
   "review.select_label": "Select a playlist to review",
 
-  "jump.to_spotify": "Jump to Spotify",
-  "jump.to_openai": "Jump to OpenAI",
 
   "af.label_energy": "Energy (%)",
   "af.label_valence": "Valence (%)",

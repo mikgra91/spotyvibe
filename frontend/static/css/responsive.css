@@ -7,6 +7,15 @@
         padding: 2rem 1.2rem;
     }
 
+    /* ── Tab bar — scroll horizontally on tablet ─────────────────────── */
+    .tab-bar {
+        gap: 0;
+    }
+    .tab-bar-btn {
+        padding: 8px 10px;
+        font-size: 0.78rem;
+    }
+
     /* Hide "Open data directory" — not functional on mobile / Android WebView */
     #openDataDirBtn { display: none; }
 
@@ -101,13 +110,6 @@
         max-width: 100%;
     }
 
-    /* ── Jump bubble — move to right side on tablet ──────────────────── */
-    .section-jump-bubble {
-        left: auto;
-        right: 20px;
-        bottom: 24px;
-    }
-
     /* ── Provider sections — compact on tablet ────────────────────────── */
     .provider-section {
         padding: 18px 16px 18px;
@@ -127,6 +129,12 @@
 @media (max-width: 480px) {
     .container {
         padding: 1.2rem 0.85rem;
+    }
+
+    /* ── Tab bar — compact labels on phone ───────────────────────────── */
+    .tab-bar-btn {
+        padding: 7px 8px;
+        font-size: 0.72rem;
     }
 
     h1 {
@@ -520,11 +528,6 @@
     textarea,
     select {
         font-size: 16px !important;
-    }
-
-    /* ── Jump bubble — hide on phone to avoid overlap (#12) ───────────── */
-    .section-jump-bubble {
-        display: none !important;
     }
 
     /* ── Preview overlay — enable scroll on small phones (#14) ────────── */
