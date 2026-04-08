@@ -1081,8 +1081,8 @@
 }
 .qs-demo-lightbox-card {
     position: relative;
-    width: 90%;
-    max-width: 700px;
+    width: 92%;
+    max-width: 900px;
     max-height: 90vh;
     display: flex;
     flex-direction: column;
@@ -1094,13 +1094,20 @@
 }
 .qs-demo-lightbox-viewport {
     flex: 1 1 auto;
-    padding: 16px;
+    padding: 20px;
     overflow: hidden;
+}
+/* Scale up scene content inside the lightbox (≥25% larger than inline 0.72) */
+.qs-demo-lightbox-viewport > .qd-scene {
+    --qs-lb-scale: 1.25;
+    transform: scale(var(--qs-lb-scale));
+    transform-origin: top left;
+    width: calc(100% / var(--qs-lb-scale));
 }
 .qs-demo-lightbox-caption {
     flex-shrink: 0;
-    padding: 0 16px 8px;
-    font-size: 0.88rem;
+    padding: 0 20px 8px;
+    font-size: 0.92rem;
     color: var(--text-secondary);
     font-style: italic;
     text-align: center;

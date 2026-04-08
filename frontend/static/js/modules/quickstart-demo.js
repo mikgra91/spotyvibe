@@ -476,7 +476,9 @@ const DEMOS = [null, _step1Frames, _step2Frames, _step3Frames, _step4Frames, _st
 const _state = new Map();
 const AUTO_PLAY_MS = 3500;
 const QS_DEMO_SCALE = 0.72;   // inline player scale-down factor
+const QS_LB_SCALE = 1.25;     // lightbox scale-up factor
 let _lightboxStep = null;      // step currently shown in lightbox (null = closed)
+let _lbMaxHeight = 0;          // cached max frame height for lightbox viewport
 
 function _getFrames(step) {
     const fn = DEMOS[step];
@@ -598,6 +600,8 @@ export function qsDemoExpand(step) {
         clearInterval(s.timer); s.timer = null; s.playing = false;
         _updatePlayBtn(step);
     }
+    // Measure tallest frame across ALL steps for uniform lightbox height
+    _lbMaxHeight = _measureLightboxMaxHeight();
     _renderLightbox();
 }
 
@@ -621,6 +625,31 @@ function _lbNext() {
 function _lbToggle() {
     if (_lightboxStep == null) return;
     qsDemoToggle(_lightboxStep);
+}
+
+/** Measure the tallest frame across all steps at lightbox scale. */
+function _measureLightboxMaxHeight() {
+    const probe = document.createElement('div');
+    probe.className = 'qs-demo-lightbox-viewport';
+    Object.assign(probe.style, {
+        position: 'fixed', top: '-9999px', left: '-9999px',
+        width: '860px',   // approx inner width of 900px card minus padding
+        visibility: 'hidden', height: 'auto', overflow: 'visible'
+    });
+    document.body.appendChild(probe);
+
+    let maxH = 0;
+    for (let i = 1; i <= 6; i++) {
+        const frames = _getFrames(i);
+        for (const f of frames) {
+            probe.innerHTML = f.html;
+            const h = probe.scrollHeight;
+            if (h > maxH) maxH = h;
+        }
+    }
+    document.body.removeChild(probe);
+    // Apply lightbox scale factor
+    return Math.ceil(maxH * QS_LB_SCALE);
 }
 
 function _renderLightbox() {
@@ -662,7 +691,10 @@ function _renderLightbox() {
     const ctr = lb.querySelector('.qs-demo-lightbox-counter');
     const playBtn = lb.querySelector('.qs-lb-play');
 
-    if (vp) vp.innerHTML = frame.html;
+    if (vp) {
+        vp.innerHTML = frame.html;
+        if (_lbMaxHeight > 0) vp.style.height = _lbMaxHeight + 'px';
+    }
     if (cap) cap.textContent = frame.caption;
     if (ctr) ctr.textContent = `${s.frame + 1} / ${frames.length}`;
     if (playBtn) playBtn.textContent = s.playing ? '⏸' : '▶';
