@@ -150,7 +150,7 @@ It walks you through six steps to get up and running — from entering your API 
 - Check **"Don't show again"** on any page to stop the guide from showing on future visits.
 - To reopen it at any time, click **☰ → 🚀 Quick Start**.
 
-> **Screenshot placeholder:** Quick Start guide contents page with workflow map and TOC entries.
+![Quick Start guide contents page](/docs/screenshots/26_quickstart_toc.png)
 
 ---
 
@@ -200,7 +200,7 @@ Once connected:
 
 If your session expires later, simply reconnect.
 
-> **Screenshot placeholder:** Connect to Spotify banner
+![Connect to Spotify banner](/docs/screenshots/27_connect_spotify_banner.png)
 
 ---
 
@@ -472,7 +472,7 @@ To update your preferences:
 
 The more accurately your profile reflects your current taste, the better your future playlists will be. For small adjustments, use the Vibe field — for example, "more acoustic, less electronic" — and let the AI merge it into your existing profile.
 
-> **Screenshot placeholder:** Editing an existing profile
+![Editing an existing profile](/docs/screenshots/28_editing_existing_profile.png)
 
 ---
 
@@ -578,7 +578,7 @@ A loading spinner appears below the button inside the Discover Music section. Pr
 4. Show the results inside the section (below a divider)
 5. Provide a link to open the playlist in Spotify
 
-> **Screenshot placeholder:** Generation in progress with inline spinner
+![Generation in progress with inline spinner](/docs/screenshots/29_generation_spinner.png)
 
 ---
 
@@ -594,7 +594,7 @@ During generation, two helpful options may appear:
 
 This is useful if you already like the results and do not want to wait longer.
 
-> **Screenshot placeholder:** Cancel and Use X Tracks Now buttons
+![Cancel and Use X Tracks Now buttons](/docs/screenshots/30_cancel_use_tracks.png)
 
 ---
 
@@ -612,7 +612,7 @@ Each card may show:
 
 You can review each song and decide what to do next.
 
-> **Screenshot placeholder:** Track cards after generation
+![Track cards after generation](/docs/screenshots/31_track_cards.png)
 
 ---
 
@@ -632,7 +632,7 @@ Use the ‹ and › arrows to navigate between tracks without closing the overla
 
 > **Note:** The embedded Spotify player provides **~30-second previews**. Full-length playback is not available because the embed runs in an isolated iframe that cannot access your Spotify session due to browser third-party cookie restrictions. To listen to the full track, click the Spotify icon inside the player or use the Spotify links on the song card.
 
-> **Screenshot placeholder:** Preview player open
+![Preview player open](/docs/screenshots/32_preview_player.png)
 
 ---
 
@@ -646,7 +646,7 @@ Each song card includes quick links to open content in Spotify, such as:
 
 Use these links to explore music in more detail.
 
-> **Screenshot placeholder:** Spotify quick links on a song card
+![Spotify quick links on a song card](/docs/screenshots/33_spotify_quick_links.png)
 
 ---
 
@@ -665,7 +665,7 @@ Examples of reasons:
 - strong melody
 - exactly the sound I want
 
-> **Screenshot placeholder:** Like feedback form
+![Like feedback form](/docs/screenshots/34_like_feedback_form.png)
 
 ---
 
@@ -684,7 +684,7 @@ Examples:
 
 This helps SpotyVibe avoid similar tracks in future runs.
 
-> **Screenshot placeholder:** Dislike feedback form
+![Dislike feedback form](/docs/screenshots/35_dislike_feedback_form.png)
 
 ---
 
@@ -694,7 +694,7 @@ Click **Remove** to take a song out of the list without recording it as like or 
 
 Use this for tracks you feel neutral about.
 
-> **Screenshot placeholder:** Remove button on song card
+![Remove button on song card](/docs/screenshots/36_remove_button.png)
 
 ---
 
@@ -722,7 +722,7 @@ To open it, click **Show** on the **🔄 Refine Playlist** header (or click anyw
 
 A loading spinner appears below the button while SpotyVibe fetches the tracks. Once loaded, the tracks appear inside the section, below the button, separated by a divider. Track cards look similar to the Discover suggestion list.
 
-> **Screenshot placeholder:** Playlist dropdown with playlists loaded
+![Playlist dropdown with playlists loaded](/docs/screenshots/37_playlist_dropdown.png)
 
 ---
 
@@ -737,7 +737,7 @@ Each track card shows:
 
 You can also click the album art to open the Spotify preview player. When previewing from the Refine list, the prev/next navigation operates within the review track list.
 
-> **Screenshot placeholder:** Review track cards
+![Review track cards](/docs/screenshots/38_review_track_cards.png)
 
 ---
 
@@ -749,7 +749,7 @@ A feedback form opens where you can optionally edit the artist, track name, and 
 
 After submitting, the track animates out of the review list. The track **stays in the Spotify playlist** — only your taste profile is updated.
 
-> **Screenshot placeholder:** Like feedback form in Refine section
+![Like feedback form in Refine section](/docs/screenshots/39_review_like_form.png)
 
 ---
 
@@ -766,7 +766,7 @@ After submitting, the track is:
 
 The card animates out of the review list.
 
-> **Screenshot placeholder:** Dislike feedback form in Refine section
+![Dislike feedback form in Refine section](/docs/screenshots/40_review_dislike_form.png)
 
 ---
 
@@ -778,7 +778,7 @@ Use this for tracks you feel neutral about but want to remove from the playlist.
 
 The card animates out of the review list.
 
-> **Screenshot placeholder:** Dismiss button on review track card
+![Dismiss button on review track card](/docs/screenshots/41_review_dismiss_button.png)
 
 ---
 
@@ -814,7 +814,7 @@ This means:
 
 If the list becomes too full, remove some tracks before generating more.
 
-> **Screenshot placeholder:** Song list with saved tracks
+![Song list with saved tracks](/docs/screenshots/42_history_song_list.png)
 
 ---
 
@@ -836,7 +836,7 @@ You can use the same main flow:
 4. Generate playlists
 5. Review songs and provide feedback
 
-> **Screenshot placeholder:** Mobile view of the home screen
+![Mobile view of the home screen](/docs/screenshots/43_mobile_view.png)
 
 ---
 
@@ -863,7 +863,7 @@ Use more detailed profile edits, increase interest in new artists, and give dire
 **Too few tracks are being added**  
 Widen your audio filters or try again with fewer restrictions.
 
-> **Screenshot placeholder:** Example warning or error message
+![Example warning or error message](/docs/screenshots/44_warning_message.png)
 
 ---
 
