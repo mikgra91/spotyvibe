@@ -10,6 +10,7 @@ python app.py                                        # http://127.0.0.1:5000
 python -m pytest core/tests/ frontend/tests/ -v      # run tests (required before completing code changes)
 bash build-tools/build_exe.sh                        # PyInstaller Windows EXE
 bash build-tools/build_apk.sh debug                  # Chaquopy Android APK
+# macOS: double-click SpotyVibe.command   Linux: ./start.sh
 ```
 
 `tree` is available in git bash — use it for directory exploration.
@@ -34,6 +35,7 @@ bash build-tools/build_apk.sh debug                  # Chaquopy Android APK
 | Translations | `frontend/static/i18n/en.json` + `de.json` (must stay in sync) |
 | AI prompts | `prompts/*.txt` |
 | Desktop EXE wrapper | `desktop_launcher.py` |
+| macOS/Linux launcher | `build-tools/start.sh`, `SpotyVibe.command`, `start.sh` |
 | Version | `version.py` |
 
 ## Rules — Must Follow
@@ -43,7 +45,7 @@ bash build-tools/build_apk.sh debug                  # Chaquopy Android APK
 3. **Android** — No Rust-extension packages. No `openai` SDK. `pydantic` must be <2.0 if used. Test with `build_apk.sh debug`.
 4. **Tests** — Run pytest before completing any code/styling change. Mock all external APIs. Skip for docs-only changes.
 5. **Documentation** — Feature changes must update: `README.md`, `documentation/UserManual.md`, `documentation/help.md` (served at `/api/help`), `documentation/TechnicalManual.md`.
-6. **Git** — No destructive commands (`restore`, `checkout --`, `reset`, `clean`). Sentence-case commit subjects, no trailing period.
+6. **Git** — No destructive commands (`restore`, `checkout --`, `reset`, `clean`). Sentence-case commit subjects, no trailing period. **🔴 NEVER run `git commit` or `git push` unless the user has explicitly instructed you to in the current message. A one-time instruction (e.g., "perform a segmented commit") grants permission for that operation only — once completed, permission is revoked. Planning, reviewing, fixing, or editing code is NEVER implicit permission to commit.**
 7. **Security** — Never hardcode API keys. Never commit `.credentials`, `.spotify-cache`, or `personalized_music_profile.json`.
 8. **Large tasks** — Present a plan with files/order/summary and wait for confirmation before implementing.
 9. **No code style enforcement** — Rely on linters/formatters, not AI judgment. Only follow existing conventions.
@@ -58,7 +60,11 @@ spotyvibe/
 ├── version.py                     # Version string
 ├── desktop_launcher.py            # PyInstaller EXE entry
 ├── spotyvibe_bootstrap.py         # Desktop bootstrap/updater
-├── requirements.txt
+├── requirements.txt               # Full dev/build dependencies (Windows + testing)
+├── requirements-core.txt          # Runtime-only dependencies (macOS/Linux launcher)
+├── start.sh                       # macOS/Linux launcher wrapper (thin → build-tools/start.sh)
+├── SpotyVibe.command              # macOS Finder launcher wrapper (thin → build-tools/start.sh)
+├── .gitattributes                 # LF line endings for .sh/.command files
 ├── pytest.ini                     # Excludes screenshot tests (-m "not screenshots")
 ├── core/src/                      # Backend logic (Python)
 │   ├── openai_http.py             # OpenAI HTTP client (no SDK)
@@ -108,7 +114,7 @@ spotyvibe/
 ├── frontend/tests/                # Playwright tests
 ├── prompts/                       # AI prompt templates
 ├── android/                       # Chaquopy APK (see rule 3)
-├── build-tools/                   # build_exe.sh, build_apk.sh
+├── build-tools/                   # build_exe.sh, build_apk.sh, build_dist.sh, start.sh (launcher)
 ├── documentation/                 # UserManual, TechnicalManual, help.md
 └── data/                          # music_profile.json template
 ```

@@ -28,6 +28,6 @@ See `RULES.md` for detailed a11y, i18n, and documentation conventions.
 3. All user-facing text must use i18n (`en.json` + `de.json`).
 4. Run `python -m pytest core/tests/ frontend/tests/ -v` before completing changes.
 5. Feature changes require updates to all 4 documentation files (see `RULES.md`).
-6. No destructive git commands. No hardcoded secrets.
+6. No destructive git commands. No hardcoded secrets. **🔴 NEVER run `git commit` or `git push` unless the user has explicitly instructed you to in the current message. Permission is one-time only — once the operation completes, permission is revoked.**
 7. Android: no Rust-extension packages, no `openai` SDK, `pydantic` <2.0.
 8. Spotify OAuth redirect: `http://127.0.0.1:5000/callback`.

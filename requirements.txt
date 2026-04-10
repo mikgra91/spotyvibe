@@ -1,3 +1,5 @@
+# Full development/build dependencies (Windows desktop + testing)
+# For macOS/Linux runtime-only, use requirements-core.txt
 spotipy>=2.23,<3.0
 python-dotenv>=1.0,<2.0
 flask>=3.0,<4.0
