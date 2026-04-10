@@ -116,8 +116,15 @@ MAX_FEEDBACK_TRACK_LEN = 200
 IS_ANDROID = hasattr(sys, 'getandroidapilevel')
 
 
-def _get_app_dir():
-    """Return the platform-appropriate storage directory."""
+def _get_app_dir() -> Path:
+    """Return the platform-appropriate storage directory.
+
+    Resolves to:
+    - Android: Passed via SPOTYVIBE_FILES_DIR or ~/spotyvibe/
+    - Windows: %LOCALAPPDATA%/spotyvibe/
+    - macOS: ~/Library/Application Support/spotyvibe/
+    - Linux: ~/.local/share/spotyvibe/ (or $XDG_DATA_HOME/spotyvibe/)
+    """
     if IS_ANDROID:
         # Running inside Chaquopy on Android — use the files dir
         # passed from Kotlin via environment variable
@@ -126,8 +133,15 @@ def _get_app_dir():
             return Path(android_files) / "spotyvibe"
         # Fallback: use the Python home directory (Chaquopy sets this)
         return Path(os.path.expanduser("~")) / "spotyvibe"
-    # Desktop (Windows / macOS / Linux)
-    return Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))) / "spotyvibe"
+    
+    # Desktop platforms
+    if sys.platform == "win32":
+        return Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))) / "spotyvibe"
+    elif sys.platform == "darwin":
+        return Path(os.path.expanduser("~/Library/Application Support")) / "spotyvibe"
+    else:  # Linux / other
+        xdg = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
+        return Path(xdg) / "spotyvibe"
 
 
 _APP_DIR = _get_app_dir()
@@ -472,7 +486,7 @@ def save_credentials(credentials):
     load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
     # Re-overlay keyring so os.environ has the real values
     if _KEYRING_AVAILABLE:
-        for key in CREDENTIAL_KEYS:
+        for key in CREDENTIALS_KEYS:
             try:
                 val = _keyring.get_password(_KEYRING_SERVICE, key)
                 if val:
