@@ -983,7 +983,7 @@
    Provider Sections
    ============================================= */
 .provider-section {
-    margin-top: 60px;
+    margin-top: 0;
     background: var(--glass-bg);
     border: var(--glass-border);
     backdrop-filter: var(--glass-blur);
@@ -992,10 +992,7 @@
     box-shadow: var(--shadow-card);
     padding: 28px 28px 24px;
     position: relative;
-}
-
-.provider-section + .provider-section {
-    margin-top: 32px;
+    min-height: 480px;
 }
 
 .provider-section.provider-openai {
@@ -1093,6 +1090,19 @@
 }
 
 .status-pill--err::before { background: var(--error); }
+
+/* Clickable pill variant (rendered as <button>) */
+.status-pill--clickable {
+    cursor: pointer;
+    font-family: inherit;
+    transition: filter var(--transition), transform var(--transition);
+}
+@media (hover: hover) {
+    .status-pill--clickable:hover {
+        filter: brightness(1.2);
+        transform: translateY(-1px);
+    }
+}
 
 /* --- Dependency chips (Generate Playlist) --- */
 .generate-deps-row {

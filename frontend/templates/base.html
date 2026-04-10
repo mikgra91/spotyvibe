@@ -34,16 +34,14 @@
     </header>
 
     <nav class="tab-bar" role="tablist" aria-label="Main navigation">
-        <button class="tab-bar-btn" role="tab" id="tab-profile" data-tab="profile" aria-selected="true" aria-controls="trainSection" tabindex="0" data-i18n="profile.title">Music Profile</button>
-        <button class="tab-bar-btn" role="tab" id="tab-generate" data-tab="generate" aria-selected="false" aria-controls="generateSection" tabindex="-1" data-i18n="generate.title">Discover Music</button>
-        <button class="tab-bar-btn" role="tab" id="tab-review" data-tab="review" aria-selected="false" aria-controls="reviewSection" tabindex="-1" data-i18n="review.title">Refine Playlist</button>
-        <button class="tab-bar-btn" role="tab" id="tab-analysis" data-tab="analysis" aria-selected="false" aria-controls="analysisSection" tabindex="-1" data-i18n="analysis.title">Band/Song Analysis</button>
-        <button class="tab-bar-btn" role="tab" id="tab-history" data-tab="history" aria-selected="false" aria-controls="historySection" tabindex="-1" data-i18n="history.title">History</button>
+        <button class="tab-bar-btn" role="tab" id="tab-openai" data-tab="openai" aria-selected="true" aria-controls="providerOpenai" tabindex="0" data-i18n="tab.openai">AI Profile &amp; Analysis</button>
+        <button class="tab-bar-btn" role="tab" id="tab-spotify" data-tab="spotify" aria-selected="false" aria-controls="providerSpotify" tabindex="-1" data-i18n="tab.spotify">Discover &amp; Playlists</button>
+        <button class="tab-bar-btn" role="tab" id="tab-history" data-tab="history" aria-selected="false" aria-controls="historyPanel" tabindex="-1" data-i18n="tab.history">Run History</button>
     </nav>
 
     <main id="main-content">
     <!-- ── OpenAI Provider Section ── -->
-    <section class="provider-section provider-openai" aria-label="OpenAI tools">
+    <section class="provider-section provider-openai" id="providerOpenai" role="tabpanel" aria-labelledby="tab-openai" aria-label="OpenAI tools">
         <div class="provider-header">
             <div class="provider-header-title">
                 <span class="provider-badge provider-badge-openai">OpenAI</span>
@@ -56,7 +54,7 @@
     </section>
 
     <!-- ── Spotify Provider Section ── -->
-    <section class="provider-section provider-spotify" aria-label="Spotify tools">
+    <section class="provider-section provider-spotify" id="providerSpotify" role="tabpanel" aria-labelledby="tab-spotify" aria-label="Spotify tools">
         <div class="provider-header">
             <div class="provider-header-title">
                 <span class="provider-badge provider-badge-spotify">Spotify</span>
@@ -66,6 +64,10 @@
         </div>
         {% include "generate_section.html" %}
         {% include "playlist_review.html" %}
+    </section>
+
+    <!-- ── Run History (standalone tab) ── -->
+    <section class="provider-section provider-history hidden" id="historyPanel" role="tabpanel" aria-labelledby="tab-history" aria-label="Run history">
         {% include "run_history.html" %}
     </section>
     </main>

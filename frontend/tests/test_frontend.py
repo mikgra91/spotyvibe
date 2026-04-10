@@ -260,13 +260,13 @@ class TestPageLoad:
         # Profile tab (default) shows OpenAI provider
         expect(page.locator(".provider-badge-openai")).to_be_visible()
         # Switch to Generate tab to see Spotify provider
-        page.locator('[data-tab="generate"]').click()
+        page.locator('[data-tab="spotify"]').click()
         expect(page.locator(".provider-badge-spotify")).to_be_visible()
 
     def test_generate_button_visible(self, page: Page, base_url):
         page.goto(base_url)
         # Switch to Generate tab first, then expand the section
-        page.locator('[data-tab="generate"]').click()
+        page.locator('[data-tab="spotify"]').click()
         page.locator("#generateToggleBtn").click()
         expect(page.locator("#runBtn")).to_be_visible()
         expect(page.locator("#runBtn")).to_have_text("▶ Generate & Create Playlist")
@@ -608,20 +608,20 @@ class TestGenerateSection:
 
     def test_generate_button_present(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator('[data-tab="generate"]').click()
+        page.locator('[data-tab="spotify"]').click()
         # Generate section is collapsed by default — expand it first
         page.locator("#generateToggleBtn").click()
         expect(page.locator("#runBtn")).to_be_visible()
 
     def test_cancel_button_hidden_initially(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator('[data-tab="generate"]').click()
+        page.locator('[data-tab="spotify"]').click()
         page.locator("#generateToggleBtn").click()
         expect(page.locator("#cancelBtn")).to_be_hidden()
 
     def test_use_tracks_button_hidden_initially(self, page: Page, base_url):
         page.goto(base_url)
-        page.locator('[data-tab="generate"]').click()
+        page.locator('[data-tab="spotify"]').click()
         page.locator("#generateToggleBtn").click()
         expect(page.locator("#useTracksBtn")).to_be_hidden()
 
@@ -629,7 +629,7 @@ class TestGenerateSection:
         """When credentials are set and Spotify is authenticated, no warnings show."""
         page.goto(base_url)
         page.wait_for_load_state("networkidle")
-        page.locator('[data-tab="generate"]').click()
+        page.locator('[data-tab="spotify"]').click()
         page.locator("#generateToggleBtn").click()
         run_warn = page.locator("#runWarn")
         expect(run_warn).to_have_class(re.compile(r"hidden"))
@@ -689,7 +689,7 @@ class TestGenerationPipeline:
         page.wait_for_load_state("networkidle")
 
         # Switch to Generate tab, expand section, and click Generate
-        page.locator('[data-tab="generate"]').click()
+        page.locator('[data-tab="spotify"]').click()
         page.locator("#generateToggleBtn").click()
         page.locator("#runBtn").click()
 
@@ -735,7 +735,7 @@ class TestGenerationPipeline:
         page.wait_for_load_state("networkidle")
 
         # Switch to Generate tab, expand section, and click Generate
-        page.locator('[data-tab="generate"]').click()
+        page.locator('[data-tab="spotify"]').click()
         page.locator("#generateToggleBtn").click()
         page.locator("#runBtn").click()
         # The button should change to "Generating…" and stay there
@@ -779,7 +779,7 @@ class TestFeedbackButtons:
         page.reload()
         page.wait_for_load_state("networkidle")
         # Switch to Generate tab, expand section, and trigger generation
-        page.locator('[data-tab="generate"]').click()
+        page.locator('[data-tab="spotify"]').click()
         page.locator("#generateToggleBtn").click()
         page.locator("#runBtn").click()
         page.locator(".track-item").first.wait_for(timeout=2500)
@@ -894,7 +894,7 @@ class TestWarningsWithMissingCredentials:
         expect(train_warn).to_contain_text("OpenAI API key is missing")
 
         # Switch to Generate tab and expand it to check warnings
-        page.locator('[data-tab="generate"]').click()
+        page.locator('[data-tab="spotify"]').click()
         page.locator("#generateToggleBtn").click()
 
         # Generate section should also warn
@@ -922,7 +922,7 @@ class TestWarningsWithMissingCredentials:
         page.wait_for_load_state("networkidle")
 
         # Switch to Generate tab and expand it to check warnings
-        page.locator('[data-tab="generate"]').click()
+        page.locator('[data-tab="spotify"]').click()
         page.locator("#generateToggleBtn").click()
 
         run_warn = page.locator("#runWarn")
@@ -945,7 +945,7 @@ class TestWarningsWithMissingCredentials:
         page.wait_for_load_state("networkidle")
 
         # Switch to Generate tab and expand it to check warnings
-        page.locator('[data-tab="generate"]').click()
+        page.locator('[data-tab="spotify"]').click()
         page.locator("#generateToggleBtn").click()
 
         run_warn = page.locator("#runWarn")
@@ -1013,7 +1013,7 @@ class TestToastNotifications:
         page.wait_for_load_state("networkidle")
 
         # Switch to Generate tab, expand section, and trigger generation
-        page.locator('[data-tab="generate"]').click()
+        page.locator('[data-tab="spotify"]').click()
         page.locator("#generateToggleBtn").click()
         page.locator("#runBtn").click()
         page.locator(".track-item").first.wait_for(timeout=2500)
@@ -1035,14 +1035,14 @@ class TestResponsiveLayout:
         page.goto(base_url)
         # Main elements should still be visible
         expect(page.locator("h1")).to_be_visible()
-        expect(page.locator('[data-tab="generate"]')).to_be_visible()
+        expect(page.locator('[data-tab="spotify"]')).to_be_visible()
         expect(page.locator("button[aria-label=\"Menu\"]")).to_be_visible()
 
     def test_tablet_viewport(self, page: Page, base_url):
         page.set_viewport_size({"width": 768, "height": 1024})
         page.goto(base_url)
         expect(page.locator("h1")).to_be_visible()
-        expect(page.locator('[data-tab="generate"]')).to_be_visible()
+        expect(page.locator('[data-tab="spotify"]')).to_be_visible()
 
     def test_open_data_dir_hidden_on_mobile(self, page: Page, base_url):
         """The 'Open Data Directory' button is hidden on mobile (≤768px)."""
@@ -1104,7 +1104,7 @@ class TestTrackCardAttributes:
         page.route("**/api/profile/status", handle_profile_status)
         page.reload()
         page.wait_for_load_state("networkidle")
-        page.locator('[data-tab="generate"]').click()
+        page.locator('[data-tab="spotify"]').click()
         page.locator("#generateToggleBtn").click()
         page.locator("#runBtn").click()
         page.locator(".track-item").first.wait_for(timeout=2500)
@@ -1190,7 +1190,7 @@ class TestSseReconnection:
         page.reload()
         page.wait_for_load_state("networkidle")
 
-        page.locator('[data-tab="generate"]').click()
+        page.locator('[data-tab="spotify"]').click()
         page.locator("#generateToggleBtn").click()
         page.locator("#runBtn").click()
 
@@ -1230,7 +1230,7 @@ class TestSseReconnection:
         page.reload()
         page.wait_for_load_state("networkidle")
 
-        page.locator('[data-tab="generate"]').click()
+        page.locator('[data-tab="spotify"]').click()
         page.locator("#generateToggleBtn").click()
         page.locator("#runBtn").click()
 
