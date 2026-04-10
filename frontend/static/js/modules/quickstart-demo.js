@@ -19,11 +19,13 @@ function _step1Frames() {
                     <div class="qd-lang-toggle"><span class="qd-lang-active">EN</span><span>DE</span></div>
                     <div class="qd-burger qd-pulse"><div class="qd-burger-line"></div><div class="qd-burger-line"></div><div class="qd-burger-line"></div></div>
                 </div>
+                <div class="qd-tab-bar">
+                    <div class="qd-tab qd-tab-active">AI Profile &amp; Analysis</div>
+                    <div class="qd-tab">Discover &amp; Playlists</div>
+                    <div class="qd-tab">Run History</div>
+                </div>
                 <div class="qd-provider qd-provider-openai" style="opacity:0.4">
                     <div class="qd-provider-header"><div class="qd-provider-name">OpenAI</div><div class="qd-pills-row"><span class="qd-pill qd-pill-err">Key missing</span></div></div>
-                </div>
-                <div class="qd-provider qd-provider-spotify" style="opacity:0.4">
-                    <div class="qd-provider-header"><div class="qd-provider-name">Spotify</div><div class="qd-pills-row"><span class="qd-pill qd-pill-warn">Not connected</span></div></div>
                 </div>
                 <div class="qd-cursor" style="top:10px;right:16px"></div>
             </div>`
@@ -69,6 +71,11 @@ function _step1Frames() {
                     <div class="qd-lang-toggle"><span class="qd-lang-active">EN</span><span>DE</span></div>
                     <div class="qd-burger"><div class="qd-burger-line"></div><div class="qd-burger-line"></div><div class="qd-burger-line"></div></div>
                 </div>
+                <div class="qd-tab-bar">
+                    <div class="qd-tab qd-tab-active">AI Profile &amp; Analysis</div>
+                    <div class="qd-tab">Discover &amp; Playlists</div>
+                    <div class="qd-tab">Run History</div>
+                </div>
                 <div class="qd-provider qd-provider-openai">
                     <div class="qd-provider-header">
                         <div class="qd-provider-name">OpenAI</div>
@@ -76,12 +83,6 @@ function _step1Frames() {
                             <span class="qd-pill qd-pill-green qd-pop">Key configured</span>
                             <span class="qd-pill qd-pill-green qd-pop" style="animation-delay:.15s">gpt-5.4</span>
                         </div>
-                    </div>
-                </div>
-                <div class="qd-provider qd-provider-spotify">
-                    <div class="qd-provider-header">
-                        <div class="qd-provider-name">Spotify</div>
-                        <div class="qd-pills-row"><span class="qd-pill qd-pill-green qd-pop" style="animation-delay:.3s">Connected</span></div>
                     </div>
                 </div>
                 <div class="qd-result-msg qd-fade-in">✅ Ready to go!</div>
@@ -189,7 +190,6 @@ function _step3Frames() {
                         </div>
                     </div>
                     <div class="qd-accordion" style="opacity:0.4"><div class="qd-accordion-header"><h4><span class="qd-icon">🔄</span> Refine Playlist</h4><span class="qd-accordion-toggle">Show</span></div></div>
-                    <div class="qd-accordion" style="opacity:0.4"><div class="qd-accordion-header"><h4><span class="qd-icon">🕓</span> History</h4><span class="qd-accordion-toggle">Show</span></div></div>
                 </div>
                 <div class="qd-cursor" style="top:48px;left:50%"></div>
             </div>`

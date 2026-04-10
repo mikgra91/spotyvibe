@@ -76,6 +76,12 @@ _INJECT_REVIEW_TRACKS_JS = """() => {
 }"""
 
 
+def _switch_tab(page: Page, tab_name: str):
+    """Click a main nav tab (openai, spotify, history) and wait for it to activate."""
+    page.locator(f"#tab-{tab_name}").click()
+    page.wait_for_timeout(300)
+
+
 def _inject_discover_tracks(page: Page):
     """Inject mock track data into the discover song list and render."""
     page.evaluate(_INJECT_TRACKS_JS % json.dumps(_FAKE_SONGLIST))
@@ -481,6 +487,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot: Discover Music section expanded"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(400)
         _shot_element(page, "19_discover_section", "#generateSection")
@@ -489,6 +496,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot: Playlist mode selector"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(400)
         _shot_element(page, "20_playlist_mode_selector", ".playlist-mode-row")
@@ -497,6 +505,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot: Audio Filters sub-panel inside Discover Music"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         # Expand the audio filters sub-panel
@@ -518,6 +527,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot: Refine Playlist section expanded"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#reviewToggleBtn").click()
         page.wait_for_timeout(400)
         _shot_element(page, "22_refine_playlist_section", "#reviewSection")
@@ -528,7 +538,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot: Run History section with expanded entry"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
-        page.locator("#historyToggleBtn").click()
+        _switch_tab(page, "history")
         page.wait_for_timeout(400)
         # Expand the first history entry
         first_entry = page.locator(".history-run-item").first
@@ -562,14 +572,14 @@ class TestDocumentationScreenshotAcquire:
     # -- Full-page composite screenshots ------------------------------------
 
     def test_25_full_page_all_expanded(self, page: Page, screenshot_url):
-        """Screenshot: Full page with profile editor and discover sections open"""
+        """Screenshot: Full page with profile editor and analysis sections open"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
         # Expand profile editor
         page.locator("#trainToggleBtn").click()
         page.wait_for_timeout(300)
-        # Expand discover section
-        page.locator("#generateToggleBtn").click()
+        # Expand analysis section (same tab)
+        page.locator("#analysisToggleBtn").click()
         page.wait_for_timeout(300)
         _shot(page, "25_full_page_all_expanded")
 
@@ -591,6 +601,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Connect to Spotify banner"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         # Expand the Discover section
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
@@ -636,6 +647,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Generation in progress with inline spinner"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         page.evaluate("""() => {
@@ -653,6 +665,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Cancel and Use X Tracks Now buttons"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         page.evaluate("""() => {
@@ -675,6 +688,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Track cards after generation"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_discover_tracks(page)
@@ -685,6 +699,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Preview player open"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_discover_tracks(page)
@@ -703,6 +718,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Spotify quick links on a song card"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_discover_tracks(page)
@@ -713,6 +729,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Like feedback form"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_discover_tracks(page)
@@ -725,6 +742,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Dislike feedback form"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_discover_tracks(page)
@@ -737,6 +755,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Remove button on song card"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_discover_tracks(page)
@@ -749,6 +768,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Playlist dropdown with playlists loaded"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#reviewToggleBtn").click()
         page.wait_for_timeout(300)
         # Inject mock playlist options
@@ -766,6 +786,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Review track cards"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#reviewToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_review_tracks(page)
@@ -776,6 +797,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Like feedback form in Refine section"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#reviewToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_review_tracks(page)
@@ -788,6 +810,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Dislike feedback form in Refine section"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#reviewToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_review_tracks(page)
@@ -800,6 +823,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Dismiss button on review track card"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#reviewToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_review_tracks(page)
@@ -812,7 +836,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Song list with saved tracks"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
-        page.locator("#historyToggleBtn").click()
+        _switch_tab(page, "history")
         page.wait_for_timeout(400)
         # Expand the first history entry to show its track list
         first_entry = page.locator(".history-run-item").first
@@ -839,6 +863,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Example warning or error message"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         # Simulate missing OpenAI key warning

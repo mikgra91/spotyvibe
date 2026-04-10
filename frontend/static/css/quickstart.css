@@ -670,6 +670,36 @@
 .qd-btn-wide { width: 100%; }
 .qd-btn-sm { padding: 3px 10px; font-size: 0.62rem; }
 
+/* ── Tab bar — matches real tab-bar navigation ── */
+.qd-tab-bar {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    margin: 0 -8px;
+    background: rgba(0,0,0,0.2);
+    border-bottom: 1px solid var(--border);
+}
+.qd-tab {
+    flex: 1;
+    padding: 5px 6px;
+    font-size: 0.55rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-align: center;
+    border-radius: 6px 6px 0 0;
+    background: transparent;
+    border: 1px solid transparent;
+    border-bottom: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.qd-tab.qd-tab-active {
+    background: rgba(255,255,255,0.06);
+    color: var(--primary);
+    border-color: rgba(255,255,255,0.08);
+}
+
 /* ── Provider section — matches real provider-section ── */
 .qd-provider {
     background: var(--glass-bg);
