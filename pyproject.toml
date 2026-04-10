@@ -1,0 +1,65 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "spotyvibe"
+dynamic = ["version"]
+description = "AI-powered music discovery: personalised Spotify playlists powered by OpenAI"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = [
+    "spotipy>=2.23,<3.0",
+    "python-dotenv>=1.0,<2.0",
+    "flask>=3.0,<4.0",
+    "markdown>=3.4,<4.0",
+    "keyring>=25.0,<26.0",
+]
+
+[project.scripts]
+spotyvibe = "spotyvibe.cli:main"
+
+[tool.hatch.version]
+path = "version.py"
+pattern = '__version__\s*=\s*"(?P<version>[^"]+)"'
+
+# ── Wheel contents ─────────────────────────────────────────────────────
+# The spotyvibe/ package directory (cli, __main__, __init__) is included
+# automatically via ``packages``.  Everything else is force-included from
+# the repo root so that NO files need to be physically moved.
+[tool.hatch.build.targets.wheel]
+packages = ["spotyvibe"]
+exclude = [
+    "**/__pycache__",
+    "**/*.pyc",
+    "frontend/static/css/styles.css.bak",
+]
+
+[tool.hatch.build.targets.wheel.force-include]
+"app.py"                             = "spotyvibe/app.py"
+"config.py"                          = "spotyvibe/config.py"
+"core/src"                           = "spotyvibe/core/src"
+"frontend/templates"                 = "spotyvibe/frontend/templates"
+"frontend/static"                    = "spotyvibe/frontend/static"
+"prompts"                            = "spotyvibe/prompts"
+"data"                               = "spotyvibe/data"
+"documentation/help.md"              = "spotyvibe/documentation/help.md"
+"documentation/assets/screenshots"   = "spotyvibe/documentation/assets/screenshots"
+
+# ── Source distribution (sdist) — not used for end-user distribution ──
+[tool.hatch.build.targets.sdist]
+include = [
+    "spotyvibe/",
+    "app.py",
+    "config.py",
+    "version.py",
+    "core/src/",
+    "frontend/",
+    "prompts/",
+    "data/",
+    "documentation/help.md",
+    "documentation/assets/screenshots/",
+    "pyproject.toml",
+    "README.md",
+]
