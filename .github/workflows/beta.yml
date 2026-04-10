@@ -38,7 +38,7 @@ jobs:
             dist/spotyvibe_onefile.exe
             dist/spotyvibe_package.zip
 
-  build-macos-linux:
+  build-wheel:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -48,17 +48,19 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Build macOS and Linux distributions
+      - name: Build wheel and package ZIP
         run: |
-          chmod +x build-tools/build_dist.sh build-tools/start.sh start.sh SpotyVibe.command
-          bash build-tools/build_dist.sh all
+          pip install build
+          python -m build --wheel
+          mkdir -p dist/SpotyVibe
+          cp dist/*.whl dist/SpotyVibe/
+          cp build-tools/README-Install.txt dist/SpotyVibe/README.txt
+          cd dist && zip -r SpotyVibe-macOS-Linux.zip SpotyVibe/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: macos-linux
-          path: |
-            dist/SpotyVibe-macOS.zip
-            dist/SpotyVibe-Linux.tar.gz
+          name: wheel
+          path: dist/SpotyVibe-macOS-Linux.zip
 
   build-android:
     runs-on: ubuntu-latest
@@ -81,7 +83,7 @@ jobs:
           path: spotyvibe-debug.apk
 
   release:
-    needs: [build-windows, build-macos-linux, build-android]
+    needs: [build-windows, build-wheel, build-android]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -92,7 +94,7 @@ jobs:
           name: windows
       - uses: actions/download-artifact@v4
         with:
-          name: macos-linux
+          name: wheel
       - uses: actions/download-artifact@v4
         with:
           name: android
@@ -121,5 +123,4 @@ jobs:
             spotyvibe-debug.apk
             spotyvibe_onefile.exe
             spotyvibe_package.zip
-            SpotyVibe-macOS.zip
-            SpotyVibe-Linux.tar.gz
+            SpotyVibe-macOS-Linux.zip

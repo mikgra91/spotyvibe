@@ -1,5 +1,15 @@
 # CLAUDE.md — SpotyVibe
 
+> ## 🔴🔴🔴 ABSOLUTE RULE — READ BEFORE ANYTHING ELSE
+>
+> **NEVER run `git commit`, `git push`, or any command that creates commits or pushes to a remote.**
+>
+> The ONLY exception: the user has **explicitly told you** to commit/push **in the current message** (e.g., "commit this", "perform a segmented commit and push"). Even then, permission covers **that one operation only** — once done, permission is revoked.
+>
+> - Editing, fixing, planning, or reviewing code is **NEVER** implicit permission to commit.
+> - When in doubt: **do NOT commit. Ask the user.**
+> - There are **zero exceptions** to this rule.
+
 AI-powered music discovery: Flask + OpenAI + Spotify Web API.
 Read `SKILL.md` before any Spotify API change. Read `RULES.md` for a11y and detailed conventions.
 
@@ -10,7 +20,9 @@ python app.py                                        # http://127.0.0.1:5000
 python -m pytest core/tests/ frontend/tests/ -v      # run tests (required before completing code changes)
 bash build-tools/build_exe.sh                        # PyInstaller Windows EXE
 bash build-tools/build_apk.sh debug                  # Chaquopy Android APK
-# macOS: double-click SpotyVibe.command   Linux: ./start.sh
+pip install build && python -m build --wheel         # Python wheel for macOS/Linux
+# macOS/Linux end-user: pip install spotyvibe-*.whl && spotyvibe
+# Dev: bash build-tools/start.sh
 ```
 
 `tree` is available in git bash — use it for directory exploration.
@@ -36,6 +48,7 @@ bash build-tools/build_apk.sh debug                  # Chaquopy Android APK
 | AI prompts | `prompts/*.txt` |
 | Desktop EXE wrapper | `desktop_launcher.py` |
 | macOS/Linux launcher | `build-tools/start.sh`, `SpotyVibe.command`, `start.sh` |
+| macOS/Linux packaging | `pyproject.toml`, `spotyvibe/cli.py` |
 | Version | `version.py` |
 
 ## Rules — Must Follow
@@ -62,6 +75,7 @@ spotyvibe/
 ├── spotyvibe_bootstrap.py         # Desktop bootstrap/updater
 ├── requirements.txt               # Full dev/build dependencies (Windows + testing)
 ├── requirements-core.txt          # Runtime-only dependencies (macOS/Linux launcher)
+├── pyproject.toml                 # Python wheel build config (hatchling)
 ├── start.sh                       # macOS/Linux launcher wrapper (thin → build-tools/start.sh)
 ├── SpotyVibe.command              # macOS Finder launcher wrapper (thin → build-tools/start.sh)
 ├── .gitattributes                 # LF line endings for .sh/.command files
@@ -116,6 +130,9 @@ spotyvibe/
 ├── android/                       # Chaquopy APK (see rule 3)
 ├── build-tools/                   # build_exe.sh, build_apk.sh, build_dist.sh, start.sh (launcher)
 ├── documentation/                 # UserManual, TechnicalManual, help.md
+├── spotyvibe/                     # Python package (wheel entry point)
+│   ├── __init__.py, __main__.py
+│   └── cli.py                     # Console entry point (spotyvibe command)
 └── data/                          # music_profile.json template
 ```
 
@@ -125,6 +142,7 @@ spotyvibe/
 - **No build step** — vanilla JS (ES modules), modular CSS (11 files, no bundler).
 - **Spotify isolation** — all API calls in `core/src/playlist.py`.
 - **OpenAI isolation** — all calls via `core/src/openai_http.py` (raw HTTP).
+- **macOS/Linux packaging** — `pyproject.toml` + hatchling builds a `.whl`; `spotyvibe/cli.py` is the entry point.
 
 ## On Commit
 

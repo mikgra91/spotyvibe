@@ -169,71 +169,70 @@ All canvas renderers are registered in the `THEME_RENDERERS` object in `frontend
 
 ---
 
-## macOS & Linux Launcher
+## macOS & Linux Distribution (Python Wheel)
 
-SpotyVibe ships a shell-based launcher (`build-tools/start.sh`) for macOS and Linux. No PyInstaller, no native binaries — the app runs from source inside a virtual environment.
+SpotyVibe is distributed to macOS and Linux users as a standard Python wheel (`.whl`). No PyInstaller, no native binaries, no source files to navigate — just `pip install` and `spotyvibe`.
 
-### Architecture
+### How it works
 
 ```
-SpotyVibe.command  ─┐
-start.sh            ─┤──▶  build-tools/start.sh  (all logic)
-                     │
-                     ├── 1. Detect Python 3.10+
-                     ├── 2. Check python3-venv availability
-                     ├── 3. Create .venv/ on first run
-                     ├── 4. Install requirements-core.txt
-                     ├── 5. Detect dependency changes (hash comparison)
-                     ├── 6. Check port 5000 availability
-                     ├── 7. Start Flask server (background)
-                     ├── 8. Health-check loop (up to 15 s)
-                     ├── 9. Open default browser
-                     └── 10. Wait + trap SIGINT/SIGTERM/SIGHUP for clean shutdown
+pip install spotyvibe-*.whl
+spotyvibe                        ← console_scripts entry point
+    │
+    └── spotyvibe.cli:main()
+         ├── 1. Check port 5000 availability
+         ├── 2. Import Flask app (triggers config + logging init)
+         ├── 3. Open default browser (after 1.5 s delay)
+         └── 4. Run Flask server (Ctrl+C to stop)
 ```
+
+The wheel bundles only the files needed at runtime:
+
+| Contents | Source (repo) |
+|---|---|
+| `spotyvibe/__init__.py`, `__main__.py`, `cli.py` | `spotyvibe/` |
+| `spotyvibe/app.py`, `spotyvibe/config.py` | `app.py`, `config.py` (force-included) |
+| `spotyvibe/core/src/` | `core/src/` (force-included) |
+| `spotyvibe/frontend/` | `frontend/templates/`, `frontend/static/` (force-included) |
+| `spotyvibe/prompts/` | `prompts/` (force-included) |
+| `spotyvibe/data/` | `data/` (force-included) |
+| `spotyvibe/documentation/` | `documentation/help.md` + screenshots (force-included) |
+
+Tests, Android scaffolding, build scripts, PyInstaller specs, and dev-only files are excluded.
 
 ### Key design decisions
 
 | Decision | Rationale |
 |---|---|
-| Two root-level wrappers (`start.sh`, `SpotyVibe.command`) | Linux users expect `./start.sh`; macOS Finder requires a `.command` extension to double-click |
-| `bash` delegation instead of `exec` | Works even if the executable bit is lost (common in ZIP downloads) |
-| `requirements-core.txt` (runtime-only) | Avoids `pywebview`/`pyinstaller` install failures on macOS/Linux |
-| Hash-based dependency updates | Instant startup on subsequent runs; re-installs only when `requirements-core.txt` changes |
-| `export PATH="/opt/homebrew/bin:..."` | Finder-launched `.command` files get a minimal PATH without `~/.zshrc` |
+| `hatchling` build backend with `force-include` | Bundles repo-root files into the `spotyvibe/` package without physically moving any source files |
+| `sys.path.insert(0, pkg_dir)` in `cli.py` | Ensures `app.py`'s internal imports (`from config import ...`, `from core.src...`) resolve from the installed wheel location |
+| `config.py`'s `BASE_DIR = Path(__file__).resolve().parent` | Automatically points to the wheel's install directory — all asset paths (prompts, templates, data) resolve correctly |
+| Single `.whl` for both platforms | Python wheels with tag `py3-none-any` are platform-independent — one artifact serves macOS and Linux |
+| `console_scripts` entry point | `pip install` creates a `spotyvibe` command in the user's PATH — no shell scripts needed |
 | Hard-coded port 5000 | Spotify OAuth redirect URI is fixed to `http://127.0.0.1:5000/callback` |
-| `import ensurepip` probe | Catches the #1 Linux gotcha: Debian/Ubuntu ship Python without `python3-venv` |
-| `trap cleanup SIGINT SIGTERM SIGHUP` | Ensures Flask server is killed when the terminal closes or user presses Ctrl+C |
 
-### File inventory
+### Build command
 
-| File | Purpose |
-|---|---|
-| `build-tools/start.sh` | Main launcher script (all logic) |
-| `build-tools/build_dist.sh` | Packages source distributions (macOS ZIP + Linux tar.gz) |
-| `build-tools/README-macOS.txt` | Installation guide bundled inside `SpotyVibe-macOS.zip` |
-| `build-tools/README-Linux.txt` | Installation guide bundled inside `SpotyVibe-Linux.tar.gz` |
-| `start.sh` | Root-level thin wrapper for Linux |
-| `SpotyVibe.command` | Root-level thin wrapper for macOS Finder |
-| `requirements-core.txt` | Runtime-only dependencies (5 packages) |
-| `.gitattributes` | Enforces LF line endings for `.sh` and `.command` files |
+```bash
+pip install build
+python -m build --wheel     # produces dist/spotyvibe-<version>-py3-none-any.whl
+```
 
-### Distribution archives (CI/CD)
+### CI/CD
 
-The GitHub Actions release workflows (`release.yml`, `beta.yml`) produce downloadable archives for macOS and Linux via `build_dist.sh`. Each archive contains:
+The GitHub Actions release workflows (`release.yml`, `beta.yml`) include a `build-wheel` job that builds the wheel and attaches it to the GitHub Release alongside the Windows EXE and Android APK.
 
-- All runtime source files (`app.py`, `config.py`, `version.py`, `core/src/`, `frontend/`, `prompts/`, `data/`)
-- The launcher script (`SpotyVibe.command` for macOS, `start.sh` for Linux)
-- `requirements-core.txt` for automated dependency installation
-- A platform-specific `README.txt` with installation and troubleshooting instructions
+### Development mode
 
-**Output files (attached to GitHub Releases):**
+Developers who clone the repo can still run SpotyVibe directly:
 
-| Archive | Contents |
-|---|---|
-| `SpotyVibe-macOS.zip` | Source + `SpotyVibe.command` + `README.txt` (macOS guide) |
-| `SpotyVibe-Linux.tar.gz` | Source + `start.sh` + `README.txt` (Linux guide) |
-
-The archives deliberately exclude tests, Android scaffolding, PyInstaller specs, build assets, documentation, and dev-only files to keep the download small and user-focused.
+```bash
+python app.py                          # classic Flask entry point
+# or
+pip install -e .                       # editable install, then: spotyvibe
+# or
+bash build-tools/start.sh             # shell launcher (creates .venv, manages deps)
+```
 
 ---
 
