@@ -1,5 +1,15 @@
 # CLAUDE.md — SpotyVibe
 
+> ## 🔴🔴🔴 ABSOLUTE RULE — READ BEFORE ANYTHING ELSE
+>
+> **NEVER run `git commit`, `git push`, or any command that creates commits or pushes to a remote.**
+>
+> The ONLY exception: the user has **explicitly told you** to commit/push **in the current message** (e.g., "commit this", "perform a segmented commit and push"). Even then, permission covers **that one operation only** — once done, permission is revoked.
+>
+> - Editing, fixing, planning, or reviewing code is **NEVER** implicit permission to commit.
+> - When in doubt: **do NOT commit. Ask the user.**
+> - There are **zero exceptions** to this rule.
+
 AI-powered music discovery: Flask + OpenAI + Spotify Web API.
 Read `SKILL.md` before any Spotify API change. Read `RULES.md` for a11y and detailed conventions.
 

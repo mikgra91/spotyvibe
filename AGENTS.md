@@ -1,5 +1,15 @@
 # AGENTS.md
 
+> ## 🔴🔴🔴 ABSOLUTE RULE — READ BEFORE ANYTHING ELSE
+>
+> **NEVER run `git commit`, `git push`, or any command that creates commits or pushes to a remote.**
+>
+> The ONLY exception: the user has **explicitly told you** to commit/push **in the current message** (e.g., "commit this", "perform a segmented commit and push"). Even then, permission covers **that one operation only** — once done, permission is revoked.
+>
+> - Editing, fixing, planning, or reviewing code is **NEVER** implicit permission to commit.
+> - When in doubt: **do NOT commit. Ask the user.**
+> - There are **zero exceptions** to this rule.
+
 Project-level instructions for AI coding agents working on this codebase.
 Claude users: all instructions are in `CLAUDE.md`. This file exists for non-Claude agents.
 
