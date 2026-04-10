@@ -48,15 +48,19 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Build wheel
+      - name: Build wheel and package ZIP
         run: |
           pip install build
           python -m build --wheel
+          mkdir -p dist/SpotyVibe
+          cp dist/*.whl dist/SpotyVibe/
+          cp build-tools/README-Install.txt dist/SpotyVibe/README.txt
+          cd dist && zip -r SpotyVibe-macOS-Linux.zip SpotyVibe/
 
       - uses: actions/upload-artifact@v4
         with:
           name: wheel
-          path: dist/*.whl
+          path: dist/SpotyVibe-macOS-Linux.zip
 
   build-android:
     runs-on: ubuntu-latest
@@ -119,4 +123,4 @@ jobs:
             spotyvibe.apk
             spotyvibe_onefile.exe
             spotyvibe_package.zip
-            spotyvibe-*.whl
+            SpotyVibe-macOS-Linux.zip
