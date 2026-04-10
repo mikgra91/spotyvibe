@@ -1,7 +1,9 @@
 import * as State from './state.js';
 import { i18n } from './i18n.js';
+import { renderProviderPills } from './provider-pills.js';
 
 export function renderComponentWarnings() {
+    renderProviderPills();
     const trainWarn = document.getElementById('trainWarn');
     const trainBtn = document.getElementById('trainSendBtn');
     const trainToggle = document.getElementById('trainToggleBtn');

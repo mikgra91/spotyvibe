@@ -59,6 +59,38 @@ def _shot_element(page: Page, name: str, selector: str):
     el.screenshot(path=str(path))
 
 
+_INJECT_TRACKS_JS = """() => {
+    const tracks = %s;
+    import('/static/js/modules/state.js').then(State => {
+        State.setSuggestions(tracks);
+        window.renderTracks();
+    });
+}"""
+
+_INJECT_REVIEW_TRACKS_JS = """() => {
+    const tracks = %s;
+    import('/static/js/modules/state.js').then(State => {
+        State.setReviewTracks(tracks);
+        window.renderReviewTracks();
+    });
+}"""
+
+
+def _inject_discover_tracks(page: Page):
+    """Inject mock track data into the discover song list and render."""
+    page.evaluate(_INJECT_TRACKS_JS % json.dumps(_FAKE_SONGLIST))
+
+
+def _inject_review_tracks(page: Page):
+    """Inject mock track data into the review track list and render."""
+    page.evaluate(_INJECT_REVIEW_TRACKS_JS % json.dumps(_FAKE_SONGLIST))
+    page.evaluate("""() => {
+        document.getElementById('reviewTrackArea').classList.remove('hidden');
+        const counter = document.getElementById('reviewTrackCounter');
+        if (counter) counter.textContent = '3 track(s)';
+    }""")
+
+
 # ---------------------------------------------------------------------------
 #  Mocked data
 # ---------------------------------------------------------------------------
@@ -540,6 +572,284 @@ class TestDocumentationScreenshotAcquire:
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         _shot(page, "25_full_page_all_expanded")
+
+    # -- Quick Start --------------------------------------------------------
+
+    def test_26_quickstart_toc(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Quick Start guide contents page with workflow map and TOC entries."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        # Remove the quickstart-dismissed flag so the modal can open
+        page.evaluate("localStorage.removeItem('spotyvibe-quickstart-dismissed')")
+        page.evaluate("openQuickstart(true)")
+        page.wait_for_timeout(500)
+        _shot_element(page, "26_quickstart_toc", "#quickstartModal .quickstart-modal")
+
+    # -- Connect to Spotify banner ------------------------------------------
+
+    def test_27_connect_spotify_banner(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Connect to Spotify banner"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        # Expand the Discover section
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        # Simulate Spotify not authenticated state
+        page.evaluate("""() => {
+            const warn = document.getElementById('runWarn');
+            warn.className = '';
+            warn.innerHTML = '<span class=\"component-warn\">⚠️ Spotify login required — <a style=\"cursor:pointer;color:var(--primary)\">Connect to Spotify</a>.</span>';
+            document.getElementById('runBtn').disabled = true;
+            // Update dep chip
+            const chip = document.querySelector('#depSpotify .dep-dot');
+            if (chip) { chip.className = 'dep-dot dep-dot--error'; }
+        }""")
+        page.wait_for_timeout(200)
+        _shot_element(page, "27_connect_spotify_banner", "#generateSection")
+
+    # -- Profile editing ----------------------------------------------------
+
+    def test_28_editing_existing_profile(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Editing an existing profile"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#trainToggleBtn").click()
+        page.wait_for_timeout(400)
+        # Fill in vibe description to show an "editing" state
+        page.locator("#trainVibeDesc").fill(
+            "I love energetic rock with theatrical vocals like Queen. "
+            "Surprise me with something new but keep it high-energy and melodic!"
+        )
+        # Open the Core Description accordion and fill it
+        page.locator("#accCoreDesc .accordion-header").click()
+        page.wait_for_timeout(200)
+        page.locator("#trainCoreDesc").fill(
+            "Upbeat, theatrical rock with strong melodic hooks, rich harmonies, "
+            "and constant momentum. Think Queen meets Bear Ghost."
+        )
+        page.wait_for_timeout(200)
+        _shot_element(page, "28_editing_existing_profile", "#trainSection")
+
+    # -- Generation in progress ---------------------------------------------
+
+    def test_29_generation_spinner(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Generation in progress with inline spinner"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.evaluate("""() => {
+            document.getElementById('generateLoadingArea').classList.remove('hidden');
+            document.getElementById('generateLoadingMsg').textContent = 'Getting suggestions from GPT… (12 / 30)';
+            const btn = document.getElementById('runBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Generating…';
+            document.getElementById('cancelBtn').classList.remove('hidden');
+        }""")
+        page.wait_for_timeout(300)
+        _shot_element(page, "29_generation_spinner", "#generateSection")
+
+    def test_30_cancel_use_tracks_buttons(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Cancel and Use X Tracks Now buttons"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.evaluate("""() => {
+            document.getElementById('generateLoadingArea').classList.remove('hidden');
+            document.getElementById('generateLoadingMsg').textContent = 'Getting suggestions from GPT… (18 / 30)';
+            const btn = document.getElementById('runBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Generating…';
+            document.getElementById('cancelBtn').classList.remove('hidden');
+            const useBtn = document.getElementById('useTracksBtn');
+            useBtn.classList.remove('hidden');
+            useBtn.textContent = '▶ Use 18 tracks now';
+        }""")
+        page.wait_for_timeout(200)
+        _shot_element(page, "30_cancel_use_tracks", "#generateSection .run-section")
+
+    # -- Track cards --------------------------------------------------------
+
+    def test_31_track_cards(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Track cards after generation"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        _inject_discover_tracks(page)
+        page.wait_for_timeout(300)
+        _shot_element(page, "31_track_cards", "#discoverTrackArea")
+
+    def test_32_preview_player(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Preview player open"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        _inject_discover_tracks(page)
+        page.wait_for_timeout(300)
+        # Open preview overlay manually (skip iframe load)
+        page.evaluate("""() => {
+            const overlay = document.getElementById('spotifyPreviewOverlay');
+            overlay.classList.add('visible');
+            document.getElementById('spotifyPreviewTitle').textContent = 'Bear Ghost — Necromancin Dancin';
+            document.getElementById('previewCounter').textContent = '1 / 3';
+        }""")
+        page.wait_for_timeout(300)
+        _shot_element(page, "32_preview_player", "#spotifyPreviewOverlay")
+
+    def test_33_spotify_quick_links(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Spotify quick links on a song card"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        _inject_discover_tracks(page)
+        page.wait_for_timeout(300)
+        _shot_element(page, "33_spotify_quick_links", "#track-0 .track-header")
+
+    def test_34_like_feedback_form(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Like feedback form"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        _inject_discover_tracks(page)
+        page.wait_for_timeout(300)
+        page.evaluate("toggleFeedback(0, 'like')")
+        page.wait_for_timeout(200)
+        _shot_element(page, "34_like_feedback_form", "#track-0")
+
+    def test_35_dislike_feedback_form(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Dislike feedback form"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        _inject_discover_tracks(page)
+        page.wait_for_timeout(300)
+        page.evaluate("toggleFeedback(1, 'dislike')")
+        page.wait_for_timeout(200)
+        _shot_element(page, "35_dislike_feedback_form", "#track-1")
+
+    def test_36_remove_button(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Remove button on song card"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        _inject_discover_tracks(page)
+        page.wait_for_timeout(300)
+        _shot_element(page, "36_remove_button", "#track-0 .track-actions")
+
+    # -- Refine Playlist tracks ---------------------------------------------
+
+    def test_37_playlist_dropdown(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Playlist dropdown with playlists loaded"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#reviewToggleBtn").click()
+        page.wait_for_timeout(300)
+        # Inject mock playlist options
+        page.evaluate("""() => {
+            const picker = document.getElementById('reviewPlaylistPicker');
+            picker.innerHTML = '<option value="">Select a playlist…</option>'
+                + '<option value="pl1">🎵 My Weekend Vibes (25 tracks)</option>'
+                + '<option value="pl2">🎵 Road Trip Mix (18 tracks)</option>'
+                + '<option value="pl3">🎵 Focus Flow (30 tracks)</option>';
+        }""")
+        page.wait_for_timeout(200)
+        _shot_element(page, "37_playlist_dropdown", "#reviewSection")
+
+    def test_38_review_track_cards(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Review track cards"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#reviewToggleBtn").click()
+        page.wait_for_timeout(300)
+        _inject_review_tracks(page)
+        page.wait_for_timeout(300)
+        _shot_element(page, "38_review_track_cards", "#reviewTrackArea")
+
+    def test_39_review_like_form(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Like feedback form in Refine section"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#reviewToggleBtn").click()
+        page.wait_for_timeout(300)
+        _inject_review_tracks(page)
+        page.wait_for_timeout(300)
+        page.evaluate("toggleReviewFeedback(0, 'like')")
+        page.wait_for_timeout(200)
+        _shot_element(page, "39_review_like_form", "#review-track-0")
+
+    def test_40_review_dislike_form(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Dislike feedback form in Refine section"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#reviewToggleBtn").click()
+        page.wait_for_timeout(300)
+        _inject_review_tracks(page)
+        page.wait_for_timeout(300)
+        page.evaluate("toggleReviewFeedback(1, 'dislike')")
+        page.wait_for_timeout(200)
+        _shot_element(page, "40_review_dislike_form", "#review-track-1")
+
+    def test_41_review_dismiss_button(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Dismiss button on review track card"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#reviewToggleBtn").click()
+        page.wait_for_timeout(300)
+        _inject_review_tracks(page)
+        page.wait_for_timeout(300)
+        _shot_element(page, "41_review_dismiss_button", "#review-track-0 .track-actions")
+
+    # -- Run History song list ----------------------------------------------
+
+    def test_42_history_song_list(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Song list with saved tracks"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#historyToggleBtn").click()
+        page.wait_for_timeout(400)
+        # Expand the first history entry to show its track list
+        first_entry = page.locator(".history-run-item").first
+        if first_entry.is_visible():
+            first_entry.click()
+            page.wait_for_timeout(300)
+        _shot_element(page, "42_history_song_list", "#historySection")
+
+    # -- Mobile view --------------------------------------------------------
+
+    def test_43_mobile_view(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Mobile view of the home screen"""
+        page.set_viewport_size({"width": 390, "height": 844})
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(500)
+        _shot(page, "43_mobile_view")
+        # Reset viewport for subsequent tests
+        page.set_viewport_size({"width": 1280, "height": 900})
+
+    # -- Warning / error message --------------------------------------------
+
+    def test_44_warning_message(self, page: Page, screenshot_url):
+        """Screenshot placeholder: Example warning or error message"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        # Simulate missing OpenAI key warning
+        page.evaluate("""() => {
+            const warn = document.getElementById('runWarn');
+            warn.className = '';
+            warn.innerHTML = '<span class=\"component-warn\">⚠️ OpenAI API key is missing — open <a style=\"cursor:pointer;color:var(--primary)\">⚙️ Settings</a> to enter it.</span>';
+            document.getElementById('runBtn').disabled = true;
+        }""")
+        page.wait_for_timeout(200)
+        _shot_element(page, "44_warning_message", "#runWarn")
 
 
 

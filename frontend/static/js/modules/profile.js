@@ -129,7 +129,7 @@ function _renderProfileDropdown() {
     if (_profileList.length === 0) {
         const opt = document.createElement('option');
         opt.value = '';
-        opt.textContent = i18n('profile.no_profile_selected', 'No profile selected');
+        opt.textContent = i18n('profile.no_profiles_yet', 'No profiles yet');
         select.appendChild(opt);
         _renderCustomDropdown();
         updateProfileMenuState();
@@ -159,13 +159,15 @@ function _renderCustomDropdown() {
     const active = _profileList.find(p => p.id === _activeProfileId);
     label.textContent = active
         ? (active.name || active.id)
-        : i18n('profile.no_profile_selected', 'No profile selected');
+        : _profileList.length === 0
+            ? i18n('profile.no_profiles_yet', 'No profiles yet')
+            : i18n('profile.no_profile_selected', 'No profile selected');
 
     // Build list items
     list.innerHTML = '';
     if (_profileList.length === 0) {
         const li = document.createElement('li');
-        li.textContent = i18n('profile.no_profile_selected', 'No profile selected');
+        li.textContent = i18n('profile.no_profiles_yet', 'No profiles yet');
         li.style.color = 'var(--text-muted)';
         li.style.cursor = 'default';
         list.appendChild(li);
@@ -496,15 +498,24 @@ export async function startImportProfile() {
 
 export async function exportProfile() {
     try {
-        const a = document.createElement('a');
-        a.href = '/api/profile/export';
-        a.download = 'spotyvibe_profile.json';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+        const resp = await fetch('/api/profile/export');
+        const text = await resp.text();
+        if (window.pywebview) {
+            await pywebview.api.save_profile_export(text);
+        } else {
+            const blob = new Blob([text], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'spotyvibe_profile.json';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
         showToast(i18n('msg.export_saved', 'Profile exported — check your Downloads folder for spotyvibe_profile.json'), 'success', 5000);
     } catch (e) {
-        window.location.href = '/api/profile/export';
+        showToast(i18n('msg.export_fail', 'Export failed'), 'error');
     }
 }
 

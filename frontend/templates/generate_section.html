@@ -5,7 +5,7 @@
             <span class="train-status train-subtitle" data-i18n="generate.subtitle">Generate AI-powered playlists and save them directly to your Spotify account.</span>
         </div>
         <div class="train-header-actions">
-            <button class="btn-train" id="generateToggleBtn" onclick="event.stopPropagation(); toggleGenerateBody()" aria-expanded="false" aria-controls="generateBody">Show</button>
+            <button class="btn-train" id="generateToggleBtn" onclick="event.stopPropagation(); toggleGenerateBody()" data-i18n="btn.show" aria-expanded="false" aria-controls="generateBody">Show</button>
         </div>
     </div>
     <div class="train-body hidden" id="generateBody">
@@ -39,6 +39,15 @@
         </div>
     </div>
 
+    <!-- Emerging artists filter -->
+    <div class="emerging-artists-row" id="emergingArtistsRow">
+        <label class="emerging-artists-label">
+            <input type="checkbox" id="emergingArtistsCheckbox" aria-describedby="emergingArtistsHint">
+            <span data-i18n="generate.emerging_only">Only new / emerging artists</span>
+        </label>
+        <span class="emerging-artists-hint" id="emergingArtistsHint" data-i18n="generate.emerging_only_hint">Only suggest tracks by artists who debuted in the last 6 months.</span>
+    </div>
+
     <!-- Audio Filters (collapsible sub-panel inside Discover) -->
     <div class="audio-filter-subpanel" id="audioFiltersSection">
         <div class="audio-filter-toggle" role="button" tabindex="0" onclick="toggleAudioFilters()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAudioFilters()}" aria-expanded="false" aria-controls="audioFiltersBody">
@@ -56,31 +65,31 @@
             </div>
             <div class="audio-filter-grid">
                 <div class="audio-filter-row">
-                    <label for="af-energy-min">Energy (%)</label>
+                    <label for="af-energy-min" class="af-label-tip" data-tooltip="How intense and active the track feels. High energy = loud, fast, noisy. Low energy = calm, ambient." data-i18n-tooltip="analysis.energy_desc">Energy (%)</label>
                     <input type="number" id="af-energy-min" placeholder="min" min="0" max="100" step="5" oninput="updateFilterHint('energy')" value="{{ (audio_filters.energy.min * 100)|round|int if audio_filters.energy.min is not none }}">
                     <input type="number" id="af-energy-max" placeholder="max" min="0" max="100" step="5" oninput="updateFilterHint('energy')" value="{{ (audio_filters.energy.max * 100)|round|int if audio_filters.energy.max is not none }}">
                     <span class="audio-filter-hint-text" id="af-energy-hint"></span>
                 </div>
                 <div class="audio-filter-row">
-                    <label for="af-valence-min">Valence (%)</label>
+                    <label for="af-valence-min" class="af-label-tip" data-tooltip="Musical positiveness. High valence = happy, cheerful, euphoric. Low valence = sad, dark, angry." data-i18n-tooltip="analysis.valence_desc">Valence (%)</label>
                     <input type="number" id="af-valence-min" placeholder="min" min="0" max="100" step="5" oninput="updateFilterHint('valence')" value="{{ (audio_filters.valence.min * 100)|round|int if audio_filters.valence.min is not none }}">
                     <input type="number" id="af-valence-max" placeholder="max" min="0" max="100" step="5" oninput="updateFilterHint('valence')" value="{{ (audio_filters.valence.max * 100)|round|int if audio_filters.valence.max is not none }}">
                     <span class="audio-filter-hint-text" id="af-valence-hint"></span>
                 </div>
                 <div class="audio-filter-row">
-                    <label for="af-tempo-min">Tempo (BPM)</label>
+                    <label for="af-tempo-min" class="af-label-tip" data-tooltip="The speed of the track in beats per minute (BPM). Higher BPM = faster tempo." data-i18n-tooltip="analysis.tempo_desc">Tempo (BPM)</label>
                     <input type="number" id="af-tempo-min" placeholder="min" min="0" max="300" step="5" oninput="updateFilterHint('tempo')" value="{{ audio_filters.tempo.min if audio_filters.tempo.min is not none }}">
                     <input type="number" id="af-tempo-max" placeholder="max" min="0" max="300" step="5" oninput="updateFilterHint('tempo')" value="{{ audio_filters.tempo.max if audio_filters.tempo.max is not none }}">
                     <span class="audio-filter-hint-text" id="af-tempo-hint"></span>
                 </div>
                 <div class="audio-filter-row">
-                    <label for="af-danceability-min">Danceability (%)</label>
+                    <label for="af-danceability-min" class="af-label-tip" data-tooltip="How suitable a track is for dancing based on tempo, rhythm stability, and beat strength." data-i18n-tooltip="analysis.danceability_desc">Danceability (%)</label>
                     <input type="number" id="af-danceability-min" placeholder="min" min="0" max="100" step="5" oninput="updateFilterHint('danceability')" value="{{ (audio_filters.danceability.min * 100)|round|int if audio_filters.danceability.min is not none }}">
                     <input type="number" id="af-danceability-max" placeholder="max" min="0" max="100" step="5" oninput="updateFilterHint('danceability')" value="{{ (audio_filters.danceability.max * 100)|round|int if audio_filters.danceability.max is not none }}">
                     <span class="audio-filter-hint-text" id="af-danceability-hint"></span>
                 </div>
                 <div class="audio-filter-row">
-                    <label for="af-acousticness-min">Acousticness (%)</label>
+                    <label for="af-acousticness-min" class="af-label-tip" data-tooltip="How acoustic a track sounds. High = real instruments, unplugged. Low = electronic, synthesised." data-i18n-tooltip="analysis.acousticness_desc">Acousticness (%)</label>
                     <input type="number" id="af-acousticness-min" placeholder="min" min="0" max="100" step="5" oninput="updateFilterHint('acousticness')" value="{{ (audio_filters.acousticness.min * 100)|round|int if audio_filters.acousticness.min is not none }}">
                     <input type="number" id="af-acousticness-max" placeholder="max" min="0" max="100" step="5" oninput="updateFilterHint('acousticness')" value="{{ (audio_filters.acousticness.max * 100)|round|int if audio_filters.acousticness.max is not none }}">
                     <span class="audio-filter-hint-text" id="af-acousticness-hint"></span>
@@ -108,7 +117,7 @@
     </div>
     <!-- Inline loading area (spinner + progress messages) -->
     <div class="loading-area hidden" id="generateLoadingArea" aria-live="polite">
-        <div class="loading-spinner" aria-label="Generating playlist"></div>
+        <div class="spinner spinner--lg" aria-label="Generating playlist"></div>
         <div class="loading-message" id="generateLoadingMsg"></div>
     </div>
     <div id="runWarn" class="{% if not can_generate %}{% else %}hidden{% endif %}" role="alert">

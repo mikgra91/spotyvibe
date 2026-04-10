@@ -285,6 +285,47 @@ class TestBuildMessages:
         messages = build_messages(profile, audio_filters=None)
         assert "AUDIO FILTER CONSTRAINTS" not in messages[1]["content"]
 
+    @patch("core.src.suggestions.load_text_file")
+    def test_emerging_only_injects_constraint_into_system_prompt(self, mock_load):
+        mock_load.side_effect = [
+            "System prompt {batch_size} {new_artist_percentage} {min_new_artists} {gpt_language}.",
+            "DENY:\n{deny_set_json}\nPROFILE:\n{profile_json}\n{audio_filters_block}\nNeed {batch_size} songs.",
+        ]
+        profile = {
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {},
+        }
+        messages = build_messages(profile, batch_size=10, emerging_only=True)
+        assert "debut release is within the last 6 months" in messages[0]["content"]
+
+    @patch("core.src.suggestions.load_text_file")
+    def test_emerging_only_false_no_constraint(self, mock_load):
+        mock_load.side_effect = [
+            "System prompt {batch_size} {new_artist_percentage} {min_new_artists} {gpt_language}.",
+            "DENY:\n{deny_set_json}\nPROFILE:\n{profile_json}\n{audio_filters_block}\nNeed {batch_size} songs.",
+        ]
+        profile = {
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {},
+        }
+        messages = build_messages(profile, batch_size=10, emerging_only=False)
+        assert "debut release" not in messages[0]["content"]
+
+    @patch("core.src.suggestions.load_text_file")
+    def test_emerging_only_uses_larger_buffer(self, mock_load):
+        """emerging_only=True should request batch_size + 20 instead of batch_size + 5."""
+        mock_load.side_effect = [
+            "{batch_size}",
+            "DENY:\n{deny_set_json}\nPROFILE:\n{profile_json}\n{audio_filters_block}\nNeed {batch_size} songs.",
+        ]
+        profile = {
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {},
+        }
+        messages = build_messages(profile, batch_size=10, emerging_only=True)
+        # System prompt should contain "30" (10 + 20)
+        assert "30" in messages[0]["content"]
+
 
 class TestNormalizeResponse:
     def test_lowercases_playlist_entries_and_strips_metadata(self):

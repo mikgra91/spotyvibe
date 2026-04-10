@@ -1,0 +1,238 @@
+/* forms.css — Form rows, inputs, selects, checkboxes, credential inputs, playlist form */
+.form-row { margin-bottom: 12px; }
+.form-row label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-weight: 700;
+}
+.form-row input {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 11px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    font-family: inherit;
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+.form-row input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--focus-glow);
+}
+
+.form-hint {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 3px;
+}
+.form-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+
+/* =============================================
+   Select styling inside modals
+   ============================================= */
+.modal select {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 15px 17px;
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    font-family: inherit;
+    transition: border-color var(--transition), box-shadow var(--transition);
+    cursor: pointer;
+}
+.modal select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--focus-glow);
+}
+
+.modal select,
+.playlist-picker-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23b5bfd0' stroke-width='2' fill='none'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    padding-right: 40px;
+}
+.playlist-picker-select {
+    flex: 1;
+    min-width: 0;
+    height: 50px;
+    border-radius: var(--radius-sm);
+    padding: 0 40px 0 17px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+
+/* ── Settings modal utilities ───────────────────────────────────────── */
+.modal-cost-warning {
+    font-size: 0.72rem;
+    color: var(--warning);
+    margin-top: 5px;
+}
+
+.modal-cost-warning a {
+    color: var(--primary);
+}
+
+.modal-label-with-tooltip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.modal-checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.modal-checkbox-label,
+.form-row .modal-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
+.modal-checkbox-label input[type="checkbox"] {
+    width: auto;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+/* ── Playlist form utilities ────────────────────────────────────────── */
+.playlist-name-row,
+.playlist-picker-row {
+    margin-top: 30px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.playlist-refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: color var(--transition), border-color var(--transition), transform 0.3s ease;
+    padding: 0;
+    flex-shrink: 0;
+}
+@media (hover: hover) {
+    .playlist-refresh-btn:hover {
+        color: var(--primary);
+        border-color: var(--primary);
+        transform: rotate(180deg);
+    }
+}
+
+.playlist-delete-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: color var(--transition), border-color var(--transition);
+    padding: 0;
+    flex-shrink: 0;
+}
+@media (hover: hover) {
+    .playlist-delete-btn:hover {
+        color: var(--error);
+        border-color: var(--error);
+    }
+}
+
+.playlist-name-input {
+    width: 100%;
+    height: 50px;
+    padding: 0 17px;
+    font-size: 0.9rem;
+    font-family: inherit;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    transition: border-color var(--transition), box-shadow var(--transition);
+    box-sizing: border-box;
+}
+.playlist-name-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--focus-glow);
+}
+
+/* ── Emerging artists checkbox row ─────────────────────────────────── */
+.emerging-artists-row {
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin-top: 14px;
+    padding: 10px 14px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.emerging-artists-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.emerging-artists-label input[type="checkbox"] {
+    width: auto;
+    accent-color: var(--primary);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.emerging-artists-hint {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    flex: 1 1 100%;
+    margin-top: 2px;
+}

@@ -5,10 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#050608">
     <title>SpotyVibe</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tracks.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/quickstart.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/sections.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/preview.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
 </head>
 <body class="theme-equalizer">
 <a class="skip-link" href="#main-content" data-i18n="nav.skip_to_content">Skip to main content</a>
@@ -20,12 +31,17 @@
         {% include "settings_gear.html" %}
         <h1>SpotyVibe</h1>
         <p class="subtitle" data-i18n="app.subtitle">AI-powered music discovery &amp; playlist generation — discover, curate, refine.</p>
-        {% include "theme_switcher.html" %}
     </header>
+
+    <nav class="tab-bar" role="tablist" aria-label="Main navigation">
+        <button class="tab-bar-btn" role="tab" id="tab-openai" data-tab="openai" aria-selected="true" aria-controls="providerOpenai" tabindex="0" data-i18n="tab.openai">AI Profile &amp; Analysis</button>
+        <button class="tab-bar-btn" role="tab" id="tab-spotify" data-tab="spotify" aria-selected="false" aria-controls="providerSpotify" tabindex="-1" data-i18n="tab.spotify">Discover &amp; Playlists</button>
+        <button class="tab-bar-btn" role="tab" id="tab-history" data-tab="history" aria-selected="false" aria-controls="historyPanel" tabindex="-1" data-i18n="tab.history">Run History</button>
+    </nav>
 
     <main id="main-content">
     <!-- ── OpenAI Provider Section ── -->
-    <section class="provider-section provider-openai" aria-label="OpenAI tools">
+    <section class="provider-section provider-openai" id="providerOpenai" role="tabpanel" aria-labelledby="tab-openai" aria-label="OpenAI tools">
         <div class="provider-header">
             <div class="provider-header-title">
                 <span class="provider-badge provider-badge-openai">OpenAI</span>
@@ -38,7 +54,7 @@
     </section>
 
     <!-- ── Spotify Provider Section ── -->
-    <section class="provider-section provider-spotify" aria-label="Spotify tools">
+    <section class="provider-section provider-spotify" id="providerSpotify" role="tabpanel" aria-labelledby="tab-spotify" aria-label="Spotify tools">
         <div class="provider-header">
             <div class="provider-header-title">
                 <span class="provider-badge provider-badge-spotify">Spotify</span>
@@ -48,9 +64,17 @@
         </div>
         {% include "generate_section.html" %}
         {% include "playlist_review.html" %}
+    </section>
+
+    <!-- ── Run History (standalone tab) ── -->
+    <section class="provider-section provider-history hidden" id="historyPanel" role="tabpanel" aria-labelledby="tab-history" aria-label="Run history">
         {% include "run_history.html" %}
     </section>
     </main>
+
+    <div class="page-footer">
+        {% include "theme_switcher.html" %}
+    </div>
 
     {% include "preview_overlay.html" %}
     {% include "toast.html" %}
@@ -59,19 +83,22 @@
     {% include "modals/help_modal.html" %}
     {% include "modals/quickstart_modal.html" %}
 
-    <!-- Section jump bubble (scroll-aware navigation) -->
-    <button class="section-jump-bubble hidden" id="sectionJumpBubble" aria-label="Jump to section"></button>
-
     <!-- Section help popup (focused single-section view) -->
     <div class="modal-overlay" id="sectionHelpOverlay" role="dialog" aria-modal="true" aria-label="Section help" onclick="if(event.target===this)closeSectionHelp()">
         <div class="section-help-wrapper">
-            <button class="help-close-btn" onclick="closeSectionHelp()" aria-label="Close" data-i18n="help.close">✕</button>
+            <button class="help-close-btn" onclick="closeSectionHelp()" aria-label="Close">✕</button>
             <div class="modal section-help-popup">
                 <div id="sectionHelpContent" class="help-content">
                     <p class="help-loading-text" data-i18n="help.loading">Loading…</p>
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Screenshot lightbox (shared by help modal and section help) — must be last for z-order -->
+    <div class="screenshot-lightbox" id="screenshotLightbox" role="dialog" aria-modal="true" aria-label="Screenshot preview">
+        <button class="screenshot-lightbox-close" id="screenshotLightboxClose" aria-label="Close preview">✕</button>
+        <img id="screenshotLightboxImg" src="" alt="" />
     </div>
 </div>
 <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>

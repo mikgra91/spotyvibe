@@ -49,7 +49,24 @@ def browser_context_args(browser_context_args):
 
 @pytest.fixture(autouse=True)
 def _reduce_timeouts(page):
-    """Halve default Playwright timeouts to speed up failure detection."""
+    """Halve default Playwright timeouts and suppress the quickstart modal in tests.
+
+    The quickstart auto-shows on first visit (no localStorage key).  Tests
+    shouldn't need to dismiss it manually, so we inject the dismiss flag on
+    every page-load event before any JS runs that would open the modal.
+    """
     page.set_default_timeout(15_000)
     page.set_default_navigation_timeout(15_000)
+
+    # Suppress the auto-show quickstart so modal doesn't block clicks.
+    page.add_init_script(
+        "localStorage.setItem('spotyvibe-quickstart-dismissed', 'true');"
+    )
+
+
+def dismiss_quickstart(page) -> None:
+    """Close the quickstart modal if it is open, so tests can interact freely."""
+    modal = page.locator("#quickstartModal")
+    if modal.is_visible():
+        page.evaluate("closeQuickstart()")
 

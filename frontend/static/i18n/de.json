@@ -8,6 +8,10 @@
   "app.subtitle": "KI-gestützte Musikentdeckung & Playlist-Erstellung — entdecken, kuratieren, verfeinern.",
   "app.theme": "Design",
 
+  "tab.openai": "KI-Profil & Analyse",
+  "tab.spotify": "Entdecken & Playlists",
+  "tab.history": "Verlauf",
+
   "section.taste_profile": "OpenAI",
   "section.taste_profile_desc": "Definiere dein Geschmacksprofil und analysiere Referenzmusik mit KI.",
   "section.generate": "Spotify",
@@ -16,6 +20,7 @@
   "profile.title": "Musikprofil",
   "profile.edit_profile": "Profil bearbeiten",
   "profile.no_profile_selected": "Kein Profil ausgewählt",
+  "profile.no_profiles_yet": "Noch keine Profile",
   "profile.no_profile_hint": "Erstelle ein Profil, um loszulegen.",
   "profile.profiles_title": "Profile",
   "profile.profiles_hint": "Wähle oder erstelle Profile basierend auf deinem Musikgeschmack.",
@@ -38,7 +43,7 @@
   "profile.avoid_hint": "Merkmale, die einen Track sofort disqualifizieren. Eines pro Zeile.",
   "profile.menu_upload": "Profil hochladen",
   "profile.menu_export": "Profil exportieren",
-  "profile.menu_reset": "Profil zurücksetzen",
+  "profile.menu_reset": "Letzte Änderung rückgängig",
   "profile.menu_delete": "Profil löschen",
 
   "btn.ai_profile_update": "KI-Profil aktualisieren",
@@ -72,6 +77,7 @@
   "settings.open_data_dir": "📂 Zu lokalen Dateien",
 
   "msg.export_saved": "Profil exportiert — Prüfe deinen Downloads-Ordner nach spotyvibe_profile.json",
+  "msg.export_fail": "Export fehlgeschlagen",
   "msg.profile_switched": "Profil gewechselt.",
   "msg.profile_created": "Profil erstellt.",
   "msg.profile_deleted": "Profil gelöscht.",
@@ -115,6 +121,12 @@
   "pill.connected": "Verbunden",
   "pill.not_connected": "Nicht verbunden",
   "pill.credentials_missing": "Zugangsdaten fehlen",
+  "pill.used_model": "Modell",
+  "pill.change_model": "Modell ändern",
+  "pill.spotify_connected": "Spotify verbunden",
+  "pill.spotify_not_connected": "Spotify nicht verbunden",
+  "pill.click_to_connect": "Klicken zum Verbinden",
+  "pill.click_to_setup": "Klicken zum Einrichten",
 
   "audio_filters.title": "Audio-Filter",
   "audio_filters.subtitle": "Die KI anleiten, Tracks mit einer bestimmten Stimmung und Atmosphäre vorzuschlagen.",
@@ -138,7 +150,7 @@
   "profile.import_invalid_json": "Ungültige JSON-Datei.",
   "profile.import_failed": "Import fehlgeschlagen: {detail}",
   "profile.import_success": "Profil importiert. Vorheriges Profil im Verlauf gesichert.",
-  "profile.reset_confirm": "Profil auf Verlauf zurücksetzen?\n\nDein aktuelles Profil wird mit der vorherigen Version getauscht.",
+  "profile.reset_confirm": "Letzte Änderung rückgängig machen?\n\nDein aktuelles Profil wird mit der vorherigen Version getauscht.",
   "profile.reset_failed": "Zurücksetzen fehlgeschlagen: {detail}",
   "profile.reset_success": "Profil auf Verlauf zurückgesetzt.",
 
@@ -293,8 +305,6 @@
 
   "review.select_label": "Playlist zum Überprüfen auswählen",
 
-  "jump.to_spotify": "Zu Spotify springen",
-  "jump.to_openai": "Zu OpenAI springen",
 
   "af.label_energy": "Energie (%)",
   "af.label_valence": "Valenz (%)",
@@ -315,20 +325,38 @@
   "preview.dislike_aria": "Diesen Track nicht mögen",
   "preview.remove_aria": "Aus Playlist entfernen",
 
+  "theme.calm": "Ruhig",
   "theme.equalizer": "Equalizer",
   "theme.pulse": "Puls",
   "theme.spectrum": "Spektrum",
   "theme.starfield": "Sternenfeld",
 
   "analysis.energy": "Energie",
+  "analysis.energy_desc": "Wie intensiv und aktiv sich der Track anfühlt. Hohe Energie = laut, schnell, druckvoll. Niedrige Energie = ruhig, ambient.",
   "analysis.valence": "Valenz",
+  "analysis.valence_desc": "Musikalische Positivität. Hohe Valenz = fröhlich, heiter, euphorisch. Niedrige Valenz = traurig, dunkel, wütend.",
   "analysis.danceability": "Tanzbarkeit",
+  "analysis.danceability_desc": "Wie gut sich ein Track zum Tanzen eignet, basierend auf Tempo, Rhythmusstabilität und Beatstärke.",
   "analysis.acousticness": "Akustik",
+  "analysis.acousticness_desc": "Wie akustisch ein Track klingt. Hoch = echte Instrumente, unplugged. Niedrig = elektronisch, synthetisch.",
   "analysis.instrumentalness": "Instrumentalität",
+  "analysis.instrumentalness_desc": "Ob ein Track Gesang enthält. Hoch = überwiegend instrumental. Niedrig = enthält Gesang oder Sprache.",
   "analysis.speechiness": "Sprachanteil",
+  "analysis.speechiness_desc": "Wie viel gesprochenes Wort vorhanden ist. Hoch = Sprechgesang, Podcast-artig. Niedrig = überwiegend Musik.",
   "analysis.liveness": "Live-Charakter",
+  "analysis.liveness_desc": "Ob der Track klingt, als wäre er live vor Publikum aufgeführt worden.",
   "analysis.tempo": "Tempo",
+  "analysis.tempo_desc": "Die Geschwindigkeit des Tracks in Schlägen pro Minute (BPM). Höhere BPM = schnelleres Tempo.",
   "analysis.use_as_filter_title": "Als Audio-Filter verwenden",
+
+  "generate.emerging_only": "Nur neue / aufstrebende Künstler",
+  "generate.emerging_only_hint": "Nur Tracks von Künstlern vorschlagen, die in den letzten 6 Monaten debütiert haben.",
+
+  "pipeline.emerging_filter_result": "Zeige {shown} von {checked} geprüften Tracks — nur Tracks von kürzlich aufgetauchten Künstlern sind enthalten.",
+  "pipeline.emerging_batch_filtered": "Batch: {count} Track(s) herausgefiltert (nur aufstrebende Künstler).",
+
+  "quickstart.title_openai": "🤖 OpenAI Schnellstart",
+  "quickstart.title_spotify": "🎵 Spotify Schnellstart",
 
   "generate.cannot_generate_server": "⚠️ Kann nicht generieren — überprüfe Zugangsdaten und Spotify-Verbindung.",
   "generate.loading_aria": "Playlist wird erstellt",
@@ -375,7 +403,7 @@
   "nav.quickstart": "Schnellstart",
 
   "quickstart.title": "\ud83d\ude80 Schnellstart-Anleitung",
-  "quickstart.intro": "In 6 einfachen Schritten startklar \u2014 vom Setup bis zur ersten KI-gest\u00fctzten Playlist.",
+  "quickstart.intro": "In wenigen einfachen Schritten startklar \u2014 vom Setup bis zur ersten KI-gest\u00fctzten Playlist.",
   "quickstart.step1_title": "Einrichtung",
   "quickstart.step1_tagline": "Schl\u00fcssel eingeben, Spotify verbinden, Design w\u00e4hlen.",
   "quickstart.step1_desc": "\u00d6ffne das Men\u00fc (\u2630) \u2192 gib deinen OpenAI-API-Schl\u00fcssel, Spotify Client-ID & Secret ein \u2192 Speichern. Klicke auf \u201eMit Spotify verbinden\u201c und melde dich an. Optional: KI-Modell, Playlist-Gr\u00f6\u00dfe und Sprache in den Einstellungen anpassen. Wenn die Status-Anzeigen gr\u00fcn leuchten, bist du startklar.",
@@ -456,5 +484,16 @@
   "quickstart.demo5_f4": "Playlist bereinigt \u2014 Geschmacksprofil verfeinert \u2713",
   "quickstart.demo6_f1": "Erneut generieren \u2014 jeder Lauf wird besser",
   "quickstart.demo6_f2": "Nutze die Band-/Song-Analyse, um neue K\u00fcnstler zu entdecken",
-  "quickstart.demo6_f3": "Dein Profil wird mit jeder Interaktion st\u00e4rker \u2713"
+  "quickstart.demo6_f3": "Dein Profil wird mit jeder Interaktion st\u00e4rker \u2713",
+
+  "quickstart.step7_title": "Band-/Song-Analyse",
+  "quickstart.step7_tagline": "K\u00fcnstler erkunden, Profilvorschl\u00e4ge erhalten, Audio-Filter automatisch setzen.",
+  "quickstart.step7_desc": "Gib einen K\u00fcnstlernamen (und optional einen Track) ein, um eine KI-gest\u00fctzte Analyse zu erhalten. Die Analyse liefert kopierfertige Profilvorschl\u00e4ge und Audio-Merkmale. Kopiere Vorschl\u00e4ge direkt in dein Profil oder nutze die Audio-Daten, um Filter f\u00fcr die Playlist-Generierung automatisch zu setzen.",
+  "quickstart.step7_action1": "\ud83d\udd0d K\u00fcnstlernamen eingeben (und optionaler Track)",
+  "quickstart.step7_action2": "\u25b6\ufe0f \u201eAnalysieren\u201c klicken \u2014 KI erstellt detaillierte Analyse",
+  "quickstart.step7_action3": "\ud83d\udccb Profilvorschl\u00e4ge direkt ins Geschmacksprofil kopieren",
+  "quickstart.step7_action4": "\ud83c\udf9b\ufe0f Audio-Daten als Filter f\u00fcr die Generierung verwenden",
+  "quickstart.demo7_f1": "Band-/Song-Analyse \u00f6ffnen und K\u00fcnstler eingeben",
+  "quickstart.demo7_f2": "KI erstellt eine detaillierte Analyse mit Tags",
+  "quickstart.demo7_f3": "Vorschl\u00e4ge ins Profil kopieren oder Audio-Filter setzen \u2713"
 }

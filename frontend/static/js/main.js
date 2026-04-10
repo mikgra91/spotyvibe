@@ -13,9 +13,10 @@ import { toggleReviewBody, loadPlaylistTracks, renderReviewTracks, toggleReviewF
 import { showStatus, showStatusHtml, showPlaylistLink, hidePlaylistLink, esc, attr, sanitizeHtml, escHtml, toggleSettingsMenu, showToast } from './modules/ui.js';
 import { openCredentials, saveCredentials, clearCredential, saveSettings, openSettings, openHelp, openSectionHelp, closeSectionHelp, openDataDir, closeModal, openQuickstart, closeQuickstart, maybeShowQuickstart } from './modules/modals.js';
 import { quickstartGoTo, quickstartNext, quickstartPrev } from './modules/quickstart-tour.js';
-import { qsDemoNext, qsDemoPrev, qsDemoToggle, initAllDemos, destroyAllDemos } from './modules/quickstart-demo.js';
+import { qsDemoNext, qsDemoPrev, qsDemoToggle, qsDemoExpand, initAllDemos, destroyAllDemos } from './modules/quickstart-demo.js';
 import { switchTheme, THEME_BACKGROUNDS, THEME_RENDERERS } from './modules/theme-switcher.js';
-import { initJumpBubble } from './modules/jump-bubble.js';
+import { initTabs, switchTab, getActiveProvider } from './modules/tabs.js';
+import './modules/theme-calm.js';
 import './modules/theme-equalizer.js';
 import './modules/theme-pulse.js';
 import './modules/theme-spectrum.js';
@@ -126,7 +127,11 @@ window.quickstartPrev = quickstartPrev;
 window.qsDemoNext = qsDemoNext;
 window.qsDemoPrev = qsDemoPrev;
 window.qsDemoToggle = qsDemoToggle;
+window.qsDemoExpand = qsDemoExpand;
 window.switchTheme = switchTheme;
+window.switchTab = switchTab;
+window.getActiveProvider = getActiveProvider;
+window.maybeShowQuickstart = maybeShowQuickstart;
 window.switchLanguage = switchLanguage;
 window.applyLanguage = applyLanguage;
 window.i18n = i18n;
@@ -137,7 +142,6 @@ window.addEventListener('message', async (e) => {
     if (e.data === 'spotify-auth-complete') {
         await checkSpotifyAuth();
         renderComponentWarnings();
-        renderProviderPills();
     }
 });
 
@@ -165,7 +169,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const saved = localStorage.getItem('spotyvibe-theme');
         if (saved && THEME_BACKGROUNDS[saved]) _pendingTheme = saved;
     } catch(e) {}
-    switchTheme(_pendingTheme || 'equalizer');
+    switchTheme(_pendingTheme || 'calm');
 
     // Show refresh button when running inside pywebview desktop wrapper
     if (window.pywebview) {
@@ -176,7 +180,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Auth and warnings
     Promise.all([checkCredentialStatus(), checkSpotifyAuth(), fetchSettingsState()]).then(() => {
         renderComponentWarnings();
-        renderProviderPills();
     });
 
     // Profile
@@ -193,9 +196,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // i18n
     await initI18n();
 
-    // Section jump bubble
-    initJumpBubble();
+    // Tab navigation
+    initTabs();
 
-    // Quickstart guide (auto-show on first visit)
-    maybeShowQuickstart();
+    // Quickstart guide (auto-show on first visit for the active provider)
+    maybeShowQuickstart(getActiveProvider());
 });

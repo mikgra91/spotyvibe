@@ -45,6 +45,7 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 - **Band/Song Analysis** — AI-powered analysis of any band or song, returning genre, style, characteristics, GPT-estimated audio features (energy, danceability, etc.), and copy-paste profile suggestions (`core/analysis.py`).
 - **Internationalization (i18n)** — full English and German UI with a language picker in the header; translations in `static/i18n/en.json` and `de.json`. A separate **ChatGPT Language** setting controls the language used for GPT communication.
 - **GPT Audio Feature Constraints** — optional audio filters (energy, valence, tempo, danceability, acousticness) in the OpenAI section are injected directly into the GPT prompt, guiding the AI to suggest tracks matching the desired mood and feel.
+- **Emerging Artists Only** — optional checkbox that restricts suggestions to tracks by artists who debuted in the last 6 months. GPT receives a hard constraint, and surviving tracks are validated against Spotify release dates. The playlist may contain fewer tracks than requested because only emerging-artist tracks survive.
 - **Feedback Reasons in prompts** — recent like/dislike reasons are summarized and sent to GPT so it can learn *why* you liked or disliked a track, not just which ones.
 - **Multiple Playlists / Playlist Naming** — create new, append, or replace playlists with custom name templates supporting `{date}` and `{style}` tokens.
 - **Refine Playlist** — load an existing Spotify playlist and review tracks one-by-one with like, dislike, or dismiss actions to refine your taste profile and clean up the playlist.
@@ -75,12 +76,45 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 | `core/tests/` | Unit tests for core modules |
 | `frontend/tests/` | Frontend (Playwright) tests |
 
+## Platform Support
+
+| Platform | Method | Download |
+|---|---|---|
+| **Windows** | PyInstaller executable | `spotyvibe_onefile.exe` or `spotyvibe_package.zip` |
+| **macOS** | Source + launcher script | `SpotyVibe-macOS.zip` — extract, double-click `SpotyVibe.command` |
+| **Linux** | Source + launcher script | `SpotyVibe-Linux.tar.gz` — extract, run `./start.sh` |
+| **Android** | Chaquopy APK | `spotyvibe.apk` |
+
+All downloads are attached to each [GitHub Release](../../releases). The macOS and Linux archives contain the application source, a launcher script that sets up a Python virtual environment automatically, and a `README.txt` with platform-specific installation instructions.
+
+---
+
 ## Quick Start
+
+### Windows
 
 1. Install Python 3.10+ and run `pip install -r requirements.txt`.
 2. Start the app with `python app.py` and open <http://127.0.0.1:5000>.
-3. The **Quick Start Guide** appears automatically — follow the six interactive steps to configure your API keys, connect Spotify, and generate your first playlist.
-4. To reopen the guide later, click **☰ → 🚀 Quick Start**.
+3. A **Quick Start Guide** appears automatically for the active provider section — one for **OpenAI** (profile & analysis) and one for **Spotify** (generate, review, history). Each guide shows only the steps relevant to its provider and has its own "Don't show again" preference.
+4. To reopen the guide later, click **☰ → 🚀 Quick Start** (it opens the guide for whichever provider section is currently active).
+
+### macOS
+
+1. Install Python 3.10+ (e.g. `brew install python@3.12`).
+2. Double-click **`SpotyVibe.command`** in Finder — it creates a virtual environment on first run, installs dependencies, starts the server, and opens your browser.
+3. Press **Ctrl+C** in the Terminal window to stop.
+
+> **First launch:** macOS Gatekeeper may block the script. Right-click `SpotyVibe.command` → select **Open** → click **Open** in the dialog. This is only needed once.
+
+> **Port 5000:** macOS AirPlay Receiver uses port 5000 by default. If you see a port conflict, disable it: System Settings → General → AirDrop & Handoff → AirPlay Receiver → Off.
+
+### Linux
+
+1. Install Python 3.10+ and the venv module (e.g. `sudo apt install python3 python3-venv` on Debian/Ubuntu).
+2. Run `./start.sh` (or `bash start.sh`) — it creates a virtual environment on first run, installs dependencies, starts the server, and opens your browser.
+3. Press **Ctrl+C** to stop.
+
+> **Permissions:** If `./start.sh` says "Permission denied", run: `chmod +x start.sh build-tools/start.sh` or use `bash start.sh` directly.
 
 ---
 

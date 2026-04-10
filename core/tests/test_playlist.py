@@ -16,6 +16,7 @@ from core.src.playlist import (
     get_spotify_auth_url,
     disconnect_spotify,
     handle_spotify_callback,
+    filter_emerging_artists,
     PLAYLIST_NAME,
     REDIRECT_URI,
 )
@@ -491,3 +492,65 @@ class TestGetPlaylistTracks:
         assert result[1]["track"] == "T2"
 
 
+class TestFilterEmergingArtists:
+    """Unit tests for filter_emerging_artists()."""
+
+    def _track(self, release_date):
+        return {"artist": "Test Artist", "track": "Test Track", "release_date": release_date}
+
+    def test_recent_full_date_survives(self):
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        recent = f"{now.year}-{now.month:02d}-01"
+        survivors, rejected = filter_emerging_artists([self._track(recent)], cutoff_months=6)
+        assert len(survivors) == 1
+        assert len(rejected) == 0
+
+    def test_old_full_date_rejected(self):
+        survivors, rejected = filter_emerging_artists([self._track("2020-01-01")], cutoff_months=6)
+        assert len(survivors) == 0
+        assert len(rejected) == 1
+
+    def test_year_only_recent_survives(self):
+        from datetime import datetime, timezone
+        year = datetime.now(timezone.utc).year
+        # Dec 31 of current year is >= cutoff
+        survivors, rejected = filter_emerging_artists([self._track(str(year))], cutoff_months=6)
+        assert len(survivors) == 1
+
+    def test_year_only_old_rejected(self):
+        survivors, rejected = filter_emerging_artists([self._track("2015")], cutoff_months=6)
+        assert len(survivors) == 0
+        assert len(rejected) == 1
+
+    def test_missing_release_date_kept(self):
+        survivors, rejected = filter_emerging_artists([self._track("")], cutoff_months=6)
+        assert len(survivors) == 1
+        assert len(rejected) == 0
+
+    def test_none_release_date_kept(self):
+        track = {"artist": "A", "track": "T", "release_date": None}
+        survivors, rejected = filter_emerging_artists([track], cutoff_months=6)
+        assert len(survivors) == 1
+
+    def test_month_only_recent_survives(self):
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        recent = f"{now.year}-{now.month:02d}"
+        survivors, rejected = filter_emerging_artists([self._track(recent)], cutoff_months=6)
+        assert len(survivors) == 1
+        assert len(rejected) == 0
+
+    def test_month_only_old_rejected(self):
+        survivors, rejected = filter_emerging_artists([self._track("2015-06")], cutoff_months=6)
+        assert len(survivors) == 0
+        assert len(rejected) == 1
+
+    def test_mixed_batch(self):
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        recent = f"{now.year}-{now.month:02d}-01"
+        tracks = [self._track(recent), self._track("2010-05-20"), self._track("")]
+        survivors, rejected = filter_emerging_artists(tracks, cutoff_months=6)
+        assert len(survivors) == 2   # recent + missing date
+        assert len(rejected) == 1   # 2010 track

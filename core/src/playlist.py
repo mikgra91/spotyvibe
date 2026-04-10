@@ -25,6 +25,7 @@ Technologies & patterns used:
 import logging
 import os
 import re
+from datetime import datetime, timezone
 # concurrent.futures provides a high-level interface for asynchronous
 # execution. ThreadPoolExecutor is used here (not ProcessPoolExecutor)
 # because the workload is I/O-bound (HTTP requests to Spotify API),
@@ -298,6 +299,7 @@ def search_tracks(tracks, on_progress=None):
             preview_url = item.get("preview_url")
             spotify_url = item.get("external_urls", {}).get("spotify")
             album_url = item.get("album", {}).get("external_urls", {}).get("spotify")
+            release_date = item.get("album", {}).get("release_date")
             artists = item.get("artists", [])
             artist_url = artists[0].get("external_urls", {}).get("spotify") if artists else None
             enriched = {
@@ -308,6 +310,7 @@ def search_tracks(tracks, on_progress=None):
                 "preview_url": preview_url,
                 "spotify_url": spotify_url,
                 "album_url": album_url,
+                "release_date": release_date,
                 "artist_url": artist_url,
             }
             return "found", enriched
@@ -336,6 +339,78 @@ def search_tracks(tracks, on_progress=None):
     return found, not_found
 
 
+def filter_emerging_artists(tracks, cutoff_months=6):
+    """Filter tracks to keep only those whose album release_date is within
+    the last *cutoff_months* months.
+
+    The ``release_date`` field returned by Spotify search can be:
+    - ``"YYYY-MM-DD"`` (full date — most common)
+    - ``"YYYY-MM"``    (month precision)
+    - ``"YYYY"``       (year precision)
+
+    We use the *latest* possible date for each precision level when the
+    exact date is not given (e.g., ``"2024"`` → Dec 31 2024), which gives
+    new artists the benefit of the doubt.
+
+    Args:
+        tracks: list of track dicts (as returned by search_tracks).
+        cutoff_months: integer number of months defining "emerging" window.
+
+    Returns:
+        (survivors, rejected) — two lists of track dicts.
+    """
+    now = datetime.now(timezone.utc)
+    # Compute the cutoff date: go back cutoff_months calendar months.
+    cutoff_month = now.month - cutoff_months
+    cutoff_year = now.year
+    while cutoff_month <= 0:
+        cutoff_month += 12
+        cutoff_year -= 1
+    cutoff = datetime(cutoff_year, cutoff_month, 1, tzinfo=timezone.utc)
+
+    survivors = []
+    rejected = []
+
+    for track in tracks:
+        raw = (track.get("release_date") or "").strip()
+        if not raw:
+            # No release_date available — keep track (benefit of the doubt)
+            survivors.append(track)
+            continue
+
+        try:
+            if len(raw) == 10:
+                # YYYY-MM-DD
+                release = datetime.strptime(raw, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            elif len(raw) == 7:
+                # YYYY-MM — use first day of next month (benefit of the doubt)
+                year, month = int(raw[:4]), int(raw[5:7])
+                if month == 12:
+                    last_day = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
+                else:
+                    last_day = datetime(year, month + 1, 1, tzinfo=timezone.utc)
+                release = last_day
+            elif len(raw) == 4:
+                # YYYY — use Dec 31 of that year (benefit of the doubt)
+                release = datetime(int(raw), 12, 31, tzinfo=timezone.utc)
+            else:
+                # Unrecognised format — keep
+                survivors.append(track)
+                continue
+        except (ValueError, OverflowError):
+            survivors.append(track)
+            continue
+
+        if release >= cutoff:
+            survivors.append(track)
+        else:
+            logger.debug(
+                "Emerging filter rejected %s - %s (release_date=%s, cutoff=%s)",
+                track.get("artist"), track.get("track"), raw, cutoff.date()
+            )
+            rejected.append(track)
+
+    return survivors, rejected
 
 
 def get_user_playlists():

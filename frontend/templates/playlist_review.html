@@ -1,12 +1,12 @@
 <!-- ── Refine Playlist ── -->
-<div class="review-section" id="reviewSection">
+<div class="review-section" id="reviewSection" tabindex="0">
     <div class="train-header" role="button" tabindex="0" onclick="toggleReviewBody()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleReviewBody()}" aria-expanded="false" aria-controls="reviewBody">
         <div class="train-header-left">
             <h2><span aria-hidden="true">🔄</span> <span data-i18n="review.title">Refine Playlist</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('refine-playlist')" data-i18n-title="help.section_help_title" title="Open help for this section" aria-label="Help for Refine Playlist">?</button></h2>
             <span class="train-status train-subtitle" data-i18n="review.subtitle">Load an existing playlist and give track-by-track feedback to refine your taste profile.</span>
         </div>
         <div class="train-header-actions">
-            <button class="btn-train" id="reviewToggleBtn" onclick="event.stopPropagation(); toggleReviewBody()" aria-expanded="false" aria-controls="reviewBody">Show</button>
+            <button class="btn-train" id="reviewToggleBtn" onclick="event.stopPropagation(); toggleReviewBody()" data-i18n="btn.show" aria-expanded="false" aria-controls="reviewBody">Show</button>
         </div>
     </div>
     <div class="train-body hidden" id="reviewBody">
@@ -23,7 +23,7 @@
         </div>
         <!-- Inline loading area (spinner only) -->
         <div class="loading-area hidden" id="reviewLoadingArea" aria-live="polite">
-            <div class="loading-spinner" aria-label="Loading"></div>
+            <div class="spinner spinner--lg" aria-label="Loading"></div>
         </div>
 
         <!-- ── Review tracklist (inside section body) ── -->

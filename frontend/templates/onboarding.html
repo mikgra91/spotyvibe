@@ -5,16 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#050608">
     <title>SpotyVibe — Welcome</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tracks.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/quickstart.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/sections.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/preview.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
     <style>
         /* Onboarding multi-page swipeable layout */
         .ob-wrap {
             overflow: hidden;
             width: 100%;
-            height: 100vh;
+            height: calc(100vh - var(--titlebar-h, 0px));
         }
         .ob-pages {
             display: flex;
@@ -286,7 +297,7 @@
             <div class="ob-subtitle" data-i18n="ob.connect_subtitle">Authenticate with Spotify and optionally import an existing taste profile.</div>
             <div style="width:100%;max-width:380px;">
                 <button class="ob-action-btn" id="ob-spotify-btn" onclick="toggleObSpotify()" data-i18n="ob.connect_btn">🔌 Connect to Spotify</button>
-                <div id="ob-spotify-status" class="ob-explain" style="margin-top:-4px;"></div>
+                <div id="ob-spotify-status" class="ob-explain" style="margin-top:-4px;text-align:center;"></div>
                 <button class="ob-action-btn secondary" onclick="importProfile()" data-i18n="ob.import_profile">⬆ Import Preference Profile</button>
                 <div id="ob-import-status" class="ob-explain" style="margin-top:-4px;"></div>
                 <input id="ob-import-input" type="file" accept="application/json,.json" style="display:none;">

@@ -169,6 +169,74 @@ All canvas renderers are registered in the `THEME_RENDERERS` object in `frontend
 
 ---
 
+## macOS & Linux Launcher
+
+SpotyVibe ships a shell-based launcher (`build-tools/start.sh`) for macOS and Linux. No PyInstaller, no native binaries — the app runs from source inside a virtual environment.
+
+### Architecture
+
+```
+SpotyVibe.command  ─┐
+start.sh            ─┤──▶  build-tools/start.sh  (all logic)
+                     │
+                     ├── 1. Detect Python 3.10+
+                     ├── 2. Check python3-venv availability
+                     ├── 3. Create .venv/ on first run
+                     ├── 4. Install requirements-core.txt
+                     ├── 5. Detect dependency changes (hash comparison)
+                     ├── 6. Check port 5000 availability
+                     ├── 7. Start Flask server (background)
+                     ├── 8. Health-check loop (up to 15 s)
+                     ├── 9. Open default browser
+                     └── 10. Wait + trap SIGINT/SIGTERM/SIGHUP for clean shutdown
+```
+
+### Key design decisions
+
+| Decision | Rationale |
+|---|---|
+| Two root-level wrappers (`start.sh`, `SpotyVibe.command`) | Linux users expect `./start.sh`; macOS Finder requires a `.command` extension to double-click |
+| `bash` delegation instead of `exec` | Works even if the executable bit is lost (common in ZIP downloads) |
+| `requirements-core.txt` (runtime-only) | Avoids `pywebview`/`pyinstaller` install failures on macOS/Linux |
+| Hash-based dependency updates | Instant startup on subsequent runs; re-installs only when `requirements-core.txt` changes |
+| `export PATH="/opt/homebrew/bin:..."` | Finder-launched `.command` files get a minimal PATH without `~/.zshrc` |
+| Hard-coded port 5000 | Spotify OAuth redirect URI is fixed to `http://127.0.0.1:5000/callback` |
+| `import ensurepip` probe | Catches the #1 Linux gotcha: Debian/Ubuntu ship Python without `python3-venv` |
+| `trap cleanup SIGINT SIGTERM SIGHUP` | Ensures Flask server is killed when the terminal closes or user presses Ctrl+C |
+
+### File inventory
+
+| File | Purpose |
+|---|---|
+| `build-tools/start.sh` | Main launcher script (all logic) |
+| `build-tools/build_dist.sh` | Packages source distributions (macOS ZIP + Linux tar.gz) |
+| `build-tools/README-macOS.txt` | Installation guide bundled inside `SpotyVibe-macOS.zip` |
+| `build-tools/README-Linux.txt` | Installation guide bundled inside `SpotyVibe-Linux.tar.gz` |
+| `start.sh` | Root-level thin wrapper for Linux |
+| `SpotyVibe.command` | Root-level thin wrapper for macOS Finder |
+| `requirements-core.txt` | Runtime-only dependencies (5 packages) |
+| `.gitattributes` | Enforces LF line endings for `.sh` and `.command` files |
+
+### Distribution archives (CI/CD)
+
+The GitHub Actions release workflows (`release.yml`, `beta.yml`) produce downloadable archives for macOS and Linux via `build_dist.sh`. Each archive contains:
+
+- All runtime source files (`app.py`, `config.py`, `version.py`, `core/src/`, `frontend/`, `prompts/`, `data/`)
+- The launcher script (`SpotyVibe.command` for macOS, `start.sh` for Linux)
+- `requirements-core.txt` for automated dependency installation
+- A platform-specific `README.txt` with installation and troubleshooting instructions
+
+**Output files (attached to GitHub Releases):**
+
+| Archive | Contents |
+|---|---|
+| `SpotyVibe-macOS.zip` | Source + `SpotyVibe.command` + `README.txt` (macOS guide) |
+| `SpotyVibe-Linux.tar.gz` | Source + `start.sh` + `README.txt` (Linux guide) |
+
+The archives deliberately exclude tests, Android scaffolding, PyInstaller specs, build assets, documentation, and dev-only files to keep the download small and user-focused.
+
+---
+
 ## Android Build Versions
 
 The Android packaging layer uses fixed versions so APK builds are reproducible:
@@ -399,6 +467,8 @@ Manages all interactions with the Spotify Web API via the `spotipy` library.
 
 **Audio feature filtering (GPT-prompt-based):** Audio filters (energy, valence, tempo, danceability, acousticness) are injected directly into the GPT user prompt via `build_messages(audio_filters=...)`. The `_format_audio_filters()` helper in `suggestions.py` converts the filter dict (e.g., `{"energy": {"min": 0.6, "max": 1.0}}`) into a human-readable constraint block that GPT must respect when selecting tracks. This replaced the previous `filter_by_audio_features()` function which relied on the now-removed Spotify `audio_features` API endpoint.
 
+**Emerging artists filter:** When `emerging_only=True` is passed to the pipeline, two mechanisms combine: (1) `build_messages(emerging_only=True)` appends a hard constraint to the GPT system prompt requiring only artists whose debut is within 6 months, and increases the batch buffer from +5 to +20 to anticipate heavier rejection; (2) after Spotify search, `filter_emerging_artists(tracks, cutoff_months=6)` in `playlist.py` validates each track's `release_date` against a calendar-month cutoff. Spotify returns release dates in three precisions (`YYYY-MM-DD`, `YYYY-MM`, `YYYY`); partial dates are resolved to the latest possible date (benefit of the doubt). Tracks with missing release dates are kept. When this filter is active the final playlist is **not** capped to the user's requested size — all surviving tracks are included, and the result SSE event carries `emerging_shown` and `emerging_checked` counts so the frontend can explain the difference.
+
 **Playlist listing:** `get_user_playlists(sp)` returns a list of the user's Spotify playlists (id, name, track count) for the playlist mode selector UI. The frontend caches the playlist list in `State.cachedPlaylists` to avoid redundant API calls. After any operation that modifies playlists (generation complete, track removal in Refine Playlist), the cache is invalidated via `invalidateCachedPlaylists()` and both the Discover and Refine playlist pickers are refreshed so track counts stay current.
 
 **Search query sanitisation:** User/model-provided artist and track strings are sanitised before building `track:"..." artist:"..."` queries to avoid malformed Spotify search syntax (e.g., embedded quotes/control characters).
@@ -462,7 +532,7 @@ Exposes all functionality via HTTP endpoints.
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/` | Serves the single-page web UI. |
-| POST | `/api/run` | Runs the full generation pipeline. Returns an **SSE stream** with progress events. Accepts JSON body with `run_id`, `playlist_mode` (create/append/replace), `playlist_id`, `playlist_name`, and `audio_filters` (injected into the GPT prompt as constraints). SSE track events include `preview_url`, `spotify_url`, `artist_url`, and `album_url`. Run state is persisted by `run_id` for SSE recovery. |
+| POST | `/api/run` | Runs the full generation pipeline. Returns an **SSE stream** with progress events. Accepts JSON body with `run_id`, `playlist_mode` (create/append/replace), `playlist_id`, `playlist_name`, `audio_filters` (injected into the GPT prompt as constraints), and `emerging_only` (boolean — restricts to tracks by recently debuted artists). SSE track events include `preview_url`, `spotify_url`, `artist_url`, and `album_url`. Run state is persisted by `run_id` for SSE recovery. |
 | POST | `/api/cancel` | Cancels an active generation run by `run_id`. Accepts `{"run_id": "...", "finalize": bool}`. When `finalize` is `true`, the playlist is created with however many tracks have been verified so far. |
 | POST | `/api/feedback` | Records a like or dislike. Dislikes also remove the track from Spotify. |
 | POST | `/api/remove` | Removes a track from Spotify without recording feedback. |
@@ -530,6 +600,7 @@ Both sections are wrapped in styled provider cards (`.provider-section`) for vis
 - **Train Taste Profile** — accordion-style editor with four collapsible sections: Core Description (required, open by default), Must Have, Soft Preferences, and Avoid. Existing profile data is pre-filled via `GET /api/profile/data` when the form is opened. Core Description is validated client-side — submission is blocked with an error highlight if empty. Shows an inline warning and disables inputs if the OpenAI API key is missing.
 - **Profile import/export/reset** — when the user explicitly enters Edit Profile mode, the UI exposes **⬆ Import** (posts to `POST /api/profile/import`), **⬇ Export** (downloads from `GET /api/profile/export`), and **↩ Reset to history** (calls `POST /api/profile/reset-to-history`). These buttons appear below the "Last trained" status line in the section header. Import replaces the entire profile file; the previous profile is automatically backed up via `.history.json`.
 - **Audio Filters** — collapsible sub-panel inside the Discover Music section (between playlist mode selector and Generate button). Audio filter ranges (energy, valence, tempo, danceability, acousticness) are injected into the GPT prompt via `build_messages(audio_filters=...)`. Each filter row shows a dynamic human-readable hint (e.g. "↳ Energetic to Intense") updated on input. A "✕ Clear all" button resets all filters at once. Band/Song Analysis results include "⇒ Filter" buttons per feature and a "⇒ Use All as Filters" button — clicking these auto-populates the filter inputs with a ±10% range (±15 BPM for tempo) and opens the Discover section if collapsed.
+- **Emerging Artists checkbox** — a single checkbox row ("Only new / emerging artists") placed between the playlist name/mode controls and the Audio Filters sub-panel. When checked, `pipeline.js` sends `emerging_only: true` in the `/api/run` payload. The backend injects a GPT constraint and post-filters by Spotify release date (see `filter_emerging_artists()` in `playlist.py`). Styled via `.emerging-artists-row` in `forms.css`.
 
 
 - **Generate button** — triggers the pipeline with live progress updates. An inline loading spinner (57px / ~1.5 cm) appears below the button inside the Discover Music section, with progress messages displayed underneath it. The old standalone status box is hidden during generation to avoid duplication and shown only for terminal states (success, error). Shows an inline warning and disables the button if OpenAI key or Spotify credentials/authentication are missing.
@@ -543,7 +614,7 @@ Both sections are wrapped in styled provider cards (`.provider-section`) for vis
 - **Credentials modal** (`🔑 Credentials`) — manages API keys (OpenAI, Spotify). Secrets only.
 - **Settings modal** (`⚙️ Settings`) — model selection ("Used Model" dropdown) and debug mode toggle. Non-secret configuration.
 - **Help modal** — loads the User Manual content from `/api/help`.
-- **Quickstart guide modal** — paginated storyboard-style 6-step onboarding walkthrough (Setup → Profile → Generate → Review → Refine → Repeat) in a full-height flex-column modal (828 px max-width, 82 vh max-height). The modal uses a three-zone flex layout: (1) scrollable page content, (2) fixed pagination bar, (3) fixed dismiss row — ensuring the navigation footer is always visible without scrolling. **Page 0** is a table-of-contents landing page with a visual workflow map (`1 → 2 → 3 → 4 → 5 → ⟳`) — each node is a clickable button that jumps directly to the corresponding step. Six clickable TOC entries list each step's title and tagline. **Pages 1–6** are individual step detail pages with a header (number badge + tagline), description paragraph, "Key Actions" checklist, an "Outcome" summary, and an **interactive storyboard demo player**. The demo player renders a simplified mockup of the relevant app UI area and auto-plays through 3–4 interaction frames per step (3.5 s interval). Each frame shows the mockup state, a pulsing cursor highlighting the interaction point, and a caption describing the action. Controls: ‹ / › for manual frame navigation, ▶/⏸ for play/pause. Mockups use compact HTML elements (`qd-*` CSS classes) styled to resemble the app's dark glass design at miniature scale. A unified pagination footer appears on all pages (including TOC): dot indicators (with ⌂ home dot), Back/Next buttons pushed to left/right edges. On the TOC page, the left button reads "Get Started" (closes the modal); on the last step page, the right button becomes a green "Get Started ✓" CTA. The "Don't show again" checkbox is visible on every page; checking it persists the preference to `localStorage` (`spotyvibe-quickstart-dismissed`). The close button (✕) is inside the modal card at the top-right corner. Opening from the burger menu ("🚀 Quick Start") always shows the guide without resetting the dismiss preference. When the quickstart or help modals are open, the section jump bubble is hidden and restored on close. Pagination logic lives in `frontend/static/js/modules/quickstart-tour.js`, demo player engine in `frontend/static/js/modules/quickstart-demo.js`. All text is i18n-enabled (`quickstart.*` keys, 406 total keys in en/de).
+- **Quickstart guide modal** — **provider-scoped** paginated storyboard-style onboarding walkthrough in a full-height flex-column modal (828 px max-width, 82 vh max-height). The guide is split into two variants: **OpenAI Quick Start** (Setup → Profile → Repeat, 3 content steps) and **Spotify Quick Start** (Setup → Generate → Review → Refine → Repeat, 5 content steps). Each `qs-page` carries a `data-qs-provider` attribute (`"both"`, `"openai"`, `"spotify"`, or `"toc"`); `quickstart-tour.js` computes `_visiblePageIndices` from these attributes to filter the page sequence per provider. Two separate `localStorage` keys (`spotyvibe-quickstart-openai-dismissed`, `spotyvibe-quickstart-spotify-dismissed`) store the per-provider "Don't show again" preference. The legacy `spotyvibe-quickstart-dismissed` key is migrated to the Spotify key on first read. Opening from the burger menu ("🚀 Quick Start") detects the active provider via `window.getActiveProvider()`. On first tab switch to a new provider, `tabs.js` auto-shows that provider's quickstart if not dismissed. The modal uses a three-zone flex layout: (1) scrollable page content, (2) fixed pagination bar, (3) fixed dismiss row — ensuring the navigation footer is always visible without scrolling. **Page 0** is a table-of-contents landing page with a visual workflow map — each node is a clickable button with a `data-qs-step` attribute; nodes and TOC entries for irrelevant providers are hidden. **Step pages** are individual detail pages with a header (number badge + tagline), description paragraph, "Key Actions" checklist, an "Outcome" summary, and an **interactive storyboard demo player**. The demo player renders a simplified mockup of the relevant app UI area and auto-plays through 3–4 interaction frames per step (3.5 s interval). Each frame shows the mockup state, a pulsing cursor highlighting the interaction point, and a caption describing the action. Controls: ‹ / › for manual frame navigation, ▶/⏸ for play/pause. Mockups use compact HTML elements (`qd-*` CSS classes) styled to resemble the app's dark glass design at miniature scale. A unified pagination footer appears on all pages (including TOC): dot indicators (with ⌂ home dot) reflect only the visible steps for the active provider, Back/Next buttons pushed to left/right edges. On the TOC page, the left button reads "Get Started" (closes the modal); on the last step page, the right button becomes a green "Get Started ✓" CTA. The close button (✕) is inside the modal card at the top-right corner. Opening from the burger menu always shows the guide without resetting the dismiss preference. When the quickstart or help modals are open, the section jump bubble is hidden and restored on close. Pagination logic lives in `frontend/static/js/modules/quickstart-tour.js`, demo player engine in `frontend/static/js/modules/quickstart-demo.js`. All text is i18n-enabled (`quickstart.*` keys).
 - **Toast notifications** — brief confirmation messages after feedback/remove actions.
 
 **Debug mode (desktop only):** When enabled via the Settings modal on desktop, all GPT interactions (both suggestion generation and profile training) are logged to `%LOCALAPPDATA%\spotyvibe\debug.log` via the `debug_log()` utility. Android builds do not expose debug controls and do not write prompt logs.

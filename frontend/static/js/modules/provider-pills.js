@@ -13,10 +13,10 @@ function renderOpenaiPills() {
     const el = document.getElementById('openaiStatusPills');
     if (!el) return;
     const pills = [];
-    pills.push(pill(State.openaiKeySet ? 'ok' : 'err', State.openaiKeySet ? i18n('pill.key_configured', 'Key configured') : i18n('pill.key_missing', 'Key missing')));
-    pills.push(pill(State.profileTrained ? 'ok' : 'warn', State.profileTrained ? i18n('pill.profile_trained', 'Profile trained') : i18n('pill.not_trained', 'Not trained')));
+    // Only show model pill — clickable to open settings
     if (State.selectedModel) {
-        pills.push(pill('ok', State.selectedModel));
+        const label = `${i18n('pill.used_model', 'Model')}: ${escHtml(State.selectedModel)}`;
+        pills.push(`<button class="status-pill status-pill--ok status-pill--clickable" onclick="openSettings()" title="${escHtml(i18n('pill.change_model', 'Change model'))}">${label}</button>`);
     }
     el.innerHTML = pills.join('');
 }
@@ -27,11 +27,11 @@ function renderSpotifyPills() {
     const pills = [];
     const authStatus = State.spotifyAuthStatus;
     if (authStatus === 'authenticated') {
-        pills.push(pill('ok', i18n('pill.connected', 'Connected')));
+        pills.push(pill('ok', i18n('pill.spotify_connected', 'Spotify connected')));
     } else if (authStatus === 'not_authenticated') {
-        pills.push(pill('warn', i18n('pill.not_connected', 'Not connected')));
+        pills.push(`<button class="status-pill status-pill--warn status-pill--clickable" onclick="connectSpotify()" title="${escHtml(i18n('pill.click_to_connect', 'Click to connect'))}">${escHtml(i18n('pill.spotify_not_connected', 'Spotify not connected'))}</button>`);
     } else if (authStatus === 'not_configured') {
-        pills.push(pill('err', i18n('pill.credentials_missing', 'Credentials missing')));
+        pills.push(`<button class="status-pill status-pill--err status-pill--clickable" onclick="openCredentials()" title="${escHtml(i18n('pill.click_to_setup', 'Click to set up'))}">${escHtml(i18n('pill.credentials_missing', 'Credentials missing'))}</button>`);
     } else {
         pills.push(pill('warn', i18n('pill.status_unknown', 'Status unknown')));
     }

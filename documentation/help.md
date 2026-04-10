@@ -38,6 +38,7 @@ This guide explains how to use the **SpotyVibe interface** to set up your prefer
 - [Playlist Generation](#playlist-generation)
   - [Choose a Playlist Mode](#choose-a-playlist-mode)
   - [Use Audio Filters](#use-audio-filters)
+  - [Emerging Artists Only](#emerging-artists-only)
   - [Start Generation](#start-generation)
   - [Stop Early or Use Current Tracks](#stop-early-or-use-current-tracks)
 - [Track Review & Feedback](#track-review--feedback)
@@ -70,6 +71,8 @@ SpotyVibe helps you discover music based on your personal taste.
 You describe what you like, connect your Spotify account, and let the app generate playlist suggestions tailored to you.
 
 The more feedback you give, the better the recommendations become.
+
+SpotyVibe runs on **Windows**, **macOS**, and **Linux**. On Windows, it runs as a native desktop app (PyInstaller executable). On macOS and Linux, double-click `SpotyVibe.command` (macOS) or run `./start.sh` (Linux) — the launcher sets up a virtual environment automatically and opens your browser.
 
 ![Main home screen](/docs/screenshots/01_main_home_screen.png)
 
@@ -134,12 +137,16 @@ At the top of the page, you can also access:
 
 ### Quick Start Guide
 
-When you open SpotyVibe for the first time, a **Quick Start Guide** appears automatically.
-It walks you through six steps to get up and running — from entering your API keys to generating your first playlist.
+When you open SpotyVibe for the first time, a **Quick Start Guide** appears automatically for the active provider section. The guide is split into two provider-scoped variants:
+
+- **🤖 OpenAI Quick Start** — Setup, Build Your Profile, Repeat & Improve.
+- **🎵 Spotify Quick Start** — Setup, Generate a Playlist, Review & Feedback, Refine Existing Playlists, Repeat & Improve.
+
+Each variant only shows steps relevant to its provider and has its own "Don't show again" preference.
 
 **Using the guide:**
 
-- The **Contents** page lists all six steps. Click any entry to jump directly to that step.
+- The **Contents** page lists only the steps for the active provider. Click any entry to jump directly to that step.
 - Each step has a text description, a **Key Actions** checklist, and an **interactive demo** that shows exactly what to click in the app.
 - The demos auto-play — use **▶/⏸** to pause, or **‹ / ›** to step through manually.
 - Use the **numbered dots** or **Back / Next** buttons at the bottom to navigate between steps.
@@ -147,10 +154,11 @@ It walks you through six steps to get up and running — from entering your API 
 
 **Dismissing and reopening:**
 
-- Check **"Don't show again"** on any page to stop the guide from showing on future visits.
-- To reopen it at any time, click **☰ → 🚀 Quick Start**.
+- Check **"Don't show again"** on any page to stop that provider's guide from showing on future visits.
+- When you switch to the other provider for the first time in a session, its guide auto-shows if not dismissed.
+- To reopen it at any time, click **☰ → 🚀 Quick Start** (opens the guide for the currently active provider).
 
-> **Screenshot placeholder:** Quick Start guide contents page with workflow map and TOC entries.
+![Quick Start guide contents page](/docs/screenshots/26_quickstart_toc.png)
 
 ---
 
@@ -200,7 +208,7 @@ Once connected:
 
 If your session expires later, simply reconnect.
 
-> **Screenshot placeholder:** Connect to Spotify banner
+![Connect to Spotify banner](/docs/screenshots/27_connect_spotify_banner.png)
 
 ---
 
@@ -472,7 +480,7 @@ To update your preferences:
 
 The more accurately your profile reflects your current taste, the better your future playlists will be. For small adjustments, use the Vibe field — for example, "more acoustic, less electronic" — and let the AI merge it into your existing profile.
 
-> **Screenshot placeholder:** Editing an existing profile
+![Editing an existing profile](/docs/screenshots/28_editing_existing_profile.png)
 
 ---
 
@@ -566,6 +574,21 @@ This bridges the gap between analysis and generation — no more memorising numb
 
 ---
 
+### Emerging Artists Only
+
+Between the playlist name/mode controls and the Audio Filters panel, there is an **"Only new / emerging artists"** checkbox.
+
+When checked:
+
+- The AI is instructed to **only suggest tracks by artists who debuted in the last 6 months**.
+- After Spotify verification, tracks are filtered by their album **release date** — anything older than 6 months is removed.
+- To compensate for the heavier filtering, the AI requests more candidates per batch.
+- The final playlist may have **fewer tracks** than your configured size. A status message explains the result (e.g. "Showing 14 of 30 checked tracks — only tracks by recently emerged artists are included.").
+
+Leave the checkbox unchecked for normal generation behaviour.
+
+---
+
 ### Start Generation
 
 Click **Generate & Create Playlist** to begin.
@@ -578,7 +601,7 @@ A loading spinner appears below the button inside the Discover Music section. Pr
 4. Show the results inside the section (below a divider)
 5. Provide a link to open the playlist in Spotify
 
-> **Screenshot placeholder:** Generation in progress with inline spinner
+![Generation in progress with inline spinner](/docs/screenshots/29_generation_spinner.png)
 
 ---
 
@@ -594,7 +617,7 @@ During generation, two helpful options may appear:
 
 This is useful if you already like the results and do not want to wait longer.
 
-> **Screenshot placeholder:** Cancel and Use X Tracks Now buttons
+![Cancel and Use X Tracks Now buttons](/docs/screenshots/30_cancel_use_tracks.png)
 
 ---
 
@@ -612,7 +635,7 @@ Each card may show:
 
 You can review each song and decide what to do next.
 
-> **Screenshot placeholder:** Track cards after generation
+![Track cards after generation](/docs/screenshots/31_track_cards.png)
 
 ---
 
@@ -632,7 +655,7 @@ Use the ‹ and › arrows to navigate between tracks without closing the overla
 
 > **Note:** The embedded Spotify player provides **~30-second previews**. Full-length playback is not available because the embed runs in an isolated iframe that cannot access your Spotify session due to browser third-party cookie restrictions. To listen to the full track, click the Spotify icon inside the player or use the Spotify links on the song card.
 
-> **Screenshot placeholder:** Preview player open
+![Preview player open](/docs/screenshots/32_preview_player.png)
 
 ---
 
@@ -646,7 +669,7 @@ Each song card includes quick links to open content in Spotify, such as:
 
 Use these links to explore music in more detail.
 
-> **Screenshot placeholder:** Spotify quick links on a song card
+![Spotify quick links on a song card](/docs/screenshots/33_spotify_quick_links.png)
 
 ---
 
@@ -665,7 +688,7 @@ Examples of reasons:
 - strong melody
 - exactly the sound I want
 
-> **Screenshot placeholder:** Like feedback form
+![Like feedback form](/docs/screenshots/34_like_feedback_form.png)
 
 ---
 
@@ -684,7 +707,7 @@ Examples:
 
 This helps SpotyVibe avoid similar tracks in future runs.
 
-> **Screenshot placeholder:** Dislike feedback form
+![Dislike feedback form](/docs/screenshots/35_dislike_feedback_form.png)
 
 ---
 
@@ -694,7 +717,7 @@ Click **Remove** to take a song out of the list without recording it as like or 
 
 Use this for tracks you feel neutral about.
 
-> **Screenshot placeholder:** Remove button on song card
+![Remove button on song card](/docs/screenshots/36_remove_button.png)
 
 ---
 
@@ -722,7 +745,7 @@ To open it, click **Show** on the **🔄 Refine Playlist** header (or click anyw
 
 A loading spinner appears below the button while SpotyVibe fetches the tracks. Once loaded, the tracks appear inside the section, below the button, separated by a divider. Track cards look similar to the Discover suggestion list.
 
-> **Screenshot placeholder:** Playlist dropdown with playlists loaded
+![Playlist dropdown with playlists loaded](/docs/screenshots/37_playlist_dropdown.png)
 
 ---
 
@@ -737,7 +760,7 @@ Each track card shows:
 
 You can also click the album art to open the Spotify preview player. When previewing from the Refine list, the prev/next navigation operates within the review track list.
 
-> **Screenshot placeholder:** Review track cards
+![Review track cards](/docs/screenshots/38_review_track_cards.png)
 
 ---
 
@@ -749,7 +772,7 @@ A feedback form opens where you can optionally edit the artist, track name, and 
 
 After submitting, the track animates out of the review list. The track **stays in the Spotify playlist** — only your taste profile is updated.
 
-> **Screenshot placeholder:** Like feedback form in Refine section
+![Like feedback form in Refine section](/docs/screenshots/39_review_like_form.png)
 
 ---
 
@@ -766,7 +789,7 @@ After submitting, the track is:
 
 The card animates out of the review list.
 
-> **Screenshot placeholder:** Dislike feedback form in Refine section
+![Dislike feedback form in Refine section](/docs/screenshots/40_review_dislike_form.png)
 
 ---
 
@@ -778,7 +801,7 @@ Use this for tracks you feel neutral about but want to remove from the playlist.
 
 The card animates out of the review list.
 
-> **Screenshot placeholder:** Dismiss button on review track card
+![Dismiss button on review track card](/docs/screenshots/41_review_dismiss_button.png)
 
 ---
 
@@ -814,7 +837,7 @@ This means:
 
 If the list becomes too full, remove some tracks before generating more.
 
-> **Screenshot placeholder:** Song list with saved tracks
+![Song list with saved tracks](/docs/screenshots/42_history_song_list.png)
 
 ---
 
@@ -836,7 +859,7 @@ You can use the same main flow:
 4. Generate playlists
 5. Review songs and provide feedback
 
-> **Screenshot placeholder:** Mobile view of the home screen
+![Mobile view of the home screen](/docs/screenshots/43_mobile_view.png)
 
 ---
 
@@ -863,7 +886,7 @@ Use more detailed profile edits, increase interest in new artists, and give dire
 **Too few tracks are being added**  
 Widen your audio filters or try again with fewer restrictions.
 
-> **Screenshot placeholder:** Example warning or error message
+![Example warning or error message](/docs/screenshots/44_warning_message.png)
 
 ---
 
