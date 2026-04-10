@@ -302,11 +302,12 @@ def _format_audio_filters(audio_filters):
 def build_messages(profile, accepted_tracks=None, batch_size=None,
                    recently_filtered_tracks=None,
                    new_artist_percentage=30, batch_num=0,
-                   audio_filters=None):
+                   audio_filters=None, emerging_only=False):
     """Build the system + user message pair for the OpenAI API.
 
     Key design decisions:
-    - Over-requests by +5 (effective_batch_size) to absorb expected filtering.
+    - Over-requests by +5 (effective_batch_size) to absorb expected filtering;
+      +20 when emerging_only is True to account for heavier post-filter rejection.
     - On retries, filtered tracks go into an ephemeral deny set — never
       mentioned in prose (mentioning them primes GPT to repeat them).
     - DENY_LIST JSON comes before profile in the user message (positional bias).
@@ -316,8 +317,9 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
     if batch_size is None:
         batch_size = BATCH_SIZE
 
-    # Over-request by +5 to absorb filtering; caller truncates after filter
-    effective_batch_size = batch_size + 5
+    # Over-request: +20 buffer when emerging_only (heavy filtering expected), else +5
+    buffer = 20 if emerging_only else 5
+    effective_batch_size = batch_size + buffer
     min_new_artists = math.ceil(effective_batch_size * new_artist_percentage / 100)
 
     gpt_language = get_gpt_language()
@@ -332,6 +334,14 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
     system_prompt = system_prompt.replace("{new_artist_percentage}", str(new_artist_percentage))
     system_prompt = system_prompt.replace("{min_new_artists}", str(min_new_artists))
     system_prompt = system_prompt.replace("{gpt_language}", gpt_language)
+
+    if emerging_only:
+        emerging_constraint = (
+            "\n8. ONLY suggest tracks by artists whose debut release is within the last 6 months."
+            " Prefer unknown, underground, or recently debuted artists."
+            " Do NOT suggest any established or long-running artists."
+        )
+        system_prompt += emerging_constraint
 
     user_template = load_text_file(PROMPT_FILE)
 

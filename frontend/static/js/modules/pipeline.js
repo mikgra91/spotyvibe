@@ -97,6 +97,8 @@ export async function runPipeline() {
     const playlistPayload = getPlaylistModePayload();
     const audioFilters = getAudioFilters();
     if (audioFilters) playlistPayload.audio_filters = audioFilters;
+    const emergingOnly = document.getElementById('emergingArtistsCheckbox')?.checked || false;
+    if (emergingOnly) playlistPayload.emerging_only = true;
 
     try {
         await _startSseStream(State.currentRunId, State.currentAbortController.signal, playlistPayload);
@@ -251,9 +253,14 @@ export async function useCurrentTracks() {
 
 export function handleStreamEvent(event) {
     switch (event.type) {
-        case 'progress':
-            showStatus('⏳ ' + event.message, 'info');
+        case 'progress': {
+            let msg = event.message;
+            if (event.emerging_filtered != null) {
+                msg = i18n('pipeline.emerging_batch_filtered', 'Batch: {count} track(s) filtered out (emerging artists only).').replace('{count}', event.emerging_filtered);
+            }
+            showStatus('⏳ ' + msg, 'info');
             break;
+        }
         case 'batch_verified':
             updateUseTracksButton(event.count);
             break;
@@ -274,6 +281,8 @@ export function handleStreamEvent(event) {
             if (event.added) parts.push(i18n('pipeline.tracks_added', '{count} new track(s) added to playlist.').replace('{count}', event.added));
             if (event.not_found && event.not_found.length)
                 parts.push(i18n('pipeline.tracks_not_found', '{count} track(s) not found on Spotify.').replace('{count}', event.not_found.length));
+            if (event.emerging_shown != null && event.emerging_checked != null)
+                parts.push(i18n('pipeline.emerging_filter_result', 'Showing {shown} of {checked} checked tracks — only tracks by recently emerged artists are included.').replace('{shown}', event.emerging_shown).replace('{checked}', event.emerging_checked));
             showStatus(parts.join(' '), event.was_cancelled ? 'info' : 'success');
             // Playlist was created or modified — refresh both pickers
             refreshDiscoverPlaylistPicker().then(() => populateReviewPlaylistPicker());

@@ -95,6 +95,7 @@ from core.src.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist, delete_playlist,
     get_spotify_auth_status, get_spotify_auth_url, handle_spotify_callback,
     disconnect_spotify, get_user_playlists, get_playlist_tracks,
+    filter_emerging_artists,
 )
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
@@ -306,6 +307,7 @@ def run_pipeline():
         playlist_custom_name = playlist_custom_name[:200]
     # Audio feature filters: {"energy": {"min": 0.6, "max": 1.0}, ...}
     audio_filters = body.get("audio_filters") or {}
+    emerging_only = bool(body.get("emerging_only"))
     cancel_event = threading.Event()
     _sweep_stale_runs()
     with _runs_lock:
@@ -401,6 +403,7 @@ def run_pipeline():
                     new_artist_percentage=effective_nap,
                     batch_num=batch_num,
                     audio_filters=audio_filters or None,
+                    emerging_only=emerging_only,
                 )
                 gpt_call_count += 1
                 # Adaptive temperature: lower on retries for more deterministic output
@@ -466,6 +469,17 @@ def run_pipeline():
                 found, not_found = search_tracks(result["playlist"])
                 all_not_found.extend(not_found)
 
+                # When emerging_only is active, discard tracks whose release_date
+                # predates the 6-month cutoff window.
+                if emerging_only and found:
+                    found, _rejected = filter_emerging_artists(found, cutoff_months=6)
+                    if _rejected:
+                        yield _sse(
+                            "progress",
+                            message=f"Batch {batch_num}: {len(_rejected)} track(s) filtered out (emerging artists only).",
+                            emerging_filtered=len(_rejected),
+                        )
+
 
                 for t in found:
                     if t["uri"] not in verified_uris:
@@ -521,8 +535,10 @@ def run_pipeline():
                 yield _sse("error", message="No tracks could be verified on Spotify.")
                 return
 
-            # Cap at target count
-            verified_tracks = verified_tracks[:playlist_size]
+            # Cap at target count — skip when emerging_only so all survivors are shown
+            emerging_checked = len(verified_tracks)
+            if not emerging_only:
+                verified_tracks = verified_tracks[:playlist_size]
 
             # 5 — Add all verified tracks to the Spotify playlist
             yield _sse("progress", message=f"Adding {len(verified_tracks)} tracks to Spotify playlist…")
@@ -572,6 +588,7 @@ def run_pipeline():
                 added=playlist_info.get("added", 0),
                 not_found=all_not_found,
                 was_cancelled=was_cancelled or gpt_exhausted,
+                **({"emerging_shown": len(visible_playlist), "emerging_checked": emerging_checked} if emerging_only else {}),
             )
 
         except Exception as e:
