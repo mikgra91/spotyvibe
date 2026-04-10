@@ -15,7 +15,7 @@ import { openCredentials, saveCredentials, clearCredential, saveSettings, openSe
 import { quickstartGoTo, quickstartNext, quickstartPrev } from './modules/quickstart-tour.js';
 import { qsDemoNext, qsDemoPrev, qsDemoToggle, qsDemoExpand, initAllDemos, destroyAllDemos } from './modules/quickstart-demo.js';
 import { switchTheme, THEME_BACKGROUNDS, THEME_RENDERERS } from './modules/theme-switcher.js';
-import { initTabs, switchTab } from './modules/tabs.js';
+import { initTabs, switchTab, getActiveProvider } from './modules/tabs.js';
 import './modules/theme-calm.js';
 import './modules/theme-equalizer.js';
 import './modules/theme-pulse.js';
@@ -130,6 +130,8 @@ window.qsDemoToggle = qsDemoToggle;
 window.qsDemoExpand = qsDemoExpand;
 window.switchTheme = switchTheme;
 window.switchTab = switchTab;
+window.getActiveProvider = getActiveProvider;
+window.maybeShowQuickstart = maybeShowQuickstart;
 window.switchLanguage = switchLanguage;
 window.applyLanguage = applyLanguage;
 window.i18n = i18n;
@@ -140,7 +142,6 @@ window.addEventListener('message', async (e) => {
     if (e.data === 'spotify-auth-complete') {
         await checkSpotifyAuth();
         renderComponentWarnings();
-        renderProviderPills();
     }
 });
 
@@ -179,7 +180,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Auth and warnings
     Promise.all([checkCredentialStatus(), checkSpotifyAuth(), fetchSettingsState()]).then(() => {
         renderComponentWarnings();
-        renderProviderPills();
     });
 
     // Profile
@@ -199,6 +199,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Tab navigation
     initTabs();
 
-    // Quickstart guide (auto-show on first visit)
-    maybeShowQuickstart();
+    // Quickstart guide (auto-show on first visit for the active provider)
+    maybeShowQuickstart(getActiveProvider());
 });

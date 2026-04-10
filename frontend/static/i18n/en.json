@@ -8,6 +8,10 @@
   "app.subtitle": "AI-powered music discovery & playlist generation — discover, curate, refine.",
   "app.theme": "Theme",
 
+  "tab.openai": "AI Profile & Analysis",
+  "tab.spotify": "Discover & Playlists",
+  "tab.history": "Run History",
+
   "section.taste_profile": "OpenAI",
   "section.taste_profile_desc": "Define your taste profile and analyze reference music with AI.",
   "section.generate": "Spotify",
@@ -117,6 +121,12 @@
   "pill.connected": "Connected",
   "pill.not_connected": "Not connected",
   "pill.credentials_missing": "Credentials missing",
+  "pill.used_model": "Model",
+  "pill.change_model": "Change model",
+  "pill.spotify_connected": "Spotify connected",
+  "pill.spotify_not_connected": "Spotify not connected",
+  "pill.click_to_connect": "Click to connect",
+  "pill.click_to_setup": "Click to set up",
 
   "audio_filters.title": "Audio Filters",
   "audio_filters.subtitle": "Guide the AI to suggest tracks matching a specific mood and feel.",
@@ -339,6 +349,15 @@
   "analysis.tempo_desc": "The speed of the track in beats per minute (BPM). Higher BPM = faster tempo.",
   "analysis.use_as_filter_title": "Use as audio filter",
 
+  "generate.emerging_only": "Only new / emerging artists",
+  "generate.emerging_only_hint": "Only suggest tracks by artists who debuted in the last 6 months.",
+
+  "pipeline.emerging_filter_result": "Showing {shown} of {checked} checked tracks — only tracks by recently emerged artists are included.",
+  "pipeline.emerging_batch_filtered": "Batch: {count} track(s) filtered out (emerging artists only).",
+
+  "quickstart.title_openai": "🤖 OpenAI Quick Start",
+  "quickstart.title_spotify": "🎵 Spotify Quick Start",
+
   "generate.cannot_generate_server": "⚠️ Cannot generate — check credentials and Spotify connection.",
   "generate.loading_aria": "Generating playlist",
   "generate.loading_review_aria": "Loading",
@@ -384,7 +403,7 @@
   "nav.quickstart": "Quick Start",
 
   "quickstart.title": "🚀 Quick Start Guide",
-  "quickstart.intro": "Get up and running in 6 simple steps — from setup to your first AI-powered playlist.",
+  "quickstart.intro": "Get up and running in a few simple steps — from setup to your first AI-powered playlist.",
   "quickstart.step1_title": "Setup",
   "quickstart.step1_tagline": "Enter your keys, connect Spotify, pick your theme.",
   "quickstart.step1_desc": "Open the menu (☰) → enter your OpenAI API key, Spotify Client ID & Secret → Save. Click \"Connect to Spotify\" and complete the sign-in. Optionally adjust AI model, playlist size, and language in Settings. When the status pills turn green, you're ready.",
@@ -465,5 +484,16 @@
   "quickstart.demo5_f4": "Playlist cleaned up — taste profile refined ✓",
   "quickstart.demo6_f1": "Generate again — each run gets better",
   "quickstart.demo6_f2": "Use Band/Song Analysis to discover new artists",
-  "quickstart.demo6_f3": "Your profile grows stronger with every interaction ✓"
+  "quickstart.demo6_f3": "Your profile grows stronger with every interaction ✓",
+
+  "quickstart.step7_title": "Band/Song Analysis",
+  "quickstart.step7_tagline": "Explore artists, get profile suggestions, auto-fill audio filters.",
+  "quickstart.step7_desc": "Enter an artist name (and optional track) to get an AI-powered breakdown. The analysis produces ready-to-paste profile suggestions and audio characteristics. Copy suggestions directly into your profile, or use the audio data to auto-fill filters for more targeted playlist generation.",
+  "quickstart.step7_action1": "🔍 Enter an artist name (and optional track)",
+  "quickstart.step7_action2": "▶️ Click \"Analyse\" — AI generates a detailed breakdown",
+  "quickstart.step7_action3": "📋 Copy profile suggestions directly into your taste profile",
+  "quickstart.step7_action4": "🎛️ Use audio data to auto-fill filters for generation",
+  "quickstart.demo7_f1": "Open Band/Song Analysis and enter an artist",
+  "quickstart.demo7_f2": "AI generates a detailed breakdown with tags",
+  "quickstart.demo7_f3": "Copy suggestions to profile or auto-fill audio filters ✓"
 }

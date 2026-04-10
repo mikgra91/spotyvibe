@@ -423,7 +423,15 @@ function _unlockBodyScroll() {
 }
 
 /* ── Quickstart guide modal ── */
-const QUICKSTART_STORAGE_KEY = 'spotyvibe-quickstart-dismissed';
+const QUICKSTART_STORAGE_KEYS = {
+    openai:  'spotyvibe-quickstart-openai-dismissed',
+    spotify: 'spotyvibe-quickstart-spotify-dismissed',
+};
+// Legacy key — migrated to per-provider keys on first read
+const QUICKSTART_STORAGE_KEY_LEGACY = 'spotyvibe-quickstart-dismissed';
+
+// Tracks which provider's quickstart is currently open
+let _quickstartProvider = 'openai';
 
 /**
  * Open the quickstart guide.
@@ -431,13 +439,15 @@ const QUICKSTART_STORAGE_KEY = 'spotyvibe-quickstart-dismissed';
  */
 export function openQuickstart(force = false) {
     document.getElementById('settingsDropdown').classList.remove('open');
-    if (!force && _isQuickstartDismissed()) return;
+    const provider = window.getActiveProvider?.() ?? 'openai';
+    _quickstartProvider = provider;
+    if (!force && _isQuickstartDismissed(provider)) return;
     _lastFocusedElement = document.activeElement;
     // Reflect the stored dismiss preference in the checkbox
-    const wasDismissed = _isQuickstartDismissed();
+    const wasDismissed = _isQuickstartDismissed(provider);
     document.querySelectorAll('.quickstartDontShowCb').forEach(cb => cb.checked = wasDismissed);
-    // Reset to TOC page
-    quickstartReset();
+    // Reset to TOC page for this provider
+    quickstartReset(provider);
     // Initialize demo players
     initAllDemos();
     _hideJumpBubble();
@@ -453,11 +463,12 @@ export function openQuickstart(force = false) {
 export function closeQuickstart() {
     const anyChecked = Array.from(document.querySelectorAll('.quickstartDontShowCb'))
         .some(cb => cb.checked);
+    const key = QUICKSTART_STORAGE_KEYS[_quickstartProvider] ?? QUICKSTART_STORAGE_KEYS.openai;
     try {
         if (anyChecked) {
-            localStorage.setItem(QUICKSTART_STORAGE_KEY, 'true');
+            localStorage.setItem(key, 'true');
         } else {
-            localStorage.removeItem(QUICKSTART_STORAGE_KEY);
+            localStorage.removeItem(key);
         }
     } catch (_) {}
     destroyAllDemos();
@@ -467,16 +478,29 @@ export function closeQuickstart() {
 }
 
 /**
- * Auto-show quickstart on page load if the user hasn't dismissed it.
+ * Auto-show quickstart on page load (or first provider visit) if the user hasn't dismissed it.
+ * @param {string} provider — "openai" or "spotify"
  */
-export function maybeShowQuickstart() {
-    if (!_isQuickstartDismissed()) {
-        openQuickstart(false);
+export function maybeShowQuickstart(provider = 'openai') {
+    if (!_isQuickstartDismissed(provider)) {
+        // Defer so that the rest of init completes first
+        setTimeout(() => openQuickstart(false), 0);
     }
 }
 
-function _isQuickstartDismissed() {
-    try { return localStorage.getItem(QUICKSTART_STORAGE_KEY) === 'true'; } catch (_) { return false; }
+function _isQuickstartDismissed(provider) {
+    try {
+        // One-time legacy migration: old single key → per-provider key
+        const legacy = localStorage.getItem(QUICKSTART_STORAGE_KEY_LEGACY);
+        if (legacy === 'true') {
+            localStorage.setItem(QUICKSTART_STORAGE_KEYS.openai, 'true');
+            localStorage.setItem(QUICKSTART_STORAGE_KEYS.spotify, 'true');
+            localStorage.removeItem(QUICKSTART_STORAGE_KEY_LEGACY);
+            return true;
+        }
+        const key = QUICKSTART_STORAGE_KEYS[provider] ?? QUICKSTART_STORAGE_KEYS.openai;
+        return localStorage.getItem(key) === 'true';
+    } catch (_) { return false; }
 }
 
 /* ── Close any open modal on Escape key + focus trap on Tab ── */

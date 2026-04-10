@@ -470,7 +470,70 @@ function _step6Frames() {
     ];
 }
 
-const DEMOS = [null, _step1Frames, _step2Frames, _step3Frames, _step4Frames, _step5Frames, _step6Frames];
+function _step7Frames() {
+    return [
+        {
+            caption: i18n('quickstart.demo7_f1', 'Open Band/Song Analysis and enter an artist'),
+            html: `<div class="qd-scene">
+                <div class="qd-provider qd-provider-openai">
+                    <div class="qd-accordion qd-open">
+                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔍</span> Band/Song Analysis</h4></div>
+                        <div class="qd-accordion-body">
+                            <div class="qd-field" style="flex-direction:row;gap:6px;align-items:center">
+                                <span class="qd-input qd-typing" style="flex:1;font-family:inherit">Radiohead</span>
+                                <span class="qd-input" style="flex:1;font-family:inherit;opacity:0.4">Track (optional)</span>
+                            </div>
+                            <button class="qd-btn qd-btn-primary qd-pulse" style="margin-top:6px">Analyse</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="qd-cursor" style="bottom:30px;right:60px"></div>
+            </div>`
+        },
+        {
+            caption: i18n('quickstart.demo7_f2', 'AI generates a detailed breakdown with tags'),
+            html: `<div class="qd-scene">
+                <div class="qd-provider qd-provider-openai">
+                    <div class="qd-accordion qd-open">
+                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔍</span> Band/Song Analysis</h4></div>
+                        <div class="qd-accordion-body">
+                            <div class="qd-analysis-result qd-fade-in">
+                                <span class="qd-tag">Alt-Rock</span><span class="qd-tag">Experimental</span><span class="qd-tag">Melancholic</span><span class="qd-tag">Atmospheric</span>
+                            </div>
+                            <div class="qd-suggestion-box qd-fade-in" style="margin-top:6px">
+                                <div style="font-size:0.7rem;font-weight:600;margin-bottom:3px">Profile Suggestions</div>
+                                <div style="font-size:0.65rem;opacity:0.8">Core: atmospheric alt-rock with emotional depth…</div>
+                                <button class="qd-btn qd-btn-sm qd-btn-outline qd-pulse" style="margin-top:4px">📋 Copy to Profile</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>`
+        },
+        {
+            caption: i18n('quickstart.demo7_f3', 'Copy suggestions to profile or auto-fill audio filters ✓'),
+            html: `<div class="qd-scene">
+                <div class="qd-provider qd-provider-openai">
+                    <div class="qd-accordion qd-open">
+                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔍</span> Band/Song Analysis</h4></div>
+                        <div class="qd-accordion-body">
+                            <div class="qd-analysis-result">
+                                <span class="qd-tag">Alt-Rock</span><span class="qd-tag">Experimental</span><span class="qd-tag">Melancholic</span><span class="qd-tag">Atmospheric</span>
+                            </div>
+                            <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+                                <button class="qd-btn qd-btn-sm qd-btn-outline">📋 Copy to Profile</button>
+                                <button class="qd-btn qd-btn-sm qd-btn-outline qd-pulse">🎛️ Use as Filters</button>
+                            </div>
+                            <div class="qd-result-msg qd-fade-in" style="margin-top:6px">✅ Suggestions copied — profile updated!</div>
+                        </div>
+                    </div>
+                </div>
+            </div>`
+        }
+    ];
+}
+
+const DEMOS = [null, _step1Frames, _step2Frames, _step3Frames, _step4Frames, _step5Frames, _step6Frames, _step7Frames];
 
 /* ── State management ── */
 const _state = new Map();
@@ -551,7 +614,7 @@ export function initAllDemos() {
     document.body.appendChild(probe);
 
     let maxH = 0;
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i < DEMOS.length; i++) {
         const frames = _getFrames(i);
         for (const f of frames) {
             probe.innerHTML = f.html;
@@ -569,7 +632,7 @@ export function initAllDemos() {
     }
 
     // Render first frame & start auto-play
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i < DEMOS.length; i++) {
         const s = _ensureState(i);
         _renderFrame(i);
         if (!s.playing) {
@@ -639,7 +702,7 @@ function _measureLightboxMaxHeight() {
     document.body.appendChild(probe);
 
     let maxH = 0;
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i < DEMOS.length; i++) {
         const frames = _getFrames(i);
         for (const f of frames) {
             probe.innerHTML = f.html;
