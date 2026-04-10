@@ -45,6 +45,7 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 - **Band/Song Analysis** — AI-powered analysis of any band or song, returning genre, style, characteristics, GPT-estimated audio features (energy, danceability, etc.), and copy-paste profile suggestions (`core/analysis.py`).
 - **Internationalization (i18n)** — full English and German UI with a language picker in the header; translations in `static/i18n/en.json` and `de.json`. A separate **ChatGPT Language** setting controls the language used for GPT communication.
 - **GPT Audio Feature Constraints** — optional audio filters (energy, valence, tempo, danceability, acousticness) in the OpenAI section are injected directly into the GPT prompt, guiding the AI to suggest tracks matching the desired mood and feel.
+- **Emerging Artists Only** — optional checkbox that restricts suggestions to tracks by artists who debuted in the last 6 months. GPT receives a hard constraint, and surviving tracks are validated against Spotify release dates. The playlist may contain fewer tracks than requested because only emerging-artist tracks survive.
 - **Feedback Reasons in prompts** — recent like/dislike reasons are summarized and sent to GPT so it can learn *why* you liked or disliked a track, not just which ones.
 - **Multiple Playlists / Playlist Naming** — create new, append, or replace playlists with custom name templates supporting `{date}` and `{style}` tokens.
 - **Refine Playlist** — load an existing Spotify playlist and review tracks one-by-one with like, dislike, or dismiss actions to refine your taste profile and clean up the playlist.
@@ -79,8 +80,8 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 
 1. Install Python 3.10+ and run `pip install -r requirements.txt`.
 2. Start the app with `python app.py` and open <http://127.0.0.1:5000>.
-3. The **Quick Start Guide** appears automatically — follow the six interactive steps to configure your API keys, connect Spotify, and generate your first playlist.
-4. To reopen the guide later, click **☰ → 🚀 Quick Start**.
+3. A **Quick Start Guide** appears automatically for the active provider section — one for **OpenAI** (profile & analysis) and one for **Spotify** (generate, review, history). Each guide shows only the steps relevant to its provider and has its own "Don't show again" preference.
+4. To reopen the guide later, click **☰ → 🚀 Quick Start** (it opens the guide for whichever provider section is currently active).
 
 ---
 

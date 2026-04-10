@@ -103,32 +103,38 @@ The executable opens a native window with the SpotyVibe UI — no external brows
 
 ## Quick Start Guide
 
-When you open SpotyVibe for the first time, a **Quick Start Guide** appears automatically. It walks you through the six key steps — from entering your API keys to generating your first playlist.
+When you open SpotyVibe for the first time, a **Quick Start Guide** appears automatically for the currently active provider section. The guide is split into two provider-scoped variants:
+
+- **🤖 OpenAI Quick Start** — covers Setup, Build Your Profile, and Repeat & Improve (3 content steps).
+- **🎵 Spotify Quick Start** — covers Setup, Generate a Playlist, Review & Feedback, Refine Existing Playlists, and Repeat & Improve (5 content steps).
+
+Each variant shows only the steps relevant to its provider, and each has its own independent **"Don't show again"** preference.
 
 ### What the guide includes
 
-The guide has a **table of contents** landing page and **six step pages**:
+Both guides share a **table of contents** landing page that only lists the relevant steps. The full six-step pool is:
 
-1. **Setup** — enter API keys, connect Spotify, choose theme and language.
-2. **Build Your Profile** — create a music taste profile using free-text or structured fields.
-3. **Generate a Playlist** — pick a mode, set optional audio filters, and generate.
-4. **Review & Feedback** — preview tracks, like the gems, dislike the misses.
-5. **Refine Existing Playlists** — revisit any playlist and curate it further.
-6. **Repeat & Improve** — each run gets better as your profile learns.
+1. **Setup** — enter API keys, connect Spotify, choose theme and language. *(Both)*
+2. **Build Your Profile** — create a music taste profile using free-text or structured fields. *(OpenAI)*
+3. **Generate a Playlist** — pick a mode, set optional audio filters, and generate. *(Spotify)*
+4. **Review & Feedback** — preview tracks, like the gems, dislike the misses. *(Spotify)*
+5. **Refine Existing Playlists** — revisit any playlist and curate it further. *(Spotify)*
+6. **Repeat & Improve** — each run gets better as your profile learns. *(Both)*
 
 Each step includes a **Key Actions** checklist, an **Outcome** summary, and an **interactive demo** that animates through the relevant UI area so you can see exactly what to click.
 
 ### Navigation
 
-- Use the **numbered dots** at the bottom to jump to any step.
+- Use the **numbered dots** at the bottom to jump to any step (dots only reflect the visible steps for the active provider).
 - Use **‹ Back** and **Next ›** to page through.
-- Click any **workflow circle** (1 → 2 → 3 → 4 → 5 → ⟳) at the top of the contents page to jump directly.
+- Click any **workflow circle** at the top of the contents page to jump directly (hidden steps are not shown).
 - On the last page, **Next** becomes **Get Started** and closes the guide.
 
 ### Dismissing and reopening
 
-- Check **"Don't show again"** on any page to prevent the guide from appearing on future visits.
-- To reopen the guide at any time, click the **☰ menu** and select **🚀 Quick Start**.
+- Check **"Don't show again"** on any page to prevent that provider's guide from appearing on future visits.
+- When you switch to the other provider section for the first time in a session, its guide auto-shows if you haven't dismissed it.
+- To reopen the guide at any time, click the **☰ menu** and select **🚀 Quick Start** — it opens the guide for whichever provider section is currently active.
 
 ---
 
@@ -305,6 +311,17 @@ The quickest way to set audio filters is from a **Band/Song Analysis** result:
 4. The Discover Music section and filter panel expand automatically when a filter is applied.
 
 This bridges the gap between research and generation — analyse a song you love, then apply its characteristics as filters with one click.
+
+### Emerging Artists Only
+
+Between the playlist name/mode controls and the Audio Filters panel, you will find an **"Only new / emerging artists"** checkbox. When checked:
+
+- GPT is instructed to **only suggest tracks by artists who debuted in the last 6 months**.
+- After Spotify search, tracks are additionally filtered by their album **release date** — any track whose release predates the 6-month window is discarded.
+- Because many suggestions will be filtered out, the AI requests more tracks per batch than normal (+20 instead of +5).
+- The final playlist may contain **fewer tracks** than your configured playlist size. A status message explains how many tracks survived filtering (e.g., "Showing 14 of 30 checked tracks — only tracks by recently emerged artists are included.").
+
+Leave the checkbox unchecked for normal generation behaviour.
 
 ### Running a Generation
 

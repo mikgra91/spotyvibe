@@ -38,6 +38,7 @@ This guide explains how to use the **SpotyVibe interface** to set up your prefer
 - [Playlist Generation](#playlist-generation)
   - [Choose a Playlist Mode](#choose-a-playlist-mode)
   - [Use Audio Filters](#use-audio-filters)
+  - [Emerging Artists Only](#emerging-artists-only)
   - [Start Generation](#start-generation)
   - [Stop Early or Use Current Tracks](#stop-early-or-use-current-tracks)
 - [Track Review & Feedback](#track-review--feedback)
@@ -134,12 +135,16 @@ At the top of the page, you can also access:
 
 ### Quick Start Guide
 
-When you open SpotyVibe for the first time, a **Quick Start Guide** appears automatically.
-It walks you through six steps to get up and running — from entering your API keys to generating your first playlist.
+When you open SpotyVibe for the first time, a **Quick Start Guide** appears automatically for the active provider section. The guide is split into two provider-scoped variants:
+
+- **🤖 OpenAI Quick Start** — Setup, Build Your Profile, Repeat & Improve.
+- **🎵 Spotify Quick Start** — Setup, Generate a Playlist, Review & Feedback, Refine Existing Playlists, Repeat & Improve.
+
+Each variant only shows steps relevant to its provider and has its own "Don't show again" preference.
 
 **Using the guide:**
 
-- The **Contents** page lists all six steps. Click any entry to jump directly to that step.
+- The **Contents** page lists only the steps for the active provider. Click any entry to jump directly to that step.
 - Each step has a text description, a **Key Actions** checklist, and an **interactive demo** that shows exactly what to click in the app.
 - The demos auto-play — use **▶/⏸** to pause, or **‹ / ›** to step through manually.
 - Use the **numbered dots** or **Back / Next** buttons at the bottom to navigate between steps.
@@ -147,8 +152,9 @@ It walks you through six steps to get up and running — from entering your API 
 
 **Dismissing and reopening:**
 
-- Check **"Don't show again"** on any page to stop the guide from showing on future visits.
-- To reopen it at any time, click **☰ → 🚀 Quick Start**.
+- Check **"Don't show again"** on any page to stop that provider's guide from showing on future visits.
+- When you switch to the other provider for the first time in a session, its guide auto-shows if not dismissed.
+- To reopen it at any time, click **☰ → 🚀 Quick Start** (opens the guide for the currently active provider).
 
 ![Quick Start guide contents page](/docs/screenshots/26_quickstart_toc.png)
 
@@ -563,6 +569,21 @@ This bridges the gap between analysis and generation — no more memorising numb
 ![Audio Filters sub-panel inside Discover Music](/docs/screenshots/21_audio_filters.png)
 
 ![Band/Song Analysis with Filter buttons](/docs/screenshots/18_analysis_panel.png)
+
+---
+
+### Emerging Artists Only
+
+Between the playlist name/mode controls and the Audio Filters panel, there is an **"Only new / emerging artists"** checkbox.
+
+When checked:
+
+- The AI is instructed to **only suggest tracks by artists who debuted in the last 6 months**.
+- After Spotify verification, tracks are filtered by their album **release date** — anything older than 6 months is removed.
+- To compensate for the heavier filtering, the AI requests more candidates per batch.
+- The final playlist may have **fewer tracks** than your configured size. A status message explains the result (e.g. "Showing 14 of 30 checked tracks — only tracks by recently emerged artists are included.").
+
+Leave the checkbox unchecked for normal generation behaviour.
 
 ---
 
