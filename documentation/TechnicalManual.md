@@ -169,6 +169,74 @@ All canvas renderers are registered in the `THEME_RENDERERS` object in `frontend
 
 ---
 
+## macOS & Linux Launcher
+
+SpotyVibe ships a shell-based launcher (`build-tools/start.sh`) for macOS and Linux. No PyInstaller, no native binaries — the app runs from source inside a virtual environment.
+
+### Architecture
+
+```
+SpotyVibe.command  ─┐
+start.sh            ─┤──▶  build-tools/start.sh  (all logic)
+                     │
+                     ├── 1. Detect Python 3.10+
+                     ├── 2. Check python3-venv availability
+                     ├── 3. Create .venv/ on first run
+                     ├── 4. Install requirements-core.txt
+                     ├── 5. Detect dependency changes (hash comparison)
+                     ├── 6. Check port 5000 availability
+                     ├── 7. Start Flask server (background)
+                     ├── 8. Health-check loop (up to 15 s)
+                     ├── 9. Open default browser
+                     └── 10. Wait + trap SIGINT/SIGTERM/SIGHUP for clean shutdown
+```
+
+### Key design decisions
+
+| Decision | Rationale |
+|---|---|
+| Two root-level wrappers (`start.sh`, `SpotyVibe.command`) | Linux users expect `./start.sh`; macOS Finder requires a `.command` extension to double-click |
+| `bash` delegation instead of `exec` | Works even if the executable bit is lost (common in ZIP downloads) |
+| `requirements-core.txt` (runtime-only) | Avoids `pywebview`/`pyinstaller` install failures on macOS/Linux |
+| Hash-based dependency updates | Instant startup on subsequent runs; re-installs only when `requirements-core.txt` changes |
+| `export PATH="/opt/homebrew/bin:..."` | Finder-launched `.command` files get a minimal PATH without `~/.zshrc` |
+| Hard-coded port 5000 | Spotify OAuth redirect URI is fixed to `http://127.0.0.1:5000/callback` |
+| `import ensurepip` probe | Catches the #1 Linux gotcha: Debian/Ubuntu ship Python without `python3-venv` |
+| `trap cleanup SIGINT SIGTERM SIGHUP` | Ensures Flask server is killed when the terminal closes or user presses Ctrl+C |
+
+### File inventory
+
+| File | Purpose |
+|---|---|
+| `build-tools/start.sh` | Main launcher script (all logic) |
+| `build-tools/build_dist.sh` | Packages source distributions (macOS ZIP + Linux tar.gz) |
+| `build-tools/README-macOS.txt` | Installation guide bundled inside `SpotyVibe-macOS.zip` |
+| `build-tools/README-Linux.txt` | Installation guide bundled inside `SpotyVibe-Linux.tar.gz` |
+| `start.sh` | Root-level thin wrapper for Linux |
+| `SpotyVibe.command` | Root-level thin wrapper for macOS Finder |
+| `requirements-core.txt` | Runtime-only dependencies (5 packages) |
+| `.gitattributes` | Enforces LF line endings for `.sh` and `.command` files |
+
+### Distribution archives (CI/CD)
+
+The GitHub Actions release workflows (`release.yml`, `beta.yml`) produce downloadable archives for macOS and Linux via `build_dist.sh`. Each archive contains:
+
+- All runtime source files (`app.py`, `config.py`, `version.py`, `core/src/`, `frontend/`, `prompts/`, `data/`)
+- The launcher script (`SpotyVibe.command` for macOS, `start.sh` for Linux)
+- `requirements-core.txt` for automated dependency installation
+- A platform-specific `README.txt` with installation and troubleshooting instructions
+
+**Output files (attached to GitHub Releases):**
+
+| Archive | Contents |
+|---|---|
+| `SpotyVibe-macOS.zip` | Source + `SpotyVibe.command` + `README.txt` (macOS guide) |
+| `SpotyVibe-Linux.tar.gz` | Source + `start.sh` + `README.txt` (Linux guide) |
+
+The archives deliberately exclude tests, Android scaffolding, PyInstaller specs, build assets, documentation, and dev-only files to keep the download small and user-focused.
+
+---
+
 ## Android Build Versions
 
 The Android packaging layer uses fixed versions so APK builds are reproducible:
