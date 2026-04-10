@@ -72,7 +72,7 @@ You describe what you like, connect your Spotify account, and let the app genera
 
 The more feedback you give, the better the recommendations become.
 
-SpotyVibe runs on **Windows**, **macOS**, and **Linux**. On Windows, it runs as a native desktop app (PyInstaller executable). On macOS and Linux, double-click `SpotyVibe.command` (macOS) or run `./start.sh` (Linux) — the launcher sets up a virtual environment automatically and opens your browser.
+SpotyVibe runs on **Windows**, **macOS**, and **Linux**. On Windows, it runs as a native desktop app (PyInstaller executable). On macOS and Linux, install the Python package (`pip install spotyvibe-*.whl`) and run `spotyvibe` — it starts the server and opens your browser automatically.
 
 ![Main home screen](/docs/screenshots/01_main_home_screen.png)
 

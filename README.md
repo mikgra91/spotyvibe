@@ -81,11 +81,10 @@ The more you use it, the smarter it gets — every time you like or dislike a su
 | Platform | Method | Download |
 |---|---|---|
 | **Windows** | PyInstaller executable | `spotyvibe_onefile.exe` or `spotyvibe_package.zip` |
-| **macOS** | Source + launcher script | `SpotyVibe-macOS.zip` — extract, double-click `SpotyVibe.command` |
-| **Linux** | Source + launcher script | `SpotyVibe-Linux.tar.gz` — extract, run `./start.sh` |
+| **macOS / Linux** | Python package (wheel) | `spotyvibe-*.whl` — install with `pip install`, run with `spotyvibe` |
 | **Android** | Chaquopy APK | `spotyvibe.apk` |
 
-All downloads are attached to each [GitHub Release](../../releases). The macOS and Linux archives contain the application source, a launcher script that sets up a Python virtual environment automatically, and a `README.txt` with platform-specific installation instructions.
+All downloads are attached to each [GitHub Release](../../releases).
 
 ---
 
@@ -98,23 +97,18 @@ All downloads are attached to each [GitHub Release](../../releases). The macOS a
 3. A **Quick Start Guide** appears automatically for the active provider section — one for **OpenAI** (profile & analysis) and one for **Spotify** (generate, review, history). Each guide shows only the steps relevant to its provider and has its own "Don't show again" preference.
 4. To reopen the guide later, click **☰ → 🚀 Quick Start** (it opens the guide for whichever provider section is currently active).
 
-### macOS
+### macOS / Linux
 
-1. Install Python 3.10+ (e.g. `brew install python@3.12`).
-2. Double-click **`SpotyVibe.command`** in Finder — it creates a virtual environment on first run, installs dependencies, starts the server, and opens your browser.
-3. Press **Ctrl+C** in the Terminal window to stop.
+1. Install Python 3.10+ (`brew install python@3.12` on macOS, `sudo apt install python3 python3-pip` on Debian/Ubuntu).
+2. Download the `.whl` file from the latest [GitHub Release](../../releases).
+3. Install and run:
+   ```bash
+   pip install spotyvibe-*.whl
+   spotyvibe
+   ```
+4. The server starts and your browser opens to `http://127.0.0.1:5000`. Press **Ctrl+C** to stop.
 
-> **First launch:** macOS Gatekeeper may block the script. Right-click `SpotyVibe.command` → select **Open** → click **Open** in the dialog. This is only needed once.
-
-> **Port 5000:** macOS AirPlay Receiver uses port 5000 by default. If you see a port conflict, disable it: System Settings → General → AirDrop & Handoff → AirPlay Receiver → Off.
-
-### Linux
-
-1. Install Python 3.10+ and the venv module (e.g. `sudo apt install python3 python3-venv` on Debian/Ubuntu).
-2. Run `./start.sh` (or `bash start.sh`) — it creates a virtual environment on first run, installs dependencies, starts the server, and opens your browser.
-3. Press **Ctrl+C** to stop.
-
-> **Permissions:** If `./start.sh` says "Permission denied", run: `chmod +x start.sh build-tools/start.sh` or use `bash start.sh` directly.
+> **macOS port 5000:** AirPlay Receiver uses port 5000 by default. If you see a port conflict, disable it: System Settings → General → AirDrop & Handoff → AirPlay Receiver → Off.
 
 ---
 

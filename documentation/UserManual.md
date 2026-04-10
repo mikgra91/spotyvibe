@@ -64,45 +64,26 @@ You should see the SpotyVibe interface — a premium dark cinematic layout with 
 
 > **Accessibility note:** If you have reduced-motion preferences enabled in your operating system, all animations and transitions are automatically disabled.
 
-### macOS
+### macOS / Linux
 
-1. **Install Python 3.10+** if you have not already. The recommended way is via [Homebrew](https://brew.sh/):
-   ```
-   brew install python@3.12
-   ```
-   Alternatively, download the installer from [python.org](https://www.python.org/downloads/).
-
-2. **Double-click `SpotyVibe.command`** in Finder. On first launch:
-   - A Terminal window opens and creates a virtual environment (`.venv/`).
-   - Dependencies are installed automatically from `requirements-core.txt`.
-   - The Flask server starts and your default browser opens to `http://127.0.0.1:5000`.
-
-3. **Press Ctrl+C** in the Terminal window to stop the server.
-
-> **macOS Gatekeeper:** The first time you open `SpotyVibe.command`, macOS may block it with a warning. Right-click the file → select **Open** → click **Open** in the confirmation dialog. This is only required once — subsequent launches work normally.
-
-> **Port 5000 conflict:** macOS AirPlay Receiver uses port 5000 by default. If the launcher reports a port conflict, disable AirPlay Receiver: **System Settings → General → AirDrop & Handoff → AirPlay Receiver → Off**.
-
-### Linux
-
-1. **Install Python 3.10+** and the **venv module**:
-   - Debian/Ubuntu: `sudo apt install python3 python3-venv`
+1. **Install Python 3.10+** if you have not already:
+   - macOS (Homebrew): `brew install python@3.12`
+   - Debian/Ubuntu: `sudo apt install python3 python3-pip`
    - Fedora: `sudo dnf install python3`
    - Arch: `sudo pacman -S python`
 
-2. **Run the launcher** from the project root:
-   ```
-   ./start.sh
-   ```
-   Or, if the file does not have execute permission:
-   ```
-   bash start.sh
-   ```
-   On first launch, the script creates a virtual environment, installs dependencies, starts the server, and opens your default browser.
+2. **Download the `.whl` file** from the latest [GitHub Release](https://github.com/mikgra91/spotyvibe/releases).
 
-3. **Press Ctrl+C** to stop the server.
+3. **Install and run:**
+   ```
+   pip install spotyvibe-*.whl
+   spotyvibe
+   ```
+   The server starts and your default browser opens to `http://127.0.0.1:5000`.
 
-> **Headless / SSH:** If no display server is detected, the launcher skips opening a browser and prints the URL instead. Open `http://127.0.0.1:5000` in any browser that can reach the machine.
+4. **Press Ctrl+C** to stop the server.
+
+> **macOS port 5000:** AirPlay Receiver uses port 5000 by default. If SpotyVibe reports a port conflict, disable AirPlay Receiver: **System Settings → General → AirDrop & Handoff → AirPlay Receiver → Off**.
 
 ---
 
