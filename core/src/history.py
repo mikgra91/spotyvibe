@@ -28,16 +28,17 @@ CURRENT_SCHEMA_VERSION = 2
 def _migrate_track_rationale(track: dict) -> dict:
     """On-the-fly migration: convert legacy 'reason' to 'rationale' array.
 
-    Does NOT rewrite the file — transform is read-only.
+    Returns a new dict — the original is not mutated.
     """
     if "rationale" in track:
         return track
+    migrated = dict(track)
     reason = track.get("reason")
     if reason:
-        track["rationale"] = [{"type": "legacy", "arg": str(reason)}]
+        migrated["rationale"] = [{"type": "legacy", "arg": str(reason)}]
     else:
-        track["rationale"] = [{"type": "fallback"}]
-    return track
+        migrated["rationale"] = [{"type": "fallback"}]
+    return migrated
 
 
 def _load_history() -> list:
@@ -95,6 +96,5 @@ def load_runs() -> list:
     with _history_lock:
         raw = _load_history()
         for run in raw:
-            for track in run.get("tracks", []):
-                _migrate_track_rationale(track)
+            run["tracks"] = [_migrate_track_rationale(t) for t in run.get("tracks", [])]
         return list(reversed(raw))

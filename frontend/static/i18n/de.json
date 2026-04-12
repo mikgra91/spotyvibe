@@ -777,5 +777,18 @@
 
   "help.fallback_banner": "Diese Seite ist noch nicht übersetzt. Englische Version wird angezeigt.",
   "help.fallback_dismiss_title": "Schließen",
-  "help.language_indicator": "Sprache: {lang}"
+  "help.language_indicator": "Sprache: {lang}",
+
+  "guide.loading": "Laden…",
+  "guide.copy": "📋 Kopieren",
+  "guide.copied": "✓ Kopiert",
+  "guide.error_title": "Fehler beim Laden der Anleitung",
+  "guide.error_subtitle": "Bitte versuche es später erneut.",
+
+  "tip.dismiss": "Schließen",
+
+  "dashboard.tracks_unit": "Titel",
+
+  "provider.cred_label_tpl": "{provider} API-Schlüssel",
+  "provider.api_key_not_needed": "API-Schlüssel (nicht benötigt)"
 }

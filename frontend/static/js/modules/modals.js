@@ -350,6 +350,11 @@ export function dismissHelpBanner() {
     if (banner) banner.classList.add('hidden');
 }
 
+export function dismissSectionHelpBanner() {
+    const banner = document.getElementById('sectionHelpFallbackBanner');
+    if (banner) banner.classList.add('hidden');
+}
+
 /* ── Screenshot lightbox ── */
 
 /** Minimum natural dimension (px) to show as expandable thumbnail. */

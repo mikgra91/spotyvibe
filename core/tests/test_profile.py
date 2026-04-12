@@ -17,6 +17,7 @@ from core.src.profile import (
     create_profile,
     delete_profile,
     activate_profile,
+    draft_profile_from_playlist,
 )
 
 
@@ -521,4 +522,88 @@ class TestActivateProfile:
         import pytest
         with pytest.raises(ValueError, match="Invalid profile ID"):
             activate_profile("../../.credentials")
+
+
+class TestDraftProfileFromPlaylist:
+    """C8: Tests for draft_profile_from_playlist (Wave 3)."""
+
+    def test_returns_valid_structure_with_all_keys(self):
+        mock_gpt_json = json.dumps({
+            "core_description": "Upbeat melodic rock with strong hooks.",
+            "must_have": ["driving guitar", "strong melody", "high energy"],
+            "soft_preferences": ["indie rock", "alt rock"],
+            "avoid": [],
+            "vibe_description": "Energetic and anthemic."
+        })
+
+        summary = {
+            "name": "Test Playlist",
+            "track_count": 20,
+            "tracks": [],
+            "top_artists": ["Foo Fighters", "Muse"],
+            "top_genres": ["indie rock", "alt rock"],
+            "energy": 0.8,
+            "valence": 0.6,
+            "tempo": 120.0,
+            "moods": ["upbeat", "energetic"],
+        }
+
+        with patch("core.src.profile.chat_completions_create") as mock_create, \
+             patch("core.src.profile.extract_chat_content", return_value=mock_gpt_json), \
+             patch("core.src.profile.get_model", return_value="gpt-4o-mini"), \
+             patch("core.src.profile.SEED_PROMPT_FILE") as mock_file:
+            mock_file.read_text.return_value = (
+                "Playlist: {name}, {count} tracks. "
+                "Artists: {top_artists_list}. Genres: {top_genres_list}. "
+                "Energy: {energy}, Valence: {valence}, Tempo: {tempo}. "
+                "Moods: {moods}"
+            )
+            mock_create.return_value = {"choices": [{"message": {"content": mock_gpt_json}}]}
+
+            result = draft_profile_from_playlist(summary)
+
+        assert isinstance(result, dict)
+        assert "core_description" in result
+        assert "must_have" in result
+        assert "soft_preferences" in result
+        assert "avoid" in result
+        assert "vibe_description" in result
+        assert result["avoid"] == []
+        assert len(result["must_have"]) <= 3
+
+    def test_caps_must_have_at_3(self):
+        mock_gpt_json = json.dumps({
+            "core_description": "Test",
+            "must_have": ["a", "b", "c", "d", "e"],
+            "soft_preferences": [],
+            "avoid": ["should be removed"],
+            "vibe_description": ""
+        })
+
+        summary = {
+            "name": "Big List",
+            "track_count": 50,
+            "tracks": [],
+            "top_artists": [],
+            "top_genres": [],
+            "energy": 0.5,
+            "valence": 0.5,
+            "tempo": 100.0,
+            "moods": [],
+        }
+
+        with patch("core.src.profile.chat_completions_create") as mock_create, \
+             patch("core.src.profile.extract_chat_content", return_value=mock_gpt_json), \
+             patch("core.src.profile.get_model", return_value="gpt-4o-mini"), \
+             patch("core.src.profile.SEED_PROMPT_FILE") as mock_file:
+            mock_file.read_text.return_value = (
+                "{name}{count}{top_artists_list}{top_genres_list}"
+                "{energy}{valence}{tempo}{moods}"
+            )
+            mock_create.return_value = {}
+
+            result = draft_profile_from_playlist(summary)
+
+        assert len(result["must_have"]) == 3
+        assert result["avoid"] == []
 

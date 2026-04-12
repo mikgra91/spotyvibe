@@ -660,7 +660,7 @@ python -m core.feedback dislike "Artist Name" --reason "why"
 
 ---
 
-## Troubleshooting
+## Advanced Features
 
 ### Playlist-Seeded Profiles (Wave 3)
 

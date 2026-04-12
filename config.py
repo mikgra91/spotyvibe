@@ -494,7 +494,7 @@ def save_credentials(credentials):
     load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
     # Re-overlay keyring so os.environ has the real values
     if _KEYRING_AVAILABLE:
-        for key in CREDENTIALS_KEYS:
+        for key in CREDENTIAL_KEYS:
             try:
                 val = _keyring.get_password(_KEYRING_SERVICE, key)
                 if val:

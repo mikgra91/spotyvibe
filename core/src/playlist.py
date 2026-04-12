@@ -431,25 +431,12 @@ def get_user_playlists():
     """Return the current user's Spotify playlists as a list of dicts.
 
     Returns: [{"id": "...", "name": "...", "track_count": N}]
+
+    Delegates to fetch_user_playlists() and strips fields not needed by
+    the playlist management UI (owner, cover_url).
     """
-    sp = get_spotify_client()
-    result = []
-    offset = 0
-    while True:
-        playlists = sp.current_user_playlists(limit=50, offset=offset)
-        for pl in playlists.get("items", []):
-            # Feb 2026: Spotify renamed the summary field from "tracks" to
-            # "items".  Try the new key first, fall back to old.
-            summary = pl.get("items") or pl.get("tracks") or {}
-            result.append({
-                "id": pl["id"],
-                "name": pl["name"],
-                "track_count": summary.get("total", 0) if isinstance(summary, dict) else 0,
-            })
-        if playlists.get("next") is None:
-            break
-        offset += 50
-    return result
+    rich = fetch_user_playlists(limit=500)
+    return [{"id": p["id"], "name": p["name"], "track_count": p["track_count"]} for p in rich]
 
 
 def get_playlist_tracks(playlist_id):
@@ -616,23 +603,31 @@ def fetch_user_playlists(limit=50):
     """Fetch the current user's playlists for the seed-from-playlist picker.
 
     Returns a list of dicts: {id, name, owner, track_count, cover_url}.
+    Paginates when the user has more playlists than *limit*.
     """
     sp = get_spotify_client()
-    results = sp.current_user_playlists(limit=limit)
     playlists = []
-    for item in results.get("items", []):
-        if not item:
-            continue
-        images = item.get("images") or []
-        cover_url = images[0]["url"] if images else ""
-        owner = (item.get("owner") or {}).get("display_name", "")
-        playlists.append({
-            "id": item["id"],
-            "name": item.get("name", ""),
-            "owner": owner,
-            "track_count": (item.get("tracks") or {}).get("total", 0),
-            "cover_url": cover_url,
-        })
+    offset = 0
+    while True:
+        results = sp.current_user_playlists(limit=min(limit - len(playlists), 50), offset=offset)
+        for item in results.get("items", []):
+            if not item:
+                continue
+            images = item.get("images") or []
+            cover_url = images[0]["url"] if images else ""
+            owner = (item.get("owner") or {}).get("display_name", "")
+            # Feb 2026: Spotify moved the summary from "tracks" to "items".
+            summary = item.get("items") or item.get("tracks") or {}
+            playlists.append({
+                "id": item["id"],
+                "name": item.get("name", ""),
+                "owner": owner,
+                "track_count": summary.get("total", 0) if isinstance(summary, dict) else 0,
+                "cover_url": cover_url,
+            })
+        if results.get("next") is None or len(playlists) >= limit:
+            break
+        offset += 50
     return playlists
 
 

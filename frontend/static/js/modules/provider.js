@@ -38,6 +38,15 @@ export function onProviderChange() {
     const keyHint = document.getElementById('settings-api-key-hint');
     if (keyHint) keyHint.textContent = i18n(`provider.api_key_hint_${preset}`, '');
 
+    // Update credentials modal label dynamically (Wave 4 E.1)
+    const credLabel = document.getElementById('label-OPENAI_API_KEY');
+    if (credLabel) {
+        const providerName = i18n(p.name_i18n, preset);
+        credLabel.textContent = p.local
+            ? i18n('provider.api_key_not_needed', 'API Key (not needed)')
+            : i18n('provider.cred_label_tpl', '{provider} API Key').replace('{provider}', providerName);
+    }
+
     // Local notice
     const notice = document.getElementById('providerLocalNotice');
     if (notice) notice.classList.toggle('hidden', !p.local);

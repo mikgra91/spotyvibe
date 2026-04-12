@@ -696,9 +696,6 @@ def draft_profile_from_playlist(summary: dict) -> dict:
         moods=moods,
     )
 
-    from .openai_http import chat_completions_create, extract_chat_content
-    from .utils import strip_code_fences
-
     response = chat_completions_create(
         model=get_model(),
         messages=[
@@ -712,8 +709,7 @@ def draft_profile_from_playlist(summary: dict) -> dict:
     raw = extract_chat_content(response)
     content = strip_code_fences(raw)
 
-    import json as _json
-    result = _json.loads(content)
+    result = json.loads(content)
 
     # Enforce shape constraints
     draft = {

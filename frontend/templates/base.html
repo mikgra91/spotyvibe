@@ -104,6 +104,11 @@
         <div class="section-help-wrapper">
             <button class="help-close-btn" onclick="closeSectionHelp()" aria-label="Close">✕</button>
             <div class="modal section-help-popup">
+                <div class="help-fallback-banner hidden" id="sectionHelpFallbackBanner" role="status" aria-live="polite">
+                    <span class="help-fallback-icon" aria-hidden="true">🌐</span>
+                    <span class="help-fallback-text" data-i18n="help.fallback_banner">This page isn't translated yet. Showing English.</span>
+                    <button class="help-fallback-close" onclick="dismissSectionHelpBanner()" aria-label="Dismiss" data-i18n-title="help.fallback_dismiss_title" title="Dismiss">✕</button>
+                </div>
                 <div id="sectionHelpContent" class="help-content">
                     <p class="help-loading-text" data-i18n="help.loading">Loading…</p>
                 </div>

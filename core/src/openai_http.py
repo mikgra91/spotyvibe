@@ -79,6 +79,11 @@ def _get_base_url() -> str:
         return _BASE_URL
 
 
+def _is_openai_provider() -> bool:
+    """Return True when the configured base URL points to OpenAI's API."""
+    return _get_base_url().rstrip("/") == _BASE_URL
+
+
 def _get_api_key() -> str:
     key = os.getenv("OPENAI_API_KEY")
     if not key:
@@ -86,7 +91,7 @@ def _get_api_key() -> str:
         try:
             from config import llm_api_key_required
             if not llm_api_key_required():
-                return "ollama"  # dummy token for compatibility
+                return "not-needed"  # placeholder for Authorization header
         except (ImportError, Exception):
             pass
         raise OpenAIConfigError(
@@ -159,7 +164,7 @@ def _request_json(method: str, path: str, body=None, retries: int = 1) -> dict:
             try:
                 body_bytes = exc.read()
                 body_str = body_bytes.decode("utf-8", errors="replace")
-            except Exception:
+            except (IOError, ValueError, OSError):
                 body_str = ""
 
             # 401 — bad API key, raise immediately (no retry)
@@ -251,13 +256,17 @@ def chat_completions_create(
         OpenAIRequestError: Other HTTP or network error.
         OpenAITimeoutError: Request timed out.
     """
-    from config import OPENAI_SUPPORTED_MODELS_JSON, OPENAI_EXTRA_ALLOWED_MODELS
-    allowed = set(OPENAI_SUPPORTED_MODELS_JSON) | set(OPENAI_EXTRA_ALLOWED_MODELS)
-    if model not in allowed:
-        raise OpenAIUnsupportedModelError(
-            f"Model '{model}' is not in the supported model list. "
-            "Select a supported model in ⚙️ Settings."
-        )
+    # Model allowlist only applies when targeting OpenAI's API.
+    # Non-OpenAI providers (Ollama, LM Studio, Groq, etc.) use their own
+    # model IDs which are not in the curated OpenAI list.
+    if _is_openai_provider():
+        from config import OPENAI_SUPPORTED_MODELS_JSON, OPENAI_EXTRA_ALLOWED_MODELS
+        allowed = set(OPENAI_SUPPORTED_MODELS_JSON) | set(OPENAI_EXTRA_ALLOWED_MODELS)
+        if model not in allowed:
+            raise OpenAIUnsupportedModelError(
+                f"Model '{model}' is not in the supported model list. "
+                "Select a supported model in ⚙️ Settings."
+            )
 
     payload: dict = {
         "model": model,

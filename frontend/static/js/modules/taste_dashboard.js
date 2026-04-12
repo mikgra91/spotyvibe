@@ -13,6 +13,10 @@ const CHART_COLOURS = [
 let _loaded = false;
 let _tooltipEl = null;
 
+function _esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 function _ensureTooltip() {
     if (!_tooltipEl) {
         _tooltipEl = document.createElement('div');
@@ -61,7 +65,7 @@ function renderDonut(container, genres) {
         const iy2 = cy + innerR * Math.sin(startAngle);
 
         const d = `M${x1},${y1} A${outerR},${outerR} 0 ${largeArc},1 ${x2},${y2} L${ix1},${iy1} A${innerR},${innerR} 0 ${largeArc},0 ${ix2},${iy2} Z`;
-        svg += `<path d="${d}" fill="${CHART_COLOURS[i % CHART_COLOURS.length]}" data-genre="${g.genre}" data-count="${g.count}" role="button" aria-label="${g.genre}, ${g.count} tracks" style="cursor:pointer"/>`;
+        svg += `<path d="${d}" fill="${CHART_COLOURS[i % CHART_COLOURS.length]}" data-genre="${_esc(g.genre)}" data-count="${g.count}" role="button" aria-label="${_esc(g.genre)}, ${g.count} ${i18n('dashboard.tracks_unit', 'tracks')}" style="cursor:pointer"/>`;
         startAngle = endAngle;
     });
     svg += `</svg>`;
@@ -71,7 +75,7 @@ function renderDonut(container, genres) {
     genres.forEach((g, i) => {
         legend += `<div class="dashboard-legend-row">
             <span class="legend-swatch" style="background:${CHART_COLOURS[i % CHART_COLOURS.length]}"></span>
-            <span>${g.genre}</span><span style="margin-left:auto">${g.count}</span>
+            <span>${_esc(g.genre)}</span><span style="margin-left:auto">${g.count}</span>
         </div>`;
     });
     legend += '</div>';
@@ -80,7 +84,7 @@ function renderDonut(container, genres) {
 
     // Tooltip on hover
     container.querySelectorAll('path[data-genre]').forEach(path => {
-        path.addEventListener('pointermove', e => _showTooltip(e, `${path.dataset.genre} — ${path.dataset.count} tracks`));
+        path.addEventListener('pointermove', e => _showTooltip(e, `${path.dataset.genre} — ${path.dataset.count} ${i18n('dashboard.tracks_unit', 'tracks')}`));
         path.addEventListener('pointerleave', _hideTooltip);
     });
 }
@@ -107,7 +111,7 @@ function renderScatter(container, points) {
     points.forEach(p => {
         const x = pad + p.valence * chartW;
         const y = (h - pad) - p.energy * chartH;
-        svg += `<circle cx="${x}" cy="${y}" r="4" fill="var(--primary)" fill-opacity="0.6" stroke="var(--primary)" stroke-opacity="0.9" stroke-width="1" data-artist="${p.artist}" data-title="${p.title}" style="cursor:pointer"/>`;
+        svg += `<circle cx="${x}" cy="${y}" r="4" fill="var(--primary)" fill-opacity="0.6" stroke="var(--primary)" stroke-opacity="0.9" stroke-width="1" data-artist="${_esc(p.artist)}" data-title="${_esc(p.title)}" style="cursor:pointer"/>`;
     });
     svg += `</svg>`;
 
@@ -148,7 +152,7 @@ function renderBars(container, decades) {
     container.innerHTML = `<h4>${i18n('dashboard.card_decades', 'Decades')}</h4>${svg}`;
 
     container.querySelectorAll('rect[data-decade]').forEach(rect => {
-        rect.addEventListener('pointermove', e => _showTooltip(e, `${rect.dataset.decade} — ${rect.dataset.count} tracks`));
+        rect.addEventListener('pointermove', e => _showTooltip(e, `${rect.dataset.decade} — ${rect.dataset.count} ${i18n('dashboard.tracks_unit', 'tracks')}`));
         rect.addEventListener('pointerleave', _hideTooltip);
     });
 }
@@ -162,6 +166,7 @@ async function loadDashboard() {
 
     try {
         const resp = await fetch('/api/taste/aggregate');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
 
         if (data.tracks_considered < 10) {

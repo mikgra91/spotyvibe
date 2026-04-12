@@ -1,5 +1,11 @@
 /* setup_guide.js — Owner of detail-overlay open/close, copy-to-clipboard, keyboard (Esc) */
 
+/* i18n helper — delegates to the global i18n if available (loaded by main.js) */
+function _sgI18n(key, fallback) {
+    if (typeof window._i18n === 'function') return window._i18n(key, fallback);
+    return fallback;
+}
+
 /**
  * Open the setup guide overlay and load guide content from the server.
  * @param {string} slug - Guide identifier (e.g., 'openai_api_key', 'spotify_developer_app')
@@ -16,7 +22,7 @@ function openSetupGuide(slug) {
     const stepsEl = document.getElementById('setupGuideSteps');
 
     // Show loading state
-    if (titleEl) titleEl.textContent = 'Loading…';
+    if (titleEl) titleEl.textContent = _sgI18n('guide.loading', 'Loading…');
     if (subtitleEl) subtitleEl.textContent = '';
     if (stepsEl) stepsEl.innerHTML = '';
 
@@ -72,7 +78,7 @@ function openSetupGuide(slug) {
 
                         const btn = document.createElement('button');
                         btn.className = 'btn-copy';
-                        btn.textContent = '📋 Copy';
+                        btn.textContent = _sgI18n('guide.copy', '📋 Copy');
                         btn.onclick = function () {
                             _copyToClipboard(step.copy, btn);
                         };
@@ -89,8 +95,8 @@ function openSetupGuide(slug) {
             }
         })
         .catch(() => {
-            if (titleEl) titleEl.textContent = 'Error loading guide';
-            if (subtitleEl) subtitleEl.textContent = 'Please try again later.';
+            if (titleEl) titleEl.textContent = _sgI18n('guide.error_title', 'Error loading guide');
+            if (subtitleEl) subtitleEl.textContent = _sgI18n('guide.error_subtitle', 'Please try again later.');
         });
 }
 
@@ -111,7 +117,7 @@ function closeSetupGuide() {
 function _copyToClipboard(text, btn) {
     navigator.clipboard.writeText(text).then(() => {
         const original = btn.textContent;
-        btn.textContent = '✓ Copied';
+        btn.textContent = _sgI18n('guide.copied', '✓ Copied');
         setTimeout(() => {
             btn.textContent = original;
         }, 1500);
@@ -126,7 +132,7 @@ function _copyToClipboard(text, btn) {
         document.execCommand('copy');
         document.body.removeChild(ta);
         const original = btn.textContent;
-        btn.textContent = '✓ Copied';
+        btn.textContent = _sgI18n('guide.copied', '✓ Copied');
         setTimeout(() => {
             btn.textContent = original;
         }, 1500);
@@ -167,6 +173,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (e.key === 'Escape') {
             const overlay = document.getElementById('setupGuideOverlay');
             if (overlay && overlay.classList.contains('open')) {
+                e.stopImmediatePropagation();
                 closeSetupGuide();
             }
         }

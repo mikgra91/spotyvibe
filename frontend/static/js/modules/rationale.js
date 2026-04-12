@@ -18,11 +18,15 @@ function truncate(str, max) {
     return str.length > max ? str.slice(0, max) + '…' : str;
 }
 
+function _escHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function renderChip(chip) {
     const type = chip.type || 'fallback';
     const templateKey = 'explain.' + type;
     const template = i18n(templateKey, defaultTemplateByType[type] || '{arg}');
-    const label = template.replace('{arg}', truncate(chip.arg || '', 40));
+    const label = _escHtml(template.replace('{arg}', truncate(chip.arg || '', 40)));
 
     return `<span class="rationale-chip rationale-chip--${type}">
         <span class="rationale-chip-dot" aria-hidden="true"></span>

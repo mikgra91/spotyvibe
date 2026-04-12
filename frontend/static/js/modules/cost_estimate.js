@@ -130,11 +130,19 @@ export function init() {
     const modelFreetext = document.getElementById('settings-model-freetext');
     if (modelFreetext) modelFreetext.addEventListener('input', _debouncedRefresh);
 
+    // Size sliders → refresh cost estimate
+    ['genSizeQuick', 'genSizeAdvanced', 'settings-playlist-size'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', _debouncedRefresh);
+    });
+
     // Settings modal open → refresh
     const settingsModal = document.getElementById('settingsModal');
     if (settingsModal) {
         const observer = new MutationObserver(() => {
             if (settingsModal.classList.contains('open')) _refresh();
+            // Disconnect if modal is removed from DOM
+            if (!document.body.contains(settingsModal)) observer.disconnect();
         });
         observer.observe(settingsModal, { attributes: true, attributeFilter: ['class'] });
     }

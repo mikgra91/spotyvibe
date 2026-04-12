@@ -72,7 +72,10 @@ function obGoPage(idx) {
     });
 
     // Step-specific activations
-    if (idx === 5) obLoadModels();
+    if (idx === 5) {
+        obLoadModels();
+        _obInitCostWidget();
+    }
     if (idx === 6) obBuildSummary();
 }
 
@@ -279,6 +282,23 @@ function _setObSpotifyState(connected) {
         if (statusEl) {
             statusEl.textContent = '';
             statusEl.className = 'ob-explain';
+        }
+    }
+    // Toggle seed-from-playlist card on step 5
+    const seedCard = document.getElementById('obSeedPlaylistCard');
+    const seedAction = seedCard ? seedCard.querySelector('.ob-seed-action') : null;
+    const seedHint = document.getElementById('obSeedConnectHint');
+    if (seedCard) {
+        if (connected) {
+            seedCard.classList.remove('ob-seed-card--disabled');
+            seedCard.style.opacity = '';
+            if (seedAction) seedAction.classList.remove('hidden');
+            if (seedHint) seedHint.classList.add('hidden');
+        } else {
+            seedCard.classList.add('ob-seed-card--disabled');
+            seedCard.style.opacity = '0.55';
+            if (seedAction) seedAction.classList.add('hidden');
+            if (seedHint) seedHint.classList.remove('hidden');
         }
     }
 }
@@ -534,9 +554,35 @@ async function prefillCredentials() {
     } catch (e) { /* ignore */ }
 }
 
+/* ── Step 6 — Provider & Cost Widget ──────────────────────────── */
+
+function _obInitCostWidget() {
+    const modelSelect = document.getElementById('ob-model-select');
+    const model = modelSelect ? modelSelect.value : 'gpt-4o-mini';
+    if (typeof window._obEstimateCost === 'function') {
+        window._obEstimateCost(model, 25);
+    }
+    // Re-estimate on model change
+    if (modelSelect && !modelSelect._obCostWired) {
+        modelSelect.addEventListener('change', () => {
+            if (typeof window._obEstimateCost === 'function') {
+                window._obEstimateCost(modelSelect.value, 25);
+            }
+        });
+        modelSelect._obCostWired = true;
+    }
+}
+window._obInitCostWidget = _obInitCostWidget;
+
+function onObProviderChange(preset) {
+    const urlRow = document.getElementById('obBaseUrlRow');
+    if (urlRow) urlRow.classList.toggle('hidden', preset !== 'custom');
+}
+window.onObProviderChange = onObProviderChange;
+
 /* ── Init ─────────────────────────────────────────────────────── */
 
-(async function() {
+(async function () {
     // Check onboarding status (redirect if completed and not replay)
     const isReplay = new URLSearchParams(location.search).get('replay') === '1';
     try {

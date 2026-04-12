@@ -6,6 +6,7 @@ import { showToast } from './ui.js';
 
 let _selectedPlaylistId = null;
 let _currentSource = 'profile';
+let _hasExistingProfile = false;
 
 /**
  * Open the playlist seed picker modal.
@@ -27,6 +28,16 @@ export async function openPlaylistSeedPicker(source) {
     if (loader) loader.classList.add('hidden');
     if (confirmBtn) confirmBtn.disabled = true;
     if (warn) warn.classList.add('hidden');
+
+    // Check if profile is non-empty to show replace warning on selection
+    _hasExistingProfile = false;
+    try {
+        const profileResp = await fetch('/api/profile/status');
+        if (profileResp.ok) {
+            const profileData = await profileResp.json();
+            _hasExistingProfile = profileData.trained === true;
+        }
+    } catch { /* ignore */ }
 
     // Fetch playlists
     try {
@@ -67,6 +78,9 @@ function _selectPlaylist(li, playlistId) {
     _selectedPlaylistId = playlistId;
     const confirmBtn = document.getElementById('playlistSeedConfirmBtn');
     if (confirmBtn) confirmBtn.disabled = false;
+    // Show replace warning if profile is non-empty
+    const warn = document.querySelector('.playlist-seed-replace-warn');
+    if (warn) warn.classList.toggle('hidden', !_hasExistingProfile);
 }
 
 /**

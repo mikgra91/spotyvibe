@@ -17,6 +17,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/onboarding.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/setup_guide.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/playlist_seed.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cost_estimate.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/provider.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
 </head>
 <body class="onboarding-body" style="background: var(--bg-deep); min-height: 100vh;">
@@ -310,9 +313,42 @@
                     <div class="ob-model-hint" data-i18n="ob.model_hint">You can change this anytime from the gear menu.</div>
                 </div>
 
-                <div class="ob-cost-placeholder">
-                    <span class="ob-cost-icon" aria-hidden="true">💰</span>
-                    <span class="ob-cost-text" data-i18n="ob.cost_placeholder">Per-generation cost estimates coming in a future update.</span>
+                <details class="learn-more" id="obProviderExpandable" style="margin-top: 16px;">
+                    <summary data-i18n="provider.use_different">Use a different provider…</summary>
+                    <div class="learn-more-body" style="margin-top: 12px;">
+                        <div class="form-row">
+                            <label for="ob-provider-select" data-i18n="provider.label">Provider</label>
+                            <select id="ob-provider-select" onchange="onObProviderChange(this.value)">
+                                <option value="openai" data-i18n="provider.openai">OpenAI</option>
+                                <option value="ollama" data-i18n="provider.ollama">Ollama (local)</option>
+                                <option value="lmstudio" data-i18n="provider.lmstudio">LM Studio (local)</option>
+                                <option value="groq" data-i18n="provider.groq">Groq</option>
+                                <option value="openrouter" data-i18n="provider.openrouter">OpenRouter</option>
+                                <option value="custom" data-i18n="provider.custom">Custom…</option>
+                            </select>
+                            <p class="inline-hint" data-i18n="provider.hint">Pick where SpotyVibe gets its AI from.</p>
+                        </div>
+                        <div class="form-row hidden" id="obBaseUrlRow">
+                            <label for="ob-base-url" data-i18n="provider.base_url_label">Base URL</label>
+                            <input id="ob-base-url" type="text" placeholder="https://api.example.com/v1" autocomplete="off">
+                            <p class="inline-hint" data-i18n="provider.base_url_hint">Full URL ending in /v1.</p>
+                        </div>
+                    </div>
+                </details>
+
+                <div id="obCostEstimateMount" class="cost-estimate-card" style="margin-top: 16px;">
+                    <div class="cost-estimate-header">
+                        <span class="cost-estimate-icon" aria-hidden="true">💰</span>
+                        <h3 class="cost-estimate-title" data-i18n="cost.title">Estimated cost per generation</h3>
+                    </div>
+                    <dl class="cost-estimate-list">
+                        <dt data-i18n="cost.model">Model</dt><dd id="obCostModel">—</dd>
+                        <dt data-i18n="cost.tracks">Suggestions</dt><dd id="obCostTracks">25 tracks</dd>
+                        <dt data-i18n="cost.total" class="cost-total-label">Estimated cost</dt>
+                        <dd id="obCostTotal" class="cost-total-value">—</dd>
+                    </dl>
+                    <p class="cost-estimate-disclaimer" data-i18n="cost.assumed_profile">Based on a typical 75-token profile. Your actual runs will be higher or lower.</p>
+                    <p class="cost-estimate-unavailable hidden" id="obCostUnavailable" data-i18n="cost.unavailable">Cost estimate unavailable for this model.</p>
                 </div>
 
                 <div class="ob-nav">
@@ -400,7 +436,48 @@
 
 {% include "modals/privacy_modal.html" %}
 {% include "modals/setup_guide_overlay.html" %}
+{% include "modals/playlist_seed_modal.html" %}
 
+<script type="module">
+    // Bridge: expose playlist_seed and cost_estimate functions to onboarding
+    import { openPlaylistSeedPicker, confirmPlaylistSeed } from '{{ url_for("static", filename="js/modules/playlist_seed.js") }}';
+    import { estimate, getPricing } from '{{ url_for("static", filename="js/modules/cost_estimate.js") }}';
+
+    // Expose playlist seed functions globally
+    window.openPlaylistSeedPicker = openPlaylistSeedPicker;
+    window.confirmPlaylistSeed = confirmPlaylistSeed;
+
+    // Lightweight closeModal shim (modals.js not loaded in onboarding)
+    if (!window.closeModal) {
+        window.closeModal = function(id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('open');
+        };
+    }
+
+    // Expose cost estimate for onboarding step 6
+    window._obEstimateCost = async function(model, tracks) {
+        const result = await estimate({ model, profileText: '', tracks: tracks || 25 });
+        const mount = document.getElementById('obCostEstimateMount');
+        if (!mount) return;
+        const modelEl = document.getElementById('obCostModel');
+        const totalEl = document.getElementById('obCostTotal');
+        const tracksEl = document.getElementById('obCostTracks');
+        const unavail = document.getElementById('obCostUnavailable');
+        if (result) {
+            if (modelEl) modelEl.textContent = result.model;
+            if (tracksEl) tracksEl.textContent = result.tracks + ' tracks';
+            if (totalEl) totalEl.textContent = '≈ $' + result.cost.toFixed(4);
+            if (unavail) unavail.classList.add('hidden');
+        } else {
+            if (modelEl) modelEl.textContent = model || '—';
+            if (totalEl) totalEl.textContent = '—';
+            if (unavail) unavail.classList.remove('hidden');
+        }
+    };
+    // Preload pricing
+    getPricing();
+</script>
 <script src="{{ url_for('static', filename='js/modules/setup_guide.js') }}"></script>
 <script src="{{ url_for('static', filename='js/modules/onboarding.js') }}"></script>
 </body>

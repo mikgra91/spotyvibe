@@ -7,11 +7,11 @@ import { showToast } from './ui.js';
 const SUPPORT = (typeof window !== 'undefined')
     && (window.SpeechRecognition || window.webkitSpeechRecognition);
 
-export function isSupported() { return !!SUPPORT; }
 
 const LANG_MAP = { en: 'en-US', de: 'de-DE' };
 
 let _current = null;
+let _lastProcessedIdx = 0;
 
 function _getUiLang() {
     try { return localStorage.getItem('svLang') || 'en'; } catch { return 'en'; }
@@ -32,6 +32,7 @@ export function toggleVoice(targetInputId) {
     const srStatus = document.getElementById('voiceSrStatus');
 
     rec.onstart = () => {
+        _lastProcessedIdx = 0;
         if (button) {
             button.classList.add('voice-btn--recording');
             button.setAttribute('aria-pressed', 'true');
@@ -65,10 +66,15 @@ export function toggleVoice(targetInputId) {
 
 function _appendTranscriptAtCursor(textarea, results) {
     if (!textarea) return;
+    // Only process new results since the last call to avoid duplicates
+    // when continuous=true (onresult fires with ALL results each time).
     const transcript = Array.from(results)
+        .slice(_lastProcessedIdx)
         .filter(r => r.isFinal)
         .map(r => r[0].transcript)
         .join(' ');
+    // Advance the index past all results we've seen (final or interim)
+    _lastProcessedIdx = results.length;
     if (!transcript) return;
 
     const start = textarea.selectionStart || textarea.value.length;
@@ -98,7 +104,6 @@ export function init() {
     // Hide on WebView (Android)
     if (/; wv\)/.test(navigator.userAgent)) {
         btn.classList.add('hidden');
-        return;
     }
 }
 

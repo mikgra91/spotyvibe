@@ -114,7 +114,7 @@ function _showTip(tip) {
             <div class="toast-tip-body">${i18n(tip.body_i18n, '')}</div>
             <button class="toast-tip-link" id="tipToastLink">${i18n(tip.link_i18n, 'Open →')}</button>
         </div>
-        <button class="toast-tip-close" aria-label="Dismiss" id="tipToastClose">✕</button>
+        <button class="toast-tip-close" aria-label="${i18n('tip.dismiss', 'Dismiss')}" id="tipToastClose">✕</button>
     `;
     document.body.appendChild(el);
 

@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from flask import Flask, Response, render_template, jsonify, request, redirect, stream_with_context, send_from_directory
 from config import (
     load_config, get_credentials, save_credentials, save_settings,
-    CREDENTIALS_FILE, SETTINGS_FILE,
+    CREDENTIALS_FILE,
     BATCH_SIZE, BASE_DIR, get_model, get_settings, get_debug_mode,
     get_playlist_size, DEBUG_LOG_FILE, MAX_CONSECUTIVE_EMPTY_BATCHES,
     get_new_artist_percentage, get_gpt_language, IS_ANDROID, PROFILE_IMPORT_MAX_BYTES,
@@ -98,6 +98,7 @@ from core.src.playlist import (
     get_spotify_auth_status, get_spotify_auth_url, handle_spotify_callback,
     disconnect_spotify, get_user_playlists, get_playlist_tracks,
     filter_emerging_artists, fetch_user_playlists, fetch_playlist_items_for_seed,
+    get_spotify_client,
 )
 from core.src.taste import aggregate_taste
 
@@ -125,6 +126,10 @@ _MODELS_CACHE_TTL = 300  # 5 minutes
 _runs: dict = {}
 _runs_lock = threading.Lock()
 _STALE_RUN_SECONDS = 600  # 10 minutes
+
+# Persistent song list file and lock
+_SONGLIST_FILE = _get_app_dir() / "songlist.json"
+_songlist_lock = threading.Lock()
 
 
 def _sweep_stale_runs():
@@ -520,9 +525,13 @@ def run_pipeline():
                     emerging_only=emerging_only,
                 )
                 gpt_call_count += 1
-                # Adaptive temperature: lower on retries for more deterministic output
+                # Adaptive temperature: lower on retries for more deterministic output.
+                # When the user explicitly sets a temperature, use their value as the
+                # baseline and allow it to go as low as 0.0.  The 0.3 floor only
+                # applies to the server default (no user override).
                 base_temp = client_temperature if client_temperature is not None else 0.7
-                temperature = max(0.3, base_temp - (consecutive_empty_batches * 0.2))
+                floor = 0.0 if client_temperature is not None else 0.3
+                temperature = max(floor, base_temp - (consecutive_empty_batches * 0.2))
                 result = call_gpt(messages, temperature=temperature)
 
                 # ── Check again after the blocking GPT call ──
@@ -685,14 +694,15 @@ def run_pipeline():
 
             # Append new tracks to the persistent song list (best-effort)
             try:
-                if _SONGLIST_FILE.exists():
-                    existing_songs = json.loads(_SONGLIST_FILE.read_text(encoding="utf-8"))
-                else:
-                    existing_songs = []
-                combined = existing_songs + visible_playlist
-                combined = combined[-MAX_SONG_LIST_SIZE:]  # keep newest, drop oldest
-                _SONGLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
-                _SONGLIST_FILE.write_text(json.dumps(combined, ensure_ascii=False, indent=2), encoding="utf-8")
+                with _songlist_lock:
+                    if _SONGLIST_FILE.exists():
+                        existing_songs = json.loads(_SONGLIST_FILE.read_text(encoding="utf-8"))
+                    else:
+                        existing_songs = []
+                    combined = existing_songs + visible_playlist
+                    combined = combined[-MAX_SONG_LIST_SIZE:]  # keep newest, drop oldest
+                    _SONGLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
+                    _SONGLIST_FILE.write_text(json.dumps(combined, ensure_ascii=False, indent=2), encoding="utf-8")
             except Exception:
                 pass
 
@@ -917,8 +927,16 @@ def fetch_llm_models():
     if not base_url:
         return jsonify({"error": "base_url is required"}), 400
 
+    # SSRF mitigation: only allow https:// or http:// on localhost/127.0.0.1
+    from urllib.parse import urlparse
+    parsed = urlparse(base_url)
+    is_local = parsed.hostname in ("localhost", "127.0.0.1")
+    if parsed.scheme == "http" and not is_local:
+        return jsonify({"error": "Only HTTPS is allowed for remote providers."}), 400
+    if parsed.scheme not in ("http", "https"):
+        return jsonify({"error": "Invalid URL scheme."}), 400
+
     # Determine timeout: 2s for localhost, 5s for remote
-    is_local = "localhost" in base_url or "127.0.0.1" in base_url
     timeout = 2 if is_local else 5
 
     models_url = base_url.rstrip("/") + "/models"
@@ -1284,7 +1302,6 @@ def api_seed_from_playlist():
         # Note: audio features API was removed Feb 2026, so we pass descriptive values
         top_genres = []
         try:
-            from core.src.playlist import get_spotify_client
             sp = get_spotify_client()
             artist_ids = summary.get("artist_ids", [])[:50]
             if artist_ids:
@@ -1333,7 +1350,6 @@ def api_taste_aggregate():
 
 
 
-_SONGLIST_FILE = _get_app_dir() / "songlist.json"
 
 
 @app.route("/api/songlist")

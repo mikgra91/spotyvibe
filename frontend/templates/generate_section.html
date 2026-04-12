@@ -250,6 +250,11 @@
         <button class="btn-run" id="runBtn" onclick="runPipeline()" {% if not can_generate %}disabled{% endif %}><span aria-hidden="true">▶</span> <span data-i18n="btn.generate">Generate &amp; Create Playlist</span></button>
         <button class="btn-run-cancel hidden" id="cancelBtn" onclick="cancelGeneration()"><span aria-hidden="true">⛔</span> <span data-i18n="btn.cancel_generation">Cancel</span></button>
         <button class="btn-use-tracks hidden" id="useTracksBtn" onclick="useCurrentTracks()"><span aria-hidden="true">▶</span> Use 0 tracks now</button>
+        <p class="cost-footnote hidden" id="costFootnote">
+            <span class="cost-footnote-icon" aria-hidden="true">💰</span>
+            <span id="costFootnoteText"></span>
+            <button class="cost-footnote-expand" onclick="openSettings()" data-i18n="cost.details">details</button>
+        </p>
     </div>
 
     <!-- Save preset modal (shared) -->
@@ -316,9 +321,9 @@
                                 </span>
                                 {% endif %}
                             </div>
-                            {% if track.reason %}
-                            <div class="track-reason">{{ track.reason|e }}</div>
-                            {% endif %}
+                            <div class="track-rationale" data-track-rationale="{{ track.rationale|tojson|forceescape if track.rationale else '' }}">
+                                {% if track.reason and not track.rationale %}<span class="rationale-chip rationale-chip--legacy"><span class="rationale-chip-dot" aria-hidden="true"></span><span class="rationale-chip-label">{{ track.reason|e }}</span></span>{% endif %}
+                            </div>
                             {% if not track.track_id %}
                             <span class="track-no-preview">No preview</span>
                             {% endif %}

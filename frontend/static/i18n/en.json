@@ -777,5 +777,18 @@
 
   "help.fallback_banner": "This page isn't translated yet. Showing English.",
   "help.fallback_dismiss_title": "Dismiss",
-  "help.language_indicator": "Language: {lang}"
+  "help.language_indicator": "Language: {lang}",
+
+  "guide.loading": "Loading…",
+  "guide.copy": "📋 Copy",
+  "guide.copied": "✓ Copied",
+  "guide.error_title": "Error loading guide",
+  "guide.error_subtitle": "Please try again later.",
+
+  "tip.dismiss": "Dismiss",
+
+  "dashboard.tracks_unit": "tracks",
+
+  "provider.cred_label_tpl": "{provider} API Key",
+  "provider.api_key_not_needed": "API Key (not needed)"
 }
