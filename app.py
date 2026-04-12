@@ -202,6 +202,9 @@ def index():
 
 @app.route("/onboarding")
 def onboarding():
+    # Allow re-running the wizard even if onboarding was completed
+    if request.args.get('replay') != '1' and is_onboarding_completed():
+        return redirect('/')
     return render_template("onboarding.html")
 
 
@@ -227,6 +230,91 @@ def docs_screenshot(filename):
     """Serve documentation screenshot images."""
     screenshot_dir = BASE_DIR / "documentation" / "assets" / "screenshots"
     return send_from_directory(str(screenshot_dir), filename)
+
+
+@app.route("/docs/guides/<path:filename>")
+def docs_guide_image(filename):
+    """Serve setup guide images (screenshots for the setup guide overlays)."""
+    guide_img_dir = BASE_DIR / "documentation" / "assets" / "guides"
+    return send_from_directory(str(guide_img_dir), filename)
+
+
+_GUIDE_SLUG_WHITELIST = {"openai_api_key", "spotify_developer_app"}
+
+
+@app.route("/api/help/guide/<slug>")
+def help_guide(slug):
+    """Return a setup guide as structured JSON.
+
+    Reads ``documentation/guides/<slug>.en.md``, parses YAML-like frontmatter
+    and ``## Step N — Title`` sections into a JSON response.
+    """
+    if slug not in _GUIDE_SLUG_WHITELIST:
+        return jsonify({"error": "Guide not found."}), 404
+
+    # Try localised version first, fall back to English
+    lang = "en"
+    try:
+        settings = get_settings()
+        if settings.get("ui_language") in ("en", "de"):
+            lang = settings["ui_language"]
+    except Exception:
+        pass
+
+    guide_path = BASE_DIR / "documentation" / "guides" / f"{slug}.{lang}.md"
+    if not guide_path.exists():
+        guide_path = BASE_DIR / "documentation" / "guides" / f"{slug}.en.md"
+    if not guide_path.exists():
+        return jsonify({"error": "Guide not found."}), 404
+
+    raw = guide_path.read_text(encoding="utf-8")
+
+    # Parse frontmatter (between --- lines)
+    title = ""
+    subtitle = ""
+    body = raw
+    fm_match = re.match(r"^---\s*\n(.*?)\n---\s*\n", raw, re.DOTALL)
+    if fm_match:
+        fm_text = fm_match.group(1)
+        body = raw[fm_match.end():]
+        for line in fm_text.strip().splitlines():
+            if line.startswith("title:"):
+                title = line.split(":", 1)[1].strip().strip("\"'")
+            elif line.startswith("subtitle:"):
+                subtitle = line.split(":", 1)[1].strip().strip("\"'")
+
+    # Parse steps: split on ## Step N — Title
+    step_pattern = re.compile(r"^## Step \d+ — (.+)$", re.MULTILINE)
+    splits = list(step_pattern.finditer(body))
+    steps = []
+    for i, m in enumerate(splits):
+        step_title = m.group(1).strip()
+        start = m.end()
+        end = splits[i + 1].start() if i + 1 < len(splits) else len(body)
+        content = body[start:end].strip()
+
+        # Extract optional image: ![alt](path)
+        image = None
+        img_match = re.search(r"!\[.*?\]\((.+?)\)", content)
+        if img_match:
+            image = img_match.group(1)
+            content = content[:img_match.start()] + content[img_match.end():]
+
+        # Extract optional copy block: ```copy ... ```
+        copy = None
+        copy_match = re.search(r"```copy\s*\n(.+?)\n```", content, re.DOTALL)
+        if copy_match:
+            copy = copy_match.group(1).strip()
+            content = content[:copy_match.start()] + content[copy_match.end():]
+
+        steps.append({
+            "title": step_title,
+            "description": content.strip(),
+            "image": image,
+            "copy": copy,
+        })
+
+    return jsonify({"title": title, "subtitle": subtitle, "steps": steps})
 
 
 @app.route("/api/help")

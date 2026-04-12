@@ -42,20 +42,52 @@ class TestIndex:
 
 class TestOnboarding:
     def test_returns_html(self, client):
-        resp = client.get("/onboarding")
+        resp = client.get("/onboarding?replay=1")
         assert resp.status_code == 200
 
     def test_contains_onboarding_pages(self, client):
-        resp = client.get("/onboarding")
+        resp = client.get("/onboarding?replay=1")
         html = resp.data.decode()
         assert "SpotyVibe" in html
         assert "ob-page" in html
 
     def test_contains_credentials_section(self, client):
-        resp = client.get("/onboarding")
+        resp = client.get("/onboarding?replay=1")
         html = resp.data.decode()
         assert "OpenAI" in html
         assert "Spotify" in html
+
+    @patch("app.is_onboarding_completed", return_value=True)
+    def test_redirects_when_completed_without_replay(self, _mock, client):
+        resp = client.get("/onboarding")
+        assert resp.status_code == 302
+
+    @patch("app.is_onboarding_completed", return_value=False)
+    def test_renders_when_not_completed(self, _mock, client):
+        resp = client.get("/onboarding")
+        assert resp.status_code == 200
+
+
+class TestSetupGuide:
+    def test_guide_openai_returns_json(self, client):
+        resp = client.get("/api/help/guide/openai_api_key")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "title" in data
+        assert "steps" in data
+        assert len(data["steps"]) >= 1
+
+    def test_guide_spotify_returns_json(self, client):
+        resp = client.get("/api/help/guide/spotify_developer_app")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "title" in data
+        assert "steps" in data
+        assert len(data["steps"]) >= 1
+
+    def test_guide_unknown_slug_returns_404(self, client):
+        resp = client.get("/api/help/guide/nonexistent")
+        assert resp.status_code == 404
 
 
 class TestHelpContent:

@@ -101,24 +101,25 @@ def _open_quickstart(page: Page):
 
 
 def _navigate_onboarding_to_page(page: Page, base_url: str, target_page: int):
-    """Navigate to /onboarding (with incomplete status) and advance to target_page (0-3).
+    """Navigate to /onboarding (with incomplete status) and advance to target_page (0-6).
 
-    Page 0 = Intro, 1 = Language, 2 = Credentials, 3 = Spotify Connect.
+    Page 0 = Welcome, 1 = OpenAI key, 2 = Spotify cred, 3 = Connect Spotify,
+    4 = Seed taste, 5 = Model, 6 = Ready.
 
-    All four pages exist in the DOM simultaneously. The "Next →" buttons are
-    .onboarding-continue-btn elements indexed 0–3 (one per page). To advance
-    from page i to page i+1 we click button index i.
+    All seven pages exist in the DOM simultaneously. We use the "Skip for now"
+    or "Get started" CTA on each page to advance.
     """
     page.route("**/api/onboarding/status", lambda route: route.fulfill(
         status=200,
         headers={"Content-Type": "application/json"},
         body=json.dumps({"completed": False}),
     ))
-    page.goto(base_url + "/onboarding")
+    page.goto(base_url + "/onboarding?replay=1")
     page.wait_for_load_state("networkidle")
-    # Click .nth(i) to advance from page i to page i+1
     for i in range(target_page):
-        page.locator(".onboarding-continue-btn").nth(i).click()
+        # Use skip/start CTA to advance without needing credential input
+        cta = page.locator(".ob-page.active .ob-cta-start, .ob-page.active .ob-cta-skip-inline").first
+        cta.click()
         page.wait_for_timeout(450)  # animation is 400ms cubic-bezier
 
 
@@ -1454,71 +1455,33 @@ class TestSseReconnection:
 class TestOnboardingCredentialPrefill:
     """Onboarding page prefills credential status when keys are already set."""
 
-    def test_shows_green_status_when_credentials_set(self, page: Page, base_url):
-        """When credentials are already configured, the onboarding page shows
-        green checkmark status rows (e.g. 'API Key — OK') instead of input fields."""
-        # Intercept the onboarding status check that auto-redirects to /
-        def handle_onboarding_status(route):
-            route.fulfill(
-                status=200,
-                headers={"Content-Type": "application/json"},
-                body=json.dumps({"completed": False}),
-            )
+    def test_shows_green_status_when_openai_key_set(self, page: Page, base_url):
+        """Step 2 (OpenAI key) shows green checkmark when key is already set."""
+        _navigate_onboarding_to_page(page, base_url, 1)
 
-        page.route("**/api/onboarding/status", handle_onboarding_status)
-
-        # Navigate directly to the onboarding page
-        page.goto(base_url + "/onboarding")
-        page.wait_for_load_state("networkidle")
-
-        # Navigate to credentials page (page 3 — after intro and language)
-        # Page 1 → 2: click Next, verify language page is showing
-        page.locator("text=Next →").first.click()
-        expect(page.locator(".lang-toggle")).to_be_visible()
-
-        # Page 2 → 3: click Next, verify credentials page is showing
-        page.locator("text=Next →").nth(1).click()
-        expect(page.locator(".ob-cred-section")).to_be_visible()
-
-        # Verify green status rows are visible with "OK" text
+        # Verify green status row is visible with "OK" text
         expect(page.locator("#ob-set-openai")).to_be_visible()
         expect(page.locator("#ob-set-openai")).to_contain_text("OK")
+
+        # Input field should be hidden when credential is already set
+        expect(page.locator("#ob-input-wrap-openai")).to_be_hidden()
+
+    def test_shows_green_status_when_spotify_creds_set(self, page: Page, base_url):
+        """Step 3 (Spotify creds) shows green checkmarks when both are set."""
+        _navigate_onboarding_to_page(page, base_url, 2)
+
         expect(page.locator("#ob-set-spotify-id")).to_be_visible()
         expect(page.locator("#ob-set-spotify-id")).to_contain_text("OK")
         expect(page.locator("#ob-set-spotify-secret")).to_be_visible()
         expect(page.locator("#ob-set-spotify-secret")).to_contain_text("OK")
 
-        # Input fields should be hidden when credentials are already set
-        expect(page.locator("#ob-input-wrap-openai")).to_be_hidden()
         expect(page.locator("#ob-input-wrap-spotify-id")).to_be_hidden()
         expect(page.locator("#ob-input-wrap-spotify-secret")).to_be_hidden()
 
-        # Save button should be hidden when nothing needs saving
-        expect(page.locator("#ob-save-cred-btn")).to_be_hidden()
-
-    def test_no_duplicate_skip_button(self, page: Page, base_url):
-        """The credentials page should not have a duplicate Skip button
-        between Save Credentials and the bottom nav."""
-        def handle_onboarding_status(route):
-            route.fulfill(
-                status=200,
-                headers={"Content-Type": "application/json"},
-                body=json.dumps({"completed": False}),
-            )
-
-        page.route("**/api/onboarding/status", handle_onboarding_status)
-
-        # Navigate directly to the onboarding page
-        page.goto(base_url + "/onboarding")
-        page.wait_for_load_state("networkidle")
-
-        # Navigate to credentials page (page 3 — after intro and language)
-        page.locator("text=Next →").first.click()
-        expect(page.locator(".lang-toggle")).to_be_visible()
-        page.locator("text=Next →").nth(1).click()
-        expect(page.locator(".ob-cred-section")).to_be_visible()
-
-        # Inside the cred-section, there should NOT be a Skip or Back button
+    def test_no_duplicate_skip_button_in_cred_section(self, page: Page, base_url):
+        """The credential section itself should not contain Skip/Back buttons."""
+        _navigate_onboarding_to_page(page, base_url, 1)
+        # Inside the cred-section, there should NOT be nav buttons
         cred_section = page.locator(".ob-cred-section")
         skip_buttons_in_section = cred_section.locator(".ob-btn-skip")
         expect(skip_buttons_in_section).to_have_count(0)
@@ -1598,35 +1561,33 @@ _FAKE_HISTORY = [
 # ---------------------------------------------------------------------------
 
 class TestOnboardingFlow:
-    """Onboarding wizard — 4-page flow (Intro, Language, Credentials, Spotify)."""
+    """Onboarding wizard — 7-step flow (Welcome, OpenAI, Spotify cred, Connect, Seed, Model, Ready)."""
 
     def test_onboarding_page_loads(self, page: Page, base_url):
         """Onboarding page renders with the intro content."""
         _navigate_onboarding_to_page(page, base_url, 0)
         expect(page).to_have_title(re.compile(r"SpotyVibe"))
-        # The ob-wrap container houses all onboarding pages
         expect(page.locator(".ob-wrap")).to_be_visible()
-        # At least one ob-logo div exists in the DOM (one per onboarding page)
-        expect(page.locator(".ob-logo").first).to_be_attached()
+        expect(page.locator(".ob-icon").first).to_be_attached()
 
-    def test_page_indicators_update_on_navigation(self, page: Page, base_url):
-        """The active dot indicator changes as user advances through pages."""
+    def test_step_indicators_update_on_navigation(self, page: Page, base_url):
+        """The step indicator pills change as user advances through steps."""
         _navigate_onboarding_to_page(page, base_url, 0)
-        # Page 0: first dot is active
-        dots = page.locator("#indicators1 .ob-dot")
-        expect(dots.first).to_have_class(re.compile(r"active"))
+        # Step 0: first pill is current
+        pills = page.locator(".ob-pill")
+        expect(pills.first).to_have_class(re.compile(r"ob-pill--current"))
 
-        # Advance to page 1 (language): click the first continue button (index 0)
-        page.locator(".onboarding-continue-btn").nth(0).click()
+        # Advance to step 1 via "Get started →"
+        page.locator(".ob-cta-start").click()
         page.wait_for_timeout(450)
         transform = page.evaluate("document.getElementById('obPages').style.transform")
         assert "100%" in transform or "-100%" in transform
 
-    def test_language_page_shows_toggle(self, page: Page, base_url):
-        """Language page shows the EN/DE toggle with EN active by default."""
-        _navigate_onboarding_to_page(page, base_url, 1)
-        expect(page.locator(".lang-toggle")).to_be_visible()
-        en_btn = page.locator(".lang-toggle-btn[data-lang='en']")
+    def test_language_toggle_always_visible(self, page: Page, base_url):
+        """Language toggle is visible on every step (persistent in header)."""
+        _navigate_onboarding_to_page(page, base_url, 0)
+        expect(page.locator(".ob-lang-toggle")).to_be_visible()
+        en_btn = page.locator(".ob-lang-toggle .lang-toggle-btn[data-lang='en']")
         expect(en_btn).to_have_class(re.compile(r"active"))
 
     def test_language_switch_to_german(self, page: Page, base_url):
@@ -1636,7 +1597,7 @@ class TestOnboardingFlow:
             headers={"Content-Type": "application/json"},
             body=json.dumps({"status": "ok"}),
         ))
-        _navigate_onboarding_to_page(page, base_url, 1)
+        _navigate_onboarding_to_page(page, base_url, 0)
         page.locator(".lang-toggle-btn[data-lang='de']").click()
         page.wait_for_timeout(300)
         expect(page.locator(".lang-toggle-btn[data-lang='de']")).to_have_class(re.compile(r"active"))
@@ -1644,9 +1605,23 @@ class TestOnboardingFlow:
         lang = page.evaluate("localStorage.getItem('svLang')")
         assert lang == "de"
 
-    def test_credentials_page_shows_input_fields_when_not_set(self, page: Page, base_url):
-        """When no credentials are set, three input fields are visible."""
-        # Override credentials to report all unset
+    def test_openai_step_shows_input_when_not_set(self, page: Page, base_url):
+        """Step 2 (OpenAI key) shows the input field when key is not set."""
+        page.route("**/api/settings/credentials", lambda route: route.fulfill(
+            status=200,
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({
+                "OPENAI_API_KEY": {"masked": "", "is_set": False},
+                "SPOTIPY_CLIENT_ID": {"masked": "", "is_set": False},
+                "SPOTIPY_CLIENT_SECRET": {"masked": "", "is_set": False},
+            }),
+        ))
+        _navigate_onboarding_to_page(page, base_url, 1)
+        expect(page.locator(".ob-cred-section")).to_be_visible()
+        expect(page.locator("#ob-openai-key")).to_be_visible()
+
+    def test_spotify_cred_step_shows_inputs_when_not_set(self, page: Page, base_url):
+        """Step 3 (Spotify creds) shows both input fields when not set."""
         page.route("**/api/settings/credentials", lambda route: route.fulfill(
             status=200,
             headers={"Content-Type": "application/json"},
@@ -1658,66 +1633,43 @@ class TestOnboardingFlow:
         ))
         _navigate_onboarding_to_page(page, base_url, 2)
         expect(page.locator(".ob-cred-section")).to_be_visible()
-        expect(page.locator("#ob-openai-key")).to_be_visible()
         expect(page.locator("#ob-spotify-id")).to_be_visible()
         expect(page.locator("#ob-spotify-secret")).to_be_visible()
 
-    def test_credentials_save_button_appears_on_input(self, page: Page, base_url):
-        """Save button appears after user types into any credential field."""
-        page.route("**/api/settings/credentials", lambda route: route.fulfill(
-            status=200,
-            headers={"Content-Type": "application/json"},
-            body=json.dumps({
-                "OPENAI_API_KEY": {"masked": "", "is_set": False},
-                "SPOTIPY_CLIENT_ID": {"masked": "", "is_set": False},
-                "SPOTIPY_CLIENT_SECRET": {"masked": "", "is_set": False},
-            }),
-        ))
-        _navigate_onboarding_to_page(page, base_url, 2)
-        expect(page.locator("#ob-save-cred-btn")).to_be_hidden()
-        page.locator("#ob-openai-key").fill("sk-test-new")
-        page.wait_for_timeout(100)
-        expect(page.locator("#ob-save-cred-btn")).to_be_visible()
-
-    def test_credentials_save_sends_api_call(self, page: Page, base_url):
-        """Filling all three fields and clicking Save POSTs to credentials API."""
-        page.route("**/api/settings/credentials", lambda route: (
-            route.fulfill(
-                status=200,
-                headers={"Content-Type": "application/json"},
-                body=json.dumps({
-                    "OPENAI_API_KEY": {"masked": "", "is_set": False},
-                    "SPOTIPY_CLIENT_ID": {"masked": "", "is_set": False},
-                    "SPOTIPY_CLIENT_SECRET": {"masked": "", "is_set": False},
-                }),
-            ) if route.request.method == "GET" else route.fulfill(
-                status=200,
-                headers={"Content-Type": "application/json"},
-                body=json.dumps({"status": "ok"}),
-            )
-        ))
+    def test_openai_step_next_saves_credential(self, page: Page, base_url):
+        """Filling the OpenAI key and clicking Next saves the credential."""
         save_requests = []
-        page.on("request", lambda req: save_requests.append(req) if (
-            "api/settings/credentials" in req.url and req.method == "POST"
-        ) else None)
-
-        _navigate_onboarding_to_page(page, base_url, 2)
+        def handle_creds(route):
+            if route.request.method == "POST":
+                save_requests.append(route.request.post_data_json)
+                route.fulfill(
+                    status=200,
+                    headers={"Content-Type": "application/json"},
+                    body=json.dumps({"status": "ok"}),
+                )
+            else:
+                route.fulfill(
+                    status=200,
+                    headers={"Content-Type": "application/json"},
+                    body=json.dumps({
+                        "OPENAI_API_KEY": {"masked": "", "is_set": False},
+                        "SPOTIPY_CLIENT_ID": {"masked": "", "is_set": False},
+                        "SPOTIPY_CLIENT_SECRET": {"masked": "", "is_set": False},
+                    }),
+                )
+        page.route("**/api/settings/credentials", handle_creds)
+        _navigate_onboarding_to_page(page, base_url, 1)
         page.locator("#ob-openai-key").fill("sk-test-key")
-        page.locator("#ob-spotify-id").fill("fake-client-id")
-        page.locator("#ob-spotify-secret").fill("fake-secret")
         page.wait_for_timeout(100)
-        expect(page.locator("#ob-save-cred-btn")).to_be_visible()
-        page.locator("#ob-save-cred-btn").click()
-        page.wait_for_timeout(400)
+        # Click Next (saves and advances)
+        page.locator(".ob-page.active .ob-cta-next").click()
+        page.wait_for_timeout(500)
         assert len(save_requests) >= 1
 
-    def test_spotify_connect_page_shows_button(self, page: Page, base_url):
-        """Page 4 (Spotify connect) shows the Spotify toggle button and Import button."""
+    def test_spotify_connect_step_shows_button(self, page: Page, base_url):
+        """Step 4 (Connect Spotify) shows the Spotify toggle button."""
         _navigate_onboarding_to_page(page, base_url, 3)
-        # Button text depends on auth state — just assert it's visible
         expect(page.locator("#ob-spotify-btn")).to_be_visible()
-        # Import profile button is always present
-        expect(page.locator("#ob-import-input")).to_be_attached()
 
     def test_skip_completes_onboarding_and_redirects(self, page: Page, base_url):
         """Clicking Skip on page 0 marks onboarding complete and redirects to /."""
@@ -1736,13 +1688,10 @@ class TestOnboardingFlow:
         assert len(complete_calls) >= 1
 
     def test_back_button_navigates_backward(self, page: Page, base_url):
-        """Back button on language page returns to intro page."""
+        """Back button on step 2 returns to step 1 (Welcome)."""
         _navigate_onboarding_to_page(page, base_url, 1)
-        # Verify we're on page 1 (language)
-        expect(page.locator(".lang-toggle")).to_be_attached()
-        # Back button on page 1 (language) is ob-btn-skip at index 1
-        # (index 0 is the Skip button on the intro page)
-        page.locator(".ob-btn-skip").nth(1).click()
+        # Click the Back button on step 2 (OpenAI key)
+        page.locator(".ob-page.active .ob-btn-skip").first.click()
         page.wait_for_timeout(450)
         # Should be back on page 0 — transform should be translateX(0)
         transform = page.evaluate("document.getElementById('obPages').style.transform")
@@ -1759,7 +1708,7 @@ class TestOnboardingFlow:
                 "SPOTIPY_CLIENT_SECRET": {"masked": "", "is_set": False},
             }),
         ))
-        _navigate_onboarding_to_page(page, base_url, 2)
+        _navigate_onboarding_to_page(page, base_url, 1)
         # Input should have the dark bg-input background
         bg = page.evaluate(
             "getComputedStyle(document.querySelector('.ob-cred-input')).backgroundColor"
@@ -1772,15 +1721,15 @@ class TestOnboardingFlow:
         page.set_viewport_size({"width": 375, "height": 812})
         _navigate_onboarding_to_page(page, base_url, 0)
         expect(page.locator(".ob-wrap")).to_be_visible()
-        expect(page.locator(".ob-logo").first).to_be_attached()
+        expect(page.locator(".ob-icon").first).to_be_attached()
         # No horizontal overflow
         overflow = page.evaluate(
             "document.documentElement.scrollWidth > document.documentElement.clientWidth"
         )
         assert not overflow, "Horizontal overflow detected at mobile viewport"
 
-    def test_close_button_completes_onboarding(self, page: Page, base_url):
-        """'Close ✓' on the last page calls onboarding complete and redirects."""
+    def test_finish_button_completes_onboarding(self, page: Page, base_url):
+        """'Open SpotyVibe →' on step 7 calls onboarding complete and redirects."""
         complete_calls = []
         page.route("**/api/onboarding/complete", lambda route: (
             complete_calls.append(True),
@@ -1790,9 +1739,8 @@ class TestOnboardingFlow:
                 body=json.dumps({"status": "ok"}),
             ),
         )[1])
-        _navigate_onboarding_to_page(page, base_url, 3)
-        # "Close ✓" is the 4th continue button (index 3)
-        page.locator(".onboarding-continue-btn").nth(3).click()
+        _navigate_onboarding_to_page(page, base_url, 6)
+        page.locator("#ob-finish-btn").click()
         page.wait_for_url(re.compile(r"127\.0\.0\.1:\d+/$"), timeout=3000)
         assert len(complete_calls) >= 1
 
@@ -2717,4 +2665,74 @@ class TestEdgeCases:
         # Only one run request should have been made
         assert len(run_calls) <= 1, f"Expected ≤1 run request, got {len(run_calls)}"
         page.unroute("**/api/run")
+
+
+# ---------------------------------------------------------------------------
+#  Wave 1 — Onboarding Wizard Smoke Tests
+# ---------------------------------------------------------------------------
+
+class TestOnboardingWizardWave1:
+    """Smoke tests for the 7-step onboarding wizard (Wave 1)."""
+
+    def test_wizard_walks_7_steps(self, page: Page, base_url):
+        """Smoke: open wizard via replay, click through all steps, finish."""
+        page.route("**/api/onboarding/status", lambda route: route.fulfill(
+            status=200,
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({"completed": False}),
+        ))
+        page.route("**/api/onboarding/complete", lambda route: route.fulfill(
+            status=200,
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({"status": "ok"}),
+        ))
+        page.goto(base_url + "/onboarding?replay=1")
+        page.wait_for_load_state("networkidle")
+
+        # Step 1 → "Get started →"
+        page.locator(".ob-cta-start").click()
+        page.wait_for_timeout(500)
+
+        # Steps 2–6 → "Skip for now" to avoid credential input
+        for _ in range(5):
+            page.locator(".ob-page.active .ob-cta-skip-inline").first.click()
+            page.wait_for_timeout(500)
+
+        # Step 7 → "Open SpotyVibe →"
+        expect(page.locator("#ob-finish-btn")).to_be_visible()
+
+    def test_wizard_howto_accordion_toggles(self, page: Page, base_url):
+        """Smoke: the 'How do I get this?' accordion toggles visibility."""
+        _navigate_onboarding_to_page(page, base_url, 1)
+        toggle = page.locator(".ob-cred-guide-toggle")
+        body = page.locator(".ob-cred-guide-body").first
+        # Initially collapsed (no 'open' class)
+        expect(body).not_to_have_class(re.compile(r"open"))
+        toggle.click()
+        page.wait_for_timeout(200)
+        expect(body).to_have_class(re.compile(r"open"))
+        toggle.click()
+        page.wait_for_timeout(200)
+        expect(body).not_to_have_class(re.compile(r"open"))
+
+    def test_privacy_modal_opens_and_closes(self, page: Page, base_url):
+        """Smoke: privacy modal opens from step 1 and closes on Escape."""
+        _navigate_onboarding_to_page(page, base_url, 0)
+        page.locator(".ob-privacy-link").click()
+        page.wait_for_timeout(300)
+        expect(page.locator("#privacyModal")).to_have_class(re.compile(r"open"))
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(300)
+        expect(page.locator("#privacyModal")).not_to_have_class(re.compile(r"open"))
+
+    def test_language_toggle_persists_across_steps(self, page: Page, base_url):
+        """Smoke: switching language persists when navigating between steps."""
+        _navigate_onboarding_to_page(page, base_url, 0)
+        page.locator(".ob-lang-toggle button[data-lang='de']").click()
+        page.wait_for_timeout(400)
+        # Advance to step 2
+        page.locator(".ob-cta-start").click()
+        page.wait_for_timeout(500)
+        # Assert German is still active
+        expect(page.locator(".ob-lang-toggle button[data-lang='de']")).to_have_class(re.compile(r"active"))
 

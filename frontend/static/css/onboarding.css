@@ -1,0 +1,868 @@
+/* onboarding.css — Wizard shell, steps, indicators, nav, seed grid, summary */
+
+/* ============ Shell — shared across all wizard steps ============ */
+
+.ob-wrap {
+    overflow: hidden;
+    width: 100%;
+    height: calc(100vh - var(--titlebar-h, 0px));
+}
+
+.ob-pages {
+    display: flex;
+    height: 100%;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ob-page {
+    min-width: 100%;
+    width: 100%;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px 48px;
+    box-sizing: border-box;
+    overflow-y: auto;
+}
+
+/* ============ Language toggle — persistent pill ============ */
+
+.ob-lang-toggle {
+    position: fixed;
+    top: 16px;
+    right: 24px;
+    z-index: 50;
+}
+
+/* ============ Step indicator — 7-pill row ============ */
+
+.ob-step-indicator {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.ob-pill {
+    height: 8px;
+    border-radius: 4px;
+    transition: width 200ms ease, background 200ms ease;
+}
+
+.ob-pill--future {
+    width: 8px;
+    border-radius: 50%;
+    background: var(--border);
+}
+
+.ob-pill--current {
+    width: 24px;
+    background: var(--primary);
+}
+
+.ob-pill--complete {
+    width: 16px;
+    background: rgba(30, 215, 96, 0.4);
+}
+
+/* ============ Card shell ============ */
+
+.ob-card {
+    max-width: var(--ob-card-max-width, 480px);
+    width: 100%;
+    padding: var(--ob-card-padding, 32px 24px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+/* ============ Typography ============ */
+
+.ob-icon {
+    font-size: 3.5rem;
+    margin-top: 20px;
+}
+
+.ob-title {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-top: 12px;
+    margin-bottom: 8px;
+}
+
+.ob-subtitle {
+    color: var(--text-secondary);
+    text-align: center;
+    max-width: 360px;
+    margin-bottom: 24px;
+    font-size: 1rem;
+}
+
+/* ============ Feature list (Step 1) ============ */
+
+.ob-feature-list {
+    width: 100%;
+    max-width: 360px;
+    text-align: left;
+}
+
+.ob-feature {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    margin-bottom: 16px;
+}
+
+.ob-feature-icon {
+    font-size: 1.6rem;
+    flex-shrink: 0;
+}
+
+.ob-feature strong {
+    display: block;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+}
+
+.ob-feature p {
+    color: var(--text-secondary);
+    font-size: 0.86rem;
+    margin: 0;
+}
+
+/* ============ Privacy panel (Step 1) ============ */
+
+.ob-privacy-panel {
+    background: rgba(30, 215, 96, 0.05);
+    border: 1px solid rgba(30, 215, 96, 0.2);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 360px;
+    margin-top: 8px;
+    text-align: left;
+}
+
+.ob-privacy-icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.ob-privacy-text {
+    font-size: 0.86rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.ob-privacy-link {
+    display: inline-block;
+    margin-top: 8px;
+    color: var(--primary);
+    font-size: 0.85rem;
+    font-weight: 500;
+    text-decoration: none;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-family: inherit;
+}
+
+@media (hover: hover) {
+    .ob-privacy-link:hover {
+        text-decoration: underline;
+    }
+}
+
+/* ============ Nav row ============ */
+
+.ob-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    max-width: 420px;
+    margin-top: 28px;
+}
+
+.ob-btn-skip {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.05rem;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 10px 4px;
+    font-family: inherit;
+}
+
+@media (hover: hover) {
+    .ob-btn-skip:hover {
+        color: var(--text-primary);
+        text-decoration: underline;
+    }
+}
+
+.ob-btn-skip--inline {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+@media (hover: hover) {
+    .ob-btn-skip--inline:hover {
+        color: var(--text-secondary);
+        text-decoration: underline;
+    }
+}
+
+/* CTA button reuses .onboarding-continue-btn from responsive.css */
+.ob-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 28px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: var(--btn-cta-text);
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 700;
+    border: none;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    transition: transform var(--transition), box-shadow var(--transition);
+    box-shadow: 0 4px 20px var(--glow-green);
+}
+
+@media (hover: hover) {
+    .ob-cta:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 28px var(--glow-green);
+    }
+}
+
+.ob-cta:active {
+    transform: translateY(0);
+}
+
+.ob-cta:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Step 7 full-width finish button */
+.ob-cta--finish {
+    width: 100%;
+    max-width: 420px;
+    padding: 16px 24px;
+    font-size: 1.1rem;
+    height: 56px;
+    margin-top: 16px;
+}
+
+/* ============ Credential section (Steps 2 & 3) ============ */
+
+.ob-cred-section {
+    width: 100%;
+    max-width: 400px;
+    text-align: left;
+}
+
+.ob-cred-row {
+    width: 100%;
+    margin-bottom: 14px;
+}
+
+.ob-cred-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+    display: block;
+}
+
+.ob-cred-set-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    background: rgba(29, 185, 84, 0.08);
+    border: 1px solid rgba(29, 185, 84, 0.25);
+}
+
+.ob-cred-set-icon {
+    color: var(--primary);
+    font-size: 1.15rem;
+    flex-shrink: 0;
+}
+
+.ob-cred-set-label {
+    flex: 1;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.ob-cred-edit-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 4px 6px;
+    border-radius: var(--radius-sm);
+    transition: color var(--transition), background var(--transition);
+}
+
+@media (hover: hover) {
+    .ob-cred-edit-btn:hover {
+        color: var(--text-primary);
+        background: rgba(255, 255, 255, 0.06);
+    }
+}
+
+.ob-cred-input-wrap {
+    margin-top: 8px;
+}
+
+.ob-cred-input {
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 8px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 11px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    font-family: inherit;
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.ob-cred-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--focus-glow);
+}
+
+.ob-cred-input::placeholder {
+    color: var(--text-muted);
+}
+
+.ob-cred-hint {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+    margin-bottom: 8px;
+}
+
+/* ============ How-do-I-get-this guide accordion ============ */
+
+.ob-cred-guide {
+    margin-top: 12px;
+    width: 100%;
+}
+
+.ob-cred-guide-toggle {
+    background: none;
+    border: none;
+    color: var(--primary);
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 6px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: inherit;
+}
+
+.ob-cred-guide-chevron {
+    display: inline-block;
+    transition: transform 200ms ease;
+    font-size: 0.75rem;
+}
+
+.ob-cred-guide-toggle[aria-expanded="true"] .ob-cred-guide-chevron {
+    transform: rotate(90deg);
+}
+
+.ob-cred-guide-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 300ms ease;
+}
+
+.ob-cred-guide-body.open {
+    max-height: 400px;
+}
+
+.ob-cred-guide-bullets {
+    padding-left: 20px;
+    margin: 10px 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.ob-cred-guide-bullets li {
+    margin-bottom: 4px;
+}
+
+.ob-cred-guide-readmore {
+    background: none;
+    border: none;
+    color: var(--primary);
+    font-size: 0.84rem;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 4px 0;
+    margin-top: 4px;
+    font-family: inherit;
+}
+
+@media (hover: hover) {
+    .ob-cred-guide-readmore:hover {
+        text-decoration: underline;
+    }
+}
+
+/* ============ Redirect URI copy row (Step 3) ============ */
+
+.ob-redirect-uri-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    margin: 8px 0;
+}
+
+.ob-redirect-uri-row code {
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 0.82rem;
+    color: var(--text-primary);
+    flex: 1;
+    word-break: break-all;
+}
+
+.btn-copy {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 0.78rem;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: inherit;
+    transition: background var(--transition), color var(--transition);
+}
+
+@media (hover: hover) {
+    .btn-copy:hover {
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--text-primary);
+    }
+}
+
+/* ============ Info chip (Step 4) ============ */
+
+.ob-info-chip {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 400px;
+    text-align: left;
+}
+
+.ob-info-icon {
+    font-size: 1.05rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.ob-info-text {
+    font-size: 0.83rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+/* ============ Action button (Steps 4) ============ */
+
+.ob-action-btn {
+    width: 100%;
+    max-width: 360px;
+    padding: 14px 20px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: #000;
+    font-weight: 700;
+    font-size: 1rem;
+    border: none;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    margin-bottom: 10px;
+    transition: transform var(--transition), box-shadow var(--transition);
+    box-shadow: 0 4px 20px var(--glow-green);
+    font-family: inherit;
+}
+
+@media (hover: hover) {
+    .ob-action-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 28px var(--glow-green);
+    }
+}
+
+.ob-action-btn.secondary {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    box-shadow: none;
+}
+
+/* ============ Seed grid (Step 5) ============ */
+
+.ob-seed-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    width: 100%;
+    max-width: 480px;
+}
+
+.ob-seed-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    min-height: 180px;
+    text-align: left;
+}
+
+.ob-seed-icon {
+    font-size: 1.8rem;
+    margin-bottom: 10px;
+}
+
+.ob-seed-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
+
+.ob-seed-desc {
+    font-size: 0.83rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    flex-grow: 1;
+}
+
+.ob-seed-action {
+    background: transparent;
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    padding: 8px 14px;
+    border-radius: var(--radius-pill);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    align-self: flex-start;
+    margin-top: 12px;
+    font-family: inherit;
+    transition: background var(--transition);
+}
+
+@media (hover: hover) {
+    .ob-seed-action:hover {
+        background: rgba(30, 215, 96, 0.08);
+    }
+}
+
+.ob-seed-card--disabled {
+    opacity: 0.55;
+}
+
+.ob-seed-badge {
+    display: inline-block;
+    align-self: flex-start;
+    margin-top: 12px;
+    background: var(--bg-input);
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+}
+
+/* ============ Model picker (Step 6) ============ */
+
+.ob-model-picker {
+    width: 100%;
+    max-width: 400px;
+    text-align: left;
+}
+
+.ob-model-picker label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+    display: block;
+}
+
+.ob-model-picker select {
+    width: 100%;
+    padding: 11px 14px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.ob-model-picker select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--focus-glow);
+}
+
+.ob-model-hint {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 6px;
+}
+
+.ob-cost-placeholder {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin-top: 16px;
+    width: 100%;
+    max-width: 400px;
+    text-align: left;
+}
+
+.ob-cost-icon {
+    font-size: 1.05rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.ob-cost-text {
+    font-size: 0.83rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+/* ============ Summary card (Step 7) ============ */
+
+.ob-summary-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 8px 16px;
+    width: 100%;
+    max-width: 420px;
+    text-align: left;
+}
+
+.ob-summary-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.ob-summary-row:last-child {
+    border-bottom: none;
+}
+
+.ob-summary-status {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.ob-summary-status--done {
+    background: rgba(34, 197, 94, 0.12);
+    color: var(--success);
+}
+
+.ob-summary-status--skipped {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--warning);
+}
+
+.ob-summary-text {
+    flex: 1;
+}
+
+.ob-summary-label {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.ob-summary-sub {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.ob-summary-edit {
+    color: var(--primary);
+    font-size: 0.82rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 4px 8px;
+}
+
+@media (hover: hover) {
+    .ob-summary-edit:hover {
+        text-decoration: underline;
+    }
+}
+
+.ob-skipped-warning {
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    width: 100%;
+    max-width: 420px;
+    margin-top: 12px;
+    text-align: left;
+}
+
+.ob-skipped-warning .ob-info-icon {
+    color: var(--warning);
+}
+
+.ob-skipped-warning .ob-info-text {
+    color: var(--text-secondary);
+}
+
+/* ============ Status messages ============ */
+
+.ob-success {
+    color: var(--primary);
+    font-size: 0.85rem;
+    margin-top: 4px;
+}
+
+.ob-error {
+    color: var(--error);
+    font-size: 0.85rem;
+    margin-top: 4px;
+}
+
+.ob-explain {
+    font-size: 0.83rem;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+}
+
+/* ============ Responsive ============ */
+
+@media (max-width: 640px) {
+    .ob-lang-toggle {
+        top: 12px;
+        right: 16px;
+    }
+
+    .ob-seed-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ob-card {
+        padding: 24px 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .ob-title {
+        font-size: 1.6rem;
+    }
+
+    .ob-icon {
+        font-size: 2.8rem;
+    }
+
+    .ob-page {
+        padding: 24px 16px 40px;
+    }
+}
+
+/* ============ Reduced motion ============ */
+
+@media (prefers-reduced-motion: reduce) {
+    .ob-pages {
+        transition: none !important;
+    }
+
+    .ob-pill {
+        transition: none !important;
+    }
+
+    .ob-cred-guide-body {
+        transition: none !important;
+    }
+
+    .ob-cred-guide-chevron {
+        transition: none !important;
+    }
+
+    .ob-cta {
+        transition: none !important;
+    }
+}
+
+/* ============ Hidden utility ============ */
+
+.hidden {
+    display: none !important;
+}
+

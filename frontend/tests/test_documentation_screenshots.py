@@ -549,16 +549,15 @@ class TestDocumentationScreenshotAcquire:
 
     # -- Onboarding ---------------------------------------------------------
     #
-    # The onboarding flow has 4 pages. `help.md` links to
-    # `24_onboarding_credentials.png` (page 3), so that filename is kept as-is.
-    # The other three pages are captured below with numbers 45–47 to avoid
-    # renaming the referenced asset. See `_goto_onboarding_page()` for the
-    # shared setup that bypasses the "already completed" redirect.
+    # The onboarding flow has 7 steps. `help.md` links to
+    # `24_onboarding_credentials.png` (step 2 — OpenAI key), so that filename
+    # is kept as-is. The other steps are captured below with numbers 45–55.
 
     def _goto_onboarding_page(self, page: Page, screenshot_url: str, page_index: int):
-        """Open /onboarding and advance to the given 0-based page index.
+        """Open /onboarding?replay=1 and advance to the given 0-based step index.
 
-        page_index 0 = intro, 1 = language, 2 = credentials, 3 = connect+import.
+        page_index 0 = Welcome, 1 = OpenAI key, 2 = Spotify cred,
+        3 = Connect Spotify, 4 = Seed taste, 5 = Model, 6 = Ready.
         """
         def handle_status(route):
             route.fulfill(
@@ -566,24 +565,20 @@ class TestDocumentationScreenshotAcquire:
                 headers={"Content-Type": "application/json"},
                 body=json.dumps({"completed": False}),
             )
-
         page.route("**/api/onboarding/status", handle_status)
-        page.goto(screenshot_url + "/onboarding")
+        page.goto(screenshot_url + "/onboarding?replay=1")
         page.wait_for_load_state("networkidle")
-        # Each forward navigation clicks the Next button on the currently visible
-        # page. The DOM holds all 4 pages at once (horizontal flex, translateX
-        # transitions), so `nth(i)` maps to page `i`'s Next button.
         for i in range(page_index):
-            page.locator("text=Next →").nth(i).click()
-            page.wait_for_timeout(500)  # slide transition is 400 ms
+            # Click the visible CTA inside the currently-active page.
+            cta = page.locator(".ob-page.active .ob-cta-next, .ob-page.active .ob-cta-start, .ob-page.active .ob-cta-skip-inline").first
+            cta.click()
+            page.wait_for_timeout(500)
         page.wait_for_timeout(200)
 
     def test_24_onboarding_credentials(self, page: Page, screenshot_url):
-        """Screenshot: Onboarding page 3 — credentials.
-
-        Kept at number 24 because `documentation/help.md` links to this filename.
-        """
-        self._goto_onboarding_page(page, screenshot_url, page_index=2)
+        """Screenshot: Onboarding step 2 — OpenAI API key (kept at this filename
+        because documentation/help.md links to it)."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=1)
         _shot(page, "24_onboarding_credentials")
 
     # -- Full-page composite screenshots ------------------------------------
@@ -893,27 +888,80 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(200)
         _shot_element(page, "44_warning_message", "#runWarn")
 
-    # -- Onboarding (remaining pages) ---------------------------------------
+    # -- Onboarding (all 7 steps + overlays) ----------------------------------
     #
-    # Page 3 is captured as `24_onboarding_credentials.png` above (kept at
-    # that number because `documentation/help.md` links to it). The other
-    # three pages are captured here so every onboarding screen is available
-    # for documentation.
+    # Step 2 (OpenAI key) is captured above as `24_onboarding_credentials.png`
+    # (kept at that number because `documentation/help.md` links to it).
 
-    def test_45_onboarding_intro(self, page: Page, screenshot_url):
-        """Screenshot: Onboarding page 1 — welcome / intro with feature bullets."""
+    def test_45_onboarding_step1_welcome(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding step 1 — welcome / intro with feature bullets."""
         self._goto_onboarding_page(page, screenshot_url, page_index=0)
-        _shot(page, "45_onboarding_intro")
+        _shot(page, "45_onboarding_step1_welcome")
 
-    def test_46_onboarding_language(self, page: Page, screenshot_url):
-        """Screenshot: Onboarding page 2 — language selector (EN | DE)."""
-        self._goto_onboarding_page(page, screenshot_url, page_index=1)
-        _shot(page, "46_onboarding_language")
+    def test_46_onboarding_step3_spotify_cred(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding step 3 — Spotify developer app credentials."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=2)
+        _shot(page, "46_onboarding_step3_spotify_cred")
 
-    def test_47_onboarding_connect_import(self, page: Page, screenshot_url):
-        """Screenshot: Onboarding page 4 — Connect Spotify + Import profile."""
+    def test_47_onboarding_step4_connect(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding step 4 — Connect Spotify account."""
         self._goto_onboarding_page(page, screenshot_url, page_index=3)
-        _shot(page, "47_onboarding_connect_import")
+        _shot(page, "47_onboarding_step4_connect")
+
+    def test_48_onboarding_step5_seed(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding step 5 — Seed your taste (3 cards)."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=4)
+        _shot(page, "48_onboarding_step5_seed")
+
+    def test_49_onboarding_step6_model(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding step 6 — Pick a model."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=5)
+        _shot(page, "49_onboarding_step6_model")
+
+    def test_50_onboarding_step7_ready(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding step 7 — Ready summary."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=6)
+        _shot(page, "50_onboarding_step7_ready")
+
+    def test_51_onboarding_howto_openai_expanded(self, page: Page, screenshot_url):
+        """Screenshot: Step 2 with the 'How do I get this?' accordion expanded."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=1)
+        page.locator(".ob-cred-guide-toggle").click()
+        page.wait_for_timeout(250)
+        _shot(page, "51_onboarding_howto_openai_expanded")
+
+    def test_52_setup_guide_openai_overlay(self, page: Page, screenshot_url):
+        """Screenshot: The full-screen OpenAI setup guide overlay."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=1)
+        page.locator(".ob-cred-guide-toggle").click()
+        page.wait_for_timeout(250)
+        page.locator(".ob-cred-guide-readmore").click()
+        page.wait_for_timeout(400)
+        _shot(page, "52_setup_guide_openai")
+
+    def test_53_setup_guide_spotify_overlay(self, page: Page, screenshot_url):
+        """Screenshot: The full-screen Spotify setup guide overlay."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=2)
+        page.locator(".ob-cred-guide-toggle").click()
+        page.wait_for_timeout(250)
+        page.locator(".ob-cred-guide-readmore").click()
+        page.wait_for_timeout(400)
+        _shot(page, "53_setup_guide_spotify")
+
+    def test_54_privacy_modal(self, page: Page, screenshot_url):
+        """Screenshot: Privacy 'What gets sent where?' modal, opened from step 1."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=0)
+        page.locator(".ob-privacy-link").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "54_privacy_modal", "#privacyModal .modal")
+
+    def test_55_rerun_setup_menu_item(self, page: Page, screenshot_url):
+        """Screenshot: The gear-menu burger with 'Re-run setup' visible."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("button[aria-label='Menu']").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "55_rerun_setup_menu_item", ".header-controls")
 
 
 

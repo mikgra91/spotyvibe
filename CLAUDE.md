@@ -93,7 +93,7 @@ spotyvibe/
 ├── core/tests/                    # Unit tests — one per core module
 ├── frontend/templates/            # Jinja2 HTML
 │   ├── base.html                  # Main layout (loads all partials)
-│   ├── onboarding.html            # First-run setup (standalone, own i18n)
+│   ├── onboarding.html            # 7-step setup wizard (standalone, own i18n)
 │   ├── train_profile.html         # Music profile editor
 │   ├── generate_section.html      # Playlist generation controls
 │   ├── playlist_review.html       # Track review UI
@@ -101,9 +101,12 @@ spotyvibe/
 │   ├── run_history.html           # Past runs
 │   ├── preview_overlay.html       # Audio preview overlay
 │   ├── theme_switcher.html, settings_gear.html, toast.html
-│   └── modals/                    # credentials, help, quickstart, settings
+│   └── modals/                    # credentials, help, quickstart, settings,
+│       │                          #   privacy, setup_guide_overlay
+│       ├── privacy_modal.html     # "What gets sent where?" data-flow table
+│       └── setup_guide_overlay.html # Full-screen setup guide detail overlay
 ├── frontend/static/favicon.ico    # Browser favicon
-├── frontend/static/css/           # Modular CSS (11 files, no bundler)
+├── frontend/static/css/           # Modular CSS (13 files, no bundler)
 │   ├── base.css                   # Design tokens, reset, body, scrollbar
 │   ├── layout.css                 # Container, typography, sr-only, focus
 │   ├── buttons.css                # All .btn-* variants
@@ -114,6 +117,8 @@ spotyvibe/
 │   ├── quickstart.css             # Quickstart guide (qs-*/qd-* prefixes)
 │   ├── sections.css               # Profile, analysis, providers, metadata
 │   ├── preview.css                # Spotify preview overlay
+│   ├── onboarding.css             # Onboarding wizard shell + step styles
+│   ├── setup_guide.css            # Setup guide overlay + privacy table styles
 │   └── responsive.css             # All @media queries
 ├── frontend/static/js/modules/   # JS feature modules
 │   ├── state.js                   # Central app state
@@ -122,6 +127,8 @@ spotyvibe/
 │   ├── history.js, analysis.js, audio-filters.js
 │   ├── modals.js, i18n.js, warnings.js, provider-pills.js
 │   ├── quickstart-demo.js, quickstart-tour.js, tabs.js
+│   ├── onboarding.js              # Wizard state, navigation, language toggle
+│   ├── setup_guide.js             # Detail overlay open/close, copy, keyboard
 │   └── theme-switcher.js, theme-equalizer.js, theme-pulse.js,
 │       theme-spectrum.js, theme-starfield.js
 ├── frontend/static/i18n/          # en.json + de.json
@@ -130,6 +137,8 @@ spotyvibe/
 ├── android/                       # Chaquopy APK (see rule 3)
 ├── build-tools/                   # build_exe.sh, build_apk.sh, build_dist.sh, start.sh (launcher)
 ├── documentation/                 # UserManual, TechnicalManual, help.md
+│   ├── guides/                    # Setup guide markdown (openai, spotify)
+│   └── assets/guides/             # Guide screenshot placeholders (openai/, spotify/)
 ├── spotyvibe/                     # Python package (wheel entry point)
 │   ├── __init__.py, __main__.py
 │   └── cli.py                     # Console entry point (spotyvibe command)
@@ -139,7 +148,7 @@ spotyvibe/
 ## Architecture
 
 - **Single-page Flask app** — `base.html` includes partials; JS modules handle SPA behavior.
-- **No build step** — vanilla JS (ES modules), modular CSS (11 files, no bundler).
+- **No build step** — vanilla JS (ES modules), modular CSS (13 files, no bundler).
 - **Spotify isolation** — all API calls in `core/src/playlist.py`.
 - **OpenAI isolation** — all calls via `core/src/openai_http.py` (raw HTTP).
 - **macOS/Linux packaging** — `pyproject.toml` + hatchling builds a `.whl`; `spotyvibe/cli.py` is the entry point.

@@ -7,6 +7,7 @@ This guide explains how to use the **SpotyVibe interface** to set up your prefer
 
 ## Table of Contents
 
+- [Privacy — What Leaves Your Device](#privacy--what-leaves-your-device)
 - [Getting Started](#getting-started)
   - [Overview](#overview)
   - [Before You Start](#before-you-start)
@@ -60,6 +61,22 @@ This guide explains how to use the **SpotyVibe interface** to set up your prefer
 - [Troubleshooting & Tips](#troubleshooting--tips)
   - [Troubleshooting](#troubleshooting)
   - [Final Tips](#final-tips)
+
+---
+
+## Privacy — What Leaves Your Device
+
+SpotyVibe keeps your keys and taste profile on your device. When you generate a playlist, your taste is sent to OpenAI (to get suggestions) and track titles are sent to Spotify (to verify and save them). Nothing else is tracked.
+
+| Data | On device | To OpenAI | To Spotify |
+|------|-----------|-----------|------------|
+| API keys | ✓ | — | — |
+| Taste profile (text) | ✓ | ✓ (per generation) | — |
+| Track likes / dislikes | ✓ | ✓ (per generation) | — |
+| Suggested track titles | ✓ | — | ✓ (search / add) |
+| Listening history | — | — | ✓ (read once) |
+
+Applies to the default SpotyVibe setup. Custom LLM endpoints may route data differently.
 
 ---
 

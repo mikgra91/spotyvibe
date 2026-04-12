@@ -1,0 +1,294 @@
+/* setup_guide.css — Detail overlay stepper and privacy modal table */
+
+/* ============ Setup guide overlay ============ */
+
+.setup-guide-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 200;
+    overflow-y: auto;
+}
+
+.setup-guide-overlay.open {
+    display: block;
+}
+
+.setup-guide-close {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    width: 40px;
+    height: 40px;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border: none;
+    border-radius: 50%;
+    font-size: 1.1rem;
+    cursor: pointer;
+    z-index: 250;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--transition);
+}
+
+@media (hover: hover) {
+    .setup-guide-close:hover {
+        background: var(--bg-card);
+    }
+}
+
+.setup-guide-scroll {
+    display: flex;
+    justify-content: center;
+    padding: 48px 24px;
+    min-height: 100%;
+}
+
+.setup-guide-card {
+    max-width: 720px;
+    width: 100%;
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: 32px;
+}
+
+.setup-guide-pill {
+    display: inline-block;
+    background: var(--primary);
+    color: var(--btn-cta-text);
+    padding: 4px 12px;
+    border-radius: var(--radius-pill);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.setup-guide-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin: 10px 0 8px;
+    color: var(--text-primary);
+}
+
+.setup-guide-subtitle {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+}
+
+.setup-guide-steps {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.setup-guide-step {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    margin-bottom: 28px;
+}
+
+.setup-guide-step:last-child {
+    margin-bottom: 0;
+}
+
+.setup-guide-step-num {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--bg-elevated);
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    flex-shrink: 0;
+    font-size: 0.9rem;
+}
+
+.setup-guide-step-body {
+    flex: 1;
+}
+
+.setup-guide-step-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
+
+.setup-guide-step-desc {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.setup-guide-step-desc a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+@media (hover: hover) {
+    .setup-guide-step-desc a:hover {
+        text-decoration: underline;
+    }
+}
+
+.setup-guide-step-img {
+    width: 100%;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    margin-top: 12px;
+    display: block;
+}
+
+.setup-guide-step-copy {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    margin-top: 10px;
+}
+
+.setup-guide-step-copy code {
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 0.82rem;
+    color: var(--text-primary);
+    flex: 1;
+    word-break: break-all;
+}
+
+.setup-guide-done {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 14px 24px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: var(--btn-cta-text);
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 700;
+    border: none;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    margin-top: 28px;
+    transition: transform var(--transition), box-shadow var(--transition);
+    box-shadow: 0 4px 20px var(--glow-green);
+}
+
+@media (hover: hover) {
+    .setup-guide-done:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 28px var(--glow-green);
+    }
+}
+
+/* ============ Privacy modal data table ============ */
+
+.privacy-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    margin: 16px 0;
+}
+
+.privacy-table thead th {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font-weight: 600;
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.privacy-table thead th:not(:first-child) {
+    text-align: center;
+}
+
+.privacy-table tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+}
+
+.privacy-table tbody td:not(:first-child) {
+    text-align: center;
+}
+
+.privacy-table .priv-check {
+    color: var(--primary);
+}
+
+.privacy-table .priv-dash {
+    color: var(--text-muted);
+}
+
+.privacy-table .priv-note {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: block;
+}
+
+.privacy-summary {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 12px;
+}
+
+.privacy-footnote {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+/* ============ Responsive ============ */
+
+@media (max-width: 640px) {
+    .setup-guide-card {
+        padding: 24px 16px;
+        margin: 24px 0;
+    }
+
+    .setup-guide-scroll {
+        padding: 24px 12px;
+    }
+
+    .setup-guide-title {
+        font-size: 1.4rem;
+    }
+
+    .privacy-table {
+        font-size: 0.78rem;
+    }
+
+    .privacy-table thead th,
+    .privacy-table tbody td {
+        padding: 8px 6px;
+    }
+}
+
+/* ============ Reduced motion ============ */
+
+@media (prefers-reduced-motion: reduce) {
+    .setup-guide-overlay {
+        transition: none !important;
+    }
+
+    .setup-guide-done {
+        transition: none !important;
+    }
+}
+

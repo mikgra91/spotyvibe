@@ -1,0 +1,89 @@
+<!-- Privacy modal — "What gets sent where?" data-flow table -->
+<div class="modal-overlay" id="privacyModal" role="dialog" aria-modal="true" aria-labelledby="privacyModalTitle"
+     onclick="if(event.target===this)closePrivacyModal()">
+    <div class="modal">
+        <h2 id="privacyModalTitle">🔒 <span data-i18n="priv.title">What gets sent where?</span></h2>
+
+        <p class="privacy-summary" data-i18n="ob.privacy_short">Your keys and taste profile stay on your device. When you generate a playlist, your taste is sent to OpenAI (to get suggestions) and track titles go to Spotify (to verify and save them). Nothing else is tracked.</p>
+
+        <table class="privacy-table">
+            <thead>
+                <tr>
+                    <th data-i18n="priv.col_data">Data</th>
+                    <th data-i18n="priv.col_device">On device</th>
+                    <th data-i18n="priv.col_openai">To OpenAI</th>
+                    <th data-i18n="priv.col_spotify">To Spotify</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td data-i18n="priv.row_keys">API keys</td>
+                    <td class="priv-check">✓</td>
+                    <td class="priv-dash">—</td>
+                    <td class="priv-dash">—</td>
+                </tr>
+                <tr>
+                    <td data-i18n="priv.row_profile">Taste profile (text)</td>
+                    <td class="priv-check">✓</td>
+                    <td class="priv-check">✓ <span class="priv-note" data-i18n="priv.per_generation">per generation</span></td>
+                    <td class="priv-dash">—</td>
+                </tr>
+                <tr>
+                    <td data-i18n="priv.row_feedback">Track likes / dislikes</td>
+                    <td class="priv-check">✓</td>
+                    <td class="priv-check">✓ <span class="priv-note" data-i18n="priv.per_generation">per generation</span></td>
+                    <td class="priv-dash">—</td>
+                </tr>
+                <tr>
+                    <td data-i18n="priv.row_titles">Suggested track titles</td>
+                    <td class="priv-check">✓</td>
+                    <td class="priv-dash">—</td>
+                    <td class="priv-check">✓ <span class="priv-note" data-i18n="priv.search_add">search / add</span></td>
+                </tr>
+                <tr>
+                    <td data-i18n="priv.row_library">Listening history</td>
+                    <td class="priv-dash">—</td>
+                    <td class="priv-dash">—</td>
+                    <td class="priv-check">✓ <span class="priv-note" data-i18n="priv.read_once">read once</span></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p class="privacy-footnote" data-i18n="priv.footnote">Applies to the default SpotyVibe setup. Custom LLM endpoints may route data differently.</p>
+
+        <div class="modal-actions">
+            <button class="btn btn-cancel" onclick="closePrivacyModal()" data-i18n="priv.close">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openPrivacyModal() {
+    const modal = document.getElementById('privacyModal');
+    if (modal) {
+        modal.classList.add('open');
+        document.body.classList.add('modal-scroll-lock');
+        // Trap focus
+        const closeBtn = modal.querySelector('.btn-cancel');
+        if (closeBtn) closeBtn.focus();
+    }
+}
+
+function closePrivacyModal() {
+    const modal = document.getElementById('privacyModal');
+    if (modal) {
+        modal.classList.remove('open');
+        document.body.classList.remove('modal-scroll-lock');
+    }
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('privacyModal');
+        if (modal && modal.classList.contains('open')) {
+            closePrivacyModal();
+        }
+    }
+});
+</script>
+
