@@ -2,6 +2,10 @@
 
 Each entry records: run_id, timestamp, playlist_id, playlist_url, tracks added.
 Stored as a JSON array in the app data directory.
+
+Schema versions:
+  1 (implicit): tracks have optional 'reason' string
+  2 (Wave 3):   tracks have 'rationale' array [{type, arg?}], no 'reason'
 """
 
 import json
@@ -16,6 +20,24 @@ logger = logging.getLogger(__name__)
 _HISTORY_FILE = _get_app_dir() / "run_history.json"
 _MAX_HISTORY_ENTRIES = 5
 _history_lock = threading.Lock()
+
+# Current schema version for new runs
+CURRENT_SCHEMA_VERSION = 2
+
+
+def _migrate_track_rationale(track: dict) -> dict:
+    """On-the-fly migration: convert legacy 'reason' to 'rationale' array.
+
+    Does NOT rewrite the file — transform is read-only.
+    """
+    if "rationale" in track:
+        return track
+    reason = track.get("reason")
+    if reason:
+        track["rationale"] = [{"type": "legacy", "arg": str(reason)}]
+    else:
+        track["rationale"] = [{"type": "fallback"}]
+    return track
 
 
 def _load_history() -> list:
@@ -40,17 +62,24 @@ def _save_history(history: list) -> None:
 def save_run(run_id: str, playlist_id: str, playlist_url: str, tracks: list) -> None:
     """Append a new run entry to the history file.
 
-    tracks: list of {"artist": ..., "track": ..., "uri": ...}
+    tracks: list of {"artist": ..., "track": ..., "uri": ..., "rationale": [...]}
+    New runs are written with schema_version 2.
     """
     with _history_lock:
         history = _load_history()
         entry = {
             "run_id": run_id,
+            "schema_version": CURRENT_SCHEMA_VERSION,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "playlist_id": playlist_id,
             "playlist_url": playlist_url,
             "tracks": [
-                {"artist": t.get("artist", ""), "track": t.get("track", ""), "uri": t.get("uri", "")}
+                {
+                    "artist": t.get("artist", ""),
+                    "track": t.get("track", ""),
+                    "uri": t.get("uri", ""),
+                    "rationale": t.get("rationale", [{"type": "fallback"}]),
+                }
                 for t in tracks
             ],
         }
@@ -62,7 +91,10 @@ def save_run(run_id: str, playlist_id: str, playlist_url: str, tracks: list) -> 
 
 
 def load_runs() -> list:
-    """Return run history newest-first."""
+    """Return run history newest-first, with on-the-fly rationale migration."""
     with _history_lock:
-        return list(reversed(_load_history()))
-
+        raw = _load_history()
+        for run in raw:
+            for track in run.get("tracks", []):
+                _migrate_track_rationale(track)
+        return list(reversed(raw))

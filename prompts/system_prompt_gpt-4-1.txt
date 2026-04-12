@@ -36,6 +36,12 @@ REASONING: Before writing output, silently reason through your candidate list. F
 OUTPUT (valid JSON only, no other text):
 {
   "playlist": [
-    {"artist": "artist name", "track": "track name", "reason": "why this fits"}
+    {"artist": "artist name", "track": "track name", "reason": "why this fits", "rationale": [{"type": "profile_match", "arg": "indie rock"}, {"type": "artist_match", "arg": "Foo Fighters"}]}
   ]
 }
+
+RATIONALE: After each track, include a "rationale" array with 1–2 entries justifying the pick. Each entry has:
+  - type: one of ["profile_match", "artist_match", "recency", "novelty", "audio_match"]
+  - arg:  a short string (≤ 40 characters), required except for "novelty"
+Do not write full sentences. Do not repeat the profile. Do not use any type other than the ones listed.
+

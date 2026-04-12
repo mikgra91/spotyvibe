@@ -27,6 +27,10 @@ import * as Completeness from './modules/completeness.js';
 import * as Exploration from './modules/exploration.js';
 import * as Presets from './modules/presets.js';
 import * as QuickAdvanced from './modules/quick_advanced.js';
+import * as Tips from './modules/tips.js';
+import * as Rationale from './modules/rationale.js';
+import * as TasteDashboard from './modules/taste_dashboard.js';
+import * as PlaylistSeed from './modules/playlist_seed.js';
 
 // Expose globals for HTML onclick= attributes
 window.checkCredentialStatus = checkCredentialStatus;
@@ -213,6 +217,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     Exploration.init();
     Presets.init();
     Completeness.init();
+
+    // Wave 3: Tips, rationale, taste dashboard, playlist seed
+    Tips.init();
+    Rationale.init();
+    TasteDashboard.init();
+    PlaylistSeed.init();
+    PlaylistSeed.applyPendingDraftIfAny();
 
     // Quickstart guide (auto-show on first visit for the active provider)
     maybeShowQuickstart(getActiveProvider());

@@ -89,6 +89,7 @@ spotyvibe/
 │   ├── history.py                 # Run history persistence
 │   ├── analysis.py                # Band/artist analysis
 │   ├── spotify_metadata.py        # Spotify metadata enrichment
+│   ├── taste.py                   # Taste aggregation for dashboard (Wave 3)
 │   └── utils.py                   # Shared utilities
 ├── core/tests/                    # Unit tests — one per core module
 ├── frontend/templates/            # Jinja2 HTML
@@ -123,6 +124,10 @@ spotyvibe/
 │   ├── completeness.css           # Profile completeness meter styling
 │   ├── exploration_slider.css     # 5-notch exploration slider
 │   ├── presets.css                # Preset dropdown + manager modal
+│   ├── playlist_seed.css          # Playlist seed modal + draft banner (Wave 3)
+│   ├── rationale_chips.css        # Rationale chip styling (Wave 3)
+│   ├── taste_dashboard.css        # Taste dashboard charts (Wave 3)
+│   ├── tips.css                   # Feature discovery tip toasts (Wave 3)
 │   └── responsive.css             # All @media queries
 ├── frontend/static/js/modules/   # JS feature modules
 │   ├── state.js                   # Central app state
@@ -137,6 +142,10 @@ spotyvibe/
 │   ├── exploration.js             # Exploration slider state + bidirectional sync
 │   ├── presets.js                 # Preset CRUD, built-in catalogue, import/export
 │   ├── quick_advanced.js          # Generate-panel mode toggle + control sync
+│   ├── playlist_seed.js           # Playlist-seeded profile flow (Wave 3)
+│   ├── rationale.js               # Rationale chip rendering (Wave 3)
+│   ├── taste_dashboard.js         # SVG taste visualisation dashboard (Wave 3)
+│   ├── tips.js                    # Feature discovery tip toasts (Wave 3)
 │   └── theme-switcher.js, theme-equalizer.js, theme-pulse.js,
 │       theme-spectrum.js, theme-starfield.js
 ├── frontend/static/i18n/          # en.json + de.json

@@ -921,4 +921,29 @@ Output:
 - `dist/spotyvibe_onefile.exe`
 
 
+## Wave 3 — API Additions
 
+### `GET /api/spotify/playlists_for_seed`
+Returns the user's Spotify playlists for the seed picker. Requires Spotify auth.
+Response: `{ playlists: [{ id, name, owner, track_count, cover_url }] }`
+
+### `POST /api/profile/seed_from_playlist`
+Drafts a taste profile from a Spotify playlist via GPT.
+Request: `{ playlist_id: "..." }`
+Response: `{ draft: { core_description, must_have, soft_preferences, avoid, vibe_description }, meta: { playlist_id, playlist_name, track_count, top_genres, top_artists, drafted_at } }`
+
+### `GET /api/taste/aggregate`
+Returns aggregated taste data for the visualisation dashboard.
+Response: `{ tracks_considered, runs_considered, top_genres: [{genre, count}], energy_valence: [{energy, valence, artist, title}], decades: [{decade, count}] }`
+
+### Run History Schema Version 2
+New runs include `schema_version: 2` and each track has a `rationale` array instead of a `reason` string. Old runs are migrated on-the-fly during reads (no file rewrite).
+
+### Rationale Chip Types
+- `profile_match` — matches a profile tag or description
+- `artist_match` — related to a known artist
+- `recency` — recent release or emerging artist
+- `novelty` — intentional discovery pick
+- `audio_match` — matches active audio filter range
+- `legacy` — fallback for pre-Wave-3 history entries
+- `fallback` — no rationale available

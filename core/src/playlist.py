@@ -610,3 +610,85 @@ def delete_playlist(playlist_id):
     sp = get_spotify_client()
     sp.current_user_unfollow_playlist(playlist_id)
     logger.info("Deleted (unfollowed) playlist: %s", playlist_id)
+
+
+def fetch_user_playlists(limit=50):
+    """Fetch the current user's playlists for the seed-from-playlist picker.
+
+    Returns a list of dicts: {id, name, owner, track_count, cover_url}.
+    """
+    sp = get_spotify_client()
+    results = sp.current_user_playlists(limit=limit)
+    playlists = []
+    for item in results.get("items", []):
+        if not item:
+            continue
+        images = item.get("images") or []
+        cover_url = images[0]["url"] if images else ""
+        owner = (item.get("owner") or {}).get("display_name", "")
+        playlists.append({
+            "id": item["id"],
+            "name": item.get("name", ""),
+            "owner": owner,
+            "track_count": (item.get("tracks") or {}).get("total", 0),
+            "cover_url": cover_url,
+        })
+    return playlists
+
+
+def fetch_playlist_items_for_seed(playlist_id):
+    """Fetch playlist items for seeding a taste profile.
+
+    Uses sp.playlist_items() (not playlist_tracks per CLAUDE.md rule 2).
+    Inner key is 'item' (Feb 2026 change).
+
+    Returns: {name, owner, track_count, tracks: [{artist, title, artist_id, album, release_date}], top_artists, top_genres}
+    """
+    sp = get_spotify_client()
+
+    # Get playlist metadata
+    playlist_info = sp.playlist(playlist_id, fields="name,owner(display_name),tracks(total)")
+    name = playlist_info.get("name", "")
+    owner = (playlist_info.get("owner") or {}).get("display_name", "")
+    total = (playlist_info.get("tracks") or {}).get("total", 0)
+
+    # Fetch items (up to 100 for seed — enough for a good profile)
+    results = sp.playlist_items(playlist_id, limit=100,
+                                fields="items(item(name,artists(name,id),album(name,release_date)))")
+    tracks = []
+    artist_counts = {}
+    artist_ids = set()
+    for item_wrapper in results.get("items", []):
+        item = item_wrapper.get("item")
+        if not item:
+            continue
+        artists = item.get("artists") or []
+        primary_artist = artists[0] if artists else {}
+        artist_name = primary_artist.get("name", "")
+        artist_id = primary_artist.get("id", "")
+        album = item.get("album") or {}
+
+        tracks.append({
+            "artist": artist_name,
+            "title": item.get("name", ""),
+            "artist_id": artist_id,
+            "album": album.get("name", ""),
+            "release_date": album.get("release_date", ""),
+        })
+
+        if artist_name:
+            artist_counts[artist_name] = artist_counts.get(artist_name, 0) + 1
+        if artist_id:
+            artist_ids.add(artist_id)
+
+    # Top artists by frequency
+    top_artists = sorted(artist_counts.keys(), key=lambda a: artist_counts[a], reverse=True)[:5]
+
+    return {
+        "name": name,
+        "owner": owner,
+        "track_count": total,
+        "tracks": tracks,
+        "top_artists": top_artists,
+        "artist_ids": list(artist_ids),
+    }

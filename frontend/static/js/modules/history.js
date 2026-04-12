@@ -1,6 +1,7 @@
 import * as State from './state.js';
 import { attr, escHtml } from './ui.js';
 import { i18n } from './i18n.js';
+import { buildRationaleHtml } from './rationale.js';
 
 export async function toggleHistoryBody() {
     const body = document.getElementById('historyBody');
@@ -15,6 +16,11 @@ export async function toggleHistoryBody() {
     const toggleBtn = document.getElementById('historyToggleBtn');
     if (toggleBtn) toggleBtn.textContent = State.historyBodyOpen ? i18n('btn.hide', 'Hide') : i18n('btn.show', 'Show');
     if (State.historyBodyOpen) await loadHistory();
+    // Wave 3: First history view tip
+    if (State.historyBodyOpen && !localStorage.getItem('sv.history_viewed') && window.Tips) {
+        localStorage.setItem('sv.history_viewed', '1');
+        window.Tips.maybeTrigger('first_history_view');
+    }
 }
 
 export async function loadHistory() {
@@ -35,7 +41,7 @@ export async function loadHistory() {
                 ? `<a href="${attr(r.playlist_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--primary)">${i18n('history.open_playlist', 'Open playlist')}</a>`
                 : '';
             const trackItems = (r.tracks || [])
-                .map(t => `<li>${escHtml(t.artist)} — ${escHtml(t.track)}</li>`)
+                .map(t => `<li>${escHtml(t.artist)} — ${escHtml(t.track)}<div class="track-rationale">${buildRationaleHtml(t.rationale)}</div></li>`)
                 .join('');
             return `<div class="history-run-item" tabindex="0" role="button" onclick="this.classList.toggle('expanded')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.classList.toggle('expanded')}">
                 <div class="history-run-header">

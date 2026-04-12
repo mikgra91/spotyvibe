@@ -660,3 +660,68 @@ def activate_profile(profile_id):
 
     set_active_profile_id(profile_id)
 
+
+# ── Profile seeding from playlists (Wave 3) ─────────────────────────
+
+SEED_PROMPT_FILE = BASE_DIR / "prompts" / "profile_seed_from_playlist.txt"
+
+
+def draft_profile_from_playlist(summary: dict) -> dict:
+    """Draft a taste profile from a Spotify playlist summary via GPT.
+
+    Args:
+        summary: dict with keys: name, track_count, top_artists, top_genres,
+                 energy, valence, tempo, moods.
+
+    Returns a profile dict with: core_description, must_have, soft_preferences,
+    avoid (always []), vibe_description (always "").
+    """
+    prompt_template = SEED_PROMPT_FILE.read_text(encoding="utf-8")
+
+    top_artists_list = ", ".join(summary.get("top_artists", [])[:5]) or "various"
+    top_genres_list = ", ".join(summary.get("top_genres", [])[:5]) or "mixed"
+    energy = summary.get("energy", "unknown")
+    valence = summary.get("valence", "unknown")
+    tempo = summary.get("tempo", "unknown")
+    moods = ", ".join(summary.get("moods", [])) or "mixed"
+
+    prompt = prompt_template.format(
+        name=summary.get("name", "Untitled"),
+        count=summary.get("track_count", 0),
+        top_artists_list=top_artists_list,
+        top_genres_list=top_genres_list,
+        energy=energy,
+        valence=valence,
+        tempo=tempo,
+        moods=moods,
+    )
+
+    from .openai_http import chat_completions_create, extract_chat_content
+    from .utils import strip_code_fences
+
+    response = chat_completions_create(
+        model=get_model(),
+        messages=[
+            {"role": "system", "content": "You draft music taste profiles from playlist data. Return strict JSON only."},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.7,
+        response_format={"type": "json_object"},
+    )
+
+    raw = extract_chat_content(response)
+    content = strip_code_fences(raw)
+
+    import json as _json
+    result = _json.loads(content)
+
+    # Enforce shape constraints
+    draft = {
+        "core_description": str(result.get("core_description", ""))[:MAX_CORE_DESCRIPTION_LEN],
+        "must_have": [str(x)[:MAX_PROFILE_SECTION_LEN] for x in (result.get("must_have") or [])[:3]],
+        "soft_preferences": [str(x)[:MAX_PROFILE_SECTION_LEN] for x in (result.get("soft_preferences") or [])[:3]],
+        "avoid": [],
+        "vibe_description": str(result.get("vibe_description", "")),
+    }
+    return draft
+

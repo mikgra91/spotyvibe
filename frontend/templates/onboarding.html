@@ -256,11 +256,12 @@
                 <div class="ob-subtitle" data-i18n="ob.step5_subtitle">Pick the quickest way in. You can always refine your profile later.</div>
 
                 <div class="ob-seed-grid">
-                    <div class="ob-seed-card ob-seed-card--disabled" aria-disabled="true">
+                    <div class="ob-seed-card" id="obSeedPlaylistCard">
                         <span class="ob-seed-icon" aria-hidden="true">🎵</span>
                         <span class="ob-seed-title" data-i18n="ob.seed_playlist_title">From a Spotify playlist</span>
                         <span class="ob-seed-desc" data-i18n="ob.seed_playlist_desc">Point us at a playlist you already love — SpotyVibe drafts a profile from it you can tweak.</span>
-                        <span class="ob-seed-badge" data-i18n="ob.coming_soon">Coming soon</span>
+                        <button class="ob-seed-action" onclick="openPlaylistSeedPicker('onboarding')" data-i18n="ob.seed_playlist_btn">Choose playlist →</button>
+                        <span class="ob-seed-connect-hint hidden" id="obSeedConnectHint" data-i18n="seed.connect_spotify_first">Connect Spotify on step 4 to enable this</span>
                     </div>
                     <div class="ob-seed-card">
                         <span class="ob-seed-icon" aria-hidden="true">📥</span>

@@ -10,7 +10,7 @@ import threading
 import time
 import traceback
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 # Ensure the spotyvibe package directory is on sys.path so all
@@ -80,6 +80,7 @@ from core.src.profile import (
     export_profile_dict, import_profile_dict,
     swap_profile_with_history,
     list_profiles, create_profile, delete_profile, activate_profile,
+    draft_profile_from_playlist,
 )
 from core.src.suggestions import (
     normalize_history,
@@ -95,8 +96,9 @@ from core.src.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist, delete_playlist,
     get_spotify_auth_status, get_spotify_auth_url, handle_spotify_callback,
     disconnect_spotify, get_user_playlists, get_playlist_tracks,
-    filter_emerging_artists,
+    filter_emerging_artists, fetch_user_playlists, fetch_playlist_items_for_seed,
 )
+from core.src.taste import aggregate_taste
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(24)
@@ -1191,6 +1193,86 @@ def get_runs():
         return jsonify({"runs": runs})
     except Exception as e:
         return jsonify({"error": str(e), "runs": []}), 500
+
+
+# ── Wave 3: Playlist seed, taste aggregate ───────────────────────────
+
+@app.route("/api/spotify/playlists_for_seed")
+def api_playlists_for_seed():
+    """Return user's Spotify playlists for the seed picker."""
+    if get_spotify_auth_status() != "authenticated":
+        return jsonify({"error": "not_authenticated"}), 401
+    try:
+        playlists = fetch_user_playlists(limit=50)
+        return jsonify({"playlists": playlists})
+    except Exception as e:
+        logger.exception("Failed to fetch playlists for seed")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/profile/seed_from_playlist", methods=["POST"])
+def api_seed_from_playlist():
+    """Draft a taste profile from a Spotify playlist."""
+    data = request.get_json(silent=True) or {}
+    pid = data.get("playlist_id")
+    if not pid:
+        return jsonify({"error": "missing_playlist_id"}), 400
+    if get_spotify_auth_status() != "authenticated":
+        return jsonify({"error": "not_authenticated"}), 401
+
+    try:
+        summary = fetch_playlist_items_for_seed(pid)
+
+        # Compute top genres from artist metadata if we have artist_ids
+        # Note: audio features API was removed Feb 2026, so we pass descriptive values
+        top_genres = []
+        try:
+            from core.src.playlist import get_spotify_client
+            sp = get_spotify_client()
+            artist_ids = summary.get("artist_ids", [])[:50]
+            if artist_ids:
+                # Batch fetch artist details (max 50 per request)
+                artists_data = sp.artists(artist_ids)
+                genre_counts = {}
+                for a in artists_data.get("artists", []):
+                    for g in (a.get("genres") or []):
+                        genre_counts[g] = genre_counts.get(g, 0) + 1
+                top_genres = sorted(genre_counts.keys(), key=lambda g: genre_counts[g], reverse=True)[:5]
+        except Exception:
+            pass
+
+        summary["top_genres"] = top_genres
+        summary["energy"] = "moderate"
+        summary["valence"] = "moderate"
+        summary["tempo"] = "120"
+        summary["moods"] = ["mixed"]
+
+        draft = draft_profile_from_playlist(summary)
+
+        meta = {
+            "playlist_id": pid,
+            "playlist_name": summary["name"],
+            "track_count": summary["track_count"],
+            "top_genres": summary.get("top_genres", [])[:5],
+            "top_artists": summary.get("top_artists", [])[:5],
+            "drafted_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        }
+        return jsonify({"draft": draft, "meta": meta})
+    except Exception as e:
+        logger.exception("Seed draft failed")
+        return jsonify({"error": "draft_failed", "detail": str(e)}), 502
+
+
+@app.route("/api/taste/aggregate")
+def api_taste_aggregate():
+    """Return aggregated taste data for the dashboard."""
+    try:
+        runs = load_runs()
+        aggregated = aggregate_taste(runs)
+        return jsonify(aggregated)
+    except Exception as e:
+        logger.exception("Taste aggregation failed")
+        return jsonify({"error": str(e)}), 500
 
 
 

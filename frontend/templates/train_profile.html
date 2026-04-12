@@ -36,6 +36,7 @@
                             <li role="menuitem" tabindex="-1" id="profileMenuUpload" onclick="startImportProfile(); toggleProfileMenu()"><span class="profile-menu-icon" aria-hidden="true">⬆</span> <span data-i18n="profile.menu_upload">Upload profile</span></li>
                             <li role="menuitem" tabindex="-1" id="profileMenuExport" onclick="exportProfile(); toggleProfileMenu()"><span class="profile-menu-icon" aria-hidden="true">⬇</span> <span data-i18n="profile.menu_export">Export profile</span></li>
                             <li role="menuitem" tabindex="-1" id="profileMenuReset" onclick="resetProfileToHistory(); toggleProfileMenu()"><span class="profile-menu-icon" aria-hidden="true">↩</span> <span data-i18n="profile.menu_reset">Reset profile</span></li>
+                            <li role="menuitem" tabindex="-1" id="profileMenuSeedPlaylist" onclick="openPlaylistSeedPicker('profile'); toggleProfileMenu()"><span class="profile-menu-icon" aria-hidden="true">🎵</span> <span data-i18n="profile.menu_seed_playlist">Seed from playlist</span></li>
                             <li role="menuitem" tabindex="-1" id="profileMenuDelete" class="profile-menu-item-delete" onclick="deleteCurrentProfile(); toggleProfileMenu()"><span class="profile-menu-icon" aria-hidden="true">🗑</span> <span data-i18n="profile.menu_delete">Delete profile</span></li>
                         </ul>
                     </div>
@@ -67,6 +68,16 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- Profile draft banner (Wave 3) -->
+        <div id="profileDraftBanner" class="profile-draft-banner hidden" role="status">
+            <span class="profile-draft-icon" aria-hidden="true">✨</span>
+            <div class="profile-draft-text">
+                <div class="profile-draft-title" data-i18n="profile.draft_title">Drafted from your playlist</div>
+                <div class="profile-draft-sub" id="profileDraftSub"></div>
+            </div>
+            <button class="profile-draft-discard" onclick="discardProfileDraft()" data-i18n="profile.draft_discard">Discard draft</button>
         </div>
 
         <!-- Profile completeness meter -->

@@ -1,0 +1,26 @@
+/* ── Rationale chips ─────────────────────────────────────────────── */
+.track-rationale { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+
+.rationale-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-pill, 999px); padding: 3px 10px;
+  font-size: 0.72rem; color: var(--text-secondary); margin-right: 2px;
+}
+.rationale-chip-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+}
+
+/* Type-specific dot colours */
+.rationale-chip--profile_match .rationale-chip-dot { background: var(--primary); }
+.rationale-chip--artist_match  .rationale-chip-dot { background: var(--accent-teal, #2dd4bf); }
+.rationale-chip--recency       .rationale-chip-dot { background: var(--accent-cyan, #22d3ee); }
+.rationale-chip--novelty       .rationale-chip-dot { background: var(--accent-purple, #a78bfa); }
+.rationale-chip--audio_match   .rationale-chip-dot { background: var(--accent-pink, #f472b6); }
+.rationale-chip--legacy        .rationale-chip-dot { background: var(--text-muted); }
+.rationale-chip--fallback      .rationale-chip-dot { background: var(--border); }
+
+.rationale-chip--fallback .rationale-chip-label {
+  color: var(--text-muted); font-style: italic;
+}
+

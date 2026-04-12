@@ -1,0 +1,42 @@
+/* ── Taste dashboard ─────────────────────────────────────────────── */
+.taste-dashboard-section { margin-top: 16px; }
+
+.dashboard-grid {
+  display: grid; gap: 14px; grid-template-columns: 1fr;
+}
+@media (min-width: 960px) {
+  .dashboard-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.dashboard-card {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: 18px; min-height: 300px;
+  display: flex; flex-direction: column;
+}
+.dashboard-card h4 {
+  margin: 0 0 14px; font-size: 0.95rem; font-weight: 700; color: var(--text-primary);
+}
+
+.dashboard-tooltip {
+  position: fixed; background: var(--bg-card); color: var(--text-primary);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 6px 10px; font-size: 0.8rem; pointer-events: none;
+  box-shadow: var(--shadow-elevated, 0 4px 12px rgba(0,0,0,0.3)); z-index: 400;
+}
+
+.dashboard-empty {
+  text-align: center; padding: 40px 20px; color: var(--text-muted);
+}
+.dashboard-empty-icon { font-size: 2rem; margin-bottom: 10px; opacity: 0.5; }
+.dashboard-empty p { font-size: 0.88rem; }
+
+/* Legend */
+.dashboard-legend { margin-top: 12px; }
+.dashboard-legend-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.78rem; color: var(--text-secondary); padding: 2px 0;
+}
+.legend-swatch {
+  width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0;
+}
+

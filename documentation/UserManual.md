@@ -662,6 +662,45 @@ python -m core.feedback dislike "Artist Name" --reason "why"
 
 ## Troubleshooting
 
+### Playlist-Seeded Profiles (Wave 3)
+
+You can seed your taste profile directly from an existing Spotify playlist:
+1. Open the profile editor (⋯ menu → **Seed from playlist**) or use the option during onboarding.
+2. Pick one of your Spotify playlists from the picker.
+3. SpotyVibe analyses the playlist's artists, genres, and audio features, then drafts a profile.
+4. Review and edit the draft in the profile editor, then save.
+
+### Explainable Recommendations (Wave 3)
+
+Each suggested track now shows 1–2 rationale chips explaining why it was picked:
+- **matches 'genre/trait'** — aligns with your profile description
+- **similar to Artist** — related to an artist in your history
+- **released YYYY** — recent release
+- **discovery pick** — intentional variety pick
+- **matches energy/tempo** — falls within your active audio filter range
+
+### Taste Visualisation Dashboard (Wave 3)
+
+Below the profile editor, a collapsible dashboard shows three charts:
+- **Top genres** — donut chart of your most common genres
+- **Energy × valence** — scatter plot of your tracks' mood
+- **Decades** — bar chart of release decades
+
+Requires at least 10 unique tracks from your history.
+
+### Feature Discovery Tips (Wave 3)
+
+SpotyVibe shows contextual tips as you use the app (at most one per session):
+- After your first generation
+- After disliking 2+ tracks
+- When viewing history for the first time
+- When opening audio filters
+- After 5 generations
+
+Reset tips via ☰ → **Reset tips**.
+
+## Troubleshooting
+
 | Problem | Solution |
 |---|---|
 | **"Spotify credentials missing"** | Open ⚙️ → Credentials and enter your Spotify Client ID and Secret. |

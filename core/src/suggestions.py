@@ -409,6 +409,44 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
     ]
 
 
+_ALLOWED_RATIONALE_TYPES = {"profile_match", "artist_match", "recency", "novelty", "audio_match"}
+
+
+def _normalize_rationale(entry: dict) -> list:
+    """Parse and normalise the rationale array from a GPT track entry.
+
+    - Drops entries whose type is not in the allowed set.
+    - Truncates arg to 40 characters.
+    - Caps array length to 2.
+    - Falls back to legacy/fallback if nothing valid remains.
+    """
+    raw = entry.get("rationale")
+    if isinstance(raw, list):
+        normalised = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            rtype = item.get("type", "")
+            if rtype not in _ALLOWED_RATIONALE_TYPES:
+                continue
+            chip = {"type": rtype}
+            arg = item.get("arg")
+            if arg is not None:
+                chip["arg"] = str(arg)[:40]
+            normalised.append(chip)
+            if len(normalised) >= 2:
+                break
+        if normalised:
+            return normalised
+
+    # Fallback: legacy reason string
+    reason = entry.get("reason", "")
+    if reason:
+        return [{"type": "legacy", "arg": str(reason)[:40]}]
+
+    return [{"type": "fallback"}]
+
+
 def normalize_response(result):
     """Force-lowercase all artist and track names in the GPT response.
 
@@ -421,6 +459,7 @@ def normalize_response(result):
       with reasons like "Forbidden track, excluded." instead of omitting them).
     - Strips parenthetical meta-commentary from artist names (e.g.
       "Tycho (different track)" → "tycho") to prevent profile pollution.
+    - Normalises rationale arrays to the bounded chip vocabulary (Wave 3).
     """
     result.pop("validation", None)
 
@@ -447,6 +486,10 @@ def normalize_response(result):
         artist = _strip_gpt_annotation(artist, _ANNOTATION_WORDS)
         entry["artist"] = artist.lower().strip()
         entry["track"] = entry.get("track", "").lower().strip()
+
+        # Normalise rationale (Wave 3)
+        entry["rationale"] = _normalize_rationale(entry)
+
         sanitized_playlist.append(entry)
 
     result["playlist"] = sanitized_playlist

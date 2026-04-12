@@ -93,7 +93,14 @@ export function toggleAudioFilters() {
     if (chevron) chevron.textContent = isHidden ? '▲' : '▼';
     const toggle = document.querySelector('#audioFiltersSection .audio-filter-toggle');
     if (toggle) toggle.setAttribute('aria-expanded', isHidden.toString());
-    if (isHidden) updateAllFilterHints();
+    if (isHidden) {
+        updateAllFilterHints();
+        // Wave 3: First filter open tip
+        if (!localStorage.getItem('sv.filters_opened') && window.Tips) {
+            localStorage.setItem('sv.filters_opened', '1');
+            window.Tips.maybeTrigger('first_filter_open');
+        }
+    }
 }
 
 export function getAudioFilters() {

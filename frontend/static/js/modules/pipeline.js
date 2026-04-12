@@ -302,6 +302,17 @@ export function handleStreamEvent(event) {
             showStatus(parts.join(' '), event.was_cancelled ? 'info' : 'success');
             // Playlist was created or modified — refresh both pickers
             refreshDiscoverPlaylistPicker().then(() => populateReviewPlaylistPicker());
+
+            // Wave 3: Tip triggers after successful generation
+            if (window.Tips) {
+                window.Tips.maybeTrigger('first_generation_complete');
+                // Track generation count for the "five generations" tip
+                try {
+                    const genCount = parseInt(localStorage.getItem('sv.gen_count') || '0', 10) + 1;
+                    localStorage.setItem('sv.gen_count', genCount.toString());
+                    if (genCount >= 5) window.Tips.maybeTrigger('five_generations');
+                } catch (_) { /* ignore */ }
+            }
             break;
         }
         case 'error':
