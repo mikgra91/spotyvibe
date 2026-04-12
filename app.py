@@ -885,9 +885,61 @@ def write_settings():
             payload["GPT_LANGUAGE"] = lang
     if "ui_language" in data:
         payload["UI_LANGUAGE"] = sanitize_text(str(data["ui_language"]).strip())
+
+    # Wave 4: Provider preset + base URL
+    valid_presets = {"openai", "ollama", "lmstudio", "groq", "openrouter", "custom"}
+    if "provider_preset" in data:
+        preset = sanitize_text(str(data["provider_preset"]).strip())
+        if preset in valid_presets:
+            payload["PROVIDER_PRESET"] = preset
+    if "llm_base_url" in data:
+        url = sanitize_text(str(data["llm_base_url"]).strip())
+        if url:
+            payload["LLM_BASE_URL"] = url
+
     save_settings(payload)
     app_log(f"Settings changed: {list(payload.keys())}")
     return jsonify({"status": "ok"})
+
+
+@app.route("/api/llm/fetch_models", methods=["POST"])
+def fetch_llm_models():
+    """Proxy a GET {base_url}/models to fetch available models from a provider."""
+    data = request.get_json(silent=True) or {}
+    base_url = sanitize_text(str(data.get("base_url", "")).strip())
+    api_key = data.get("api_key", "")
+
+    if not base_url:
+        return jsonify({"error": "base_url is required"}), 400
+
+    # Determine timeout: 2s for localhost, 5s for remote
+    is_local = "localhost" in base_url or "127.0.0.1" in base_url
+    timeout = 2 if is_local else 5
+
+    models_url = base_url.rstrip("/") + "/models"
+
+    try:
+        import urllib.request
+        import urllib.error
+
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        req = urllib.request.Request(models_url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+
+        model_ids = []
+        for item in payload.get("data", []):
+            mid = item.get("id", "")
+            if mid:
+                model_ids.append(mid)
+
+        return jsonify({"models": sorted(model_ids)})
+    except Exception as e:
+        logger.warning("Fetch models failed for %s: %s", base_url, e)
+        return jsonify({"error": str(e)}), 502
 
 
 @app.route("/api/settings/open-data-dir", methods=["POST"])

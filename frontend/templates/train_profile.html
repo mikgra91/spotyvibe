@@ -102,7 +102,14 @@
             <div class="accordion-body">
                 <div class="accordion-body-inner">
                     <p class="acc-hint" data-i18n="profile.vibe_description_hint" id="vibeDescHint">Tell the AI what you're looking for in everyday language — no structure needed. The AI will translate this into your profile.</p>
-                    <textarea id="trainVibeDesc" data-i18n-placeholder="profile.vibe_description_placeholder" aria-describedby="vibeDescHint" placeholder='e.g. "I love energetic rock with theatrical vocals like Queen. Surprise me with something new but keep it high-energy and melodic!"'>{{ profile.vibe_description if profile.vibe_description }}</textarea>
+                    <div class="vibe-textarea-wrap">
+                        <textarea id="trainVibeDesc" data-i18n-placeholder="profile.vibe_description_placeholder" aria-describedby="vibeDescHint" placeholder='e.g. "I love energetic rock with theatrical vocals like Queen. Surprise me with something new but keep it high-energy and melodic!"'>{{ profile.vibe_description if profile.vibe_description }}</textarea>
+                        <button class="voice-btn hidden" id="voiceBtnVibe" onclick="toggleVoice('trainVibeDesc')" aria-label="Dictate" aria-pressed="false" data-i18n-title="voice.dictate" title="Dictate">
+                            <span class="voice-btn-icon" aria-hidden="true">🎤</span>
+                            <span class="voice-btn-label" data-i18n="voice.speak">Speak</span>
+                        </button>
+                        <p class="voice-sr-status" id="voiceSrStatus" role="status" aria-live="polite"></p>
+                    </div>
                 </div>
             </div>
         </div>

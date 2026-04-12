@@ -699,6 +699,29 @@ SpotyVibe shows contextual tips as you use the app (at most one per session):
 
 Reset tips via ☰ → **Reset tips**.
 
+### Custom AI Provider (Wave 4)
+
+SpotyVibe can talk to any OpenAI-compatible API endpoint — not just OpenAI. Open ⚙️ Settings and pick a provider:
+
+| Provider | API Key required? | Notes |
+|---|---|---|
+| OpenAI | Yes | Default. |
+| Ollama (local) | No | Runs on your machine, free. |
+| LM Studio (local) | No | Runs on your machine, free. |
+| Groq | Yes | Cloud, fast inference. |
+| OpenRouter | Yes | Multi-model proxy. |
+| Custom | Depends | Paste any `/v1`-compatible URL. |
+
+Click **🔁 Fetch models** to populate the model dropdown from the provider's `/v1/models` endpoint. If that fails, click ✎ to type a model name manually.
+
+### Cost Estimator (Wave 4)
+
+A live cost estimate appears in the Settings modal and as a footnote under the Generate button. It approximates input/output tokens and looks up pricing from the shipped price table. Models not in the table show "estimate unavailable".
+
+### Voice Input (Wave 4)
+
+A 🎤 **Speak** button appears inside the "Describe Your Vibe" textarea (desktop browsers only). Click to start dictation; click again to stop. The transcript appends at the cursor position. No audio leaves your device — the Web Speech API handles recognition locally or via browser-managed cloud services.
+
 ## Troubleshooting
 
 | Problem | Solution |

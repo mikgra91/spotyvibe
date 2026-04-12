@@ -128,6 +128,9 @@ spotyvibe/
 │   ├── rationale_chips.css        # Rationale chip styling (Wave 3)
 │   ├── taste_dashboard.css        # Taste dashboard charts (Wave 3)
 │   ├── tips.css                   # Feature discovery tip toasts (Wave 3)
+│   ├── provider.css               # Provider dropdown + credential rows (Wave 4)
+│   ├── cost_estimate.css          # Cost-estimate card + footnote (Wave 4)
+│   ├── voice.css                  # Microphone button states (Wave 4)
 │   └── responsive.css             # All @media queries
 ├── frontend/static/js/modules/   # JS feature modules
 │   ├── state.js                   # Central app state
@@ -146,6 +149,9 @@ spotyvibe/
 │   ├── rationale.js               # Rationale chip rendering (Wave 3)
 │   ├── taste_dashboard.js         # SVG taste visualisation dashboard (Wave 3)
 │   ├── tips.js                    # Feature discovery tip toasts (Wave 3)
+│   ├── provider.js                # Custom LLM endpoint management (Wave 4)
+│   ├── cost_estimate.js           # Token & cost estimator widget (Wave 4)
+│   ├── voice.js                   # Web Speech API voice input (Wave 4)
 │   └── theme-switcher.js, theme-equalizer.js, theme-pulse.js,
 │       theme-spectrum.js, theme-starfield.js
 ├── frontend/static/i18n/          # en.json + de.json

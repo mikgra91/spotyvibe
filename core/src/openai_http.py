@@ -70,9 +70,25 @@ _RETRY_STATUS = {429, 500, 502, 503, 504}
 
 # ── Internal helpers ─────────────────────────────────────────────────
 
+def _get_base_url() -> str:
+    """Return the currently configured LLM base URL."""
+    try:
+        from config import get_llm_base_url
+        return get_llm_base_url()
+    except (ImportError, Exception):
+        return _BASE_URL
+
+
 def _get_api_key() -> str:
     key = os.getenv("OPENAI_API_KEY")
     if not key:
+        # Wave 4: Local providers don't need a key
+        try:
+            from config import llm_api_key_required
+            if not llm_api_key_required():
+                return "ollama"  # dummy token for compatibility
+        except (ImportError, Exception):
+            pass
         raise OpenAIConfigError(
             "OpenAI API key is not configured. "
             "Go to ⚙️ → Credentials to set it."
@@ -115,7 +131,8 @@ def _request_json(method: str, path: str, body=None, retries: int = 1) -> dict:
     """
     api_key = _get_api_key()
     headers = _make_headers(api_key)
-    url = f"{_BASE_URL}{path}"
+    base_url = _get_base_url()
+    url = f"{base_url}{path}"
     data = json.dumps(body).encode("utf-8") if body is not None else None
 
     last_exc: Exception | None = None

@@ -31,6 +31,9 @@ import * as Tips from './modules/tips.js';
 import * as Rationale from './modules/rationale.js';
 import * as TasteDashboard from './modules/taste_dashboard.js';
 import * as PlaylistSeed from './modules/playlist_seed.js';
+import * as Provider from './modules/provider.js';
+import * as CostEstimate from './modules/cost_estimate.js';
+import * as Voice from './modules/voice.js';
 
 // Expose globals for HTML onclick= attributes
 window.checkCredentialStatus = checkCredentialStatus;
@@ -224,6 +227,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     TasteDashboard.init();
     PlaylistSeed.init();
     PlaylistSeed.applyPendingDraftIfAny();
+
+    // Wave 4: Provider, cost estimate, voice
+    Provider.init();
+    CostEstimate.init();
+    Voice.init();
 
     // Quickstart guide (auto-show on first visit for the active provider)
     maybeShowQuickstart(getActiveProvider());

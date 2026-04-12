@@ -160,13 +160,18 @@ PROMPT_LOG_FILE = _APP_DIR / "prompt.log"      # GPT request/response log (was d
 CREDENTIAL_KEYS = ["OPENAI_API_KEY", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET"]
 
 # Non-secret keys — stored in settings.conf
-SETTINGS_KEYS = ["OPENAI_MODEL", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE", "GPT_LANGUAGE", "ONBOARDING_COMPLETED", "ACTIVE_PROFILE_ID", "UI_LANGUAGE"]
+SETTINGS_KEYS = ["OPENAI_MODEL", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE", "GPT_LANGUAGE", "ONBOARDING_COMPLETED", "ACTIVE_PROFILE_ID", "UI_LANGUAGE", "LLM_BASE_URL", "PROVIDER_PRESET"]
 
 # Maximum length for profile display names
 MAX_PROFILE_NAME_LEN = 40
 
 # Combined list for backward compatibility
 USER_KEYS = CREDENTIAL_KEYS + SETTINGS_KEYS
+
+# Default LLM provider configuration (Wave 4)
+DEFAULT_LLM_BASE_URL = 'https://api.openai.com/v1'
+DEFAULT_PROVIDER_PRESET = 'openai'
+LOCAL_PRESETS = {'ollama', 'lmstudio'}
 
 # Old file name used before the rename
 _OLD_ENV_FILE = _APP_DIR / ".env"
@@ -403,6 +408,9 @@ def get_settings():
         "prompt_log_path": "" if IS_ANDROID else str(PROMPT_LOG_FILE),
         "debug_controls_available": not IS_ANDROID,
         "is_android": IS_ANDROID,
+        "provider_preset": get_llm_provider_preset(),
+        "llm_base_url": get_llm_base_url(),
+        "llm_api_key_required": llm_api_key_required(),
     }
 
 
@@ -486,7 +494,7 @@ def save_credentials(credentials):
     load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
     # Re-overlay keyring so os.environ has the real values
     if _KEYRING_AVAILABLE:
-        for key in CREDENTIAL_KEYS:
+        for key in CREDENTIALS_KEYS:
             try:
                 val = _keyring.get_password(_KEYRING_SERVICE, key)
                 if val:
@@ -552,3 +560,36 @@ def get_active_history_path():
         return None
     validate_profile_id(pid)
     return PROFILES_DIR / f"{pid}.history.json"
+
+
+# ── Wave 4: LLM provider helpers ──────────────────────────────────
+
+def get_llm_base_url() -> str:
+    """Return the configured LLM base URL."""
+    return os.getenv("LLM_BASE_URL", DEFAULT_LLM_BASE_URL).strip() or DEFAULT_LLM_BASE_URL
+
+
+def set_llm_base_url(url: str):
+    """Persist the LLM base URL in settings.conf."""
+    ensure_env()
+    set_key(str(SETTINGS_FILE), "LLM_BASE_URL", url.strip())
+    os.environ["LLM_BASE_URL"] = url.strip()
+
+
+def get_llm_provider_preset() -> str:
+    """Return the active provider preset id."""
+    return os.getenv("PROVIDER_PRESET", DEFAULT_PROVIDER_PRESET).strip() or DEFAULT_PROVIDER_PRESET
+
+
+def set_llm_provider_preset(preset: str):
+    """Persist the provider preset in settings.conf."""
+    ensure_env()
+    set_key(str(SETTINGS_FILE), "PROVIDER_PRESET", preset.strip())
+    os.environ["PROVIDER_PRESET"] = preset.strip()
+
+
+def llm_api_key_required() -> bool:
+    """Return True if the current provider requires an API key."""
+    return get_llm_provider_preset() not in LOCAL_PRESETS
+
+
