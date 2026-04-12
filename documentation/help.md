@@ -557,6 +557,42 @@ If you create a new playlist, you can usually enter a custom playlist name.
 
 ---
 
+### Quick vs Advanced Mode
+
+The Generate panel has two modes, accessible via the pill toggle at the top:
+
+- **Quick** — Shows only playlist size, the exploration slider, and the Generate button. Best for everyday use.
+- **Advanced** — Shows all controls: preset picker, playlist mode, emerging artists, audio filters, new artist %, and the exploration slider.
+
+Your mode selection is saved and restored on reload.
+
+---
+
+### Exploration Slider
+
+The **Exploration vs Accuracy** slider is a 5-notch control that adjusts how adventurous your suggestions will be:
+
+1. **Familiar** — Bias toward artists you already know (10% new, temperature 0.5).
+2. **Mostly known** — A few new artists mixed in (25% new, temperature 0.7).
+3. **Balanced** — Roughly half new artists, moderate novelty (50% new, temperature 0.8).
+4. **Mostly new** — Discovery-led, some familiar anchors (70% new, temperature 0.9).
+5. **Adventurous** — Emerging artists only, high novelty (90% new, temperature 1.0).
+
+In Advanced mode, if you hand-edit the "New Artist %" or emerging artists checkbox to values that don't match any notch, the slider enters a **Custom** state. Moving it back to any notch re-applies the preset values.
+
+---
+
+### Generation Presets
+
+In Advanced mode, a **Preset** dropdown at the top lets you save and recall complete generation configurations:
+
+- **Built-in presets:** Safe picks, Balanced, Deep discovery. Cannot be edited, but can be cloned.
+- **User presets:** Appear above the built-ins. Save via "💾 Save current as preset…".
+- **Manage presets:** Open via ☰ Menu → 🎛 Manage presets. Rename, delete, reorder, import, or export.
+- Presets are stored locally on your device in the browser's localStorage.
+
+---
+
 ### Use Audio Filters
 
 Inside the **Discover Music** section, click the **🎚 Audio Filters (optional)** bar to expand the filter panel. These optional filters guide GPT to suggest tracks matching your desired mood and feel.

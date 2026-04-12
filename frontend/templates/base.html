@@ -20,6 +20,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/sections.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/preview.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/setup_guide.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/completeness.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/exploration_slider.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/presets.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
 </head>
 <body class="theme-equalizer">
@@ -85,6 +88,7 @@
     {% include "modals/quickstart_modal.html" %}
     {% include "modals/privacy_modal.html" %}
     {% include "modals/setup_guide_overlay.html" %}
+    {% include "modals/preset_manager_modal.html" %}
 
     <!-- Section help popup (focused single-section view) -->
     <div class="modal-overlay" id="sectionHelpOverlay" role="dialog" aria-modal="true" aria-label="Section help" onclick="if(event.target===this)closeSectionHelp()">

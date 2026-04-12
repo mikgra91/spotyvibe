@@ -551,6 +551,65 @@ class TestRunPipeline:
         assert "result" in data
         assert "open.spotify.com" in data
 
+    @patch("app.save_run")
+    @patch("app.add_to_playlist")
+    @patch("app.search_tracks")
+    @patch("app.filter_duplicate_suggestions")
+    @patch("app.call_gpt")
+    @patch("app.save_profile")
+    @patch("app.update_profile")
+    @patch("app.normalize_history")
+    @patch("app.load_profile")
+    @patch("app.get_new_artist_percentage", return_value=30)
+    @patch("app.get_playlist_size", return_value=10)
+    @patch("app.get_debug_mode", return_value=False)
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    @patch("app.is_profile_trained", return_value=True)
+    def test_accepts_temperature_and_playlist_size(
+        self, mock_trained, mock_spotify, mock_debug, mock_size,
+        mock_percentage, mock_load, mock_norm, mock_update,
+        mock_save, mock_gpt, mock_filter, mock_search, mock_add,
+        mock_save_run, client
+    ):
+        """Wave 2: /api/run accepts temperature and playlist_size from client."""
+        mock_load.return_value = {
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {},
+            "preferences": {},
+        }
+        mock_norm.return_value = mock_load.return_value
+        mock_gpt.return_value = {
+            "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 15,
+            "new_artists": ["a"],
+            "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
+        }
+        mock_filter.return_value = {
+            "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 15,
+            "new_artists": ["a"],
+            "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
+        }
+        mock_update.return_value = mock_load.return_value
+        mock_search.return_value = (
+            [{"artist": "a", "track": "b", "uri": f"spotify:track:{i}", "cover_url": None} for i in range(15)],
+            [],
+        )
+        mock_add.return_value = {"url": "https://open.spotify.com/playlist/test", "added": 15}
+
+        resp = client.post(
+            "/api/run",
+            data=json.dumps({"temperature": 1.0, "playlist_size": 15}),
+            content_type="application/json",
+        )
+        data = resp.data.decode()
+        assert "result" in data
+        # Verify call_gpt was called with a temperature near 1.0 (not default 0.7)
+        call_args = mock_gpt.call_args
+        assert call_args is not None
+        used_temp = call_args[1].get("temperature", call_args[0][1] if len(call_args[0]) > 1 else None)
+        # Temperature should be close to 1.0 (the base_temp from client)
+        assert used_temp is not None
+        assert used_temp >= 0.8  # at least 0.8 (1.0 - 0.2 max decay)
+
 
 class TestSpotifyCallback:
     def test_xss_in_error_param_is_escaped(self, client):

@@ -1,0 +1,24 @@
+<!-- Preset manager modal -->
+<div class="modal-overlay" id="presetManagerModal" role="dialog" aria-modal="true" aria-labelledby="presetManagerTitle" onclick="if(event.target===this)closeModal('presetManagerModal')">
+    <div class="modal" style="max-width: 560px;">
+        <h2 id="presetManagerTitle" data-i18n="preset.manager_title">Manage presets</h2>
+        <p class="inline-hint" data-i18n="preset.manager_subtitle">Drag to reorder your own presets. Built-in presets are fixed.</p>
+
+        <ul class="preset-manager-list" id="presetManagerUserList">
+            <!-- user rows: drag-handle, name (editable on click), export, delete -->
+        </ul>
+
+        <h3 class="preset-manager-section" data-i18n="preset.builtin_header">Built-in</h3>
+        <ul class="preset-manager-list" id="presetManagerBuiltinList">
+            <!-- builtin rows: name (readonly), clone button -->
+        </ul>
+
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="importPresetFile()" data-i18n="preset.import">⬆ Import preset…</button>
+            <input id="presetImportInput" type="file" accept="application/json,.json" style="display:none;">
+            <button class="btn btn-cancel" onclick="closeModal('presetManagerModal')" data-i18n="btn.close">Close</button>
+        </div>
+    </div>
+</div>
+
+

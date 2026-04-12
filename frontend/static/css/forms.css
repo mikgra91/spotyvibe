@@ -31,6 +31,66 @@
     color: var(--text-muted);
     margin-top: 3px;
 }
+
+/* ── Inline hint (always visible under control) ────────────────────── */
+.inline-hint {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin: 4px 0 0;
+    line-height: 1.4;
+}
+
+/* ── Learn more collapsible ────────────────────────────────────────── */
+.learn-more {
+    margin-top: 6px;
+    font-size: 0.82rem;
+}
+.learn-more > summary {
+    color: var(--primary);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    list-style: none;
+    padding: 2px 0;
+}
+.learn-more > summary::-webkit-details-marker { display: none; }
+.learn-more > summary::marker { content: ""; }
+.learn-more > summary::before {
+    content: "▸";
+    display: inline-block;
+    transition: transform 150ms ease;
+}
+.learn-more[open] > summary::before {
+    transform: rotate(90deg);
+}
+@media (hover: hover) {
+    .learn-more > summary:hover { text-decoration: underline; }
+}
+.learn-more-body {
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: var(--bg-input);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    line-height: 1.45;
+}
+
+/* ── Optional badge ────────────────────────────────────────────────── */
+.optional-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 2px 8px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    background: var(--bg-input);
+    border-radius: var(--radius-pill);
+    vertical-align: middle;
+}
+
 .form-actions {
     display: flex;
     gap: 8px;

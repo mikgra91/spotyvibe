@@ -100,6 +100,22 @@ export async function runPipeline() {
     const emergingOnly = document.getElementById('emergingArtistsCheckbox')?.checked || false;
     if (emergingOnly) playlistPayload.emerging_only = true;
 
+    // Wave 2: temperature from exploration slider
+    try {
+        const Exploration = window._explorationModule;
+        if (Exploration) {
+            const temp = Exploration.getTemperature();
+            if (temp != null) playlistPayload.temperature = temp;
+        }
+    } catch (_) { /* ignore */ }
+
+    // Wave 2: playlist size from active mode's slider (overrides settings modal)
+    const activeBody = document.querySelector('.gen-mode-body:not(.hidden)');
+    const sizeSlider = activeBody ? activeBody.querySelector('.gen-size-slider') : null;
+    if (sizeSlider) {
+        playlistPayload.playlist_size = parseInt(sizeSlider.value, 10);
+    }
+
     try {
         await _startSseStream(State.currentRunId, State.currentAbortController.signal, playlistPayload);
     } catch (e) {

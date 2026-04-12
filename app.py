@@ -396,6 +396,22 @@ def run_pipeline():
     # Audio feature filters: {"energy": {"min": 0.6, "max": 1.0}, ...}
     audio_filters = body.get("audio_filters") or {}
     emerging_only = bool(body.get("emerging_only"))
+    # Wave 2: client-specified temperature (clamped to 0.0–2.0)
+    client_temperature = body.get("temperature")
+    if client_temperature is not None:
+        try:
+            client_temperature = float(client_temperature)
+            client_temperature = max(0.0, min(2.0, client_temperature))
+        except (TypeError, ValueError):
+            client_temperature = None
+    # Wave 2: client-specified playlist size (clamped to 10–30)
+    client_playlist_size = body.get("playlist_size")
+    if client_playlist_size is not None:
+        try:
+            client_playlist_size = int(client_playlist_size)
+            client_playlist_size = max(10, min(30, client_playlist_size))
+        except (TypeError, ValueError):
+            client_playlist_size = None
     cancel_event = threading.Event()
     _sweep_stale_runs()
     with _runs_lock:
@@ -421,6 +437,9 @@ def run_pipeline():
             app_log(f"Generation run started: run_id={run_id} mode={playlist_mode}")
 
             playlist_size = get_playlist_size()
+            # Wave 2: client-specified size overrides server default
+            if client_playlist_size is not None:
+                playlist_size = client_playlist_size
             new_artist_percentage = get_new_artist_percentage()
 
             yield _sse("progress", message="Loading profile…")
@@ -495,7 +514,8 @@ def run_pipeline():
                 )
                 gpt_call_count += 1
                 # Adaptive temperature: lower on retries for more deterministic output
-                temperature = max(0.3, 0.7 - (consecutive_empty_batches * 0.2))
+                base_temp = client_temperature if client_temperature is not None else 0.7
+                temperature = max(0.3, base_temp - (consecutive_empty_batches * 0.2))
                 result = call_gpt(messages, temperature=temperature)
 
                 # ── Check again after the blocking GPT call ──

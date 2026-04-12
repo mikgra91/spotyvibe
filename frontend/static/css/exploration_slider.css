@@ -1,0 +1,214 @@
+/* exploration_slider.css — 5-notch composite exploration slider */
+
+.exploration-row {
+    margin: 14px 0 18px;
+    padding: 12px 14px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.exploration-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+}
+
+.exploration-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.exploration-value {
+    font-size: 0.88rem;
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.exploration-slider-wrap {
+    position: relative;
+    padding: 6px 0 28px;
+}
+
+/* ── Track + fill overlay ────────────────────────────────────────── */
+.exploration-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: var(--slider-track-h);
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+    position: relative;
+    z-index: 2;
+}
+
+.exploration-slider-fill {
+    position: absolute;
+    top: 6px;
+    left: 0;
+    height: var(--slider-track-h);
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--primary), var(--accent-teal));
+    pointer-events: none;
+    z-index: 1;
+    transition: width 100ms ease;
+}
+
+/* ── Thumb — WebKit ─────────────────────────────────────────────── */
+.exploration-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: var(--slider-thumb-size);
+    height: var(--slider-thumb-size);
+    background: var(--primary);
+    border: 2px solid var(--bg-card);
+    border-radius: 50%;
+    box-shadow: 0 2px 8px var(--glow-green);
+    cursor: pointer;
+    position: relative;
+    z-index: 3;
+}
+
+/* ── Thumb — Firefox ────────────────────────────────────────────── */
+.exploration-slider::-moz-range-thumb {
+    width: var(--slider-thumb-size);
+    height: var(--slider-thumb-size);
+    background: var(--primary);
+    border: 2px solid var(--bg-card);
+    border-radius: 50%;
+    box-shadow: 0 2px 8px var(--glow-green);
+    cursor: pointer;
+}
+
+/* ── Custom state (dotted thumb) ─────────────────────────────────── */
+.exploration-slider.exploration-slider--custom::-webkit-slider-thumb {
+    border-style: dashed;
+    background: var(--bg-elevated);
+}
+.exploration-slider.exploration-slider--custom::-moz-range-thumb {
+    border-style: dashed;
+    background: var(--bg-elevated);
+}
+
+/* ── Firefox track ───────────────────────────────────────────────── */
+.exploration-slider::-moz-range-track {
+    height: var(--slider-track-h);
+    background: var(--border);
+    border-radius: 2px;
+    border: none;
+}
+
+/* ── Tick marks ──────────────────────────────────────────────────── */
+.exploration-ticks {
+    position: absolute;
+    top: 4px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+    z-index: 0;
+    padding: 0 calc(var(--slider-thumb-size) / 2 - 1px);
+}
+.exploration-ticks .tick {
+    width: 2px;
+    height: 8px;
+    background: var(--text-muted);
+    border-radius: 1px;
+    opacity: 0.4;
+}
+
+/* ── Edge labels ─────────────────────────────────────────────────── */
+.exploration-edge-labels {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* ── Gen size row (range slider for Quick/Advanced) ──────────────── */
+.gen-size-row {
+    margin-bottom: 14px;
+}
+.gen-size-row label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-weight: 700;
+}
+.gen-size-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+}
+.gen-size-value {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--primary);
+    font-variant-numeric: tabular-nums;
+}
+.gen-size-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: var(--slider-track-h);
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+.gen-size-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: var(--slider-thumb-size);
+    height: var(--slider-thumb-size);
+    background: var(--primary);
+    border: 2px solid var(--bg-card);
+    border-radius: 50%;
+    box-shadow: 0 2px 8px var(--glow-green);
+    cursor: pointer;
+}
+.gen-size-slider::-moz-range-thumb {
+    width: var(--slider-thumb-size);
+    height: var(--slider-thumb-size);
+    background: var(--primary);
+    border: 2px solid var(--bg-card);
+    border-radius: 50%;
+    box-shadow: 0 2px 8px var(--glow-green);
+    cursor: pointer;
+}
+.gen-size-slider::-moz-range-track {
+    height: var(--slider-track-h);
+    background: var(--border);
+    border-radius: 2px;
+    border: none;
+}
+
+/* ── Responsive touch targets ────────────────────────────────────── */
+@media (pointer: coarse) {
+    .exploration-slider::-webkit-slider-thumb,
+    .gen-size-slider::-webkit-slider-thumb {
+        transform: scale(1.4);
+    }
+    .exploration-slider::-moz-range-thumb,
+    .gen-size-slider::-moz-range-thumb {
+        transform: scale(1.4);
+    }
+}
+

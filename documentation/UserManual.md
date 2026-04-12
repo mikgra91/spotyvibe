@@ -292,6 +292,42 @@ The AI Profile Update merges with what the AI already knows — your feedback hi
 
 Once your profile is trained and Spotify is connected, go to the **Spotify** section and expand the **Discover Music** area.
 
+### Quick vs Advanced Mode
+
+The Generate panel has two modes, selectable via the pill toggle at the top:
+
+- **Quick mode** (default) — shows only the playlist size slider, the exploration slider, and the Generate button. Perfect for everyday use.
+- **Advanced mode** — shows all controls including playlist mode, emerging artists, audio filters, new artist %, and the preset picker.
+
+Your mode choice is remembered across sessions.
+
+### Exploration Slider
+
+Both modes include the **Exploration vs Accuracy** slider — a 5-notch control that adjusts how adventurous your suggestions will be:
+
+| Notch | Label | New artist % | Emerging only | Temperature |
+|-------|-------|-------------|---------------|-------------|
+| 1 | Familiar | 10% | No | 0.5 |
+| 2 | Mostly known | 25% | No | 0.7 |
+| 3 | Balanced | 50% | No | 0.8 |
+| 4 | Mostly new | 70% | No | 0.9 |
+| 5 | Adventurous | 90% | Yes | 1.0 |
+
+In Advanced mode, if you hand-edit the "New Artist %" or "Emerging artists" checkbox to a value that doesn't match any notch, the slider shows a **Custom** state with a dashed thumb. Moving the slider back to any notch resets those fields.
+
+### Generation Presets
+
+In Advanced mode, a **Preset** dropdown lets you save and recall complete generation configurations (size, exploration level, audio filters, etc.):
+
+- **3 built-in presets** ship with the app: Safe picks, Balanced, and Deep discovery. These cannot be edited but can be cloned.
+- **User presets** appear above the built-ins. Create one via "💾 Save current as preset…".
+- Open **☰ Menu → 🎛 Manage presets** to rename, delete, reorder, import, or export presets.
+- Presets are stored locally on your device.
+
+### Profile Completeness Meter
+
+When editing your Music Profile, a **Profile Strength** meter appears if your score is below 60%. It shows five dimensions (Core Description, Must Have, Soft Preferences, Avoid, Edited) and suggests what to improve next. Once your profile reaches 60%, the meter hides automatically.
+
 ### Playlist Mode
 
 Before generating, choose a **playlist mode** from the selector:

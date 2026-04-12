@@ -2736,3 +2736,124 @@ class TestOnboardingWizardWave1:
         # Assert German is still active
         expect(page.locator(".ob-lang-toggle button[data-lang='de']")).to_have_class(re.compile(r"active"))
 
+
+# ── Wave 2: Quick wins smoke tests ──────────────────────────────────
+
+class TestWave2QuickWins:
+    """Smoke tests for Wave 2 features: Quick/Advanced, exploration slider,
+    presets, and completeness meter."""
+
+    def test_quick_advanced_mode_persists(self, page: Page, base_url):
+        """Switching to Advanced mode persists across reloads."""
+        page.goto(base_url)
+        page.wait_for_load_state("networkidle")
+        _switch_to_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(200)
+        assert page.evaluate("localStorage.getItem('sv.gen_mode')") == "advanced"
+        page.reload()
+        page.wait_for_load_state("networkidle")
+        _switch_to_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        adv_btn = page.locator(".gen-mode-btn[data-mode='advanced']")
+        expect(adv_btn).to_have_class(re.compile(r"active"))
+
+    def test_exploration_slider_updates_underlying_fields(self, page: Page, base_url):
+        """Moving exploration slider to notch 1 sets new_artist_pct=10."""
+        page.goto(base_url)
+        page.wait_for_load_state("networkidle")
+        _switch_to_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(200)
+        # Move slider to 1 (Familiar)
+        page.evaluate("""() => {
+            const s = document.getElementById('explorationSliderAdvanced');
+            s.value = 1;
+            s.dispatchEvent(new Event('input'));
+        }""")
+        page.wait_for_timeout(200)
+        pct = page.evaluate("document.getElementById('settings-new-artist-pct').value")
+        assert int(pct) == 10
+        emerging = page.evaluate("document.getElementById('emergingArtistsCheckbox').checked")
+        assert emerging is False
+
+    def test_exploration_slider_custom_on_hand_edit(self, page: Page, base_url):
+        """Hand-editing new-artist-% triggers 'Custom' slider state."""
+        page.goto(base_url)
+        page.wait_for_load_state("networkidle")
+        _switch_to_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(200)
+        # Hand-edit new-artist-% to a value not matching any notch
+        page.evaluate("""() => {
+            const el = document.getElementById('genNewArtistPct');
+            el.value = 33;
+            el.dispatchEvent(new Event('input'));
+            el.dispatchEvent(new Event('change'));
+        }""")
+        page.wait_for_timeout(300)
+        label = page.locator(".gen-mode-body--advanced .exploration-value").text_content()
+        assert "Custom" in label or "Eigene" in label
+
+    def test_preset_save_and_reload(self, page: Page, base_url):
+        """Saving a preset persists it in localStorage."""
+        page.goto(base_url)
+        page.wait_for_load_state("networkidle")
+        page.evaluate("localStorage.removeItem('sv.presets.user')")
+        _switch_to_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(200)
+        page.locator(".preset-save-btn").click()
+        page.wait_for_timeout(200)
+        page.locator("#savePresetInput").fill("Test preset")
+        page.locator("#savePresetModal .btn-save").click()
+        page.wait_for_timeout(300)
+        # Reload, expect the preset to still be present
+        page.reload()
+        page.wait_for_load_state("networkidle")
+        stored = page.evaluate("JSON.parse(localStorage.getItem('sv.presets.user') || '[]')")
+        assert any(p["name"] == "Test preset" for p in stored)
+
+    def test_completeness_hides_at_high_score(self, page: Page, base_url):
+        """Completeness meter hides when all profile fields are well-filled."""
+        page.goto(base_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#trainToggleBtn").click()
+        page.wait_for_timeout(300)
+        # Fill fields strongly
+        page.locator("#trainCoreDesc").fill("Upbeat melodic rock with strong hooks, theatrical vocals, and constant momentum — think Queen meets Bear Ghost.")
+        page.locator("#trainMustHave").fill("high energy\nstrong memorable melodies\nvocals")
+        page.locator("#trainSoftPrefs").fill("prog influence")
+        page.locator("#trainAvoid").fill("electronic/synth-heavy")
+        # Trigger input events
+        for sel in ["#trainCoreDesc", "#trainMustHave", "#trainSoftPrefs", "#trainAvoid"]:
+            page.evaluate(f"document.querySelector('{sel}').dispatchEvent(new Event('input'))")
+        page.wait_for_timeout(400)
+        assert page.locator("#profileCompletenessCard").is_hidden()
+
+    def test_tooltip_removed_from_audio_filters(self, page: Page, base_url):
+        """Audio filter labels no longer have data-tooltip; inline hints are visible."""
+        page.goto(base_url)
+        page.wait_for_load_state("networkidle")
+        _switch_to_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(200)
+        page.locator(".audio-filter-toggle").click()
+        page.wait_for_timeout(200)
+        # The hover tooltip attribute should be gone
+        energy_label = page.locator(".audio-filter-row:has-text('Energy') label")
+        assert energy_label.get_attribute("data-tooltip") is None
+        # An inline hint line should exist
+        assert page.locator(".audio-filter-row:has-text('Energy') .inline-hint").is_visible()
+

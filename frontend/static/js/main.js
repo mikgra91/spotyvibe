@@ -23,6 +23,10 @@ import './modules/theme-spectrum.js';
 import './modules/theme-starfield.js';
 import { switchLanguage, applyLanguage, i18n, _i18nStrings, initI18n } from './modules/i18n.js';
 import { renderProviderPills } from './modules/provider-pills.js';
+import * as Completeness from './modules/completeness.js';
+import * as Exploration from './modules/exploration.js';
+import * as Presets from './modules/presets.js';
+import * as QuickAdvanced from './modules/quick_advanced.js';
 
 // Expose globals for HTML onclick= attributes
 window.checkCredentialStatus = checkCredentialStatus;
@@ -136,6 +140,11 @@ window.switchLanguage = switchLanguage;
 window.applyLanguage = applyLanguage;
 window.i18n = i18n;
 window.renderProviderPills = renderProviderPills;
+window.togglePresetDropdown = Presets.togglePresetDropdown;
+window.confirmSaveAsPreset = Presets.confirmSaveAsPreset;
+window.importPresetFile = Presets.importPresetFile;
+window._explorationModule = Exploration;
+window.openModal = function(id) { const el = document.getElementById(id); if (el) el.classList.add('open'); };
 
 // Listen for spotify auth popup callback
 window.addEventListener('message', async (e) => {
@@ -198,6 +207,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Tab navigation
     initTabs();
+
+    // Wave 2: Quick/Advanced mode, exploration slider, presets, completeness
+    QuickAdvanced.init();
+    Exploration.init();
+    Presets.init();
+    Completeness.init();
 
     // Quickstart guide (auto-show on first visit for the active provider)
     maybeShowQuickstart(getActiveProvider());

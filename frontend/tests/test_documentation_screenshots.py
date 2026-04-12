@@ -963,5 +963,193 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(300)
         _shot_element(page, "55_rerun_setup_menu_item", ".header-controls")
 
+    # -- Wave 2: Quick wins ------------------------------------------------
 
+    def test_56_generate_quick_mode(self, page: Page, screenshot_url):
+        """Screenshot: Generate panel in Quick mode with exploration slider."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.evaluate("localStorage.setItem('sv.gen_mode', 'quick')")
+        page.reload()
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(400)
+        _shot_element(page, "56_generate_quick_mode", "#generateSection")
 
+    def test_57_generate_advanced_mode(self, page: Page, screenshot_url):
+        """Screenshot: Generate panel in Advanced mode with all controls visible."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "57_generate_advanced_mode", "#generateSection")
+
+    def test_58_exploration_slider_adventurous(self, page: Page, screenshot_url):
+        """Screenshot: Exploration slider at notch 5 (Adventurous)."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.evaluate("document.getElementById('explorationSliderQuick').value = 5; document.getElementById('explorationSliderQuick').dispatchEvent(new Event('input'));")
+        page.wait_for_timeout(200)
+        _shot_element(page, "58_exploration_slider_adventurous", ".exploration-row")
+
+    def test_59_exploration_slider_custom(self, page: Page, screenshot_url):
+        """Screenshot: Slider in 'Custom' state after Advanced-mode override."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(200)
+        page.locator("#genNewArtistPct").fill("33")
+        page.locator("body").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "59_exploration_slider_custom", ".gen-mode-body--advanced .exploration-row")
+
+    def test_60_preset_dropdown_open(self, page: Page, screenshot_url):
+        """Screenshot: Preset dropdown expanded in Advanced mode."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.evaluate("""() => {
+            const userPresets = [
+                { id: 'user_1', name: 'Morning coffee', builtin: false, version: 1, settings: {} },
+                { id: 'user_2', name: 'Workout mix',    builtin: false, version: 1, settings: {} },
+            ];
+            localStorage.setItem('sv.presets.user', JSON.stringify(userPresets));
+        }""")
+        page.reload()
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(200)
+        page.locator("#presetDropdownTrigger").click()
+        page.wait_for_timeout(200)
+        _shot_element(page, "60_preset_dropdown_open", ".preset-row")
+
+    def test_61_preset_dropdown_empty_user(self, page: Page, screenshot_url):
+        """Screenshot: Preset dropdown when user has zero custom presets."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.evaluate("localStorage.removeItem('sv.presets.user')")
+        page.reload()
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(200)
+        page.locator("#presetDropdownTrigger").click()
+        page.wait_for_timeout(200)
+        _shot_element(page, "61_preset_dropdown_empty_user", ".preset-row")
+
+    def test_62_save_preset_dialog(self, page: Page, screenshot_url):
+        """Screenshot: 'Save current as preset' dialog."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(200)
+        page.locator(".preset-save-btn").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "62_save_preset_dialog", "#savePresetModal .modal")
+
+    def test_63_preset_manager(self, page: Page, screenshot_url):
+        """Screenshot: Manage presets modal with user + built-in rows."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.evaluate("""() => {
+            const userPresets = [
+                { id: 'user_1', name: 'Morning coffee', builtin: false, version: 1, settings: {} },
+                { id: 'user_2', name: 'Workout mix',    builtin: false, version: 1, settings: {} },
+            ];
+            localStorage.setItem('sv.presets.user', JSON.stringify(userPresets));
+        }""")
+        page.reload()
+        page.wait_for_load_state("networkidle")
+        page.locator("button[aria-label='Menu']").click()
+        page.wait_for_timeout(200)
+        page.locator("button:has-text('Manage presets')").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "63_preset_manager", "#presetManagerModal .modal")
+
+    def test_64_completeness_meter_weak(self, page: Page, screenshot_url):
+        """Screenshot: Completeness meter at low score (red) on an empty profile."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#trainToggleBtn").click()
+        page.wait_for_timeout(400)
+        page.evaluate("""() => {
+            document.getElementById('trainCoreDesc').value = '';
+            document.getElementById('trainMustHave').value = '';
+            document.getElementById('trainSoftPrefs').value = '';
+            document.getElementById('trainAvoid').value = '';
+            ['trainCoreDesc','trainMustHave','trainSoftPrefs','trainAvoid'].forEach(id => {
+                document.getElementById(id).dispatchEvent(new Event('input'));
+            });
+        }""")
+        page.wait_for_timeout(400)
+        _shot_element(page, "64_completeness_meter_weak", "#profileCompletenessCard")
+
+    def test_65_completeness_meter_medium(self, page: Page, screenshot_url):
+        """Screenshot: Completeness meter at ~45% (yellow)."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#trainToggleBtn").click()
+        page.wait_for_timeout(400)
+        page.evaluate("""() => {
+            document.getElementById('trainCoreDesc').value = 'Upbeat melodic rock.';
+            document.getElementById('trainMustHave').value = 'high energy';
+            document.getElementById('trainSoftPrefs').value = '';
+            document.getElementById('trainAvoid').value = '';
+            ['trainCoreDesc','trainMustHave','trainSoftPrefs','trainAvoid'].forEach(id => {
+                document.getElementById(id).dispatchEvent(new Event('input'));
+            });
+        }""")
+        page.wait_for_timeout(400)
+        _shot_element(page, "65_completeness_meter_medium", "#profileCompletenessCard")
+
+    def test_66_audio_filter_inline_hints(self, page: Page, screenshot_url):
+        """Screenshot: Audio filter panel showing inline hints."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(200)
+        page.locator(".audio-filter-toggle").click()
+        page.wait_for_timeout(200)
+        page.locator(".audio-filter-row:has-text('Energy') .learn-more > summary").click()
+        page.wait_for_timeout(200)
+        _shot_element(page, "66_audio_filter_inline_hints", "#audioFiltersSection")
+
+    def test_67_settings_modal_inline_hints(self, page: Page, screenshot_url):
+        """Screenshot: Settings modal with new inline hints."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("button[aria-label='Menu']").click()
+        page.wait_for_timeout(200)
+        page.locator("button:has-text('Settings')").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "67_settings_modal_inline_hints", "#settingsModal .modal")
+
+    def test_68_gen_mode_tabs_isolated(self, page: Page, screenshot_url):
+        """Screenshot: The Quick / Advanced tab row."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "68_gen_mode_tabs", ".gen-mode-tabs")

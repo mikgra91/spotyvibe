@@ -8,7 +8,7 @@
 
         <!-- Model -->
         <div class="form-row">
-            <label for="settings-model" data-i18n="settings.model">Used Model</label>
+            <label for="settings-model" data-i18n="settings.model_label">Used Model</label>
             <select id="settings-model">
                 {% if available_models %}
                     {% for model in available_models %}
@@ -18,36 +18,45 @@
                 <option value="{{ settings.model if settings.model }}">{{ settings.model if settings.model else 'Loading models…' }}</option>
                 {% endif %}
             </select>
+            <p class="inline-hint" data-i18n="settings.model_hint">Which OpenAI model produces your suggestions.</p>
+            <details class="learn-more">
+                <summary data-i18n="common.learn_more">Learn more</summary>
+                <div class="learn-more-body" data-i18n="settings.model_learn_more">Higher-tier models cost more per run. For music suggestions the difference is noticeable but not dramatic; gpt-4o-mini is a sensible default.</div>
+            </details>
             <div class="cred-status" id="status-settings-model"></div>
             <div class="modal-cost-warning">⚠️ Different models have different costs. Check <a href="https://platform.openai.com/docs/pricing" target="_blank" rel="noopener">OpenAI Pricing</a> before switching.</div>
         </div>
 
         <!-- Playlist size -->
         <div class="form-row">
-            <label for="settings-playlist-size" class="modal-label-with-tooltip">
-                Playlist Size
-                <span class="tooltip-trigger" data-tooltip="Tracks are fetched in blocks of 10 per GPT request. Large values will cause many requests and therefore higher token usage / cost.">?</span>
-            </label>
-            <input id="settings-playlist-size" type="number" min="10" step="10"
+            <label for="settings-playlist-size" data-i18n="settings.playlist_size_label">Playlist Size</label>
+            <input id="settings-playlist-size" type="number" min="10" max="30" step="5"
                 value="{{ settings.playlist_size if settings.playlist_size }}">
+            <p class="inline-hint" data-i18n="settings.playlist_size_hint">How many tracks to generate (max 30).</p>
+            <details class="learn-more">
+                <summary data-i18n="common.learn_more">Learn more</summary>
+                <div class="learn-more-body" data-i18n="settings.playlist_size_learn_more">Max capped at 30 — beyond that GPT starts repeating itself across 10-track fetch blocks, and review fatigue sets in. If you want a longer session, run twice with different presets.</div>
+            </details>
             <div class="cred-status" id="status-settings-playlist-size"></div>
         </div>
 
         <!-- New artist % -->
         <div class="form-row">
-            <label for="settings-new-artist-pct" class="modal-label-with-tooltip">
-                New Artist %
-                <span class="tooltip-trigger" data-tooltip="Minimum percentage of suggestions that must come from artists not yet in your history. Higher values push GPT to explore new territory; lower values let it revisit familiar artists more often.">?</span>
-            </label>
+            <label for="settings-new-artist-pct" data-i18n="settings.new_artist_pct_label">New Artist %</label>
             <input id="settings-new-artist-pct" type="number" min="1" max="100" step="1"
                 value="{{ settings.new_artist_pct if settings.new_artist_pct is not none }}">
+            <p class="inline-hint" data-i18n="settings.new_artist_pct_hint">Minimum share of suggestions from artists you haven't listened to yet.</p>
+            <details class="learn-more">
+                <summary data-i18n="common.learn_more">Learn more</summary>
+                <div class="learn-more-body" data-i18n="settings.new_artist_pct_learn_more">Higher pushes exploration; lower keeps things familiar. The exploration slider above drives this — edit here to override.</div>
+            </details>
             <div class="cred-status" id="status-settings-new-artist-pct"></div>
         </div>
 
 
         <!-- Debug mode (desktop-only) -->
         <div class="form-row {% if not debug_controls_available %}hidden{% endif %}" id="debugModeRow">
-            <label>Debug Mode</label>
+            <label>Debug Mode <span class="optional-badge" data-i18n="common.optional">(optional)</span></label>
             <div class="modal-checkbox-row">
                 <label class="modal-checkbox-label">
                     <input type="checkbox" id="settings-debug"
@@ -55,6 +64,11 @@
                     Log GPT requests &amp; responses to debug file
                 </label>
             </div>
+            <p class="inline-hint" data-i18n="settings.debug_hint">Log every GPT request and response to a local file.</p>
+            <details class="learn-more">
+                <summary data-i18n="common.learn_more">Learn more</summary>
+                <div class="learn-more-body" data-i18n="settings.debug_learn_more">For developers and bug reports. Never affects behaviour. The log file stays on your device — see the Privacy modal.</div>
+            </details>
             <div class="cred-status" id="status-settings-debug"></div>
         </div>
 

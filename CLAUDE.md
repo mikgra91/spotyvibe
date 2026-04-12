@@ -104,7 +104,8 @@ spotyvibe/
 │   └── modals/                    # credentials, help, quickstart, settings,
 │       │                          #   privacy, setup_guide_overlay
 │       ├── privacy_modal.html     # "What gets sent where?" data-flow table
-│       └── setup_guide_overlay.html # Full-screen setup guide detail overlay
+│       ├── setup_guide_overlay.html # Full-screen setup guide detail overlay
+│       └── preset_manager_modal.html # Preset manager sub-screen
 ├── frontend/static/favicon.ico    # Browser favicon
 ├── frontend/static/css/           # Modular CSS (13 files, no bundler)
 │   ├── base.css                   # Design tokens, reset, body, scrollbar
@@ -119,6 +120,9 @@ spotyvibe/
 │   ├── preview.css                # Spotify preview overlay
 │   ├── onboarding.css             # Onboarding wizard shell + step styles
 │   ├── setup_guide.css            # Setup guide overlay + privacy table styles
+│   ├── completeness.css           # Profile completeness meter styling
+│   ├── exploration_slider.css     # 5-notch exploration slider
+│   ├── presets.css                # Preset dropdown + manager modal
 │   └── responsive.css             # All @media queries
 ├── frontend/static/js/modules/   # JS feature modules
 │   ├── state.js                   # Central app state
@@ -129,6 +133,10 @@ spotyvibe/
 │   ├── quickstart-demo.js, quickstart-tour.js, tabs.js
 │   ├── onboarding.js              # Wizard state, navigation, language toggle
 │   ├── setup_guide.js             # Detail overlay open/close, copy, keyboard
+│   ├── completeness.js            # Profile completeness meter calculator
+│   ├── exploration.js             # Exploration slider state + bidirectional sync
+│   ├── presets.js                 # Preset CRUD, built-in catalogue, import/export
+│   ├── quick_advanced.js          # Generate-panel mode toggle + control sync
 │   └── theme-switcher.js, theme-equalizer.js, theme-pulse.js,
 │       theme-spectrum.js, theme-starfield.js
 ├── frontend/static/i18n/          # en.json + de.json

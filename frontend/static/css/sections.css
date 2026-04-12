@@ -437,6 +437,40 @@
 .train-spinner.hidden { display: none; }
 
 
+/* ── Quick / Advanced mode toggle ────────────────────────────────── */
+.gen-mode-tabs {
+    display: inline-flex;
+    background: var(--bg-input);
+    padding: 4px;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--border);
+    margin-bottom: 18px;
+}
+.gen-mode-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    font-weight: 600;
+    padding: 8px 18px;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 150ms, color 150ms;
+}
+.gen-mode-btn.active {
+    background: var(--primary);
+    color: var(--btn-cta-text);
+}
+@media (hover: hover) {
+    .gen-mode-btn:not(.active):hover {
+        color: var(--text-primary);
+    }
+}
+.gen-mode-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
 
 
 /* ── Band/Song Analysis ─────────────────────────────────────────────── */

@@ -69,6 +69,19 @@
             </div>
         </div>
 
+        <!-- Profile completeness meter -->
+        <div id="profileCompletenessCard" class="completeness-card hidden" role="status" aria-live="polite">
+            <div class="completeness-header">
+                <span class="completeness-title" data-i18n="profile.strength">Profile Strength</span>
+                <span class="completeness-score" id="completenessScore">0%</span>
+            </div>
+            <div class="completeness-bar">
+                <div class="completeness-bar-fill" id="completenessBarFill" style="width: 0%"></div>
+            </div>
+            <ul class="completeness-ticks" id="completenessTicks"></ul>
+            <p class="completeness-suggestion" id="completenessSuggestion"></p>
+        </div>
+
         <!-- Describe Your Vibe (free-form natural language) -->
         <div class="accordion-panel open" id="accVibeDesc">
             <div class="accordion-header" role="button" tabindex="0" onclick="toggleAccordion('accVibeDesc')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleAccordion('accVibeDesc')}" aria-expanded="true">

@@ -531,7 +531,7 @@ Exposes all functionality via HTTP endpoints.
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/` | Serves the single-page web UI. |
-| POST | `/api/run` | Runs the full generation pipeline. Returns an **SSE stream** with progress events. Accepts JSON body with `run_id`, `playlist_mode` (create/append/replace), `playlist_id`, `playlist_name`, `audio_filters` (injected into the GPT prompt as constraints), and `emerging_only` (boolean — restricts to tracks by recently debuted artists). SSE track events include `preview_url`, `spotify_url`, `artist_url`, and `album_url`. Run state is persisted by `run_id` for SSE recovery. |
+| POST | `/api/run` | Runs the full generation pipeline. Returns an **SSE stream** with progress events. Accepts JSON body with `run_id`, `playlist_mode` (create/append/replace), `playlist_id`, `playlist_name`, `audio_filters` (injected into the GPT prompt as constraints), `emerging_only` (boolean — restricts to tracks by recently debuted artists), `temperature` (float 0.0–2.0, clamped server-side — controls GPT creativity), and `playlist_size` (int 10–30, clamped server-side — overrides the global setting for this run). SSE track events include `preview_url`, `spotify_url`, `artist_url`, and `album_url`. Run state is persisted by `run_id` for SSE recovery. |
 | POST | `/api/cancel` | Cancels an active generation run by `run_id`. Accepts `{"run_id": "...", "finalize": bool}`. When `finalize` is `true`, the playlist is created with however many tracks have been verified so far. |
 | POST | `/api/feedback` | Records a like or dislike. Dislikes also remove the track from Spotify. |
 | POST | `/api/remove` | Removes a track from Spotify without recording feedback. |

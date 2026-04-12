@@ -1,0 +1,110 @@
+/* completeness.css — Profile completeness meter styling */
+
+.completeness-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    margin: 12px 0 18px;
+}
+.completeness-card.hidden { display: none; }
+
+.completeness-card.is-complete {
+    border-color: var(--success);
+    box-shadow: 0 0 12px rgba(34, 197, 94, 0.15);
+    transition: border-color 300ms ease, box-shadow 300ms ease;
+}
+
+.completeness-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+}
+
+.completeness-title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.completeness-score {
+    font-size: 1.1rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.completeness-score.weak   { color: var(--meter-weak); }
+.completeness-score.ok     { color: var(--meter-ok); }
+.completeness-score.strong { color: var(--meter-strong); }
+
+.completeness-bar {
+    height: var(--meter-bar-h);
+    background: var(--border);
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+}
+
+.completeness-bar-fill {
+    height: 100%;
+    transition: width 250ms ease, background 250ms ease;
+}
+.completeness-bar-fill.weak   { background: var(--meter-weak); }
+.completeness-bar-fill.ok     { background: var(--meter-ok); }
+.completeness-bar-fill.strong { background: var(--meter-strong); }
+
+.completeness-ticks {
+    list-style: none;
+    padding: 0;
+    margin: 12px 0 0;
+}
+
+.completeness-tick {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 0.85rem;
+}
+
+.tick-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+}
+
+.completeness-tick.strong .tick-icon {
+    background: rgba(34, 197, 94, 0.12);
+    color: var(--success);
+}
+.completeness-tick.partial .tick-icon {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--warning);
+}
+.completeness-tick.empty .tick-icon {
+    background: transparent;
+    border: 1px solid var(--text-muted);
+    color: var(--text-muted);
+}
+
+.tick-label {
+    flex: 1;
+    color: var(--text-secondary);
+}
+
+.tick-value {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.completeness-suggestion {
+    margin-top: 10px;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
