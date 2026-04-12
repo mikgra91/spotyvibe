@@ -237,8 +237,12 @@ _CHROME_JS = r"""(function() {
 
 
 if sys.platform == "win32":
+    # LRESULT = LONG_PTR, WPARAM = UINT_PTR, LPARAM = LONG_PTR — all
+    # pointer-sized on x64.  Using 32-bit types truncates values and
+    # causes access violations when forwarding messages via CallWindowProcW.
     WNDPROC = ctypes.WINFUNCTYPE(
-        ctypes.c_long, ctypes.c_void_p, ctypes.c_uint, ctypes.c_uint, ctypes.c_long
+        ctypes.c_ssize_t, ctypes.c_void_p, ctypes.c_uint,
+        ctypes.c_size_t, ctypes.c_ssize_t,
     )
 else:
     WNDPROC = None
@@ -249,6 +253,19 @@ def _install_resize_hook(hwnd: int) -> None:
     if sys.platform != "win32":
         return
     user32 = ctypes.windll.user32
+
+    # Set correct 64-bit types — ctypes defaults to c_int which truncates
+    # 64-bit pointers on x64 Windows, causing access violations.
+    user32.GetWindowLongPtrW.restype = ctypes.c_void_p
+    user32.GetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    user32.SetWindowLongPtrW.restype = ctypes.c_void_p
+    user32.SetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
+    user32.CallWindowProcW.restype = ctypes.c_ssize_t
+    user32.CallWindowProcW.argtypes = [
+        ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint,
+        ctypes.c_size_t, ctypes.c_ssize_t,
+    ]
+
     old_proc = user32.GetWindowLongPtrW(hwnd, _GWL_WNDPROC)
 
     @WNDPROC
@@ -447,7 +464,9 @@ def main():
     # Inject custom title bar + side frames after the page loads.
     window.events.loaded += lambda: window.evaluate_js(_CHROME_JS)
 
-    # Apply DWM dark-mode styling, install resize hook, maximize, and sync icon.
+    # Apply DWM dark-mode styling, install resize hook, maximize, and sync
+    # icon.  The `shown` event can fire before `loaded` (which injects the
+    # title bar), so the JS must guard against dt-max-btn not existing yet.
     def _on_shown():
         _apply_dark_chrome()
         hwnd = _find_hwnd()
@@ -455,11 +474,14 @@ def main():
             _install_resize_hook(hwnd)
         api.toggle_maximize()
         window.evaluate_js(
-            "document.getElementById('dt-max-btn').innerHTML = "
+            "var _b = document.getElementById('dt-max-btn');"
+            "if (_b) {"
+            "_b.innerHTML = "
             "'<svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\">"
             "<rect x=\"1\" y=\"3\" width=\"8\" height=\"8\" rx=\".5\" stroke=\"currentColor\" stroke-width=\"1\" fill=\"none\"/>"
             "<polyline points=\"3,3 3,1 11,1 11,9 9,9\" stroke=\"currentColor\" stroke-width=\"1\" fill=\"none\"/></svg>';"
-            "document.getElementById('dt-max-btn').setAttribute('aria-label', 'Restore');"
+            "_b.setAttribute(\"aria-label\", \"Restore\");"
+            "}"
         )
 
     window.events.shown += _on_shown
@@ -468,4 +490,12 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        # With console=False the user can't see stderr — write to a crash log.
+        crash_log = Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))) / "spotyvibe" / "crash.log"
+        crash_log.parent.mkdir(parents=True, exist_ok=True)
+        import traceback as _tb
+        crash_log.write_text(_tb.format_exc(), encoding="utf-8")
+        raise

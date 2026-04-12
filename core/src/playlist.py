@@ -25,6 +25,7 @@ Technologies & patterns used:
 import logging
 import os
 import re
+import time
 from datetime import datetime, timezone
 # concurrent.futures provides a high-level interface for asynchronous
 # execution. ThreadPoolExecutor is used here (not ProcessPoolExecutor)
@@ -287,7 +288,20 @@ def search_tracks(tracks, on_progress=None):
         # requests.Session across concurrent workers.
         thread_sp = get_spotify_client()
         query = _build_track_artist_query(t["artist"], t["track"])
-        res = thread_sp.search(q=query, type="track", limit=1, market="from_token")
+
+        # Retry once on 429 (rate limit) using Retry-After header,
+        # mirroring the pattern in spotify_metadata.py.
+        res = None
+        for attempt in range(2):
+            try:
+                res = thread_sp.search(q=query, type="track", limit=1, market="from_token")
+                break
+            except SpotifyException as e:
+                if e.http_status == 429 and attempt == 0:
+                    retry_after = int(e.headers.get("Retry-After", 1))
+                    time.sleep(min(retry_after, 10))
+                    continue
+                raise
 
         if res and res["tracks"]["items"]:
             item = res["tracks"]["items"][0]

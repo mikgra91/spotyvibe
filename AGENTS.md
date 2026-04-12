@@ -31,6 +31,17 @@ See `RULES.md` for detailed a11y, i18n, and documentation conventions.
 | Desktop | PyInstaller + webview |
 | Android | Chaquopy (no Rust-extension packages) |
 
+## MCP Servers (recommended for AI agents)
+
+If your AI tooling supports MCP (Model Context Protocol), the following servers are recommended for this project. Setup instructions are in `CLAUDE.md` → "Optional MCP Servers". Configuration is per-developer (`settings.local.json`, not committed).
+
+| Server | Purpose |
+|---|---|
+| **Spotify** (`marcelmarais/spotify-mcp-server`) | Live Spotify API exploration, verify response shapes, test search queries |
+| **GitHub** (`github/github-mcp-server`) | Monitor CI/CD workflows, inspect check failures, review PRs |
+| **Playwright** (`microsoft/playwright-mcp`) | Browser automation for UI testing and debugging |
+| **MDN** (`mdn/mcp`) | Live CSS/JS/Web API reference with browser compatibility data |
+
 ## Key Constraints
 
 1. All Spotify API calls in `core/src/playlist.py` only.

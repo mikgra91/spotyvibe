@@ -67,20 +67,32 @@
 
   Open a terminal in this folder and run:
 
+      python3 -m venv ~/spotyvibe-env
+      source ~/spotyvibe-env/bin/activate
       pip install spotyvibe-*.whl
 
-  (On some systems you may need to use pip3 instead of pip.)
+  This creates a virtual environment in your home directory,
+  activates it, and installs SpotyVibe with all dependencies.
 
-  This installs SpotyVibe and all its dependencies. It only
-  needs to be done once. To upgrade, download a new ZIP and
-  run the same command again.
+  macOS with Homebrew:
+      You can also use: pip install spotyvibe-*.whl
+      (Homebrew Python does not enforce the system restriction.)
+
+  To upgrade later, download a new ZIP and run:
+      source ~/spotyvibe-env/bin/activate
+      pip install spotyvibe-*.whl
 
 ───────────────────────────────────────────────────────────────
   STEP 4 — RUN SPOTYVIBE
 ───────────────────────────────────────────────────────────────
 
-  Simply run:
+  If the virtual environment is still active, simply run:
 
+      spotyvibe
+
+  If you opened a new terminal, activate first:
+
+      source ~/spotyvibe-env/bin/activate
       spotyvibe
 
   What happens:
@@ -91,7 +103,8 @@
 
   To stop: press Ctrl+C in the terminal.
 
-  To start again later, just run "spotyvibe" again.
+  To start again later, activate the environment and run
+  "spotyvibe" again.
 
 ───────────────────────────────────────────────────────────────
   macOS: PORT 5000 CONFLICT (AirPlay Receiver)
@@ -124,6 +137,11 @@
 
   To remove SpotyVibe:
 
+      rm -rf ~/spotyvibe-env
+
+  Or, to uninstall from the virtual environment only:
+
+      source ~/spotyvibe-env/bin/activate
       pip uninstall spotyvibe
 
   Your API keys and music profiles are kept in your system
@@ -137,7 +155,12 @@
     → Install Python 3.10+ (see Step 1)
 
   "pip: command not found"
-    → Try: python3 -m pip install spotyvibe-*.whl
+    → Make sure the virtual environment is activated:
+      source ~/spotyvibe-env/bin/activate
+
+  "externally-managed-environment"
+    → Use a virtual environment (see Step 3).
+      Modern Linux distributions block bare pip install.
 
   "Port 5000 is already in use"
     → macOS: disable AirPlay Receiver (see above)
@@ -148,8 +171,8 @@
     → Open manually: http://127.0.0.1:5000
 
   "No module named spotyvibe"
-    → Make sure pip installed to the same Python version
-      you are running. Try: python3 -m spotyvibe
+    → Make sure the virtual environment is activated:
+      source ~/spotyvibe-env/bin/activate
 
 ───────────────────────────────────────────────────────────────
   MORE INFORMATION

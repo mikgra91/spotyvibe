@@ -2,9 +2,23 @@
 
 This document summarises the Spotify Web API endpoints and patterns used by SpotyVibe, including breaking changes introduced in **February 2026**. Consult the [official Spotify Web API Reference](https://developer.spotify.com/documentation/web-api) before making API changes.
 
+> **MCP Server available:** If you are using an AI coding assistant, a Spotify MCP server (`marcelmarais/spotify-mcp-server`) is recommended for live API exploration, verifying response shapes, and testing search queries. See `CLAUDE.md` → "Optional MCP Servers" for setup instructions.
+
 ---
 
 ## February 2026 Breaking Changes
+
+### Development Mode restrictions (effective March 9, 2026)
+
+Spotify tightened Development Mode access as part of their platform security update:
+
+- **Premium required:** The Spotify app owner must have an active Spotify Premium subscription. If Premium lapses, the app's API access stops working.
+- **5-user cap:** Each Client ID is limited to a maximum of 5 authorized users (down from 25). Only the app owner needs Premium — authorized test users do not.
+- **Extended Quota Mode** (for public/production apps) now requires a legally registered business, 250,000+ monthly active users, availability in key Spotify markets, and an active launched service.
+
+**Impact on SpotyVibe:** Every user runs their own Spotify Developer App in Development Mode. This means each user must have Spotify Premium to use playlist creation and other write operations via the API.
+
+Sources: [Spotify blog announcement](https://developer.spotify.com/blog/2026-02-06-update-on-developer-access-and-platform-security), [TechCrunch coverage](https://techcrunch.com/2026/02/06/spotify-changes-developer-mode-api-to-require-premium-accounts-limits-test-users/)
 
 ### Playlist endpoint renamed: `/tracks` → `/items`
 

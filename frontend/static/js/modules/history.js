@@ -37,7 +37,7 @@ export async function loadHistory() {
             const trackItems = (r.tracks || [])
                 .map(t => `<li>${escHtml(t.artist)} — ${escHtml(t.track)}</li>`)
                 .join('');
-            return `<div class="history-run-item" onclick="this.classList.toggle('expanded')">
+            return `<div class="history-run-item" tabindex="0" role="button" onclick="this.classList.toggle('expanded')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.classList.toggle('expanded')}">
                 <div class="history-run-header">
                     <div>
                         <div class="history-run-date">${escHtml(date)}</div>
