@@ -548,10 +548,18 @@ class TestDocumentationScreenshotAcquire:
         _shot_element(page, "23_run_history", "#historySection")
 
     # -- Onboarding ---------------------------------------------------------
+    #
+    # The onboarding flow has 4 pages. `help.md` links to
+    # `24_onboarding_credentials.png` (page 3), so that filename is kept as-is.
+    # The other three pages are captured below with numbers 45–47 to avoid
+    # renaming the referenced asset. See `_goto_onboarding_page()` for the
+    # shared setup that bypasses the "already completed" redirect.
 
-    def test_24_onboarding_credentials(self, page: Page, screenshot_url):
-        """Screenshot: Onboarding credentials screen"""
-        # Intercept the onboarding status to prevent redirect
+    def _goto_onboarding_page(self, page: Page, screenshot_url: str, page_index: int):
+        """Open /onboarding and advance to the given 0-based page index.
+
+        page_index 0 = intro, 1 = language, 2 = credentials, 3 = connect+import.
+        """
         def handle_status(route):
             route.fulfill(
                 status=200,
@@ -562,11 +570,20 @@ class TestDocumentationScreenshotAcquire:
         page.route("**/api/onboarding/status", handle_status)
         page.goto(screenshot_url + "/onboarding")
         page.wait_for_load_state("networkidle")
-        # Navigate to page 3 (credentials — after intro and language)
-        page.locator("text=Next →").first.click()
-        page.wait_for_timeout(400)
-        page.locator("text=Next →").nth(1).click()
-        page.wait_for_timeout(400)
+        # Each forward navigation clicks the Next button on the currently visible
+        # page. The DOM holds all 4 pages at once (horizontal flex, translateX
+        # transitions), so `nth(i)` maps to page `i`'s Next button.
+        for i in range(page_index):
+            page.locator("text=Next →").nth(i).click()
+            page.wait_for_timeout(500)  # slide transition is 400 ms
+        page.wait_for_timeout(200)
+
+    def test_24_onboarding_credentials(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding page 3 — credentials.
+
+        Kept at number 24 because `documentation/help.md` links to this filename.
+        """
+        self._goto_onboarding_page(page, screenshot_url, page_index=2)
         _shot(page, "24_onboarding_credentials")
 
     # -- Full-page composite screenshots ------------------------------------
@@ -876,9 +893,27 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(200)
         _shot_element(page, "44_warning_message", "#runWarn")
 
+    # -- Onboarding (remaining pages) ---------------------------------------
+    #
+    # Page 3 is captured as `24_onboarding_credentials.png` above (kept at
+    # that number because `documentation/help.md` links to it). The other
+    # three pages are captured here so every onboarding screen is available
+    # for documentation.
 
+    def test_45_onboarding_intro(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding page 1 — welcome / intro with feature bullets."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=0)
+        _shot(page, "45_onboarding_intro")
 
+    def test_46_onboarding_language(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding page 2 — language selector (EN | DE)."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=1)
+        _shot(page, "46_onboarding_language")
 
+    def test_47_onboarding_connect_import(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding page 4 — Connect Spotify + Import profile."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=3)
+        _shot(page, "47_onboarding_connect_import")
 
 
 
