@@ -29,6 +29,7 @@ from config import (
     MAX_FEEDBACK_REASON_LEN, MAX_FEEDBACK_ARTIST_LEN, MAX_FEEDBACK_TRACK_LEN,
     is_onboarding_completed, set_onboarding_completed, MAX_SONG_LIST_SIZE,
     _get_app_dir, get_active_profile_id, MAX_PROFILE_NAME_LEN,
+    get_ui_language,
 )
 import markdown
 
@@ -241,7 +242,7 @@ def docs_guide_image(filename):
     return send_from_directory(str(guide_img_dir), filename)
 
 
-_GUIDE_SLUG_WHITELIST = {"openai_api_key", "spotify_developer_app"}
+_GUIDE_SLUG_WHITELIST = {"openai_api_key", "spotify_developer_app", "python_install_macos", "python_install_linux"}
 
 
 @app.route("/api/help/guide/<slug>")
@@ -255,18 +256,11 @@ def help_guide(slug):
         return jsonify({"error": "Guide not found."}), 404
 
     # Try localised version first, fall back to English
-    lang = "en"
+    from core.src.localised_docs import resolve_guide
+    lang = get_ui_language() or 'en'
     try:
-        settings = get_settings()
-        if settings.get("ui_language") in ("en", "de"):
-            lang = settings["ui_language"]
-    except Exception:
-        pass
-
-    guide_path = BASE_DIR / "documentation" / "guides" / f"{slug}.{lang}.md"
-    if not guide_path.exists():
-        guide_path = BASE_DIR / "documentation" / "guides" / f"{slug}.en.md"
-    if not guide_path.exists():
+        guide_path, served_lang, fallback_used = resolve_guide(slug, lang)
+    except FileNotFoundError:
         return jsonify({"error": "Guide not found."}), 404
 
     raw = guide_path.read_text(encoding="utf-8")
@@ -321,13 +315,21 @@ def help_guide(slug):
 
 @app.route("/api/help")
 def help_content():
-    """Return the help guide rendered as HTML."""
-    manual_path = BASE_DIR / "documentation" / "help.md"
-    if not manual_path.exists():
+    """Return the help guide rendered as HTML, language-aware."""
+    from core.src.localised_docs import resolve_help
+    lang = get_ui_language() or 'en'
+    try:
+        path, served_lang, fallback_used = resolve_help(lang)
+        md_text = path.read_text(encoding="utf-8")
+        html = markdown.markdown(md_text, extensions=["tables", "fenced_code", "toc"])
+        return jsonify({
+            "html": html,
+            "requested_lang": lang,
+            "served_lang": served_lang,
+            "fallback_used": fallback_used,
+        })
+    except FileNotFoundError:
         return jsonify({"error": "Help file not found."}), 404
-    md_text = manual_path.read_text(encoding="utf-8")
-    html = markdown.markdown(md_text, extensions=["tables", "fenced_code", "toc"])
-    return jsonify({"html": html})
 
 
 def _extract_help_section(full_html, anchor):
@@ -362,15 +364,18 @@ def _extract_help_section(full_html, anchor):
 @app.route("/api/help/section/<anchor>")
 def help_section(anchor):
     """Return a single help section by its heading anchor ID."""
-    manual_path = BASE_DIR / "documentation" / "help.md"
-    if not manual_path.exists():
+    from core.src.localised_docs import resolve_help
+    lang = get_ui_language() or 'en'
+    try:
+        path, served_lang, fallback_used = resolve_help(lang)
+        md_text = path.read_text(encoding="utf-8")
+        full_html = markdown.markdown(md_text, extensions=["tables", "fenced_code", "toc"])
+        section_html = _extract_help_section(full_html, anchor)
+        if not section_html:
+            return jsonify({"error": "Section not found."}), 404
+        return jsonify({"html": section_html, "fallback_used": fallback_used})
+    except FileNotFoundError:
         return jsonify({"error": "Help file not found."}), 404
-    md_text = manual_path.read_text(encoding="utf-8")
-    full_html = markdown.markdown(md_text, extensions=["tables", "fenced_code", "toc"])
-    section_html = _extract_help_section(full_html, anchor)
-    if not section_html:
-        return jsonify({"error": "Section not found."}), 404
-    return jsonify({"html": section_html})
 
 
 def _sse(event_type, **data):

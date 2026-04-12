@@ -722,6 +722,18 @@ A live cost estimate appears in the Settings modal and as a footnote under the G
 
 A 🎤 **Speak** button appears inside the "Describe Your Vibe" textarea (desktop browsers only). Click to start dictation; click again to stop. The transcript appends at the cursor position. No audio leaves your device — the Web Speech API handles recognition locally or via browser-managed cloud services.
 
+### Help Page Language Support (Wave 5)
+
+The in-app help page is now available in German. When the UI language is set to German and a translated help file exists, it is served automatically. If the translation is not yet available, English is shown with a subtle banner: "This page isn't translated yet. Showing English."
+
+### Setup Guides (Wave 5)
+
+Two new setup guides have been added:
+- **Install Python on macOS** — for macOS users running SpotyVibe via the Python wheel
+- **Install Python on Linux** — for Linux users with venv setup
+
+All four guides (OpenAI, Spotify, macOS, Linux) are now available in German translation.
+
 ## Troubleshooting
 
 | Problem | Solution |

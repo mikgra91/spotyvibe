@@ -773,5 +773,9 @@
   "voice.permission_denied": "Mikrofonzugriff verweigert. Erlaube den Zugriff im Browser und versuche es erneut.",
   "voice.network": "Spracheingabe benötigt eine Verbindung.",
   "voice.started": "Aufnahme gestartet",
-  "voice.stopped": "Aufnahme beendet — Text eingefügt"
+  "voice.stopped": "Aufnahme beendet — Text eingefügt",
+
+  "help.fallback_banner": "Diese Seite ist noch nicht übersetzt. Englische Version wird angezeigt.",
+  "help.fallback_dismiss_title": "Schließen",
+  "help.language_indicator": "Sprache: {lang}"
 }

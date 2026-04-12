@@ -3,6 +3,11 @@
     <div class="help-modal-wrapper">
         <button class="help-close-btn" onclick="closeModal('helpModal')" aria-label="Close">✕</button>
         <div class="modal help-modal">
+            <div class="help-fallback-banner hidden" id="helpFallbackBanner" role="status" aria-live="polite">
+                <span class="help-fallback-icon" aria-hidden="true">🌐</span>
+                <span class="help-fallback-text" data-i18n="help.fallback_banner">This page isn't translated yet. Showing English.</span>
+                <button class="help-fallback-close" onclick="dismissHelpBanner()" aria-label="Dismiss" data-i18n-title="help.fallback_dismiss_title" title="Dismiss">✕</button>
+            </div>
             <div id="helpContent" class="help-content">
                 {% if help_html %}
                     {{ help_html }}

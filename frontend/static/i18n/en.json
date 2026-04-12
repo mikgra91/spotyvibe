@@ -773,5 +773,9 @@
   "voice.permission_denied": "Mic access denied. Grant permission in your browser, then try again.",
   "voice.network": "Voice input needs a connection.",
   "voice.started": "Recording started",
-  "voice.stopped": "Recording stopped — transcript added"
+  "voice.stopped": "Recording stopped — transcript added",
+
+  "help.fallback_banner": "This page isn't translated yet. Showing English.",
+  "help.fallback_dismiss_title": "Dismiss",
+  "help.language_indicator": "Language: {lang}"
 }

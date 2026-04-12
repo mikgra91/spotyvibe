@@ -11,7 +11,7 @@ import { openPreviewOverlay, closePreviewOverlay, prevPreview, nextPreview, prev
 import { toggleFeedback, closeFeedback, submitFeedback, removeTrack, animateRemove } from './modules/feedback.js';
 import { toggleReviewBody, loadPlaylistTracks, renderReviewTracks, toggleReviewFeedback, closeReviewFeedback, submitReviewFeedback, dismissReviewTrack, populateReviewPlaylistPicker, refreshReviewPlaylistPicker, deleteSelectedPlaylist } from './modules/review.js';
 import { showStatus, showStatusHtml, showPlaylistLink, hidePlaylistLink, esc, attr, sanitizeHtml, escHtml, toggleSettingsMenu, showToast } from './modules/ui.js';
-import { openCredentials, saveCredentials, clearCredential, saveSettings, openSettings, openHelp, openSectionHelp, closeSectionHelp, openDataDir, closeModal, openQuickstart, closeQuickstart, maybeShowQuickstart } from './modules/modals.js';
+import { openCredentials, saveCredentials, clearCredential, saveSettings, openSettings, openHelp, openSectionHelp, closeSectionHelp, openDataDir, closeModal, dismissHelpBanner, openQuickstart, closeQuickstart, maybeShowQuickstart } from './modules/modals.js';
 import { quickstartGoTo, quickstartNext, quickstartPrev } from './modules/quickstart-tour.js';
 import { qsDemoNext, qsDemoPrev, qsDemoToggle, qsDemoExpand, initAllDemos, destroyAllDemos } from './modules/quickstart-demo.js';
 import { switchTheme, THEME_BACKGROUNDS, THEME_RENDERERS } from './modules/theme-switcher.js';
@@ -130,6 +130,7 @@ window.openSectionHelp = openSectionHelp;
 window.closeSectionHelp = closeSectionHelp;
 window.openDataDir = openDataDir;
 window.closeModal = closeModal;
+window.dismissHelpBanner = dismissHelpBanner;
 window.openQuickstart = openQuickstart;
 window.closeQuickstart = closeQuickstart;
 window.quickstartGoTo = quickstartGoTo;

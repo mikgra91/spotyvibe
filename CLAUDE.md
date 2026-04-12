@@ -90,6 +90,7 @@ spotyvibe/
 │   ├── analysis.py                # Band/artist analysis
 │   ├── spotify_metadata.py        # Spotify metadata enrichment
 │   ├── taste.py                   # Taste aggregation for dashboard (Wave 3)
+│   ├── localised_docs.py          # Language-aware Markdown resolver (Wave 5)
 │   └── utils.py                   # Shared utilities
 ├── core/tests/                    # Unit tests — one per core module
 ├── frontend/templates/            # Jinja2 HTML
@@ -159,7 +160,7 @@ spotyvibe/
 ├── prompts/                       # AI prompt templates
 ├── android/                       # Chaquopy APK (see rule 3)
 ├── build-tools/                   # build_exe.sh, build_apk.sh, build_dist.sh, start.sh (launcher)
-├── documentation/                 # UserManual, TechnicalManual, help.md
+├── documentation/                 # UserManual, TechnicalManual, help.en.md, help.de.md
 │   ├── guides/                    # Setup guide markdown (openai, spotify)
 │   └── assets/guides/             # Guide screenshot placeholders (openai/, spotify/)
 ├── spotyvibe/                     # Python package (wheel entry point)

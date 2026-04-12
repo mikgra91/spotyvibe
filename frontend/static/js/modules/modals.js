@@ -230,6 +230,11 @@ export async function openHelp() {
         if (data.html) {
             document.getElementById('helpContent').innerHTML = sanitizeHtml(data.html);
             State.setHelpLoaded(true);
+
+            // Wave 5: Show/hide fallback banner
+            const banner = document.getElementById('helpFallbackBanner');
+            if (banner) banner.classList.toggle('hidden', !data.fallback_used);
+
             const helpContent = document.getElementById('helpContent');
             helpContent.addEventListener('click', (e) => {
                 const link = e.target.closest('a[href^="#"]');
@@ -338,6 +343,11 @@ export function closeModal(id) {
         _lastFocusedElement.focus();
         _lastFocusedElement = null;
     }
+}
+
+export function dismissHelpBanner() {
+    const banner = document.getElementById('helpFallbackBanner');
+    if (banner) banner.classList.add('hidden');
 }
 
 /* ── Screenshot lightbox ── */
