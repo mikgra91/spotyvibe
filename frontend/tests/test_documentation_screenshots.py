@@ -1,7 +1,7 @@
-"""Automated screenshot acquisition for documentation/help.md.
+"""Automated screenshot acquisition for documentation/help.en.md.
 
 Launches the app with mocked APIs, navigates to each section described in
-help.md, and captures a screenshot into documentation/assets/screenshots/.
+help.en.md, and captures a screenshot into documentation/assets/screenshots/.
 
 These tests are EXCLUDED from routine test runs (``python -m pytest``).
 They are meant to be run manually by the developer when documentation
@@ -312,10 +312,10 @@ def browser_context_args(browser_context_args):
 
 @pytest.mark.screenshots
 class TestDocumentationScreenshotAcquire:
-    """Capture screenshots for every placeholder in documentation/help.md.
+    """Capture screenshots for every placeholder in documentation/help.en.md.
 
     Each test method corresponds to one or more > **Screenshot placeholder:**
-    entries in help.md. Screenshots are saved to:
+    entries in help.en.md. Screenshots are saved to:
         documentation/assets/screenshots/<name>.png
     """
 
@@ -554,7 +554,7 @@ class TestDocumentationScreenshotAcquire:
 
     # -- Onboarding ---------------------------------------------------------
     #
-    # The onboarding flow has 7 steps. `help.md` links to
+    # The onboarding flow has 7 steps. `help.en.md` links to
     # `24_onboarding_credentials.png` (step 2 — OpenAI key), so that filename
     # is kept as-is. The other steps are captured below with numbers 45–55.
 
@@ -582,7 +582,7 @@ class TestDocumentationScreenshotAcquire:
 
     def test_24_onboarding_credentials(self, page: Page, screenshot_url):
         """Screenshot: Onboarding step 2 — OpenAI API key (kept at this filename
-        because documentation/help.md links to it)."""
+        because documentation/help.en.md links to it)."""
         self._goto_onboarding_page(page, screenshot_url, page_index=1)
         _shot(page, "24_onboarding_credentials")
 
@@ -896,7 +896,7 @@ class TestDocumentationScreenshotAcquire:
     # -- Onboarding (all 7 steps + overlays) ----------------------------------
     #
     # Step 2 (OpenAI key) is captured above as `24_onboarding_credentials.png`
-    # (kept at that number because `documentation/help.md` links to it).
+    # (kept at that number because `documentation/help.en.md` links to it).
 
     def test_45_onboarding_step1_welcome(self, page: Page, screenshot_url):
         """Screenshot: Onboarding step 1 — welcome / intro with feature bullets."""

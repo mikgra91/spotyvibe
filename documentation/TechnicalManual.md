@@ -72,10 +72,13 @@ spotyvibe/
 ├── requirements.txt        # Python dependencies (pinned version ranges)
 ├── README.md               # Project overview
 ├── documentation/
-│   ├── help.md       # End-user documentation
-│   ├── TechnicalManual.md  # This file
-│   ├── learning-android.md # Android architecture guide
-│   └── learning-core.md    # Core module guide
+│   ├── help.en.md / help.de.md  # End-user documentation (UI-language selects)
+│   ├── guides/                  # Setup guides (G1–G4) in .en.md and .de.md
+│   ├── assets/guides/           # Guide step screenshots
+│   ├── assets/screenshots/      # Screenshots referenced by help.*.md
+│   ├── TechnicalManual.md       # This file
+│   ├── learning-android.md      # Android architecture guide
+│   └── learning-core.md         # Core module guide
 │
 ├── core/                   # Business logic modules
 │   ├── __init__.py         # Package marker (empty)
@@ -196,7 +199,7 @@ The wheel bundles only the files needed at runtime:
 | `spotyvibe/frontend/` | `frontend/templates/`, `frontend/static/` (force-included) |
 | `spotyvibe/prompts/` | `prompts/` (force-included) |
 | `spotyvibe/data/` | `data/` (force-included) |
-| `spotyvibe/documentation/` | `documentation/help.md` + screenshots (force-included) |
+| `spotyvibe/documentation/` | `documentation/help.en.md`, `help.de.md`, `guides/`, `assets/guides/`, `assets/screenshots/` (force-included) |
 
 Tests, Android scaffolding, build scripts, PyInstaller specs, and dev-only files are excluded.
 
@@ -270,7 +273,7 @@ On first load, any non-secret keys still present in `.credentials` (from older v
 
 | Constant | Purpose |
 |---|---|
-| `BASE_DIR` | Absolute path to the runtime asset root. In source runs this is the project directory; in PyInstaller builds it resolves to `sys._MEIPASS` so bundled files (templates/static/prompts/data/documentation/help.md) can be found. |
+| `BASE_DIR` | Absolute path to the runtime asset root. In source runs this is the project directory; in PyInstaller builds it resolves to `sys._MEIPASS` so bundled files (templates/, static/, prompts/, data/, documentation/help.*.md, documentation/guides/, documentation/assets/) can be found. |
 
 | `BATCH_SIZE` | Number of tracks GPT generates per single request (default: 10). |
 | `DEFAULT_PLAYLIST_SIZE` | Default total tracks per generation run (default: 10). |
@@ -564,7 +567,7 @@ Exposes all functionality via HTTP endpoints.
 | GET | `/api/run/<run_id>/status` | Returns current state of a generation run for SSE recovery after disconnect. |
 | GET | `/api/onboarding/status` | Returns whether the onboarding flow has been completed. |
 | POST | `/api/onboarding/complete` | Marks onboarding as done (persisted via config). |
-| GET | `/api/help` | Returns the help guide (`documentation/help.md`) as rendered HTML. |
+| GET | `/api/help` | Returns the help guide as rendered HTML. Reads `documentation/help.{ui_language}.md` via `core/src/localised_docs.py`, falling back to `help.en.md` and setting `fallback_used=true` in the response. |
 
 **SSE streaming (`/api/run`):**
 The generation pipeline returns a `text/event-stream` response. Each event is a JSON line with a `type` field:
@@ -922,7 +925,7 @@ pyinstaller --noconfirm --clean spotyvibe.spec
 - The executable runs the same Flask server at `http://127.0.0.1:5000`.
 - `desktop_launcher.py` opens a native embedded browser window (via pywebview) — closing the window cleanly terminates the process with no orphaned background servers.
 
-- Runtime assets are bundled via the spec file (`templates/`, `static/`, `prompts/`, `data/`, plus `documentation/help.md`).
+- Runtime assets are bundled via the spec file (`templates/`, `static/`, `prompts/`, `data/`, plus `documentation/help.en.md`, `help.de.md`, `guides/`, `assets/guides/`, `assets/screenshots/`).
 - `hiddenimports` includes `markdown.extensions.tables`, `markdown.extensions.fenced_code`, and `markdown.extensions.toc` so the in-app Help modal renders correctly in frozen builds.
 - Secrets are intentionally **not** bundled; credentials are stored in the OS keychain (with `.credentials` as fallback).
 

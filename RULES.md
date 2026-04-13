@@ -27,10 +27,10 @@ Every frontend change must consider assistive-technology users:
 |---|---|---|
 | `README.md` | Developers | General overview |
 | `documentation/UserManual.md` | End users | Comprehensive walkthrough |
-| `documentation/help.md` | In-app users | Served at `/api/help`, rendered as HTML in Help modal |
+| `documentation/help.en.md` + `help.de.md` | In-app users | Served at `/api/help` (UI language selects the file; falls back to English with a banner) |
 | `documentation/TechnicalManual.md` | Developers | Architecture, API, data flow |
 
-`help.md`: Markdown with `> **Screenshot placeholder:**` markers. Keep sections self-contained and scannable.
+`help.en.md` / `help.de.md`: Markdown with `> **Screenshot placeholder:**` markers. Keep sections self-contained and scannable. Both files must stay in sync when content changes.
 
 ## Spotify API (Quick Reference)
 

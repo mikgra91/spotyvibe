@@ -91,14 +91,11 @@ class TestSetupGuide:
 
 
 class TestHelpContent:
-    @patch("app.BASE_DIR")
-    def test_returns_html_from_manual(self, mock_base_dir, client, tmp_path):
-        (tmp_path / "documentation").mkdir()
-        manual = tmp_path / "documentation" / "help.md"
-        manual.write_text("# Help\n\nSome **bold** text.")
-        mock_base_dir.__truediv__ = lambda self, x: tmp_path / x
-        # Need to patch the actual path resolution
-        with patch("app.BASE_DIR", tmp_path):
+    def test_returns_html_from_manual(self, client, tmp_path):
+        doc_root = tmp_path / "documentation"
+        doc_root.mkdir()
+        (doc_root / "help.en.md").write_text("# Help\n\nSome **bold** text.")
+        with patch("core.src.localised_docs.DOC_ROOT", doc_root):
             resp = client.get("/api/help")
         assert resp.status_code == 200
         data = resp.get_json()
