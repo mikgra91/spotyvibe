@@ -457,6 +457,13 @@ def main():
         min_size=(800, 600),
         text_select=True,
         frameless=True,
+        # easy_drag defaults to True for frameless windows, which hijacks
+        # mousedown+mousemove across the whole viewport to drag the OS
+        # window — breaking text selection, drag-to-select, and any page
+        # gesture that uses a mouse drag.  We provide our own drag surface
+        # via `-webkit-app-region: drag` on #desktop-titlebar in _CHROME_JS,
+        # which WebView2 handles natively via WM_NCHITTEST → HTCAPTION.
+        easy_drag=False,
         js_api=api,
     )
     api._parent = window
