@@ -7,8 +7,12 @@ Build (one-folder):
 
 Notes:
 - Includes runtime asset folders (templates/, static/, prompts/, data/)
-- Includes documentation/help.md for the in-app Help modal (/api/help)
-- Does NOT bundle credentials; those remain in %LOCALAPPDATA%\spotyvibe\
+- Includes help docs for the in-app Help modal:
+    - documentation/help.en.md + help.de.md (served by /api/help)
+    - documentation/guides/ (served by /api/help/guide/<slug>)
+    - documentation/assets/guides/ (served by /docs/guides/<path>)
+    - documentation/assets/screenshots/ (served by /docs/screenshots/<path>)
+- Does NOT bundle credentials; those remain in %LOCALAPPDATA%/spotyvibe/
 """
 
 from __future__ import annotations
@@ -32,7 +36,11 @@ datas = [
     (os.path.join(project_root, "frontend", "static"), "frontend/static"),
     (os.path.join(project_root, "prompts"), "prompts"),
     (os.path.join(project_root, "data"), "data"),
-    (os.path.join(project_root, "documentation", "help.md"), "documentation"),
+    (os.path.join(project_root, "documentation", "help.en.md"), "documentation"),
+    (os.path.join(project_root, "documentation", "help.de.md"), "documentation"),
+    (os.path.join(project_root, "documentation", "guides"), "documentation/guides"),
+    (os.path.join(project_root, "documentation", "assets", "guides"), "documentation/assets/guides"),
+    (os.path.join(project_root, "documentation", "assets", "screenshots"), "documentation/assets/screenshots"),
 ]
 
 a = Analysis(
