@@ -74,32 +74,6 @@
             <p class="cost-estimate-unavailable hidden" id="costUnavailable" data-i18n="cost.unavailable">Cost estimate unavailable for this model.</p>
         </div>
 
-        <!-- Playlist size -->
-        <div class="form-row">
-            <label for="settings-playlist-size" data-i18n="settings.playlist_size_label">Playlist Size</label>
-            <input id="settings-playlist-size" type="number" min="10" max="30" step="5"
-                value="{{ settings.playlist_size if settings.playlist_size }}">
-            <p class="inline-hint" data-i18n="settings.playlist_size_hint">How many tracks to generate (max 30).</p>
-            <details class="learn-more">
-                <summary data-i18n="common.learn_more">Learn more</summary>
-                <div class="learn-more-body" data-i18n="settings.playlist_size_learn_more">Max capped at 30 — beyond that GPT starts repeating itself across 10-track fetch blocks, and review fatigue sets in. If you want a longer session, run twice with different presets.</div>
-            </details>
-            <div class="cred-status" id="status-settings-playlist-size"></div>
-        </div>
-
-        <!-- New artist % -->
-        <div class="form-row">
-            <label for="settings-new-artist-pct" data-i18n="settings.new_artist_pct_label">New Artist %</label>
-            <input id="settings-new-artist-pct" type="number" min="1" max="100" step="1"
-                value="{{ settings.new_artist_pct if settings.new_artist_pct is not none }}">
-            <p class="inline-hint" data-i18n="settings.new_artist_pct_hint">Minimum share of suggestions from artists you haven't listened to yet.</p>
-            <details class="learn-more">
-                <summary data-i18n="common.learn_more">Learn more</summary>
-                <div class="learn-more-body" data-i18n="settings.new_artist_pct_learn_more">Higher pushes exploration; lower keeps things familiar. The exploration slider above drives this — edit here to override.</div>
-            </details>
-            <div class="cred-status" id="status-settings-new-artist-pct"></div>
-        </div>
-
 
         <!-- Debug mode (desktop-only) -->
         <div class="form-row {% if not debug_controls_available %}hidden{% endif %}" id="debugModeRow">

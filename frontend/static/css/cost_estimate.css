@@ -19,8 +19,9 @@
 
 /* Footnote under Generate button */
 .cost-footnote {
-  display: flex; gap: 8px; align-items: center; font-size: 0.78rem;
-  color: var(--text-muted); margin: 8px 0 0; justify-content: center;
+  display: flex; gap: 6px; align-items: center; font-size: 0.78rem;
+  color: var(--text-muted); margin: 0; justify-content: center;
+  text-align: center; cursor: pointer;
 }
 .cost-footnote.hidden { display: none; }
 .cost-footnote-expand {
@@ -28,4 +29,20 @@
   font-size: 0.78rem; cursor: pointer; padding: 0;
 }
 .cost-footnote-expand:hover { text-decoration: underline; }
+
+/* ── Cost popover (inline card under Generate button) ─────────── */
+.cost-popover {
+  position: relative;
+  z-index: 50;
+  margin-top: 8px;
+  animation: dropdownFadeIn 0.15s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cost-popover { animation: none; }
+}
+.cost-popover.hidden { display: none; }
+.cost-popover .cost-estimate-card {
+  margin: 0;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+}
 

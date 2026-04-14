@@ -106,6 +106,46 @@ async function _refresh() {
             footnote.classList.remove('hidden');
         }
     }
+
+    // Popover card (inline under Generate button)
+    _refreshPopoverCard(result, model);
+}
+
+function _refreshPopoverCard(result, model) {
+    const el = (id) => document.getElementById(id);
+    const unavail = el('costPopUnavailable');
+
+    if (result) {
+        if (el('costPopModelName')) el('costPopModelName').textContent = result.model;
+        if (el('costPopProfileTokens')) el('costPopProfileTokens').textContent = i18n('cost.tokens_approx', '~{n} tokens').replace('{n}', result.profileTokens.toLocaleString());
+        if (el('costPopTracks')) el('costPopTracks').textContent = i18n('cost.tracks_count', '{n} tracks').replace('{n}', result.tracks);
+        if (el('costPopTokensIn')) el('costPopTokensIn').textContent = `~${result.tokensIn.toLocaleString()}`;
+        if (el('costPopTokensOut')) el('costPopTokensOut').textContent = `~${result.tokensOut.toLocaleString()}`;
+        if (el('costPopTotal')) el('costPopTotal').textContent = i18n('cost.cost_value', '≈ {amount}').replace('{amount}', _formatCost(result.cost));
+        if (unavail) unavail.classList.add('hidden');
+    } else {
+        if (el('costPopModelName')) el('costPopModelName').textContent = model || '—';
+        if (el('costPopTotal')) el('costPopTotal').textContent = '—';
+        if (unavail) unavail.classList.remove('hidden');
+    }
+}
+
+export function toggleCostPopover(e) {
+    if (e) e.stopPropagation();
+    const popover = document.getElementById('costPopoverCard');
+    const footnote = document.getElementById('costFootnote');
+    if (!popover) return;
+
+    const isOpen = !popover.classList.contains('hidden');
+    popover.classList.toggle('hidden', isOpen);
+    if (footnote) footnote.setAttribute('aria-expanded', String(!isOpen));
+}
+
+function _closeCostPopover() {
+    const popover = document.getElementById('costPopoverCard');
+    const footnote = document.getElementById('costFootnote');
+    if (popover) popover.classList.add('hidden');
+    if (footnote) footnote.setAttribute('aria-expanded', 'false');
 }
 
 let _debounceTimer = null;
@@ -131,7 +171,7 @@ export function init() {
     if (modelFreetext) modelFreetext.addEventListener('input', _debouncedRefresh);
 
     // Size sliders → refresh cost estimate
-    ['genSizeQuick', 'genSizeAdvanced', 'settings-playlist-size'].forEach(id => {
+    ['genSizeQuick', 'genSizeAdvanced'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', _debouncedRefresh);
     });
@@ -149,5 +189,24 @@ export function init() {
 
     // Initial refresh after a short delay
     setTimeout(_refresh, 500);
+
+    // Expose popover toggle globally for onclick handlers
+    window.toggleCostPopover = toggleCostPopover;
+
+    // Dismiss popover on click-outside
+    document.addEventListener('click', (e) => {
+        const popover = document.getElementById('costPopoverCard');
+        const footnote = document.getElementById('costFootnote');
+        if (popover && !popover.classList.contains('hidden')) {
+            if (!popover.contains(e.target) && !footnote?.contains(e.target)) {
+                _closeCostPopover();
+            }
+        }
+    });
+
+    // Dismiss popover on Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') _closeCostPopover();
+    });
 }
 

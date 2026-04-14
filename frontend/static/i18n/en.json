@@ -4,19 +4,15 @@
   "nav.connect_spotify": "Connect Spotify",
   "nav.disconnect_spotify": "Disconnect Spotify",
   "nav.help": "Help",
-
   "app.subtitle": "AI-powered music discovery & playlist generation — discover, curate, refine.",
   "app.theme": "Theme",
-
   "tab.openai": "AI Profile & Analysis",
   "tab.spotify": "Discover & Playlists",
   "tab.history": "Run History",
-
   "section.taste_profile": "OpenAI",
   "section.taste_profile_desc": "Define your taste profile and analyze reference music with AI.",
   "section.generate": "Spotify",
   "section.generate_desc": "Inspect track metadata, control playlists, and save generated music to Spotify.",
-
   "profile.title": "Music Profile",
   "profile.edit_profile": "Edit profile",
   "profile.no_profile_selected": "No profile selected",
@@ -45,7 +41,6 @@
   "profile.menu_export": "Export profile",
   "profile.menu_reset": "Undo last change",
   "profile.menu_delete": "Delete profile",
-
   "btn.ai_profile_update": "AI Profile Update",
   "btn.save": "Save",
   "btn.save_no_ai": "Save without AI",
@@ -59,7 +54,6 @@
   "btn.analyse": "Analyse",
   "btn.generate": "Generate & Create Playlist",
   "btn.cancel_generation": "Cancel",
-
   "analysis.title": "Band/Song Analysis",
   "analysis.show": "Open Analysis",
   "analysis.hide": "Hide",
@@ -67,35 +61,26 @@
   "analysis.track_placeholder": "Track name (optional)",
   "analysis.hint": "Enter an artist (and optional track) to get an AI analysis with ready-to-paste profile suggestions.",
   "analysis.profile_suggestions": "Profile Suggestions (click 📋 to copy)",
-
   "settings.language": "Language",
   "settings.model": "Used Model",
-  "settings.playlist_size": "Playlist Size",
-  "settings.new_artist_pct": "New Artist %",
   "settings.debug_mode": "Debug Mode",
   "settings.debug_mode_hint": "Log GPT requests & responses to debug file",
   "settings.open_data_dir": "📂 To local files",
-
   "msg.export_saved": "Profile exported — check your Downloads folder for spotyvibe_profile.json",
   "msg.export_fail": "Export failed",
   "msg.profile_switched": "Profile switched.",
   "msg.profile_created": "Profile created.",
   "msg.profile_deleted": "Profile deleted.",
-
   "history.title": "History",
   "history.show": "Show history",
   "history.hide": "Hide",
   "history.open_playlist": "Open playlist",
   "history.no_runs": "No runs yet.",
   "history.tracks_added": "track(s) added",
-
   "generate.title": "Discover Music",
-
   "review.title": "Refine Playlist",
   "review.subtitle": "Load an existing playlist and give track-by-track feedback to refine your taste profile.",
-
   "btn.load_playlist": "Load Playlist",
-
   "feedback.like": "Like",
   "feedback.dislike": "Dislike",
   "feedback.artist_label": "Artist",
@@ -103,17 +88,14 @@
   "feedback.reason_label": "Reason (optional)",
   "feedback.reason_placeholder": "e.g. perfect energy, boring melody…",
   "feedback.form_hint": "Leave empty to apply feedback to the artist in general.",
-
   "msg.generating": "Generating suggestions…",
   "msg.no_profile": "No profile trained yet",
   "msg.spotify_not_connected": "Spotify is not connected. Check the warning below the Generate button.",
   "msg.openai_key_missing": "OpenAI API key is missing. Open Settings.",
-
   "provider.openai": "OpenAI",
   "provider.openai_subtitle": "Define your taste profile and analyze reference music with AI.",
   "provider.spotify": "Spotify",
   "provider.spotify_subtitle": "Inspect track metadata, control playlists, and save generated music to Spotify.",
-
   "pill.key_configured": "Key configured",
   "pill.key_missing": "Key missing",
   "pill.profile_trained": "Profile trained",
@@ -127,17 +109,13 @@
   "pill.spotify_not_connected": "Spotify not connected",
   "pill.click_to_connect": "Click to connect",
   "pill.click_to_setup": "Click to set up",
-
   "audio_filters.title": "Audio Filters",
   "audio_filters.subtitle": "Guide the AI to suggest tracks matching a specific mood and feel.",
   "audio_filters.hint": "Set min/max ranges to constrain GPT suggestions. Leave blank to disable a filter.",
-
   "warn.low_confidence_match": "Low confidence match",
   "warn.no_result": "No result found",
   "warn.credentials_missing": "Spotify credentials missing",
-
   "help.section_help_title": "Open help for this section",
-
   "profile.duplicate_error": "A profile named \"{name}\" already exists.",
   "profile.switch_failed": "Failed to switch profile.",
   "profile.create_failed": "Failed to create profile.",
@@ -153,7 +131,6 @@
   "profile.reset_confirm": "Undo last change?\n\nYour current profile will be swapped with the previous saved version.",
   "profile.reset_failed": "Reset failed: {detail}",
   "profile.reset_success": "Profile reset to history.",
-
   "msg.openai_key_required": "OpenAI API key is required. Open ⚙️ Settings.",
   "msg.network_error": "Network error: {detail}",
   "msg.error_prefix": "Error: {detail}",
@@ -162,7 +139,6 @@
   "msg.saving": "⏳ Saving…",
   "msg.profile_saved": "✅ Profile saved!",
   "msg.copied": "Copied to clipboard!",
-
   "review.select_playlist_first": "Please select a playlist first.",
   "review.track_count": "{count} track(s)",
   "review.load_failed": "Failed to load playlist tracks.",
@@ -173,7 +149,6 @@
   "review.removed": "Removed: {track}",
   "review.playlists_load_failed": "Failed to load playlists",
   "review.select_placeholder": "Select a playlist…",
-
   "feedback.no_preview": "No preview",
   "feedback.artist_required": "Artist is required.",
   "feedback.disliked_removed_playlist": "👎 Disliked & removed from playlist: {track}",
@@ -184,7 +159,6 @@
   "btn.submit": "Submit",
   "btn.submit_like": "👍 Submit",
   "btn.submit_dislike": "👎 Submit",
-
   "analysis.artist_required": "Artist name is required.",
   "analysis.analysing": "Analysing…",
   "analysis.use_all_filters": "⇒ Use All as Filters",
@@ -192,34 +166,28 @@
   "analysis.genre": "Genre:",
   "analysis.audio_features_header": "Audio Features (GPT estimate)",
   "analysis.subtitle": "Get an AI-powered breakdown of any artist or track with ready-to-paste profile suggestions.",
-
   "generate.subtitle": "Generate AI-powered playlists and save them directly to your Spotify account.",
   "generate.playlist_name_placeholder": "Playlist name",
   "generate.loading_playlists": "Loading playlists…",
   "generate.use_tracks_now": "Use {count} tracks now",
   "generate.cannot_generate_warn": "⚠️ Cannot generate — check credentials and Spotify connection.",
-
   "af.all_cleared": "All audio filters cleared.",
   "af.filter_set": "{label} filter set to {range}",
   "af.filters_applied": "{count} audio filter(s) applied from analysis.",
   "af.clear_all": "✕ Clear all",
   "af.range_to": " to ",
   "af.range_up_to": "Up to ",
-
   "playlist.refresh_aria": "Refresh playlist list",
   "playlist.delete_aria": "Delete selected playlist",
   "playlist.delete_confirm": "Delete playlist \"{name}\"?\n\nThis cannot be undone.",
   "playlist.delete_failed": "Failed to delete playlist.",
   "playlist.deleted": "Playlist deleted.",
-
   "nav.skip_to_content": "Skip to main content",
   "nav.menu": "Menu",
   "nav.refresh": "Refresh",
-
   "msg.spotify_disconnected": "Spotify disconnected.",
   "msg.loading": "Loading…",
   "msg.ok": "OK",
-
   "cred.title": "🔑 Credentials",
   "cred.openai_key": "OpenAI API Key",
   "cred.spotify_id": "Spotify Client ID",
@@ -233,51 +201,38 @@
   "cred.saved": "✅ Credentials saved.",
   "cred.remove_confirm": "Remove {key}?",
   "cred.cleared": "{key} cleared.",
-
   "settings.title": "⚙️ Settings",
   "settings.model_warning": "⚠️ Different models have different costs. Check <a href=\"https://platform.openai.com/docs/pricing\" target=\"_blank\" rel=\"noopener\">OpenAI Pricing</a> before switching.",
-  "settings.playlist_size_tooltip": "Tracks are fetched in blocks of 10 per GPT request. Large values will cause many requests and therefore higher token usage / cost.",
-  "settings.new_artist_pct_tooltip": "Minimum percentage of suggestions that must come from artists not yet in your history. Higher values push GPT to explore new territory; lower values let it revisit familiar artists more often.",
   "settings.saved": "✅ Settings saved.",
   "settings.debug_enabled": "✓ Enabled — log: {path}",
   "settings.debug_disabled": "Disabled",
   "settings.model_status": "✓ Using: {model}",
-  "settings.playlist_size_status": "✓ Current: {size} tracks",
-  "settings.new_artist_pct_status": "✓ At least {pct}% of tracks from new artists",
   "settings.loading_models": "Loading models…",
   "settings.enter_key_first": "Enter API key first",
   "settings.no_models": "No models available",
   "settings.models_load_failed": "Could not load models",
-
   "help.loading": "Loading…",
   "help.load_failed": "Could not load help content.",
   "help.load_error": "Failed to load help: {detail}",
   "help.section_not_found": "Section not found.",
   "help.close": "Close",
   "help.close_preview": "Close preview",
-
   "data_dir.open_failed": "Could not open folder.",
-
   "profile.subtitle": "Define your musical taste — genres, moods, must-haves, and things to avoid.",
-
   "history.subtitle": "View past generation runs.",
   "history.load_failed": "Failed to load history.",
-
   "feedback.preview_on_spotify": "Preview on Spotify",
   "feedback.album_cover": "Album cover",
   "feedback.open_track": "Open track on Spotify",
   "feedback.open_artist": "Open artist on Spotify",
   "feedback.open_album": "Open album on Spotify",
-
   "confirm.title": "Confirmation",
-
   "warn.openai_missing_prefix": "⚠️ OpenAI API key is missing. Open ",
   "warn.openai_missing_suffix": " to enter it.",
   "warn.openai_missing_run": "OpenAI API key is missing — open ",
   "warn.spotify_missing_run": "Spotify credentials are missing — open ",
   "warn.spotify_login_required": "Spotify login required — ",
   "warn.connect_spotify": "Connect to Spotify",
-
   "pipeline.train_first": "⚠️ Please train your taste profile first before generating suggestions.",
   "pipeline.starting": "Starting pipeline…",
   "pipeline.connection_lost": "⚠️ Connection lost.",
@@ -294,18 +249,12 @@
   "pipeline.suggestions_generated": "✅ {count} suggestions generated.",
   "pipeline.tracks_added": "{count} new track(s) added to playlist.",
   "pipeline.tracks_not_found": "{count} track(s) not found on Spotify.",
-
   "playlist_mode.loading": "Loading…",
   "playlist_mode.error": "Error loading playlists",
   "playlist_mode.empty": "No playlists found",
-
   "pill.status_unknown": "Status unknown",
-
   "songlist.counter": "{count} / {max} songs",
-
   "review.select_label": "Select a playlist to review",
-
-
   "af.label_energy": "Energy (%)",
   "af.label_valence": "Valence (%)",
   "af.label_tempo": "Tempo (BPM)",
@@ -317,20 +266,17 @@
   "af.hint_text": "Filters are applied per generation — they constrain GPT to suggest only tracks matching these ranges. They are <strong>not</strong> saved in your profile.",
   "af.analysis_link": "🔍 Band/Song Analysis",
   "af.clear_all_title": "Clear all filters",
-
   "preview.previous": "Previous track",
   "preview.next": "Next track",
   "preview.remove": "Remove from playlist",
   "preview.like_aria": "Like this track",
   "preview.dislike_aria": "Dislike this track",
   "preview.remove_aria": "Remove from playlist",
-
   "theme.calm": "Calm",
   "theme.equalizer": "Equalizer",
   "theme.pulse": "Pulse",
   "theme.spectrum": "Spectrum",
   "theme.starfield": "Starfield",
-
   "analysis.energy": "Energy",
   "analysis.energy_desc": "How intense and active the track feels. High energy = loud, fast, noisy. Low energy = calm, ambient.",
   "analysis.valence": "Valence",
@@ -348,20 +294,15 @@
   "analysis.tempo": "Tempo",
   "analysis.tempo_desc": "The speed of the track in beats per minute (BPM). Higher BPM = faster tempo.",
   "analysis.use_as_filter_title": "Use as audio filter",
-
   "generate.emerging_only": "Only new / emerging artists",
   "generate.emerging_only_hint": "Only suggest tracks by artists who debuted in the last 6 months.",
-
   "pipeline.emerging_filter_result": "Showing {shown} of {checked} checked tracks — only tracks by recently emerged artists are included.",
   "pipeline.emerging_batch_filtered": "Batch: {count} track(s) filtered out (emerging artists only).",
-
   "quickstart.title_openai": "🤖 OpenAI Quick Start",
   "quickstart.title_spotify": "🎵 Spotify Quick Start",
-
   "generate.cannot_generate_server": "⚠️ Cannot generate — check credentials and Spotify connection.",
   "generate.loading_aria": "Generating playlist",
   "generate.loading_review_aria": "Loading",
-
   "ob.subtitle": "AI-powered music discovery. Describe your taste, get the perfect playlist.",
   "ob.feature_playlists": "Personalised Playlists",
   "ob.feature_playlists_desc": "AI learns your taste and discovers tracks you'll love.",
@@ -399,9 +340,7 @@
   "ob.back": "← Back",
   "ob.select_language": "Select Your Language",
   "ob.select_language_subtitle": "Choose the language you'd like to use in SpotyVibe.",
-
   "nav.quickstart": "Quick Start",
-
   "quickstart.title": "🚀 Quick Start Guide",
   "quickstart.intro": "Get up and running in a few simple steps — from setup to your first AI-powered playlist.",
   "quickstart.step1_title": "Setup",
@@ -461,7 +400,6 @@
   "quickstart.step6_action3": "📋 Copy AI suggestions directly into your profile",
   "quickstart.step6_action4": "📜 Run History — review the last 5 generation runs",
   "quickstart.step6_outcome": "Each playlist gets closer to your perfect mix.",
-
   "quickstart.demo1_f1": "Click the menu icon (☰) in the top-right corner",
   "quickstart.demo1_f2": "Select \"🔑 Credentials\" from the dropdown",
   "quickstart.demo1_f3": "Enter your API keys and click Save",
@@ -485,7 +423,6 @@
   "quickstart.demo6_f1": "Generate again — each run gets better",
   "quickstart.demo6_f2": "Use Band/Song Analysis to discover new artists",
   "quickstart.demo6_f3": "Your profile grows stronger with every interaction ✓",
-
   "quickstart.step7_title": "Band/Song Analysis",
   "quickstart.step7_tagline": "Explore artists, get profile suggestions, auto-fill audio filters.",
   "quickstart.step7_desc": "Enter an artist name (and optional track) to get an AI-powered breakdown. The analysis produces ready-to-paste profile suggestions and audio characteristics. Copy suggestions directly into your profile, or use the audio data to auto-fill filters for more targeted playlist generation.",
@@ -496,14 +433,13 @@
   "quickstart.demo7_f1": "Open Band/Song Analysis and enter an artist",
   "quickstart.demo7_f2": "AI generates a detailed breakdown with tags",
   "quickstart.demo7_f3": "Copy suggestions to profile or auto-fill audio filters ✓",
-
   "ob.get_started": "Get started →",
   "ob.skip_for_now": "Skip for now",
   "ob.step1_title": "Welcome to SpotyVibe",
   "ob.privacy_short": "Your keys and taste profile stay on your device. When you generate a playlist, your taste is sent to OpenAI (to get suggestions) and track titles go to Spotify (to verify and save them). Nothing else is tracked.",
   "ob.privacy_details_link": "What gets sent where? →",
-  "ob.step2_title": "Add your OpenAI key",
-  "ob.step2_subtitle": "SpotyVibe uses OpenAI to generate suggestions. You'll need an API key.",
+  "ob.step2_title": "Choose your AI provider",
+  "ob.step2_subtitle": "SpotyVibe uses an AI provider to generate suggestions. Pick one and add your API key.",
   "ob.openai_key_hint": "Paste this from your OpenAI dashboard.",
   "ob.howto_openai": "How do I get this?",
   "ob.openai_step1": "Go to platform.openai.com/api-keys",
@@ -570,15 +506,12 @@
   "priv.footnote": "Applies to the default SpotyVibe setup. Custom LLM endpoints may route data differently.",
   "priv.close": "Close",
   "ob.guide_done": "I'm done — back to setup",
-
   "common.learn_more": "Learn more",
   "common.optional": "(optional)",
-
   "gen.mode_quick": "Quick",
   "gen.mode_advanced": "Advanced",
   "gen.size_label": "Playlist size",
   "gen.size_suffix": "tracks",
-
   "gen.exploration_label": "Exploration vs Accuracy",
   "gen.exploration_left": "Familiar",
   "gen.exploration_right": "Adventurous",
@@ -594,7 +527,6 @@
   "gen.exploration_hint_4": "Mostly new — discovery-led, some familiar anchors.",
   "gen.exploration_hint_5": "Adventurous — emerging artists only, high novelty.",
   "gen.exploration_hint_custom": "Custom mix — move the slider to jump back to a preset.",
-
   "af.energy_hint": "How intense and active the track feels.",
   "af.energy_learn_more": "Higher values push GPT toward loud, fast, driving tracks. Lower values favour calm, ambient music. Leave empty to let any value through.",
   "af.valence_hint": "Musical positiveness — happy vs sad.",
@@ -605,7 +537,6 @@
   "af.danceability_learn_more": "Based on tempo stability, rhythm regularity, and beat strength. Not the same as \"upbeat\" — a steady ambient groove can score high.",
   "af.acousticness_hint": "Acoustic vs electronic.",
   "af.acousticness_learn_more": "High = unplugged, live instruments, folk. Low = synths, heavy production, electronic.",
-
   "settings.playlist_size_label": "Playlist Size",
   "settings.playlist_size_hint": "How many tracks to generate (max 30).",
   "settings.playlist_size_learn_more": "Max capped at 30 — beyond that GPT starts repeating itself across 10-track fetch blocks, and review fatigue sets in. If you want a longer session, run twice with different presets.",
@@ -617,7 +548,6 @@
   "settings.model_learn_more": "Higher-tier models cost more per run. For music suggestions the difference is noticeable but not dramatic; gpt-4o-mini is a sensible default.",
   "settings.debug_hint": "Log every GPT request and response to a local file.",
   "settings.debug_learn_more": "For developers and bug reports. Never affects behaviour. The log file stays on your device — see the Privacy modal.",
-
   "profile.strength": "Profile Strength",
   "profile.touched": "Edited",
   "profile.suggest_core_empty": "Add a few sentences describing your ideal sound — that's the foundation.",
@@ -625,7 +555,6 @@
   "profile.suggest_soft_empty": "Add a soft preference for variety.",
   "profile.suggest_avoid_empty": "Add at least one thing to avoid — it sharpens the profile.",
   "profile.suggest_core_partial": "Expand your core description — a sentence or two more helps GPT.",
-
   "preset.label": "Preset",
   "preset.builtin_suffix": "(built-in)",
   "preset.your_presets": "Your presets",
@@ -649,10 +578,8 @@
   "preset.builtin_deep_discovery": "Deep discovery",
   "preset.using": "Using preset: {name}",
   "preset.clone_copy_suffix": "(copy)",
-
   "nav.manage_presets": "Manage presets",
   "btn.close": "Close",
-
   "seed.modal_title": "Seed from a Spotify playlist",
   "seed.modal_subtitle": "Pick one of your playlists — SpotyVibe drafts a profile you can tweak.",
   "seed.search_placeholder": "Search your playlists…",
@@ -665,13 +592,11 @@
   "seed.failed": "Couldn't draft a profile from this playlist. Please try a different one.",
   "seed.connect_spotify_first": "Connect Spotify on step 4 to enable this",
   "ob.seed_playlist_btn": "Choose playlist →",
-
   "profile.draft_title": "Drafted from your playlist",
   "profile.draft_sub_tpl": "Generated from \"{name}\" — review and save below.",
   "profile.draft_discard": "Discard draft",
   "profile.draft_saved": "Profile updated from playlist",
   "profile.menu_seed_playlist": "Seed from playlist",
-
   "explain.profile_match": "matches '{arg}'",
   "explain.artist_match": "similar to {arg}",
   "explain.recency": "{arg}",
@@ -679,7 +604,6 @@
   "explain.audio_match": "matches {arg}",
   "explain.legacy": "{arg}",
   "explain.fallback": "profile match",
-
   "dashboard.title": "Your taste at a glance",
   "dashboard.subtitle": "Aggregated from your recent playlists and history.",
   "dashboard.card_genres": "Top genres",
@@ -694,12 +618,10 @@
   "dashboard.tracks_counted": "Based on {count} tracks",
   "dashboard.scatter_tooltip": "{artist} — {title}",
   "dashboard.decades_tooltip": "{decade} — {count} tracks",
-
   "explain.recency_released": "released {year}",
   "explain.recency_emerging": "emerging artist",
   "explain.novelty_discovery": "discovery pick",
   "explain.novelty_new_artist": "new artist",
-
   "tip.first_generation": "Try Band / Song Analysis",
   "tip.first_generation_body": "Understand why you liked a track — paste one and let GPT break it down.",
   "tip.first_generation_link": "Open Band Analysis →",
@@ -717,11 +639,9 @@
   "tip.five_generations_link": "Save preset →",
   "tip.reset_done": "Tips reset — you'll see them again as you use the app.",
   "nav.reset_tips": "Reset tips",
-
   "provider.label": "Provider",
   "provider.hint": "Pick where SpotyVibe gets its AI from.",
   "provider.learn_more": "SpotyVibe speaks the OpenAI API protocol. Any OpenAI-compatible provider works — cloud (Groq, OpenRouter) or local (Ollama, LM Studio). For Azure OpenAI, pick \"Custom\" and paste your full deployment URL.",
-  "provider.openai": "OpenAI",
   "provider.ollama": "Ollama (local)",
   "provider.lmstudio": "LM Studio (local)",
   "provider.groq": "Groq",
@@ -748,7 +668,6 @@
   "provider.model_mode_toggle": "Toggle free-text model name",
   "provider.use_different": "Use a different provider…",
   "provider.switch_clears_key": "Switching providers clears your stored API key.",
-
   "cost.title": "Estimated cost per generation",
   "cost.model": "Model",
   "cost.profile_size": "Profile size",
@@ -765,7 +684,6 @@
   "cost.assumed_profile": "Based on a typical 75-token profile.",
   "cost.footnote_unavailable": "estimate unavailable",
   "cost.footnote_tpl": "≈ {cost} · {model} · est.",
-
   "voice.speak": "Speak",
   "voice.listening": "Listening…",
   "voice.stop": "Stop",
@@ -774,21 +692,27 @@
   "voice.network": "Voice input needs a connection.",
   "voice.started": "Recording started",
   "voice.stopped": "Recording stopped — transcript added",
-
   "help.fallback_banner": "This page isn't translated yet. Showing English.",
   "help.fallback_dismiss_title": "Dismiss",
   "help.language_indicator": "Language: {lang}",
-
   "guide.loading": "Loading…",
   "guide.copy": "📋 Copy",
   "guide.copied": "✓ Copied",
   "guide.error_title": "Error loading guide",
   "guide.error_subtitle": "Please try again later.",
-
   "tip.dismiss": "Dismiss",
-
   "dashboard.tracks_unit": "tracks",
-
   "provider.cred_label_tpl": "{provider} API Key",
-  "provider.api_key_not_needed": "API Key (not needed)"
+  "provider.api_key_not_needed": "API Key (not needed)",
+  "ob.step6_provider_note": "You chose: {provider}",
+  "ob.sum_from_previous": "(from previous setup)",
+  "ob.retry": "Retry",
+  "ob.model_freetext_label": "Or type a model name",
+  "nav.group_configuration": "CONFIGURATION",
+  "nav.group_help": "HELP & GUIDANCE",
+  "profile.new_profile_title": "New profile",
+  "profile.new_profile_desc": "Blank, edit it yourself",
+  "profile.from_playlist_title": "From playlist",
+  "profile.from_playlist_desc": "Draft from a Spotify playlist you like",
+  "profile.from_playlist_hint": "Connect Spotify first"
 }

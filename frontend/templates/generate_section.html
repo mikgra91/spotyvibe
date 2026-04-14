@@ -250,11 +250,29 @@
         <button class="btn-run" id="runBtn" onclick="runPipeline()" {% if not can_generate %}disabled{% endif %}><span aria-hidden="true">▶</span> <span data-i18n="btn.generate">Generate &amp; Create Playlist</span></button>
         <button class="btn-run-cancel hidden" id="cancelBtn" onclick="cancelGeneration()"><span aria-hidden="true">⛔</span> <span data-i18n="btn.cancel_generation">Cancel</span></button>
         <button class="btn-use-tracks hidden" id="useTracksBtn" onclick="useCurrentTracks()"><span aria-hidden="true">▶</span> Use 0 tracks now</button>
-        <p class="cost-footnote hidden" id="costFootnote">
+        <p class="cost-footnote hidden" id="costFootnote" onclick="toggleCostPopover(event)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCostPopover(event)}" role="button" tabindex="0" aria-expanded="false" aria-controls="costPopoverCard">
             <span class="cost-footnote-icon" aria-hidden="true">💰</span>
             <span id="costFootnoteText"></span>
-            <button class="cost-footnote-expand" onclick="openSettings()" data-i18n="cost.details">details</button>
+            <span class="cost-footnote-expand" data-i18n="cost.details">details</span>
         </p>
+        <div class="cost-popover hidden" id="costPopoverCard">
+            <div class="cost-estimate-card">
+                <div class="cost-estimate-header">
+                    <span class="cost-estimate-icon" aria-hidden="true">💰</span>
+                    <h3 class="cost-estimate-title" data-i18n="cost.title">Estimated cost per generation</h3>
+                </div>
+                <dl class="cost-estimate-list">
+                    <dt data-i18n="cost.model">Model</dt><dd id="costPopModelName">—</dd>
+                    <dt data-i18n="cost.profile_size">Profile size</dt><dd id="costPopProfileTokens">—</dd>
+                    <dt data-i18n="cost.tracks">Suggestions</dt><dd id="costPopTracks">—</dd>
+                    <dt data-i18n="cost.tokens_in">Tokens in</dt><dd id="costPopTokensIn">—</dd>
+                    <dt data-i18n="cost.tokens_out">Tokens out</dt><dd id="costPopTokensOut">—</dd>
+                    <dt data-i18n="cost.total" class="cost-total-label">Estimated cost</dt><dd id="costPopTotal" class="cost-total-value">—</dd>
+                </dl>
+                <p class="cost-estimate-disclaimer" data-i18n="cost.disclaimer">Estimate only — actual cost depends on your profile size and provider rates.</p>
+                <p class="cost-estimate-unavailable hidden" id="costPopUnavailable" data-i18n="cost.unavailable">Cost estimate unavailable for this model.</p>
+            </div>
+        </div>
     </div>
 
     <!-- Save preset modal (shared) -->

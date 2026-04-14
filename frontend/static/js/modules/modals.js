@@ -129,18 +129,6 @@ export async function openSettings() {
         modelStatus.textContent = i18n('settings.model_status', '✓ Using: {model}').replace('{model}', data.model || 'gpt-5.4-mini');
         modelStatus.className = 'cred-status set';
 
-        const playlistSize = data.playlist_size || 10;
-        document.getElementById('settings-playlist-size').value = playlistSize;
-        const sizeStatus = document.getElementById('status-settings-playlist-size');
-        sizeStatus.textContent = i18n('settings.playlist_size_status', '✓ Current: {size} tracks').replace('{size}', playlistSize);
-        sizeStatus.className = 'cred-status set';
-
-        const pct = data.new_artist_percentage || 30;
-        document.getElementById('settings-new-artist-pct').value = pct;
-        const pctStatus = document.getElementById('status-settings-new-artist-pct');
-        pctStatus.textContent = i18n('settings.new_artist_pct_status', '✓ At least {pct}% of tracks from new artists').replace('{pct}', pct);
-        pctStatus.className = 'cred-status set';
-
 
     } catch (e) { /* ignore */ }
 
@@ -185,15 +173,6 @@ export async function saveSettings() {
         payload.debug_mode = document.getElementById('settings-debug').checked;
     }
 
-    const sizeVal = parseInt(document.getElementById('settings-playlist-size').value, 10);
-    if (!isNaN(sizeVal) && sizeVal >= 10) {
-        payload.playlist_size = sizeVal;
-    }
-
-    const pctVal = parseInt(document.getElementById('settings-new-artist-pct').value, 10);
-    if (!isNaN(pctVal) && pctVal >= 1 && pctVal <= 100) {
-        payload.new_artist_percentage = pctVal;
-    }
 
 
     try {

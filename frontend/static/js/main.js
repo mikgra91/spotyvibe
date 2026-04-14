@@ -1,6 +1,6 @@
 import { checkCredentialStatus, checkSpotifyAuth, connectSpotify, toggleSpotifyConnection, fetchSettingsState } from './modules/auth.js';
 import { renderComponentWarnings } from './modules/warnings.js';
-import { toggleAccordion, prefillTrainFields, updateTrainToggleLabel, toggleTrainBody, startImportProfile, exportProfile, submitProfile, sendTrainProfile, saveProfileDirect, resetProfileToHistory, bindProfileImportInput, checkProfileStatus, loadProfileList, switchProfile, toggleCreateProfile, createNewProfile, deleteCurrentProfile, initCustomProfileDropdown, toggleProfileMenu, initProfileMenu } from './modules/profile.js';
+import { toggleAccordion, prefillTrainFields, updateTrainToggleLabel, toggleTrainBody, startImportProfile, exportProfile, submitProfile, sendTrainProfile, saveProfileDirect, resetProfileToHistory, bindProfileImportInput, checkProfileStatus, loadProfileList, switchProfile, toggleCreateProfile, createNewProfile, deleteCurrentProfile, initCustomProfileDropdown, toggleProfileMenu, initProfileMenu, updateSeedCardState } from './modules/profile.js';
 import { toggleHistoryBody, loadHistory } from './modules/history.js';
 import { toggleAnalysisBody, runAnalysis, renderAnalysisResult, copySuggestion, jumpToAnalysis } from './modules/analysis.js';
 import { toggleGenerateBody, runPipeline, setGenerating, updateUseTracksButton, generateUUID, handleStreamEvent, showSseDisconnectBanner, resumeRun, cancelGeneration, useCurrentTracks, canGenerate } from './modules/pipeline.js';
@@ -160,6 +160,7 @@ window.addEventListener('message', async (e) => {
     if (e.data === 'spotify-auth-complete') {
         await checkSpotifyAuth();
         renderComponentWarnings();
+        updateSeedCardState();
     }
 });
 
@@ -198,6 +199,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Auth and warnings
     Promise.all([checkCredentialStatus(), checkSpotifyAuth(), fetchSettingsState()]).then(() => {
         renderComponentWarnings();
+        updateSeedCardState();
     });
 
     // Profile

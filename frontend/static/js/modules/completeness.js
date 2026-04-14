@@ -180,6 +180,38 @@ function _scheduleUpdate() {
 
 // ── Public API ──────────────────────────────────────────────────────
 
+const DETAIL_STORAGE_KEY = 'sv.completeness_expanded';
+
+export function toggleCompletenessDetail() {
+    const detail = document.getElementById('completenessDetail');
+    const header = document.querySelector('.completeness-header');
+    const chevron = document.getElementById('completenessChevron');
+    if (!detail) return;
+
+    const isExpanding = detail.classList.contains('hidden');
+    detail.classList.toggle('hidden', !isExpanding);
+    if (header) header.setAttribute('aria-expanded', String(isExpanding));
+    if (chevron) chevron.classList.toggle('rotated', isExpanding);
+
+    try {
+        localStorage.setItem(DETAIL_STORAGE_KEY, isExpanding ? '1' : '0');
+    } catch (_) { /* ignore */ }
+}
+
+function _restoreDetailState() {
+    try {
+        const expanded = localStorage.getItem(DETAIL_STORAGE_KEY) === '1';
+        const detail = document.getElementById('completenessDetail');
+        const header = document.querySelector('.completeness-header');
+        const chevron = document.getElementById('completenessChevron');
+        if (expanded && detail) {
+            detail.classList.remove('hidden');
+            if (header) header.setAttribute('aria-expanded', 'true');
+            if (chevron) chevron.classList.add('rotated');
+        }
+    } catch (_) { /* ignore */ }
+}
+
 export function init() {
     const fields = ['trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid'];
     for (const id of fields) {
@@ -211,6 +243,12 @@ export function init() {
     if (body) {
         observer.observe(body, { attributes: true, attributeFilter: ['class'] });
     }
+
+    // Restore collapsed/expanded state
+    _restoreDetailState();
+
+    // Expose toggle globally for onclick handlers
+    window.toggleCompletenessDetail = toggleCompletenessDetail;
 }
 
 export { compute };

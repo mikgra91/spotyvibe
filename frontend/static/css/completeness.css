@@ -17,21 +17,46 @@
 
 .completeness-header {
     display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin-bottom: 8px;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    user-select: none;
 }
 
 .completeness-title {
     font-size: 0.92rem;
     font-weight: 600;
     color: var(--text-primary);
+    white-space: nowrap;
 }
 
 .completeness-score {
-    font-size: 1.1rem;
+    font-size: 0.92rem;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.completeness-header .completeness-bar {
+    flex: 1;
+    min-width: 60px;
+}
+
+.completeness-chevron {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+}
+.completeness-chevron.rotated {
+    transform: rotate(180deg);
+}
+
+.completeness-detail {
+    margin-top: 10px;
+}
+.completeness-detail.hidden {
+    display: none;
 }
 .completeness-score.weak   { color: var(--meter-weak); }
 .completeness-score.ok     { color: var(--meter-ok); }

@@ -43,9 +43,9 @@ export const BUILTIN_PRESETS = [
         builtin: true,
         version: 1,
         settings: {
-            size: 25,
+            size: 30,
             exploration_notch: 3,
-            new_artist_pct: 50,
+            new_artist_pct: 30,
             emerging_only: false,
             temperature: 0.8,
             audio_filters: { ...EMPTY_FILTERS },
@@ -178,8 +178,8 @@ function _collectCurrentSettings() {
         }
     } catch (_) { /* ignore */ }
 
-    const napField = document.getElementById('settings-new-artist-pct');
-    const new_artist_pct = napField ? parseInt(napField.value, 10) || 50 : 50;
+    const napField = document.getElementById('genNewArtistPct') || document.getElementById('settings-new-artist-pct');
+    const new_artist_pct = napField ? parseInt(napField.value, 10) || 30 : 30;
 
     const emergingCb = document.getElementById('emergingArtistsCheckbox');
     const emerging_only = emergingCb ? emergingCb.checked : false;

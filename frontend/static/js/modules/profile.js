@@ -1,5 +1,5 @@
 import * as State from './state.js';
-import { showToast, showAlert, showConfirm } from './ui.js';
+import { showToast, showAlert, showConfirm, closeAllPopovers } from './ui.js';
 import { i18n } from './i18n.js';
 import { renderTracks } from './tracklist.js';
 import { renderReviewTracks } from './review.js';
@@ -44,6 +44,7 @@ export function toggleProfileMenu() {
     if (isOpen) {
         _closeProfileMenu();
     } else {
+        closeAllPopovers('profileMenuDropdown');
         updateProfileMenuState();
         menu.classList.remove('hidden');
         trigger.setAttribute('aria-expanded', 'true');
@@ -107,6 +108,24 @@ export function updateProfileMenuState() {
             el.classList.add('disabled');
             el.setAttribute('aria-disabled', 'true');
         }
+    }
+}
+
+export function updateSeedCardState() {
+    const seedCard = document.getElementById('profileSeedCard');
+    const seedBtn = document.getElementById('profileSeedBtn');
+    const seedHint = document.getElementById('profileSeedHint');
+    if (!seedCard) return;
+
+    const connected = State.spotifyAuthStatus === 'connected';
+    if (connected) {
+        seedCard.classList.remove('disabled');
+        if (seedBtn) seedBtn.disabled = false;
+        if (seedHint) seedHint.classList.add('hidden');
+    } else {
+        seedCard.classList.add('disabled');
+        if (seedBtn) seedBtn.disabled = true;
+        if (seedHint) seedHint.classList.remove('hidden');
     }
 }
 
@@ -224,6 +243,7 @@ function _toggleCustomDropdown() {
     if (isOpen) {
         _closeCustomDropdown();
     } else {
+        closeAllPopovers('profileCustomDropdown');
         list.classList.remove('hidden');
         dropdown.setAttribute('aria-expanded', 'true');
         // Focus the selected item or first item
@@ -281,6 +301,9 @@ export async function switchProfile(profileId) {
         renderReviewTracks();
 
         await Promise.all([checkProfileStatus(), prefillTrainFields()]);
+        // Dispatch input events so completeness meter re-reads fresh values
+        ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid']
+            .forEach(id => document.getElementById(id)?.dispatchEvent(new Event('input')));
         showToast(i18n('msg.profile_switched', 'Profile switched.'), 'success');
     } catch (e) {
         showToast(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message), 'error');
@@ -690,6 +713,9 @@ export async function resetProfileToHistory() {
 
         showToast(i18n('profile.reset_success', 'Profile reset to history.'), 'success');
         await Promise.all([checkProfileStatus(), prefillTrainFields()]);
+        // F.1: Dispatch input events so completeness meter re-reads fresh values
+        ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid']
+            .forEach(id => document.getElementById(id)?.dispatchEvent(new Event('input')));
     } catch (e) {
         showToast(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message), 'error');
     }
