@@ -49,6 +49,14 @@ async function obApplyLang(lang) {
     document.querySelectorAll('.lang-toggle-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.lang === lang);
     });
+
+    // Refresh dynamically-set elements that don't use data-i18n
+    const badge = document.getElementById('obProviderBadge');
+    if (badge && typeof _obSelectedProvider !== 'undefined') {
+        const providerLabel = document.querySelector(`#ob-provider-list .ob-custom-select-option[data-value="${_obSelectedProvider}"]`);
+        const providerName = providerLabel ? providerLabel.textContent.trim() : _obSelectedProvider;
+        badge.textContent = obI18n('ob.step6_provider_note', 'You chose: {provider}').replace('{provider}', providerName);
+    }
 }
 
 function obI18n(key, fallback) {
@@ -58,6 +66,37 @@ function obI18n(key, fallback) {
 /* ── Wizard navigation ───────────────────────────────────────── */
 let currentPage = 0;
 const totalPages = 7;
+
+/* ── B.5: In-session touch tracking for summary ──────────────── */
+const obTouched = {
+    openai_key: false,
+    provider: false,
+    spotify_cred: false,
+    spotify_conn: false,
+    profile: false,
+    model: false,
+};
+
+/* ── B.1/B.4: Provider custom dropdown state ─────────────────── */
+let _obSelectedProvider = 'openai';
+
+const _PROVIDER_META = {
+    openai:     { local: false, label_i18n: 'provider.api_key_label_openai',     hint_i18n: 'provider.api_key_hint_openai',     placeholder: 'sk-…' },
+    ollama:     { local: true,  label_i18n: 'provider.api_key_label_ollama',     hint_i18n: 'provider.api_key_hint_ollama',     placeholder: 'any value or leave empty' },
+    lmstudio:   { local: true,  label_i18n: 'provider.api_key_label_lmstudio',   hint_i18n: 'provider.api_key_hint_lmstudio',   placeholder: 'any value or leave empty' },
+    groq:       { local: false, label_i18n: 'provider.api_key_label_groq',       hint_i18n: 'provider.api_key_hint_groq',       placeholder: 'gsk_…' },
+    openrouter: { local: false, label_i18n: 'provider.api_key_label_openrouter', hint_i18n: 'provider.api_key_hint_openrouter', placeholder: 'sk-or-…' },
+    custom:     { local: false, label_i18n: 'provider.api_key_label_custom',     hint_i18n: 'provider.api_key_hint_custom',     placeholder: 'API key…' },
+};
+
+const _PROVIDER_BASE_URLS = {
+    openai:     'https://api.openai.com/v1',
+    ollama:     'http://localhost:11434/v1',
+    lmstudio:   'http://localhost:1234/v1',
+    groq:       'https://api.groq.com/openai/v1',
+    openrouter: 'https://openrouter.ai/api/v1',
+    custom:     '',
+};
 
 function obGoPage(idx) {
     if (idx < 0 || idx >= totalPages) return;
@@ -131,9 +170,118 @@ document.addEventListener('DOMContentLoaded', () => {
     // Mark first page as active
     const firstPage = document.querySelector('.ob-page');
     if (firstPage) firstPage.classList.add('active');
+
+    // ── B.1: Custom provider dropdown ──
+    _initObProviderDropdown();
 });
 
 /* ── Skip / Finish ────────────────────────────────────────────── */
+
+/* ── B.1: Custom provider dropdown logic ─────────────────────── */
+
+function _initObProviderDropdown() {
+    const dropdown = document.getElementById('ob-provider-dropdown');
+    const trigger = document.getElementById('ob-provider-trigger');
+    const list = document.getElementById('ob-provider-list');
+    if (!dropdown || !trigger || !list) return;
+
+    // Toggle open/close
+    trigger.addEventListener('click', () => {
+        const open = dropdown.classList.toggle('open');
+        trigger.setAttribute('aria-expanded', String(open));
+        if (open) {
+            // Focus the selected option
+            const sel = list.querySelector('.selected');
+            if (sel) sel.focus();
+        }
+    });
+
+    // Option selection
+    list.addEventListener('click', (e) => {
+        const option = e.target.closest('.ob-custom-select-option');
+        if (!option) return;
+        _selectObProvider(option.dataset.value, option.textContent.trim());
+        dropdown.classList.remove('open');
+        trigger.setAttribute('aria-expanded', 'false');
+        trigger.focus();
+    });
+
+    // Keyboard navigation
+    list.addEventListener('keydown', (e) => {
+        const options = [...list.querySelectorAll('.ob-custom-select-option')];
+        const focused = document.activeElement;
+        const idx = options.indexOf(focused);
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (idx < options.length - 1) options[idx + 1].focus();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (idx > 0) options[idx - 1].focus();
+        } else if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            if (focused && focused.dataset.value) {
+                _selectObProvider(focused.dataset.value, focused.textContent.trim());
+                dropdown.classList.remove('open');
+                trigger.setAttribute('aria-expanded', 'false');
+                trigger.focus();
+            }
+        } else if (e.key === 'Escape') {
+            dropdown.classList.remove('open');
+            trigger.setAttribute('aria-expanded', 'false');
+            trigger.focus();
+        }
+    });
+
+    // Make options focusable
+    list.querySelectorAll('.ob-custom-select-option').forEach(opt => {
+        opt.setAttribute('tabindex', '0');
+    });
+
+    // Close on click-outside
+    document.addEventListener('click', (e) => {
+        if (!dropdown.contains(e.target)) {
+            dropdown.classList.remove('open');
+            trigger.setAttribute('aria-expanded', 'false');
+        }
+    });
+}
+
+function _selectObProvider(value, label) {
+    _obSelectedProvider = value;
+    obTouched.provider = true;
+
+    // Update trigger text
+    const valueEl = document.querySelector('#ob-provider-trigger .ob-custom-select-value');
+    if (valueEl) valueEl.textContent = label;
+
+    // Update selected state in list
+    document.querySelectorAll('#ob-provider-list .ob-custom-select-option').forEach(opt => {
+        const isSel = opt.dataset.value === value;
+        opt.classList.toggle('selected', isSel);
+        opt.setAttribute('aria-selected', String(isSel));
+    });
+
+    // Show/hide base URL row
+    const urlRow = document.getElementById('ob-base-url-row');
+    if (urlRow) urlRow.classList.toggle('hidden', value !== 'custom');
+
+    // Update API key label, hint, placeholder
+    const meta = _PROVIDER_META[value] || _PROVIDER_META.openai;
+    const keyLabel = document.getElementById('ob-api-key-label');
+    if (keyLabel) keyLabel.textContent = obI18n(meta.label_i18n, 'API Key');
+    const keyHint = document.getElementById('ob-api-key-hint');
+    if (keyHint) keyHint.textContent = obI18n(meta.hint_i18n, '');
+    const keyInput = document.getElementById('ob-openai-key');
+    if (keyInput) keyInput.placeholder = meta.placeholder;
+
+    // Show/hide local notice
+    const notice = document.getElementById('obLocalNotice');
+    if (notice) notice.classList.toggle('hidden', !meta.local);
+
+    // Reset models when provider changes
+    _obModelsLoaded = false;
+}
+window._selectObProvider = _selectObProvider;
 
 async function skipOnboarding() {
     await _markComplete();
@@ -155,11 +303,29 @@ async function _markComplete() {
 
 async function obSaveAndNext() {
     if (currentPage === 1) {
-        // Step 2: Save OpenAI key
+        // Step 2: Save provider + OpenAI key
         const key = document.getElementById('ob-openai-key')?.value.trim();
+        const baseUrlInput = document.getElementById('ob-base-url');
+        const baseUrl = (_obSelectedProvider === 'custom' && baseUrlInput)
+            ? baseUrlInput.value.trim()
+            : (_PROVIDER_BASE_URLS[_obSelectedProvider] || '');
+
+        // Save provider settings
+        try {
+            await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    provider_preset: _obSelectedProvider,
+                    llm_base_url: baseUrl,
+                }),
+            });
+        } catch (e) { /* best-effort */ }
+
         if (key) {
             await _saveCredentials({ OPENAI_API_KEY: key });
             document.getElementById('ob-openai-key').value = '';
+            obTouched.openai_key = true;
             await prefillCredentials();
         }
         obGoPage(2);
@@ -174,19 +340,25 @@ async function obSaveAndNext() {
             await _saveCredentials(payload);
             if (id) document.getElementById('ob-spotify-id').value = '';
             if (secret) document.getElementById('ob-spotify-secret').value = '';
+            obTouched.spotify_cred = true;
             await prefillCredentials();
         }
         obGoPage(3);
     } else if (currentPage === 5) {
         // Step 6: Save model
         const select = document.getElementById('ob-model-select');
-        if (select && select.value) {
+        const freetext = document.getElementById('ob-model-freetext');
+        const model = (freetext && !freetext.closest('.hidden') && freetext.value.trim())
+            ? freetext.value.trim()
+            : (select ? select.value : '');
+        if (model) {
             try {
                 await fetch('/api/settings', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: select.value }),
+                    body: JSON.stringify({ model }),
                 });
+                obTouched.model = true;
             } catch (e) { /* best-effort */ }
         }
         obGoPage(6);
@@ -242,16 +414,38 @@ function toggleObSpotify() {
 function connectObSpotify() {
     const statusEl = document.getElementById('ob-spotify-status');
     if (statusEl) statusEl.textContent = obI18n('ob.opening_spotify', 'Opening Spotify…');
+
+    // pywebview desktop: open OAuth in a managed child window
+    if (window.pywebview?.api?.open_spotify_auth) {
+        window.pywebview.api.open_spotify_auth();
+        // Poll for completion since pywebview manages the window
+        const poll = setInterval(async () => {
+            try {
+                const resp = await fetch('/api/spotify/status');
+                const data = await resp.json();
+                if (data.status === 'authenticated') {
+                    clearInterval(poll);
+                    _setObSpotifyState(true);
+                }
+            } catch (e) { /* ignore */ }
+        }, 2000);
+        setTimeout(() => clearInterval(poll), 120000); // stop after 2 min
+        return;
+    }
+
+    // Android WebView: navigate in-window (no popup)
     if (/; wv\)/.test(navigator.userAgent)) {
         window.location.href = '/api/spotify/auth';
-    } else {
-        window.open('/api/spotify/auth', 'spotifyAuth', 'width=480,height=640');
-        window.addEventListener('message', async (e) => {
-            if (e.data === 'spotify-auth-complete') {
-                _setObSpotifyState(true);
-            }
-        }, { once: true });
+        return;
     }
+
+    // Browser: open popup
+    window.open('/api/spotify/auth', 'spotifyAuth', 'width=480,height=640');
+    window.addEventListener('message', async (e) => {
+        if (e.data === 'spotify-auth-complete') {
+            _setObSpotifyState(true);
+        }
+    }, { once: true });
 }
 
 async function disconnectObSpotify() {
@@ -396,33 +590,112 @@ async function obLoadModels() {
     if (_obModelsLoaded) return;
     const select = document.getElementById('ob-model-select');
     if (!select) return;
+
+    const spinner = document.getElementById('obModelSpinner');
+    const errorEl = document.getElementById('obModelError');
+    const freetextWrap = document.getElementById('obModelFreetext');
+    const badge = document.getElementById('obProviderBadge');
+
+    // Update provider badge
+    if (badge) {
+        const providerLabel = document.querySelector(`#ob-provider-list .ob-custom-select-option[data-value="${_obSelectedProvider}"]`);
+        const providerName = providerLabel ? providerLabel.textContent.trim() : _obSelectedProvider;
+        badge.textContent = obI18n('ob.step6_provider_note', 'You chose: {provider}').replace('{provider}', providerName);
+    }
+
+    // Show spinner, hide error
+    if (spinner) spinner.classList.remove('hidden');
+    if (errorEl) errorEl.classList.add('hidden');
+    if (freetextWrap) freetextWrap.classList.add('hidden');
+
     try {
-        const resp = await fetch('/api/settings');
-        if (!resp.ok) return;
-        const data = await resp.json();
-        const models = data.available_models || [];
-        const current = data.model || '';
-        select.innerHTML = '';
-        models.forEach(m => {
-            const opt = document.createElement('option');
-            opt.value = m;
-            opt.textContent = m;
-            if (m === current) opt.selected = true;
-            select.appendChild(opt);
-        });
-        _obModelsLoaded = true;
-    } catch (e) { /* ignore */ }
+        // Try fetching models from the provider
+        const meta = _PROVIDER_META[_obSelectedProvider] || {};
+        const baseUrl = _PROVIDER_BASE_URLS[_obSelectedProvider] || 'https://api.openai.com/v1';
+        const keyInput = document.getElementById('ob-openai-key');
+        const apiKey = keyInput ? keyInput.value.trim() : '';
+
+        // First try the /api/llm/fetch_models endpoint
+        let models = [];
+        let fetchOk = false;
+        let currentModel = '';
+        try {
+            const resp = await fetch('/api/llm/fetch_models', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ base_url: baseUrl, api_key: apiKey }),
+            });
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.models && data.models.length > 0) {
+                    models = data.models;
+                    fetchOk = true;
+                }
+            }
+        } catch (e) { /* fall through to /api/settings */ }
+
+        // Fallback: get models from /api/settings (also gets current model)
+        if (!fetchOk) {
+            try {
+                const resp = await fetch('/api/settings');
+                if (resp.ok) {
+                    const data = await resp.json();
+                    models = data.available_models || [];
+                    currentModel = data.model || '';
+                    if (models.length > 0) fetchOk = true;
+                }
+            } catch (e) { /* ignore */ }
+        }
+
+        // If live fetch succeeded, still need the current model for preselection
+        if (fetchOk && !currentModel) {
+            try {
+                const resp = await fetch('/api/settings');
+                const data = await resp.json();
+                currentModel = data.model || '';
+            } catch (e) { /* ignore */ }
+        }
+
+        if (fetchOk && models.length > 0) {
+            select.innerHTML = '';
+            models.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = m;
+                if (m === currentModel) opt.selected = true;
+                select.appendChild(opt);
+            });
+            _obModelsLoaded = true;
+        } else {
+            // Show error + free-text fallback
+            if (errorEl) errorEl.classList.remove('hidden');
+            if (freetextWrap) freetextWrap.classList.remove('hidden');
+            // Keep the dropdown with a placeholder
+            select.innerHTML = '<option value="">—</option>';
+        }
+    } catch (e) {
+        if (errorEl) errorEl.classList.remove('hidden');
+        if (freetextWrap) freetextWrap.classList.remove('hidden');
+    } finally {
+        if (spinner) spinner.classList.add('hidden');
+    }
 }
+
+function obRetryLoadModels() {
+    _obModelsLoaded = false;
+    obLoadModels();
+}
+window.obRetryLoadModels = obRetryLoadModels;
 
 /* ── Summary builder (Step 7) ─────────────────────────────────── */
 
 async function obBuildSummary() {
     const rows = [
-        { id: 'sum-openai', label: 'ob.sum_openai', fallback: 'OpenAI key' },
-        { id: 'sum-spotify-cred', label: 'ob.sum_spotify_cred', fallback: 'Spotify developer app' },
-        { id: 'sum-spotify-conn', label: 'ob.sum_spotify_conn', fallback: 'Spotify account' },
-        { id: 'sum-profile', label: 'ob.sum_profile', fallback: 'Taste profile' },
-        { id: 'sum-model', label: 'ob.sum_model', fallback: 'Model' },
+        { id: 'sum-openai', label: 'ob.sum_openai', fallback: 'OpenAI key', touchKey: 'openai_key' },
+        { id: 'sum-spotify-cred', label: 'ob.sum_spotify_cred', fallback: 'Spotify developer app', touchKey: 'spotify_cred' },
+        { id: 'sum-spotify-conn', label: 'ob.sum_spotify_conn', fallback: 'Spotify account', touchKey: 'spotify_conn' },
+        { id: 'sum-profile', label: 'ob.sum_profile', fallback: 'Taste profile', touchKey: 'profile' },
+        { id: 'sum-model', label: 'ob.sum_model', fallback: 'Model', touchKey: 'model' },
     ];
 
     // Gather state
@@ -437,11 +710,15 @@ async function obBuildSummary() {
         const resp = await fetch('/api/spotify/status');
         const data = await resp.json();
         spotifyStatus = data.status === 'authenticated';
-        // Store display name if available
         if (data.display_name) {
             _obSpotifyDisplayName = data.display_name;
         }
     } catch (e) {}
+
+    // Update spotify_conn touched flag if connected
+    if (spotifyStatus && _obSpotifyConnected) {
+        obTouched.spotify_conn = true;
+    }
 
     let profileTrained = false;
     try {
@@ -449,6 +726,8 @@ async function obBuildSummary() {
         const data = await resp.json();
         profileTrained = data.trained === true;
     } catch (e) {}
+
+    if (_obProfileImported) obTouched.profile = true;
 
     const checks = {
         'sum-openai': credData.OPENAI_API_KEY?.is_set === true,
@@ -466,23 +745,35 @@ async function obBuildSummary() {
         'sum-model': 5,
     };
 
+    const isReplay = new URLSearchParams(location.search).get('replay') === '1';
     let hasSkipped = false;
 
     rows.forEach(row => {
         const el = document.getElementById(row.id);
         if (!el) return;
 
-        const done = checks[row.id];
-        if (!done) hasSkipped = true;
+        const isSet = checks[row.id];
+        const touched = obTouched[row.touchKey];
 
         const statusEl = el.querySelector('.ob-summary-status');
         const labelEl = el.querySelector('.ob-summary-label');
         const subEl = el.querySelector('.ob-summary-sub');
         const editBtn = el.querySelector('.ob-summary-edit');
 
+        // Determine display state
+        let state; // 'done', 'previous', 'skipped'
+        if (isSet && touched) {
+            state = 'done';
+        } else if (isSet && !touched) {
+            state = 'previous'; // set from previous session
+        } else {
+            state = 'skipped';
+            hasSkipped = true;
+        }
+
         if (statusEl) {
-            statusEl.className = 'ob-summary-status ' + (done ? 'ob-summary-status--done' : 'ob-summary-status--skipped');
-            statusEl.textContent = done ? '✓' : '⚠';
+            statusEl.className = 'ob-summary-status ' + (state === 'skipped' ? 'ob-summary-status--skipped' : 'ob-summary-status--done');
+            statusEl.textContent = state === 'skipped' ? '⚠' : '✓';
         }
 
         if (labelEl) {
@@ -490,12 +781,14 @@ async function obBuildSummary() {
         }
 
         if (subEl) {
-            if (done) {
+            if (state === 'done') {
                 if (row.id === 'sum-spotify-conn' && _obSpotifyDisplayName) {
                     subEl.textContent = obI18n('ob.sum_connected_as', 'Connected as {user}').replace('{user}', _obSpotifyDisplayName);
                 } else {
                     subEl.textContent = obI18n('ob.sum_set', 'Set');
                 }
+            } else if (state === 'previous') {
+                subEl.textContent = obI18n('ob.sum_from_previous', '(from previous setup)');
             } else {
                 subEl.textContent = obI18n('ob.sum_not_set', 'Not set');
             }
@@ -574,11 +867,7 @@ function _obInitCostWidget() {
 }
 window._obInitCostWidget = _obInitCostWidget;
 
-function onObProviderChange(preset) {
-    const urlRow = document.getElementById('obBaseUrlRow');
-    if (urlRow) urlRow.classList.toggle('hidden', preset !== 'custom');
-}
-window.onObProviderChange = onObProviderChange;
+/* onObProviderChange — no longer needed; provider is handled by custom dropdown in Step 2 */
 
 /* ── Init ─────────────────────────────────────────────────────── */
 

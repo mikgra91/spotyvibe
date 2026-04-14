@@ -6,18 +6,20 @@
     overflow: hidden;
     width: 100%;
     height: calc(100vh - var(--titlebar-h, 0px));
+    display: flex;
+    flex-direction: column;
 }
 
 .ob-pages {
     display: flex;
-    height: 100%;
+    flex: 1;
+    min-height: 0; /* allow flex child to shrink below content size */
     transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .ob-page {
     min-width: 100%;
     width: 100%;
-    min-height: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -34,6 +36,12 @@
     top: 16px;
     right: 24px;
     z-index: 50;
+}
+
+.ob-lang-toggle .lang-toggle-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm, 4px);
 }
 
 /* ============ Step indicator — 7-pill row ============ */
@@ -77,6 +85,18 @@
     flex-direction: column;
     align-items: center;
     text-align: center;
+    max-height: 100%;
+    overflow: hidden;
+}
+
+/* Scrollable body region inside card (wraps all content except nav) */
+.ob-body {
+    flex: 1;
+    overflow-y: auto;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 /* ============ Typography ============ */
@@ -118,7 +138,7 @@
 }
 
 .ob-feature-icon {
-    font-size: 1.6rem;
+    font-size: 1.3rem;
     flex-shrink: 0;
 }
 
@@ -191,6 +211,7 @@
     width: 100%;
     max-width: 420px;
     margin-top: 28px;
+    flex-shrink: 0;
 }
 
 .ob-btn-skip {
@@ -635,7 +656,11 @@
     display: block;
 }
 
-.ob-model-picker select {
+.ob-model-select-wrap {
+    position: relative;
+}
+
+.ob-model-select-wrap select {
     width: 100%;
     padding: 11px 14px;
     background: var(--bg-input);
@@ -647,16 +672,173 @@
     cursor: pointer;
 }
 
-.ob-model-picker select:focus {
+.ob-model-select-wrap select:focus {
     outline: none;
     border-color: var(--primary);
     box-shadow: var(--focus-glow);
 }
 
+.ob-model-spinner {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+.spinner--sm {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .ob-model-hint {
     font-size: 0.8rem;
     color: var(--text-muted);
     margin-top: 6px;
+}
+
+.ob-model-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: var(--radius-sm);
+}
+
+.ob-model-error.hidden { display: none; }
+
+.ob-model-error-text {
+    flex: 1;
+    font-size: 0.82rem;
+    color: var(--error);
+}
+
+.ob-model-retry-btn {
+    background: none;
+    border: 1px solid var(--error);
+    color: var(--error);
+    padding: 4px 12px;
+    border-radius: var(--radius-pill);
+    font-size: 0.78rem;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 120ms;
+}
+
+.ob-model-retry-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.ob-model-freetext-wrap {
+    margin-top: 12px;
+}
+
+.ob-model-freetext-wrap.hidden { display: none; }
+
+.ob-provider-badge {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    padding: 6px 14px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    display: inline-block;
+}
+
+/* ============ Custom select dropdown (provider picker) ============ */
+
+.ob-custom-select {
+    position: relative;
+    width: 100%;
+}
+
+.ob-custom-select-trigger {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 11px 14px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color var(--transition), box-shadow var(--transition);
+    text-align: left;
+}
+
+.ob-custom-select-trigger:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--focus-glow);
+}
+
+.ob-custom-select-trigger:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.ob-custom-select-arrow {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    transition: transform 200ms ease;
+}
+
+.ob-custom-select.open .ob-custom-select-arrow {
+    transform: rotate(180deg);
+}
+
+.ob-custom-select-list {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+    z-index: 20;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.ob-custom-select.open .ob-custom-select-list {
+    display: block;
+}
+
+.ob-custom-select-option {
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background 120ms;
+}
+
+.ob-custom-select-option:hover,
+.ob-custom-select-option:focus {
+    background: rgba(30, 215, 96, 0.08);
+}
+
+.ob-custom-select-option.selected {
+    color: var(--primary);
+    font-weight: 600;
+    background: rgba(30, 215, 96, 0.05);
 }
 
 .ob-cost-placeholder {

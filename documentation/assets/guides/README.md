@@ -13,5 +13,5 @@ When a Spotify or OpenAI dashboard redesign renders a screenshot stale, replace 
 
 > **Filename convention for translations:** Each guide has an English source (`<slug>.en.md`) and optional translations (`<slug>.de.md`, etc.). The `localised_docs.py` resolver tries `<slug>.<lang>.md` first, then falls back to `<slug>.en.md`.
 
-> **TODO (Wave 1):** The current images are 1×1 transparent PNG placeholders. Replace them with actual dashboard screenshots when available.
+> **Placeholders:** Every file is currently an 800×450 dark PNG with a dashed outline — a visual "📸 Screenshot coming soon" marker. Replace each one in-place with an actual dashboard screenshot when available. Do not rename files — the guide markdown references these exact paths.
 
