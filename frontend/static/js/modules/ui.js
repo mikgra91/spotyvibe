@@ -93,7 +93,41 @@ export function toggleSettingsMenu() {
     dd.classList.toggle('open');
     const btn = document.querySelector('.burger-btn');
     if (btn) btn.setAttribute('aria-expanded', dd.classList.contains('open'));
+
+    // F.2: Close profile dropdown/menu when burger opens (mutual-exclusion)
+    if (dd.classList.contains('open')) {
+        _closeAllPopovers('settingsDropdown');
+    }
 }
+
+/** Close any open popovers except the one identified by `exceptId` */
+function _closeAllPopovers(exceptId) {
+    // Profile custom dropdown
+    const profileList = document.getElementById('profileDropdownList');
+    const profileDropdown = document.getElementById('profileCustomDropdown');
+    if (profileList && !profileList.classList.contains('hidden') && exceptId !== 'profileCustomDropdown') {
+        profileList.classList.add('hidden');
+        if (profileDropdown) profileDropdown.setAttribute('aria-expanded', 'false');
+    }
+
+    // Profile context menu (⋯)
+    const profileMenu = document.getElementById('profileMenuDropdown');
+    const profileMenuTrigger = document.getElementById('profileMenuTrigger');
+    if (profileMenu && !profileMenu.classList.contains('hidden') && exceptId !== 'profileMenuDropdown') {
+        profileMenu.classList.add('hidden');
+        if (profileMenuTrigger) profileMenuTrigger.setAttribute('aria-expanded', 'false');
+    }
+
+    // Settings/burger dropdown
+    const settingsDD = document.getElementById('settingsDropdown');
+    if (settingsDD && settingsDD.classList.contains('open') && exceptId !== 'settingsDropdown') {
+        settingsDD.classList.remove('open');
+        const btn = document.querySelector('.burger-btn');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+}
+
+export { _closeAllPopovers as closeAllPopovers };
 
 let toastTimer = null;
 export function showToast(message, type = 'success', duration = 3000) {

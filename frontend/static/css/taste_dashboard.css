@@ -1,5 +1,5 @@
 /* ── Taste dashboard ─────────────────────────────────────────────── */
-.taste-dashboard-section { margin-top: 16px; }
+.taste-dashboard-section { margin-top: 1.5rem; }
 
 .dashboard-grid {
   display: grid; gap: 14px; grid-template-columns: 1fr;

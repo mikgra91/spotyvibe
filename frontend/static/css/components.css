@@ -1,4 +1,4 @@
-/* components.css — Glass panels, status, toast, tooltip, spinner, switcher, accordion, burger, settings, jump bubble */
+s/* components.css — Glass panels, status, toast, tooltip, spinner, switcher, accordion, burger, settings, jump bubble */
 /* =============================================
    Glass panels — shared style
    ============================================= */
@@ -33,10 +33,9 @@
 }
 .run-section {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    flex-wrap: wrap;
+    gap: 0.5rem;
     margin-top: 10px;
 }
 
@@ -189,6 +188,22 @@
     .settings-dropdown button:hover {
         background: rgba(255,255,255,.06);
     }
+}
+
+.settings-dropdown-header {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 10px 20px 4px;
+    user-select: none;
+}
+
+.settings-dropdown-sep {
+    height: 0;
+    border-top: 1px solid var(--border);
+    margin: 8px 0;
 }
 
 
