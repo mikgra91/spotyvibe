@@ -534,6 +534,7 @@ def validate_profile_id(profile_id):
 
 def get_active_profile_id():
     """Return the active profile UUID, or empty string if none set."""
+    ensure_env()
     return os.getenv("ACTIVE_PROFILE_ID", "")
 
 

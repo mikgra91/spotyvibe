@@ -7,6 +7,7 @@ import { getAudioFilters } from './audio-filters.js';
 import { renderTracks } from './tracklist.js';
 import { loadHistory } from './history.js';
 import { populateReviewPlaylistPicker } from './review.js';
+import { resetDashboard } from './taste_dashboard.js';
 import { i18n } from './i18n.js';
 
 export function toggleGenerateBody() {
@@ -302,6 +303,10 @@ export function handleStreamEvent(event) {
             showStatus(parts.join(' '), event.was_cancelled ? 'info' : 'success');
             // Playlist was created or modified — refresh both pickers
             refreshDiscoverPlaylistPicker().then(() => populateReviewPlaylistPicker());
+
+            // Refresh taste dashboard and run history with the new data
+            resetDashboard();
+            loadHistory();
 
             // Wave 3: Tip triggers after successful generation
             if (window.Tips) {
