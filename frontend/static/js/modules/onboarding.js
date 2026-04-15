@@ -97,7 +97,6 @@ const _PROVIDER_BASE_URLS = {
     lmstudio:   'http://localhost:1234/v1',
     groq:       'https://api.groq.com/openai/v1',
     openrouter: 'https://openrouter.ai/api/v1',
-};
     custom:     '',
 };
 
@@ -138,10 +137,11 @@ function _updateNavButtons() {
     const cta = document.querySelector(`.ob-page:nth-child(${currentPage + 1}) .ob-cta-next`);
     if (cta) {
         if (currentPage === 1) {
-            // Step 2: OpenAI key — enabled if input has content or key already set
+            // Step 2: OpenAI key — enabled if local provider, or input has content, or key already set
+            const isLocal = (_PROVIDER_META[_obSelectedProvider] || {}).local === true;
             const hasKey = document.getElementById('ob-openai-key')?.value.trim();
             const isSet = !document.getElementById('ob-set-openai')?.classList.contains('hidden');
-            cta.disabled = !(hasKey || isSet);
+            cta.disabled = !(isLocal || hasKey || isSet);
         } else if (currentPage === 2) {
             // Step 3: Spotify creds — both must have content or be already set
             const hasId = document.getElementById('ob-spotify-id')?.value.trim();
@@ -281,6 +281,10 @@ function _selectObProvider(value, label) {
     const notice = document.getElementById('obLocalNotice');
     if (notice) notice.classList.toggle('hidden', !meta.local);
 
+    // Hide/show API key input row for local providers
+    const keyRow = document.getElementById('ob-row-openai');
+    if (keyRow) keyRow.classList.toggle('hidden', !!meta.local);
+
     // Toggle provider-specific guide blocks
     const guideIds = ['ob-guide-openai', 'ob-guide-ollama', 'ob-guide-lmstudio', 'ob-guide-groq', 'ob-guide-openrouter'];
     guideIds.forEach(id => {
@@ -290,6 +294,9 @@ function _selectObProvider(value, label) {
 
     // Reset models when provider changes
     _obModelsLoaded = false;
+
+    // Re-evaluate Next button state (local providers don't need a key)
+    _updateNavButtons();
 }
 window._selectObProvider = _selectObProvider;
 

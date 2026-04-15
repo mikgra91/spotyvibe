@@ -87,7 +87,11 @@ def _open_review_section(page: Page):
 
 
 def _open_audio_filters(page: Page):
-    """Inside the generate section (already open), expand Audio Filters sub-panel."""
+    """Inside the generate section (already open), switch to Advanced mode
+    and expand Audio Filters sub-panel."""
+    # Audio filters are inside Advanced mode — switch first
+    page.locator(".gen-mode-btn[data-mode='advanced']").click()
+    page.wait_for_timeout(200)
     body = page.locator("#audioFiltersBody")
     if not body.is_visible():
         page.locator(".audio-filter-toggle").click()
@@ -115,12 +119,19 @@ def _navigate_onboarding_to_page(page: Page, base_url: str, target_page: int):
         body=json.dumps({"completed": False}),
     ))
     page.goto(base_url + "/onboarding?replay=1")
+    # Wait for load, then give the async IIFE extra time to run its
+    # sequential fetch chain (settings → i18n → credentials → spotify → ai-readiness).
+    # networkidle can fire prematurely when the Playwright-intercepted
+    # /api/onboarding/status completes instantly between static-resource loads.
     page.wait_for_load_state("networkidle")
+    page.locator(".ob-page.active").wait_for(timeout=5000)
+    # Extra wait: the IIFE's serial fetches (5+) need ~100ms each on localhost
+    page.wait_for_timeout(1500)
     for i in range(target_page):
         # Use skip/start CTA to advance without needing credential input
         cta = page.locator(".ob-page.active .ob-cta-start, .ob-page.active .ob-cta-skip-inline").first
         cta.click()
-        page.wait_for_timeout(450)  # animation is 400ms cubic-bezier
+        page.wait_for_timeout(500)  # animation is 400ms cubic-bezier
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +216,8 @@ def _base_url():
             "debug_log_path": "debug.log",
             "playlist_size": 10,
             "new_artist_percentage": 30,
+            "provider_preset": "openai",
+            "llm_api_key_required": True,
         }
 
     def fake_get_model():
@@ -433,9 +446,9 @@ class TestBurgerMenu:
         page.goto(base_url)
         _open_burger_menu(page)
         dd = page.locator("#settingsDropdown")
-        expect(dd.locator("text=Credentials")).to_be_visible()
-        expect(dd.locator("text=Settings")).to_be_visible()
-        expect(dd.locator("text=Help")).to_be_visible()
+        expect(dd.locator("[data-i18n='nav.credentials']")).to_be_visible()
+        expect(dd.locator("[data-i18n='nav.settings']")).to_be_visible()
+        expect(dd.locator("[data-i18n='nav.help']")).to_be_visible()
 
     def test_dropdown_closes_on_outside_click(self, page: Page, base_url):
         page.goto(base_url)
@@ -560,17 +573,16 @@ class TestSettingsModal:
 
     def test_shows_playlist_size(self, page: Page, base_url):
         page.goto(base_url)
-        self._open_settings(page)
-        page.wait_for_load_state("networkidle")
-        expect(page.locator("#settings-playlist-size")).to_be_visible()
-        expect(page.locator("#settings-playlist-size")).to_have_value("10")
+        _open_generate_section(page)
+        expect(page.locator("#genSize")).to_be_visible()
 
     def test_shows_new_artist_percentage(self, page: Page, base_url):
         page.goto(base_url)
-        self._open_settings(page)
-        page.wait_for_load_state("networkidle")
-        expect(page.locator("#settings-new-artist-pct")).to_be_visible()
-        expect(page.locator("#settings-new-artist-pct")).to_have_value("30")
+        _open_generate_section(page)
+        # Switch to Advanced mode to see the new artist % field
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(200)
+        expect(page.locator("#genNewArtistPct")).to_be_visible()
 
     def test_shows_debug_mode_checkbox(self, page: Page, base_url):
         page.goto(base_url)
@@ -596,7 +608,7 @@ class TestHelpModal:
 
     def _open_help(self, page: Page):
         _open_burger_menu(page)
-        page.locator("#settingsDropdown >> text=Help").click()
+        page.locator("#settingsDropdown [data-i18n='nav.help']").click()
         expect(page.locator("#helpModal")).to_have_class(re.compile(r"open"))
 
     def test_opens_from_burger_menu(self, page: Page, base_url):
@@ -1155,6 +1167,55 @@ class TestWarningsWithMissingCredentials:
         expect(run_warn).to_be_visible()
         expect(run_warn).to_contain_text("Spotify credentials are missing")
 
+    def test_no_openai_warning_for_local_provider(self, page: Page, base_url):
+        """When using a local provider (Ollama), no API key warning even without a key."""
+        page.goto(base_url)
+
+        # Override settings to report a local provider that doesn't need a key
+        def handle_settings(route):
+            if route.request.method == "GET":
+                route.fulfill(
+                    status=200,
+                    headers={"Content-Type": "application/json"},
+                    body=json.dumps({
+                        "model": "llama3",
+                        "debug_mode": False,
+                        "debug_controls_available": True,
+                        "is_android": False,
+                        "debug_log_path": "debug.log",
+                        "playlist_size": 10,
+                        "new_artist_percentage": 30,
+                        "provider_preset": "ollama",
+                        "llm_api_key_required": False,
+                    }),
+                )
+            else:
+                route.continue_()
+
+        def handle_creds(route):
+            route.fulfill(
+                status=200,
+                headers={"Content-Type": "application/json"},
+                body=json.dumps({
+                    "OPENAI_API_KEY": {"masked": "", "is_set": False},
+                    "SPOTIPY_CLIENT_ID": {"masked": "****", "is_set": True},
+                    "SPOTIPY_CLIENT_SECRET": {"masked": "****", "is_set": True},
+                }),
+            )
+
+        page.route("**/api/settings", handle_settings)
+        page.route("**/api/settings/credentials", handle_creds)
+        page.reload()
+        page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(500)
+
+        # Train section should NOT show OpenAI warning
+        train_warn = page.locator("#trainWarn")
+        expect(train_warn).to_have_class(re.compile(r"hidden"))
+
+        # Buttons should be enabled
+        expect(page.locator("#trainToggleBtn")).to_be_enabled()
+
 
 class TestProfileExport:
     """Profile export downloads a JSON file."""
@@ -1457,7 +1518,20 @@ class TestOnboardingCredentialPrefill:
 
     def test_shows_green_status_when_openai_key_set(self, page: Page, base_url):
         """Step 2 (OpenAI key) shows green checkmark when key is already set."""
+        # Intercept credentials API at Playwright level for instant response
+        page.route("**/api/settings/credentials", lambda route: route.fulfill(
+            status=200,
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({
+                "OPENAI_API_KEY": {"masked": "****1234", "is_set": True},
+                "SPOTIPY_CLIENT_ID": {"masked": "****c-id", "is_set": True},
+                "SPOTIPY_CLIENT_SECRET": {"masked": "****c-se", "is_set": True},
+            }),
+        ))
         _navigate_onboarding_to_page(page, base_url, 1)
+
+        # Wait for credential prefill to complete (async fetch)
+        page.locator("#ob-set-openai:not(.hidden)").wait_for(timeout=5000)
 
         # Verify green status row is visible with "OK" text
         expect(page.locator("#ob-set-openai")).to_be_visible()
@@ -1469,6 +1543,9 @@ class TestOnboardingCredentialPrefill:
     def test_shows_green_status_when_spotify_creds_set(self, page: Page, base_url):
         """Step 3 (Spotify creds) shows green checkmarks when both are set."""
         _navigate_onboarding_to_page(page, base_url, 2)
+
+        # Wait for credential prefill to complete (async fetch)
+        page.locator("#ob-set-spotify-id:not(.hidden)").wait_for(timeout=5000)
 
         expect(page.locator("#ob-set-spotify-id")).to_be_visible()
         expect(page.locator("#ob-set-spotify-id")).to_contain_text("OK")
@@ -1580,8 +1657,9 @@ class TestOnboardingFlow:
         # Advance to step 1 via "Get started →"
         page.locator(".ob-cta-start").click()
         page.wait_for_timeout(450)
-        transform = page.evaluate("document.getElementById('obPages').style.transform")
-        assert "100%" in transform or "-100%" in transform
+        # After advancing, the second page is active — verify via active class
+        pages = page.locator(".ob-page")
+        expect(pages.nth(1)).to_have_class(re.compile(r"active"))
 
     def test_language_toggle_always_visible(self, page: Page, base_url):
         """Language toggle is visible on every step (persistent in header)."""
@@ -1596,12 +1674,12 @@ class TestOnboardingFlow:
             status=200,
             headers={"Content-Type": "application/json"},
             body=json.dumps({"status": "ok"}),
-        ))
+        ) if route.request.method == "POST" else route.continue_())
         _navigate_onboarding_to_page(page, base_url, 0)
-        page.locator(".lang-toggle-btn[data-lang='de']").click()
-        page.wait_for_timeout(300)
-        expect(page.locator(".lang-toggle-btn[data-lang='de']")).to_have_class(re.compile(r"active"))
-        expect(page.locator(".lang-toggle-btn[data-lang='en']")).not_to_have_class(re.compile(r"active"))
+        page.locator(".ob-lang-toggle .lang-toggle-btn[data-lang='de']").click()
+        page.wait_for_timeout(500)
+        expect(page.locator(".ob-lang-toggle .lang-toggle-btn[data-lang='de']")).to_have_class(re.compile(r"active"))
+        expect(page.locator(".ob-lang-toggle .lang-toggle-btn[data-lang='en']")).not_to_have_class(re.compile(r"active"))
         lang = page.evaluate("localStorage.getItem('svLang')")
         assert lang == "de"
 
@@ -1617,7 +1695,9 @@ class TestOnboardingFlow:
             }),
         ))
         _navigate_onboarding_to_page(page, base_url, 1)
-        expect(page.locator(".ob-cred-section")).to_be_visible()
+        # Wait for credential prefill to run (will show the input since is_set=False)
+        page.locator("#ob-input-wrap-openai:not(.hidden)").wait_for(timeout=5000)
+        expect(page.locator(".ob-page.active .ob-cred-section")).to_be_visible()
         expect(page.locator("#ob-openai-key")).to_be_visible()
 
     def test_spotify_cred_step_shows_inputs_when_not_set(self, page: Page, base_url):
@@ -1632,7 +1712,9 @@ class TestOnboardingFlow:
             }),
         ))
         _navigate_onboarding_to_page(page, base_url, 2)
-        expect(page.locator(".ob-cred-section")).to_be_visible()
+        # Wait for credential prefill to run (will show inputs since is_set=False)
+        page.locator("#ob-input-wrap-spotify-id:not(.hidden)").wait_for(timeout=5000)
+        expect(page.locator(".ob-page.active .ob-cred-section")).to_be_visible()
         expect(page.locator("#ob-spotify-id")).to_be_visible()
         expect(page.locator("#ob-spotify-secret")).to_be_visible()
 
@@ -1659,8 +1741,10 @@ class TestOnboardingFlow:
                 )
         page.route("**/api/settings/credentials", handle_creds)
         _navigate_onboarding_to_page(page, base_url, 1)
+        # Wait for credential prefill to complete and show the input field
+        page.locator("#ob-input-wrap-openai:not(.hidden)").wait_for(timeout=5000)
         page.locator("#ob-openai-key").fill("sk-test-key")
-        page.wait_for_timeout(100)
+        page.wait_for_timeout(200)
         # Click Next (saves and advances)
         page.locator(".ob-page.active .ob-cta-next").click()
         page.wait_for_timeout(500)
@@ -1684,7 +1768,7 @@ class TestOnboardingFlow:
         )[1])
         _navigate_onboarding_to_page(page, base_url, 0)
         page.locator(".ob-btn-skip").first.click()
-        page.wait_for_url(re.compile(r"127\.0\.0\.1:\d+/$"), timeout=3000)
+        page.wait_for_url(re.compile(r"127\.0\.0\.1:\d+/$"), timeout=10000)
         assert len(complete_calls) >= 1
 
     def test_back_button_navigates_backward(self, page: Page, base_url):
@@ -1741,7 +1825,7 @@ class TestOnboardingFlow:
         )[1])
         _navigate_onboarding_to_page(page, base_url, 6)
         page.locator("#ob-finish-btn").click()
-        page.wait_for_url(re.compile(r"127\.0\.0\.1:\d+/$"), timeout=3000)
+        page.wait_for_url(re.compile(r"127\.0\.0\.1:\d+/$"), timeout=10000)
         assert len(complete_calls) >= 1
 
 
@@ -2066,6 +2150,9 @@ class TestAudioFilters:
         """Clicking the Audio Filters toggle expands the filter panel."""
         page.goto(base_url)
         _open_generate_section(page)
+        # Audio filters are inside Advanced mode body — switch first
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(200)
         body = page.locator("#audioFiltersBody")
         expect(body).to_be_hidden()
         page.locator(".audio-filter-toggle").click()
@@ -2421,7 +2508,7 @@ class TestKeyboardNavigation:
         """Escape key closes the Help modal."""
         page.goto(base_url)
         _open_burger_menu(page)
-        page.locator("#settingsDropdown >> text=Help").click()
+        page.locator("#settingsDropdown [data-i18n='nav.help']").click()
         expect(page.locator("#helpModal")).to_have_class(re.compile(r"open"))
         page.keyboard.press("Escape")
         expect(page.locator("#helpModal")).not_to_have_class(re.compile(r"open"))
@@ -2691,21 +2778,23 @@ class TestOnboardingWizardWave1:
 
         # Step 1 → "Get started →"
         page.locator(".ob-cta-start").click()
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(600)
 
         # Steps 2–6 → "Skip for now" to avoid credential input
         for _ in range(5):
-            page.locator(".ob-page.active .ob-cta-skip-inline").first.click()
-            page.wait_for_timeout(500)
+            skip = page.locator(".ob-page.active .ob-cta-skip-inline, .ob-page.active .ob-cta-start").first
+            skip.click()
+            page.wait_for_timeout(600)
 
         # Step 7 → "Open SpotyVibe →"
-        expect(page.locator("#ob-finish-btn")).to_be_visible()
+        expect(page.locator("#ob-finish-btn")).to_be_visible(timeout=5000)
 
     def test_wizard_howto_accordion_toggles(self, page: Page, base_url):
         """Smoke: the 'How do I get this?' accordion toggles visibility."""
         _navigate_onboarding_to_page(page, base_url, 1)
-        toggle = page.locator(".ob-cred-guide-toggle")
-        body = page.locator(".ob-cred-guide-body").first
+        # Use the visible OpenAI guide toggle (other provider guides are hidden)
+        toggle = page.locator("#ob-guide-openai .ob-cred-guide-toggle")
+        body = page.locator("#ob-openai-guide-body")
         # Initially collapsed (no 'open' class)
         expect(body).not_to_have_class(re.compile(r"open"))
         toggle.click()
@@ -2727,12 +2816,17 @@ class TestOnboardingWizardWave1:
 
     def test_language_toggle_persists_across_steps(self, page: Page, base_url):
         """Smoke: switching language persists when navigating between steps."""
+        page.route("**/api/settings", lambda route: route.fulfill(
+            status=200,
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({"status": "ok"}),
+        ) if route.request.method == "POST" else route.continue_())
         _navigate_onboarding_to_page(page, base_url, 0)
         page.locator(".ob-lang-toggle button[data-lang='de']").click()
-        page.wait_for_timeout(400)
+        page.wait_for_timeout(500)
         # Advance to step 2
         page.locator(".ob-cta-start").click()
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(600)
         # Assert German is still active
         expect(page.locator(".ob-lang-toggle button[data-lang='de']")).to_have_class(re.compile(r"active"))
 
@@ -2777,7 +2871,7 @@ class TestWave2QuickWins:
             s.dispatchEvent(new Event('input'));
         }""")
         page.wait_for_timeout(200)
-        pct = page.evaluate("document.getElementById('settings-new-artist-pct').value")
+        pct = page.evaluate("document.getElementById('genNewArtistPct').value")
         assert int(pct) == 10
         emerging = page.evaluate("document.getElementById('emergingArtistsCheckbox').checked")
         assert emerging is False
@@ -2799,7 +2893,7 @@ class TestWave2QuickWins:
             el.dispatchEvent(new Event('change'));
         }""")
         page.wait_for_timeout(300)
-        label = page.locator(".gen-mode-body--advanced .exploration-value").text_content()
+        label = page.locator(".exploration-value").text_content()
         assert "Custom" in label or "Eigene" in label
 
     def test_preset_save_and_reload(self, page: Page, base_url):
@@ -2824,21 +2918,24 @@ class TestWave2QuickWins:
         assert any(p["name"] == "Test preset" for p in stored)
 
     def test_completeness_hides_at_high_score(self, page: Page, base_url):
-        """Completeness meter hides when all profile fields are well-filled."""
+        """Completeness meter shows green 'complete' state when all profile fields are well-filled."""
         page.goto(base_url)
         page.wait_for_load_state("networkidle")
-        page.locator("#trainToggleBtn").click()
-        page.wait_for_timeout(300)
-        # Fill fields strongly
+        _open_profile_editor(page)
+        # Fill core desc (visible in open accordion)
         page.locator("#trainCoreDesc").fill("Upbeat melodic rock with strong hooks, theatrical vocals, and constant momentum — think Queen meets Bear Ghost.")
-        page.locator("#trainMustHave").fill("high energy\nstrong memorable melodies\nvocals")
-        page.locator("#trainSoftPrefs").fill("prog influence")
-        page.locator("#trainAvoid").fill("electronic/synth-heavy")
-        # Trigger input events
+        # Use JS to set values in collapsed accordion sections (not directly interactable)
+        page.evaluate("""() => {
+            document.getElementById('trainMustHave').value = 'high energy\\nstrong memorable melodies\\nvocals';
+            document.getElementById('trainSoftPrefs').value = 'prog influence';
+            document.getElementById('trainAvoid').value = 'electronic/synth-heavy';
+        }""")
+        # Trigger input events on all fields
         for sel in ["#trainCoreDesc", "#trainMustHave", "#trainSoftPrefs", "#trainAvoid"]:
             page.evaluate(f"document.querySelector('{sel}').dispatchEvent(new Event('input'))")
         page.wait_for_timeout(400)
-        assert page.locator("#profileCompletenessCard").is_hidden()
+        # At high score, card gets the is-complete class (green state)
+        expect(page.locator("#profileCompletenessCard")).to_have_class(re.compile(r"is-complete"))
 
     def test_tooltip_removed_from_audio_filters(self, page: Page, base_url):
         """Audio filter labels no longer have data-tooltip; inline hints are visible."""

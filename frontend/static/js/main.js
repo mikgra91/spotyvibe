@@ -209,8 +209,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (rb) rb.classList.remove('hidden');
     }
 
-    // Auth and warnings
-    Promise.all([checkCredentialStatus(), checkSpotifyAuth(), fetchSettingsState()]).then(() => {
+    // Auth and warnings — fetch settings first (sets llmApiKeyRequired),
+    // then check credentials (which reads it to skip key check for local providers)
+    fetchSettingsState().then(() =>
+        Promise.all([checkCredentialStatus(), checkSpotifyAuth()])
+    ).then(() => {
         renderComponentWarnings();
         updateSeedCardState();
     });

@@ -184,7 +184,14 @@ export async function saveSettings() {
         if (resp.ok) {
             closeModal('settingsModal');
             showStatus(i18n('settings.saved', '✅ Settings saved.'), 'success');
-            fetchSettingsState().then(() => renderProviderPills());
+            // Re-fetch settings (may change provider/llmApiKeyRequired),
+            // then re-check credentials and update warnings
+            fetchSettingsState().then(() =>
+                checkCredentialStatus()
+            ).then(() => {
+                renderComponentWarnings();
+                renderProviderPills();
+            });
         } else {
             const d = await resp.json();
             showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', d.error || 'unknown'));

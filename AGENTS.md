@@ -52,3 +52,4 @@ If your AI tooling supports MCP (Model Context Protocol), the following servers 
 6. No destructive git commands. No hardcoded secrets. **🔴 NEVER run `git commit` or `git push` unless the user has explicitly instructed you to in the current message. Permission is one-time only — once the operation completes, permission is revoked.**
 7. Android: no Rust-extension packages, no `openai` SDK, `pydantic` <2.0.
 8. Spotify OAuth redirect: `http://127.0.0.1:5000/callback`.
+9. **🔴 Pre-existing test failures are NOT to be ignored.** When running the test suite (rule 4), **all** failures must be investigated and fixed — not just those caused by changes made in the current session. A test that was already broken before you started is still a bug. Report it, diagnose it, and fix it. Never dismiss a failure with "this wasn't caused by my changes" or silently skip it.
