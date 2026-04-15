@@ -25,6 +25,12 @@ from core.src.playlist import (
 
 
 class TestGetSpotifyAuthStatus:
+    def setup_method(self):
+        """Clear the auth status cache before each test."""
+        from core.src.playlist import _auth_status_cache
+        _auth_status_cache["status"] = None
+        _auth_status_cache["expires"] = 0.0
+
     @patch.dict(os.environ, {"SPOTIPY_CLIENT_ID": "", "SPOTIPY_CLIENT_SECRET": ""})
     def test_not_configured_when_no_creds(self):
         assert get_spotify_auth_status() == "not_configured"

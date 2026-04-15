@@ -126,21 +126,25 @@ def get_spotify_client():
     return spotipy.Spotify(auth_manager=get_spotify_oauth())
 
 
+# Cache for get_spotify_auth_status() — avoids redundant /v1/me/ calls
+# when multiple callers check status within a short window.
+_auth_status_cache = {"status": None, "expires": 0.0}
+_AUTH_STATUS_TTL = 5  # seconds
+
+
 def get_spotify_auth_status():
     """Check whether Spotify credentials are configured and authenticated.
 
     Returns one of: "not_configured", "not_authenticated", "authenticated".
 
-    Beyond checking for a cached token this also makes a lightweight API
-    call (``current_user``) to verify the token is still valid.  Stale or
-    revoked tokens are detected and reported as "not_authenticated" so the
-    UI can prompt the user to re-connect.
-
-    This three-state return value drives the UI's conditional rendering:
-    - not_configured  → show "Enter Spotify credentials" form
-    - not_authenticated → show "Connect to Spotify" button
-    - authenticated → show the main playlist generation UI
+    Results are cached for a few seconds to avoid redundant API calls
+    when multiple callers (e.g., the frontend status poll and the
+    /api/run guard) check in quick succession.
     """
+    now = time.monotonic()
+    if _auth_status_cache["status"] and now < _auth_status_cache["expires"]:
+        return _auth_status_cache["status"]
+
     client_id = os.getenv("SPOTIPY_CLIENT_ID")
     client_secret = os.getenv("SPOTIPY_CLIENT_SECRET")
 
@@ -156,9 +160,12 @@ def get_spotify_auth_status():
         # Validate via auth_manager so expired tokens are auto-refreshed
         sp = spotipy.Spotify(auth_manager=oauth)
         sp.current_user()
+        _auth_status_cache["status"] = "authenticated"
+        _auth_status_cache["expires"] = now + _AUTH_STATUS_TTL
         return "authenticated"
     except Exception as e:
         logger.warning("Spotify auth check failed: %s", e)
+        _auth_status_cache["status"] = None
         return "not_authenticated"
 
 
@@ -362,13 +369,15 @@ def search_tracks(tracks, on_progress=None):
     pool_size = min(10, len(unique_tracks)) or 1
     shared_session = _make_pooled_session(pool_size)
 
+    # Single shared client: pre-fetched token + pooled session.
+    # The underlying requests.Session / urllib3 pool is thread-safe for
+    # concurrent requests — no need for a per-thread client.
+    shared_sp = spotipy.Spotify(
+        auth=access_token,
+        requests_session=shared_session,
+    )
+
     def search_one(t):
-        # Lightweight client: pre-fetched token + shared session.
-        # No auth_manager needed — the token was already validated above.
-        thread_sp = spotipy.Spotify(
-            auth=access_token,
-            requests_session=shared_session,
-        )
         query = _build_track_artist_query(t["artist"], t["track"])
 
         # Retry once on 429 (rate limit) using Retry-After header,
@@ -376,7 +385,7 @@ def search_tracks(tracks, on_progress=None):
         res = None
         for attempt in range(2):
             try:
-                res = thread_sp.search(q=query, type="track", limit=1, market="from_token")
+                res = shared_sp.search(q=query, type="track", limit=1, market="from_token")
                 break
             except SpotifyException as e:
                 if e.http_status == 429 and attempt == 0:
