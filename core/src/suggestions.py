@@ -490,6 +490,29 @@ def normalize_response(result):
         # Normalise rationale (Wave 3)
         entry["rationale"] = _normalize_rationale(entry)
 
+        # Normalise energy & valence estimates from GPT (Wave 3 dashboard)
+        for af_key in ("energy", "valence"):
+            raw = entry.get(af_key)
+            if raw is not None:
+                try:
+                    val = float(raw)
+                    entry[af_key] = max(0.0, min(1.0, round(val, 3)))
+                except (TypeError, ValueError):
+                    entry.pop(af_key, None)
+
+        # Normalise genres from GPT (Wave 3 dashboard)
+        raw_genres = entry.get("genres")
+        if isinstance(raw_genres, list):
+            clean = []
+            for g in raw_genres:
+                if isinstance(g, str) and g.strip():
+                    clean.append(g.strip().lower()[:40])
+                if len(clean) >= 3:
+                    break
+            entry["genres"] = clean
+        else:
+            entry["genres"] = []
+
         sanitized_playlist.append(entry)
 
     result["playlist"] = sanitized_playlist

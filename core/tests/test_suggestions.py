@@ -399,6 +399,80 @@ class TestNormalizeResponse:
         assert normalized["playlist"][0]["artist"] == "iron & wine"
         assert normalized["playlist"][1]["artist"] == "fun."
 
+    def test_normalizes_energy_valence(self):
+        """Energy and valence floats from GPT are clamped to [0, 1]."""
+        result = {
+            "playlist": [
+                {"artist": "A", "track": "T", "energy": 0.85, "valence": 0.3},
+            ],
+        }
+        normalized = normalize_response(result)
+        assert normalized["playlist"][0]["energy"] == 0.85
+        assert normalized["playlist"][0]["valence"] == 0.3
+
+    def test_clamps_energy_valence_out_of_range(self):
+        """Values outside [0, 1] are clamped."""
+        result = {
+            "playlist": [
+                {"artist": "A", "track": "T", "energy": 1.5, "valence": -0.2},
+            ],
+        }
+        normalized = normalize_response(result)
+        assert normalized["playlist"][0]["energy"] == 1.0
+        assert normalized["playlist"][0]["valence"] == 0.0
+
+    def test_strips_invalid_energy_valence(self):
+        """Non-numeric energy/valence values are removed."""
+        result = {
+            "playlist": [
+                {"artist": "A", "track": "T", "energy": "high", "valence": None},
+            ],
+        }
+        normalized = normalize_response(result)
+        assert "energy" not in normalized["playlist"][0]
+
+    def test_missing_energy_valence_ok(self):
+        """Tracks without energy/valence are accepted (backward compat)."""
+        result = {
+            "playlist": [
+                {"artist": "A", "track": "T", "reason": "fits"},
+            ],
+        }
+        normalized = normalize_response(result)
+        assert "energy" not in normalized["playlist"][0]
+        assert "valence" not in normalized["playlist"][0]
+
+    def test_normalizes_genres(self):
+        """GPT genres are lowercased, trimmed, and capped at 3."""
+        result = {
+            "playlist": [
+                {"artist": "A", "track": "T",
+                 "genres": ["Indie Rock", " Alternative ", "Post-Punk", "Extra"]},
+            ],
+        }
+        normalized = normalize_response(result)
+        assert normalized["playlist"][0]["genres"] == ["indie rock", "alternative", "post-punk"]
+
+    def test_genres_defaults_to_empty_list(self):
+        """Tracks without genres get an empty list."""
+        result = {
+            "playlist": [
+                {"artist": "A", "track": "T", "reason": "fits"},
+            ],
+        }
+        normalized = normalize_response(result)
+        assert normalized["playlist"][0]["genres"] == []
+
+    def test_genres_non_list_replaced(self):
+        """Non-list genres value is replaced with empty list."""
+        result = {
+            "playlist": [
+                {"artist": "A", "track": "T", "genres": "rock"},
+            ],
+        }
+        normalized = normalize_response(result)
+        assert normalized["playlist"][0]["genres"] == []
+
 
 class TestStripGptAnnotation:
     _WORDS = {"different", "excluded", "forbidden", "not in",

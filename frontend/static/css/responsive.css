@@ -260,6 +260,10 @@
         top: -28px;
         right: 0;
     }
+    .playlist-seed-modal .modal-close {
+        top: -28px;
+        right: 0;
+    }
     .help-modal {
         max-height: 90vh;
         border-radius: var(--radius-md) var(--radius-md) 0 0;

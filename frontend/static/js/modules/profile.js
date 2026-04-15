@@ -3,6 +3,7 @@ import { showToast, showAlert, showConfirm, closeAllPopovers } from './ui.js';
 import { i18n } from './i18n.js';
 import { renderTracks } from './tracklist.js';
 import { renderReviewTracks } from './review.js';
+import { resetDashboard } from './taste_dashboard.js';
 
 const TRAINING_TEXTS = {
     en: [
@@ -299,6 +300,7 @@ export async function switchProfile(profileId) {
         State.resetSessionState();
         renderTracks();
         renderReviewTracks();
+        resetDashboard();
 
         await Promise.all([checkProfileStatus(), prefillTrainFields()]);
         // Dispatch input events so completeness meter re-reads fresh values
@@ -654,15 +656,22 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
             return;
         }
 
-        document.getElementById('trainBody').classList.add('hidden');
-        State.setUserProfileEditMode(false);
-        updateTrainToggleLabel();
+        // Re-fill fields with the AI-updated profile data
+        await prefillTrainFields();
+        // Dispatch input events so completeness meter re-reads updated values
+        ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid']
+            .forEach(id => document.getElementById(id)?.dispatchEvent(new Event('input')));
 
         const icon = document.getElementById('trainSuccessIcon');
         icon.className = 'train-success';
         icon.textContent = successMsg;
         icon.classList.remove('hidden');
         setTimeout(() => { icon.classList.add('hidden'); }, 5000);
+
+        // Hide draft banner after successful save/train
+        const banner = document.getElementById('profileDraftBanner');
+        if (banner) banner.classList.add('hidden');
+        window._svDraftMeta = null;
 
         await checkProfileStatus();
 
@@ -686,7 +695,7 @@ export function sendTrainProfile() {
 
 export function saveProfileDirect() {
     return submitProfile('/api/save-profile', 'trainSaveBtn',
-        i18n('btn.save', 'Save'),
+        i18n('btn.save_no_ai', 'Save without AI'),
         i18n('msg.saving', '⏳ Saving…'),
         i18n('msg.profile_saved', '✅ Profile saved!'),
         false);

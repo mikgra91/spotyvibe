@@ -69,7 +69,10 @@ def _setup_logging():
     # Console handler — for development
     ch = logging.StreamHandler()
     ch.setLevel(logging.DEBUG if get_debug_mode() else logging.WARNING)
-    ch.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+    ch.setFormatter(logging.Formatter(
+        "[%(asctime)s] %(levelname)s: %(message)s",
+        datefmt="%H:%M:%S",
+    ))
     root.addHandler(ch)
 
 
@@ -90,7 +93,7 @@ from core.src.suggestions import (
 )
 from core.src.feedback import like_track, dislike_track
 from core.src.analysis import analyze_band_song
-from core.src.history import save_run, load_runs
+from core.src.history import save_run, load_runs, update_track_sentiment
 from core.src.utils import get_openai_models, clear_debug_log, sanitize_text, app_log
 from core.src.openai_http import OpenAIConfigError, OpenAIError
 from core.src.playlist import (
@@ -795,8 +798,14 @@ def submit_feedback():
         removal = None
         if action == "like":
             like_track(artist, track=track, reason=reason)
+            # Stamp sentiment in run history for dashboard charts
+            if track:
+                update_track_sentiment(artist, track, "liked")
         else:
             dislike_track(artist, track=track, reason=reason)
+            # Stamp sentiment in run history for dashboard charts
+            if track:
+                update_track_sentiment(artist, track, "disliked")
             # Also remove the track from the Spotify playlist
             if track:
                 removal = remove_from_playlist(artist, track)

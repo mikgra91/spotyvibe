@@ -7,9 +7,9 @@ def test_aggregate_empty_runs():
     result = aggregate_taste([])
     assert result["tracks_considered"] == 0
     assert result["runs_considered"] == 0
-    assert result["top_genres"] == []
-    assert result["energy_valence"] == []
-    assert result["decades"] == []
+    assert result["neutral"]["top_genres"] == []
+    assert result["neutral"]["energy_valence"] == []
+    assert result["neutral"]["decades"] == []
 
 
 def test_aggregate_deduplicates_tracks():
@@ -31,7 +31,7 @@ def test_aggregate_top_genres():
         ]},
     ]
     result = aggregate_taste(runs)
-    genres = {g["genre"]: g["count"] for g in result["top_genres"]}
+    genres = {g["genre"]: g["count"] for g in result["neutral"]["top_genres"]}
     assert genres["rock"] == 5
     assert genres["indie"] == 5
 
@@ -45,7 +45,7 @@ def test_aggregate_decades():
         ]},
     ]
     result = aggregate_taste(runs)
-    decade_map = {d["decade"]: d["count"] for d in result["decades"]}
+    decade_map = {d["decade"]: d["count"] for d in result["neutral"]["decades"]}
     assert decade_map["1990s"] == 1
     assert decade_map["2000s"] == 2
 
@@ -58,8 +58,8 @@ def test_aggregate_energy_valence():
         ]},
     ]
     result = aggregate_taste(runs)
-    assert len(result["energy_valence"]) == 1
-    assert result["energy_valence"][0]["energy"] == 0.8
+    assert len(result["neutral"]["energy_valence"]) == 1
+    assert result["neutral"]["energy_valence"][0]["energy"] == 0.8
 
 
 def test_aggregate_caps_energy_valence_at_100():
@@ -70,7 +70,7 @@ def test_aggregate_caps_energy_valence_at_100():
         ]},
     ]
     result = aggregate_taste(runs)
-    assert len(result["energy_valence"]) == 100
+    assert len(result["neutral"]["energy_valence"]) == 100
 
 
 def test_aggregate_genres_capped_to_8():
@@ -81,5 +81,24 @@ def test_aggregate_genres_capped_to_8():
         ]},
     ]
     result = aggregate_taste(runs)
-    assert len(result["top_genres"]) <= 8
+    assert len(result["neutral"]["top_genres"]) <= 8
+
+
+def test_aggregate_sentiment_slicing():
+    """Tracks are bucketed into neutral/liked/disliked slices."""
+    runs = [
+        {"tracks": [
+            {"artist": "A1", "track": "T1", "genres": ["rock"], "sentiment": "neutral"},
+            {"artist": "A2", "track": "T2", "genres": ["pop"], "sentiment": "liked"},
+            {"artist": "A3", "track": "T3", "genres": ["metal"], "sentiment": "disliked"},
+            {"artist": "A4", "track": "T4", "genres": ["jazz"]},  # missing → neutral
+        ]},
+    ]
+    result = aggregate_taste(runs)
+    assert result["tracks_considered"] == 4
+    assert result["neutral"]["tracks_considered"] == 2
+    assert result["liked"]["tracks_considered"] == 1
+    assert result["disliked"]["tracks_considered"] == 1
+    assert result["liked"]["top_genres"][0]["genre"] == "pop"
+    assert result["disliked"]["top_genres"][0]["genre"] == "metal"
 

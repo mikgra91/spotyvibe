@@ -21,13 +21,20 @@ export async function openPlaylistSeedPicker(source) {
 
     const list = document.getElementById('playlistSeedList');
     const loader = document.querySelector('.playlist-seed-loader');
+    const loadingIndicator = document.querySelector('.playlist-seed-loading');
     const confirmBtn = document.getElementById('playlistSeedConfirmBtn');
     const warn = document.querySelector('.playlist-seed-replace-warn');
+    const searchRow = document.querySelector('.playlist-seed-search-row');
 
     if (list) list.innerHTML = '';
     if (loader) loader.classList.add('hidden');
     if (confirmBtn) confirmBtn.disabled = true;
     if (warn) warn.classList.add('hidden');
+
+    // Show loading spinner while fetching playlists
+    if (loadingIndicator) loadingIndicator.classList.remove('hidden');
+    if (list) list.classList.add('hidden');
+    if (searchRow) searchRow.classList.add('hidden');
 
     // Check if profile is non-empty to show replace warning on selection
     _hasExistingProfile = false;
@@ -42,10 +49,19 @@ export async function openPlaylistSeedPicker(source) {
     // Fetch playlists
     try {
         const resp = await fetch('/api/spotify/playlists_for_seed');
-        if (!resp.ok) throw new Error('Failed to fetch playlists');
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.error || 'Failed to fetch playlists');
+        }
         const data = await resp.json();
+        if (loadingIndicator) loadingIndicator.classList.add('hidden');
+        if (list) list.classList.remove('hidden');
+        if (searchRow) searchRow.classList.remove('hidden');
         _renderPlaylistList(data.playlists || [], source);
     } catch (e) {
+        if (loadingIndicator) loadingIndicator.classList.add('hidden');
+        if (list) list.classList.remove('hidden');
+        if (searchRow) searchRow.classList.add('hidden');
         if (list) list.innerHTML = `<li class="playlist-seed-empty">
             <p style="color:var(--error)">${i18n('seed.failed', 'Could not load playlists.')}</p>
             <button class="btn-outline playlist-seed-retry" onclick="openPlaylistSeedPicker('${_esc(source || 'profile')}')">${i18n('seed.retry', 'Retry')}</button>
@@ -157,6 +173,11 @@ function _applyDraft(draft, meta) {
     if (softPrefs) softPrefs.value = (draft.soft_preferences || []).join('\n');
     if (avoid) avoid.value = (draft.avoid || []).join('\n');
     if (vibeDesc) vibeDesc.value = draft.vibe_description || '';
+
+    // Dispatch input events so completeness meter recalculates
+    [coreDesc, mustHave, softPrefs, avoid, vibeDesc].forEach(el => {
+        if (el) el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
 
     // Show draft banner
     const banner = document.getElementById('profileDraftBanner');

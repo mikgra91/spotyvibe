@@ -153,16 +153,13 @@ function _render({ score, dims }) {
         suggestion.textContent = _getSuggestion(dims);
     }
 
-    // Visibility
+    // Visibility — always show while the profile editor is open
     if (score >= 60) {
         card.classList.add('is-complete');
-        setTimeout(() => {
-            card.classList.add('hidden');
-            card.classList.remove('is-complete');
-        }, 2000);
     } else {
-        card.classList.remove('hidden', 'is-complete');
+        card.classList.remove('is-complete');
     }
+    card.classList.remove('hidden');
 }
 
 // ── Update (debounced) ──────────────────────────────────────────────

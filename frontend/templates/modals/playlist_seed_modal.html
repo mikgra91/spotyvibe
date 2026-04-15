@@ -1,14 +1,19 @@
 <!-- Playlist seed picker modal (Wave 3 C.1) -->
 <div id="playlistSeedModal" class="modal-overlay">
     <div class="modal playlist-seed-modal" role="dialog" aria-modal="true" aria-labelledby="playlistSeedTitle">
+        <button class="modal-close" onclick="closeModal('playlistSeedModal')" aria-label="Close">✕</button>
         <div class="modal-header">
             <h2 id="playlistSeedTitle"><span aria-hidden="true">🎵</span> <span data-i18n="seed.modal_title">Seed from a Spotify playlist</span></h2>
-            <button class="modal-close" onclick="closeModal('playlistSeedModal')" aria-label="Close">✕</button>
         </div>
         <p class="playlist-seed-subtitle" data-i18n="seed.modal_subtitle">Pick one of your playlists — SpotyVibe drafts a profile you can tweak.</p>
 
         <div class="playlist-seed-search-row">
             <input id="playlistSeedSearch" type="search" data-i18n-placeholder="seed.search_placeholder" placeholder="Search your playlists…">
+        </div>
+
+        <div class="playlist-seed-loading hidden">
+            <div class="spinner"></div>
+            <p data-i18n="msg.loading">Loading…</p>
         </div>
 
         <ul id="playlistSeedList" class="playlist-seed-list" role="listbox" aria-label="Your playlists">

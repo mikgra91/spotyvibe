@@ -1,5 +1,29 @@
 /* ── Playlist seed modal ─────────────────────────────────────────── */
-.playlist-seed-modal { max-width: 540px; min-height: 480px; }
+.playlist-seed-modal { max-width: 540px; min-height: 480px; position: relative; overflow: visible; }
+.playlist-seed-modal .modal-close {
+  position: absolute;
+  top: -44px;
+  right: -56px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+  transition: color var(--transition), opacity var(--transition);
+  z-index: 250;
+  opacity: 0.85;
+}
+@media (hover: hover) {
+  .playlist-seed-modal .modal-close:hover { color: #fff; opacity: 1; }
+}
+.playlist-seed-modal .modal-header { padding-right: 8px; }
+
+.playlist-seed-loading {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 12px; padding: 40px 16px; color: var(--text-secondary); font-size: 0.9rem;
+}
 
 .playlist-seed-list {
   list-style: none; padding: 0; margin: 12px 0 0; max-height: 360px; overflow-y: auto;

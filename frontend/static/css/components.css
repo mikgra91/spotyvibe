@@ -1,4 +1,4 @@
-s/* components.css — Glass panels, status, toast, tooltip, spinner, switcher, accordion, burger, settings, jump bubble */
+/* components.css — Glass panels, status, toast, tooltip, spinner, switcher, accordion, burger, settings, jump bubble */
 /* =============================================
    Glass panels — shared style
    ============================================= */
@@ -7,6 +7,7 @@ s/* components.css — Glass panels, status, toast, tooltip, spinner, switcher, 
 .analysis-section,
 .history-section,
 .review-section,
+.taste-dashboard-section,
 .track-item,
 .settings-dropdown,
 .modal,
@@ -24,7 +25,8 @@ s/* components.css — Glass panels, status, toast, tooltip, spinner, switcher, 
 .train-section,
 .analysis-section,
 .history-section,
-.review-section {
+.review-section,
+.taste-dashboard-section {
     border-radius: var(--radius-lg);
     padding: 32px 28px;
     margin-bottom: 1.5rem;

@@ -326,7 +326,7 @@ In Advanced mode, a **Preset** dropdown lets you save and recall complete genera
 
 ### Profile Completeness Meter
 
-When editing your Music Profile, a **Profile Strength** meter appears if your score is below 60%. It shows five dimensions (Core Description, Must Have, Soft Preferences, Avoid, Edited) and suggests what to improve next. Once your profile reaches 60%, the meter hides automatically.
+When editing your Music Profile, a **Profile Strength** meter is visible inside the profile editor. It shows five dimensions (Core Description, Must Have, Soft Preferences, Avoid, Edited) with a percentage score, and suggests what to improve next. At 60% or above, the meter displays a green glow to indicate the profile is strong enough for good recommendations. The meter updates in real-time as you type or when fields are filled programmatically (e.g., from a playlist draft).
 
 ### Playlist Mode
 
@@ -681,12 +681,15 @@ Each suggested track now shows 1–2 rationale chips explaining why it was picke
 
 ### Taste Visualisation Dashboard (Wave 3)
 
-Below the profile editor, a collapsible dashboard shows three charts:
-- **Top genres** — donut chart of your most common genres
-- **Energy × valence** — scatter plot of your tracks' mood
-- **Decades** — bar chart of release decades
+Below the profile editor, a collapsible section ("Your taste at a glance") shows three charts summarising your listening patterns. Click **Show** to expand.
 
-Requires at least 10 unique tracks from your history.
+If you haven't generated enough playlists yet, the section displays "Not enough data yet" instead of empty charts. Once you have at least 10 unique tracks in your history, the charts appear:
+
+- **Top genres** — donut chart of your most common genres (sourced from Spotify artist data)
+- **Energy × valence** — scatter plot of your tracks' mood (energy and valence are GPT estimates, not exact measurements — a footnote below the chart notes this)
+- **Decades** — bar chart of release decades (sourced from Spotify album data)
+
+Data is aggregated from your run history. Each playlist generation enriches tracks with genre, release year, and estimated energy/valence metadata automatically.
 
 ### Feature Discovery Tips (Wave 3)
 

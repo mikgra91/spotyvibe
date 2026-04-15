@@ -34,6 +34,13 @@ from datetime import datetime, timezone
 # processes for this use case.
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# requests is spotipy's HTTP transport layer and a transitive dependency.
+# We use it here to create a shared Session with connection pooling for
+# parallel Spotify searches, avoiding the cost of a fresh TLS handshake
+# per thread.
+import requests
+from requests.adapters import HTTPAdapter
+
 # spotipy is a lightweight Python wrapper for all Spotify Web API
 # endpoints. It handles OAuth token lifecycle, request serialization,
 # pagination, and error mapping.
@@ -250,20 +257,79 @@ def remove_from_playlist(artist, track):
     return {"removed": True}
 
 
+def _parse_release_year(release_date: str | None) -> int | None:
+    """Extract a 4-digit year from a Spotify release_date string.
+
+    Spotify returns dates in 'YYYY', 'YYYY-MM', or 'YYYY-MM-DD' format.
+    Returns None if the date is missing or unparseable.
+    """
+    if not release_date or not isinstance(release_date, str):
+        return None
+    try:
+        year = int(release_date[:4])
+        return year if 1900 < year <= 2100 else None
+    except (ValueError, IndexError):
+        return None
+
+
+def _enrich_tracks_with_metadata(tracks: list) -> None:
+    """Enrich track dicts with release_year from Spotify search data.
+
+    - Parses release_year from each track's release_date (returned by
+      Spotify search).
+    - Ensures a 'genres' key exists (genres are provided by GPT in the
+      suggestion response and already present on the track dict).
+    - Mutates track dicts in-place.
+    """
+    for t in tracks:
+        t["release_year"] = _parse_release_year(t.get("release_date"))
+        # Genres come from GPT (set in normalize_response).
+        # Ensure the key exists for downstream consumers.
+        t.setdefault("genres", [])
+
+
+def _make_pooled_session(pool_size=10):
+    """Create a ``requests.Session`` with enlarged connection pool.
+
+    ``urllib3``'s default pool_maxsize is 10, but its pool_connections
+    default is only 1 (one host-slot). By mounting an ``HTTPAdapter``
+    with ``pool_connections`` and ``pool_maxsize`` both equal to
+    *pool_size*, all concurrent threads reuse persistent TCP+TLS
+    connections to ``api.spotify.com`` instead of opening a fresh
+    TLS handshake per request.
+
+    The ``requests.Session`` object itself is thread-safe for making
+    concurrent requests — ``urllib3`` synchronises access to the
+    underlying connection pool internally.
+    """
+    session = requests.Session()
+    adapter = HTTPAdapter(
+        pool_connections=pool_size,
+        pool_maxsize=pool_size,
+    )
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
+
+
 def search_tracks(tracks, on_progress=None):
     """Search Spotify for each track using parallel requests.
 
-    **Concurrency model**: Uses `ThreadPoolExecutor` with 10 workers.
-    Each worker creates its own `spotipy.Spotify` client because the
-    underlying `requests.Session` is NOT thread-safe. This is a common
-    pattern: share-nothing threading where each thread owns its state.
+    **Concurrency model**: Uses ``ThreadPoolExecutor`` with 10 workers
+    sharing a single ``requests.Session`` with a matching connection
+    pool. The access token is fetched **once** before the pool starts,
+    and each worker creates a lightweight ``spotipy.Spotify`` client
+    that reuses the shared session and pre-fetched token. This avoids:
+
+    - N redundant cache-file reads + token validations
+    - N fresh TLS handshakes (connections are pooled and reused)
 
     Why 10 workers? This is a practical sweet spot — enough to saturate
     the network for typical batch sizes (10–30 tracks) without hitting
     Spotify's rate limits. Spotify's API allows ~30 req/sec for most
     endpoints.
 
-    **Progress callback**: The optional `on_progress(completed, total)`
+    **Progress callback**: The optional ``on_progress(completed, total)``
     callback enables the UI to show a real-time progress bar via
     Server-Sent Events (SSE). Each completed search triggers a callback.
 
@@ -283,10 +349,26 @@ def search_tracks(tracks, on_progress=None):
             seen.add(key)
             unique_tracks.append(t)
 
+    # ── Pre-fetch token + shared session ──────────────────────────────
+    # Validate / refresh the token once.  All workers then use the raw
+    # access_token string, skipping per-thread OAuth overhead.
+    oauth = get_spotify_oauth()
+    token_info = oauth.validate_token(oauth.cache_handler.get_cached_token())
+    if not token_info:
+        logger.error("Spotify token unavailable — cannot search tracks")
+        return [], [f"{t['artist']} - {t['track']}" for t in unique_tracks]
+    access_token = token_info["access_token"]
+
+    pool_size = min(10, len(unique_tracks)) or 1
+    shared_session = _make_pooled_session(pool_size)
+
     def search_one(t):
-        # Each thread gets its own client to avoid sharing a non-thread-safe
-        # requests.Session across concurrent workers.
-        thread_sp = get_spotify_client()
+        # Lightweight client: pre-fetched token + shared session.
+        # No auth_manager needed — the token was already validated above.
+        thread_sp = spotipy.Spotify(
+            auth=access_token,
+            requests_session=shared_session,
+        )
         query = _build_track_artist_query(t["artist"], t["track"])
 
         # Retry once on 429 (rate limit) using Retry-After header,
@@ -316,6 +398,7 @@ def search_tracks(tracks, on_progress=None):
             release_date = item.get("album", {}).get("release_date")
             artists = item.get("artists", [])
             artist_url = artists[0].get("external_urls", {}).get("spotify") if artists else None
+            artist_id = artists[0].get("id") if artists else None
             enriched = {
                 **t,
                 "uri": uri,
@@ -326,29 +409,36 @@ def search_tracks(tracks, on_progress=None):
                 "album_url": album_url,
                 "release_date": release_date,
                 "artist_url": artist_url,
+                "artist_id": artist_id,
             }
             return "found", enriched
         return "not_found", f"{t['artist']} - {t['track']}"
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = {executor.submit(search_one, t): t for t in unique_tracks}
-        completed = 0
-        for future in as_completed(futures):
-            try:
-                result_type, result_data = future.result()
-                if result_type == "found":
-                    found.append(result_data)
-                else:
-                    logger.warning("Not found on Spotify: %s", result_data)
-                    not_found.append(result_data)
-            except Exception as e:
-                t = futures[future]
-                label = f"{t['artist']} - {t['track']}"
-                logger.error("Spotify search error for %s: %s", label, e)
-                not_found.append(label)
-            completed += 1
-            if on_progress:
-                on_progress(completed, len(unique_tracks))
+    try:
+        with ThreadPoolExecutor(max_workers=pool_size) as executor:
+            futures = {executor.submit(search_one, t): t for t in unique_tracks}
+            completed = 0
+            for future in as_completed(futures):
+                try:
+                    result_type, result_data = future.result()
+                    if result_type == "found":
+                        found.append(result_data)
+                    else:
+                        logger.warning("Not found on Spotify: %s", result_data)
+                        not_found.append(result_data)
+                except Exception as e:
+                    t = futures[future]
+                    label = f"{t['artist']} - {t['track']}"
+                    logger.error("Spotify search error for %s: %s", label, e)
+                    not_found.append(label)
+                completed += 1
+                if on_progress:
+                    on_progress(completed, len(unique_tracks))
+    finally:
+        shared_session.close()
+
+    # ── Batch-enrich: artist genres + release_year ────────────────────
+    _enrich_tracks_with_metadata(found)
 
     return found, not_found
 

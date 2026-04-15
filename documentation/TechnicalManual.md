@@ -403,7 +403,7 @@ The core recommendation logic. Generates track suggestions by sending the user's
    - On retries with accepted tracks, appends an addendum listing already-accepted tracks.
    - **On all-filtered retries**, appends a strongly-worded retry warning that lists the exact tracks from the previous batch that were filtered, making it impossible for GPT to plausibly overlook them. The warning escalates with the attempt number and is passed via the `recently_filtered_tracks` / `consecutive_empty` parameters.
 3. `call_gpt()` — Sends messages to GPT and parses the JSON response.
-4. `normalize_response()` — Force-lowercases all artist/track names.
+4. `normalize_response()` — Force-lowercases all artist/track names. Clamps GPT-provided `energy` and `valence` to `[0.0, 1.0]` floats, stripping invalid or non-numeric values.
 5. `filter_duplicate_suggestions()` — Code-side dedup against full history + disliked tracks (uses fuzzy matching via `_normalize_key()`). Stores the removed tracks in `result["_filtered_out"]` so the caller can feed them back to GPT as explicit retry context.
 6. `update_profile()` — Merges new suggestions into the profile's history.
 
@@ -436,7 +436,9 @@ Manages all interactions with the Spotify Web API via the `spotipy` library.
 | `get_spotify_client()` | Returns an authenticated `spotipy.Spotify` client. |
 | `get_spotify_auth_status()` | Checks credentials, cached token, **and** validates the token with a live `current_user()` API call. Returns `not_configured`, `not_authenticated`, or `authenticated`. |
 | `disconnect_spotify()` | Deletes the cached token file so the user can re-authenticate. Called automatically on 403 errors or manually via the UI. |
-| `search_tracks(tracks)` | Searches Spotify for each track using **parallel requests** (ThreadPoolExecutor, 10 workers). Returns found/not-found lists. Found tracks include the Spotify `uri` and `cover_url` (smallest album image). |
+| `search_tracks(tracks)` | Searches Spotify for each track using **parallel requests** (ThreadPoolExecutor, 10 workers). Returns found/not-found lists. Found tracks include the Spotify `uri`, `cover_url`, and `artist_id`. After all searches complete, calls `_enrich_tracks_with_metadata()` to batch-fetch artist genres and extract release years. |
+| `_enrich_tracks_with_metadata(tracks)` | Post-search enrichment: collects unique `artist_id`s from found tracks, fetches genres in a single batch call (`sp.artists(ids)`, up to 50 per request), and parses `release_year` from each track's `release_date`. Mutates track dicts in-place. Best-effort — failures are logged but don't block the pipeline. |
+| `_parse_release_year(release_date)` | Extracts a 4-digit year from Spotify's `release_date` string (formats: `YYYY`, `YYYY-MM`, `YYYY-MM-DD`). Returns `None` for missing or invalid dates. |
 | `add_to_playlist(tracks)` | Finds or creates the "SpotyVibe Playlist" and adds verified tracks. Catches 403 errors, auto-disconnects, and raises a clear `RuntimeError`. |
 | `remove_from_playlist(artist, track)` | Searches for a track and removes all occurrences from the playlist. |
 | `find_existing_playlist(sp)` | Paginates through the user's playlists to find one matching the playlist name. |
@@ -518,8 +520,13 @@ Manages persistence and retrieval of playlist generation run history, enabling t
 
 | Function | Purpose |
 |---|---|
-| `save_run(run_id, playlist_id, playlist_url, tracks)` | Appends a run entry to `run_history.json`. Each entry includes the run ID, playlist ID, URL, tracks, and timestamp. The history file is capped at 5 entries (oldest entries are pruned). |
-| `load_runs()` | Returns all stored runs, newest-first. |
+| `save_run(run_id, playlist_id, playlist_url, tracks)` | Appends a run entry to `run_history.json`. Each entry includes the run ID, playlist ID, URL, tracks, and timestamp. Each track entry stores `artist`, `track`, `uri`, `rationale`, plus metadata: `energy` and `valence` (GPT estimates, 0.0–1.0), `genres` (from Spotify artist lookup), and `release_year` (from album release date). The history file is capped at 5 entries (oldest entries are pruned). |
+| `load_runs()` | Returns all stored runs, newest-first. Performs on-the-fly migration of legacy schema v1 entries (converts `reason` string to `rationale` array). |
+
+**Schema versions:**
+- **v1** (implicit): tracks have optional `reason` string.
+- **v2** (Wave 3): tracks have `rationale` array `[{type, arg?}]`, no `reason`.
+- **v3** (Wave 3): tracks add `energy`, `valence` (GPT estimates), `genres` (from Spotify artist), `release_year` (from album).
 
 **Storage:** Run history is stored in `run_history.json` in the AppData directory alongside other persistent data files.
 
@@ -737,9 +744,9 @@ The AI's behaviour is controlled by text files in the `prompts/` directory. Thes
 
 | File | Used by | Purpose |
 |---|---|---|
-| `system_prompt.txt` | `suggestions.py` | Default system prompt for music recommendation. Defines hard constraints (batch size, deny-list enforcement, must-have/avoid filters, new-artist minimum, per-artist cap), style guidance, profile field explanations, and output JSON schema. Used by models without a dedicated prompt file (e.g., `gpt-5.4-mini`, `gpt-4.1-mini`, `gpt-4.1-nano`). |
-| `system_prompt_gpt-5-4.txt` | `suggestions.py` | GPT-5.4-specific system prompt. Same constraints as the default but uses a **candidate-pool reasoning** strategy: instructs GPT to build an internal candidate pool larger than the batch size, verify each candidate against all constraints, then select the best subset for fit and diversity. Adds a geographic/temporal diversity hint. |
-| `system_prompt_gpt-4-1.txt` | `suggestions.py` | GPT-4.1-specific system prompt. Same constraints as the default but uses **step-by-step reasoning**: instructs GPT to silently reason through each candidate checking (a) deny-list, (b) must-have traits, (c) avoid traits before including it. Slightly more concise wording suited to GPT-4.1's instruction-following strengths. |
+| `system_prompt.txt` | `suggestions.py` | Default system prompt for music recommendation. Defines hard constraints (batch size, deny-list enforcement, must-have/avoid filters, new-artist minimum, per-artist cap), style guidance, profile field explanations, and output JSON schema (includes GPT-estimated `energy` and `valence` per track). Used by models without a dedicated prompt file (e.g., `gpt-5.4-mini`, `gpt-4.1-mini`, `gpt-4.1-nano`). |
+| `system_prompt_gpt-5-4.txt` | `suggestions.py` | GPT-5.4-specific system prompt. Same constraints and output schema as the default (including `energy`/`valence`) but uses a **candidate-pool reasoning** strategy: instructs GPT to build an internal candidate pool larger than the batch size, verify each candidate against all constraints, then select the best subset for fit and diversity. Adds a geographic/temporal diversity hint. |
+| `system_prompt_gpt-4-1.txt` | `suggestions.py` | GPT-4.1-specific system prompt. Same constraints and output schema as the default (including `energy`/`valence`) but uses **step-by-step reasoning**: instructs GPT to silently reason through each candidate checking (a) deny-list, (b) must-have traits, (c) avoid traits before including it. Slightly more concise wording suited to GPT-4.1's instruction-following strengths. |
 | `prompt_template.txt` | `suggestions.py` | Template for the user message. Embeds the deny-list JSON via `{deny_set_json}`, the profile JSON via `{profile_json}`, recent feedback via `{recent_feedback}`, and optional audio filters via `{audio_filters_block}`. |
 | `profile_training_prompt.txt` | `profile.py` | System message for the taste profile training. Explains the structured input format (CORE DESCRIPTION, MUST HAVE, SOFT PREFERENCES, AVOID), how each section maps to profile JSON fields, and which sections to preserve. Includes `{gpt_language}` placeholder. |
 | `analysis_prompt.txt` | `analysis.py` | Structured band/song analysis. Instructs GPT to return JSON with genre, style_tags, characteristics, and profile_suggestions. Includes `{gpt_language}` placeholder. |

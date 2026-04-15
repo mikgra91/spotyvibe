@@ -178,12 +178,15 @@ Gib einen Künstler und optional einen Track ein. Die KI liefert:
 
 ## Geschmacks-Dashboard
 
-Unter dem Profil-Editor zeigt ein einklappbares Dashboard drei Diagramme:
-- **Top-Genres** — Donut-Diagramm deiner häufigsten Genres
-- **Energie × Valence** — Streudiagramm der Stimmung deiner Tracks
-- **Jahrzehnte** — Balkendiagramm der Veröffentlichungsjahrzehnte
+Unter dem Profil-Editor zeigt der Bereich „Dein Geschmack auf einen Blick" drei Diagramme. Klicke auf **Einblenden**, um den Bereich zu öffnen.
 
-Benötigt mindestens 10 einzigartige Tracks aus deinem Verlauf.
+Wenn noch nicht genug Playlists generiert wurden, wird stattdessen „Noch nicht genug Daten" angezeigt. Ab mindestens 10 einzigartigen Tracks erscheinen die Diagramme:
+
+- **Top-Genres** — Donut-Diagramm deiner häufigsten Genres (aus Spotify-Künstlerdaten)
+- **Energie × Valence** — Streudiagramm der Stimmung deiner Tracks (Energie und Valence sind KI-Schätzungen — ein Hinweis unter dem Diagramm weist darauf hin)
+- **Jahrzehnte** — Balkendiagramm der Veröffentlichungsjahrzehnte (aus Spotify-Albumdaten)
+
+Die Daten werden automatisch aus deinem Generierungsverlauf aggregiert.
 
 ---
 

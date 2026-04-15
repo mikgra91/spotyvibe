@@ -308,8 +308,7 @@
     }
 }
 .profile-action-card--primary {
-    border-color: var(--primary);
-    border-width: 1.5px;
+    border-color: var(--border);
 }
 
 .profile-action-btn {
@@ -540,6 +539,7 @@
     color: var(--success);
     font-size: 1.3rem;
     margin-top: 10px;
+    text-align: center;
     animation: fadeOut 5s forwards;
 }
 @keyframes fadeOut {

@@ -226,10 +226,16 @@ class TestRemoveFromPlaylist:
 
 
 class TestSearchTracks:
-    @patch("core.src.playlist.get_spotify_client")
-    def test_finds_tracks(self, mock_client_fn):
+    def _mock_oauth_and_spotify(self, sp_mock):
+        """Set up mocks for the pre-fetched-token search_tracks flow."""
+        oauth = MagicMock()
+        oauth.cache_handler.get_cached_token.return_value = {"access_token": "tok"}
+        oauth.validate_token.return_value = {"access_token": "tok"}
+        return patch("core.src.playlist.get_spotify_oauth", return_value=oauth), \
+               patch("core.src.playlist.spotipy.Spotify", return_value=sp_mock)
+
+    def test_finds_tracks(self):
         sp = MagicMock()
-        mock_client_fn.return_value = sp
         sp.search.return_value = {
             "tracks": {
                 "items": [{
@@ -238,50 +244,52 @@ class TestSearchTracks:
                 }]
             }
         }
-        tracks = [{"artist": "a", "track": "b"}]
-        found, not_found = search_tracks(tracks)
+        p_oauth, p_sp = self._mock_oauth_and_spotify(sp)
+        with p_oauth, p_sp:
+            tracks = [{"artist": "a", "track": "b"}]
+            found, not_found = search_tracks(tracks)
         assert len(found) == 1
         assert found[0]["uri"] == "spotify:track:1"
         assert found[0]["cover_url"] == "small"
         assert not_found == []
 
-    @patch("core.src.playlist.get_spotify_client")
-    def test_reports_not_found(self, mock_client_fn):
+    def test_reports_not_found(self):
         sp = MagicMock()
-        mock_client_fn.return_value = sp
         sp.search.return_value = {"tracks": {"items": []}}
-        tracks = [{"artist": "unknown", "track": "song"}]
-        found, not_found = search_tracks(tracks)
+        p_oauth, p_sp = self._mock_oauth_and_spotify(sp)
+        with p_oauth, p_sp:
+            tracks = [{"artist": "unknown", "track": "song"}]
+            found, not_found = search_tracks(tracks)
         assert found == []
         assert len(not_found) == 1
 
-    @patch("core.src.playlist.get_spotify_client")
-    def test_deduplicates_input(self, mock_client_fn):
+    def test_deduplicates_input(self):
         sp = MagicMock()
-        mock_client_fn.return_value = sp
         sp.search.return_value = {
             "tracks": {"items": [{"uri": "spotify:track:1", "album": {"images": []}}]}
         }
-        tracks = [
-            {"artist": "a", "track": "b"},
-            {"artist": "a", "track": "b"},  # duplicate
-        ]
-        found, not_found = search_tracks(tracks)
+        p_oauth, p_sp = self._mock_oauth_and_spotify(sp)
+        with p_oauth, p_sp:
+            tracks = [
+                {"artist": "a", "track": "b"},
+                {"artist": "a", "track": "b"},  # duplicate
+            ]
+            found, not_found = search_tracks(tracks)
         # Only one search should be performed
         assert sp.search.call_count == 1
 
-    @patch("core.src.playlist.get_spotify_client")
-    def test_calls_progress_callback(self, mock_client_fn):
+    def test_calls_progress_callback(self):
         sp = MagicMock()
-        mock_client_fn.return_value = sp
         sp.search.return_value = {
             "tracks": {"items": [{"uri": "spotify:track:1", "album": {"images": []}}]}
         }
-        progress_calls = []
-        search_tracks(
-            [{"artist": "a", "track": "b"}],
-            on_progress=lambda done, total: progress_calls.append((done, total)),
-        )
+        p_oauth, p_sp = self._mock_oauth_and_spotify(sp)
+        with p_oauth, p_sp:
+            progress_calls = []
+            search_tracks(
+                [{"artist": "a", "track": "b"}],
+                on_progress=lambda done, total: progress_calls.append((done, total)),
+            )
         assert len(progress_calls) == 1
         assert progress_calls[0] == (1, 1)
 

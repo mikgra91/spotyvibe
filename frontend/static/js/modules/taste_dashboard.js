@@ -1,6 +1,7 @@
 /**
  * taste_dashboard.js — Taste visualisation dashboard (Wave 3 F.1)
  * Custom SVG charts: donut, scatter, bar. No chart library.
+ * Renders three sentiment sections: neutral (main), liked, disliked.
  */
 import { i18n } from './i18n.js';
 
@@ -115,7 +116,7 @@ function renderScatter(container, points) {
     });
     svg += `</svg>`;
 
-    container.innerHTML = `<h4>${i18n('dashboard.card_scatter', 'Energy × valence')}</h4>${svg}`;
+    container.innerHTML = `<h4>${i18n('dashboard.card_scatter', 'Energy × valence')}</h4>${svg}<p class="dashboard-footnote" data-i18n="dashboard.scatter_footnote">${i18n('dashboard.scatter_footnote', 'Energy & valence are AI estimates, not exact measurements.')}</p>`;
 
     container.querySelectorAll('circle[data-artist]').forEach(circle => {
         circle.addEventListener('pointermove', e => _showTooltip(e, `${circle.dataset.artist} — ${circle.dataset.title}`));
@@ -157,63 +158,144 @@ function renderBars(container, decades) {
     });
 }
 
+/* ── Render a sentiment section ──────────────────────────────────── */
+function _renderSection(sectionEl, slice) {
+    if (!sectionEl || !slice) return false;
+    const grid = sectionEl.querySelector('.dashboard-grid');
+    if (!grid) return false;
+
+    const hasGenres = (slice.top_genres || []).length > 0;
+    const hasScatter = (slice.energy_valence || []).length > 0;
+    const hasDecades = (slice.decades || []).length > 0;
+    const hasAny = hasGenres || hasScatter || hasDecades;
+
+    if (!hasAny) {
+        sectionEl.classList.add('hidden');
+        return false;
+    }
+
+    sectionEl.classList.remove('hidden');
+    grid.classList.remove('hidden');
+
+    const [genreCard, scatterCard, decadesCard] = [
+        grid.querySelector('.dashboard-card--genres'),
+        grid.querySelector('.dashboard-card--scatter'),
+        grid.querySelector('.dashboard-card--decades'),
+    ];
+
+    if (genreCard) { genreCard.innerHTML = ''; if (hasGenres) renderDonut(genreCard, slice.top_genres); }
+    if (scatterCard) { scatterCard.innerHTML = ''; if (hasScatter) renderScatter(scatterCard, slice.energy_valence); }
+    if (decadesCard) { decadesCard.innerHTML = ''; if (hasDecades) renderBars(decadesCard, slice.decades); }
+    return true;
+}
+
 /* ── Main ────────────────────────────────────────────────────────── */
 async function loadDashboard() {
     if (_loaded) return;
-    const grid = document.querySelector('.dashboard-grid');
+
+    const neutralSection = document.getElementById('dashboardNeutral');
     const empty = document.querySelector('.dashboard-empty');
-    if (!grid) return;
+    if (!neutralSection) return;
 
     try {
         const resp = await fetch('/api/taste/aggregate');
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
 
-        if (data.tracks_considered < 10) {
-            grid.classList.add('hidden');
+        // Neutral slice (main)
+        const neutralSlice = data.neutral || {};
+        const neutralHasData = (data.tracks_considered || 0) >= 10
+            && ((neutralSlice.top_genres || []).length > 0
+                || (neutralSlice.energy_valence || []).length > 0
+                || (neutralSlice.decades || []).length > 0);
+
+        if (!neutralHasData) {
+            neutralSection.classList.add('hidden');
             if (empty) empty.classList.remove('hidden');
-            return;
+            // Still try to show liked/disliked if they have data
+        } else {
+            if (empty) empty.classList.add('hidden');
         }
 
-        grid.classList.remove('hidden');
-        if (empty) empty.classList.add('hidden');
+        const hasNeutral = _renderSection(neutralSection, neutralSlice);
 
-        const genreCard = grid.querySelector('.dashboard-card--genres');
-        const scatterCard = grid.querySelector('.dashboard-card--scatter');
-        const decadesCard = grid.querySelector('.dashboard-card--decades');
+        // Liked / disliked sub-sections
+        const hasLiked = _renderSection(document.getElementById('dashboardLiked'), data.liked);
+        const hasDisliked = _renderSection(document.getElementById('dashboardDisliked'), data.disliked);
 
-        if (genreCard && data.top_genres) renderDonut(genreCard, data.top_genres);
-        if (scatterCard && data.energy_valence) renderScatter(scatterCard, data.energy_valence);
-        if (decadesCard && data.decades) renderBars(decadesCard, data.decades);
+        const hasAny = hasNeutral || hasLiked || hasDisliked;
+        if (empty) empty.classList.toggle('hidden', hasAny);
+        if (!hasNeutral) neutralSection.classList.add('hidden');
+
+        // Info footnote
+        const info = document.getElementById('dashboardInfo');
+        if (info) {
+            info.classList.toggle('hidden', !hasAny);
+            if (hasAny) {
+                const countEl = document.getElementById('dashboardTrackCount');
+                if (countEl) {
+                    countEl.textContent = i18n('dashboard.tracks_counted', 'Based on {count} tracks from {runs} playlist runs.')
+                        .replace('{count}', data.tracks_considered)
+                        .replace('{runs}', data.runs_considered);
+                }
+            }
+        }
 
         _loaded = true;
     } catch (e) {
         console.warn('Dashboard load failed:', e);
+        if (empty) empty.classList.remove('hidden');
+        neutralSection.classList.add('hidden');
+        const info = document.getElementById('dashboardInfo');
+        if (info) info.classList.add('hidden');
     }
+}
+
+/**
+ * Reset the dashboard so the next expand triggers a fresh fetch.
+ * Called when switching profiles or after new feedback.
+ */
+export function resetDashboard() {
+    _loaded = false;
+    // Clear all rendered sections
+    for (const id of ['dashboardNeutral', 'dashboardLiked', 'dashboardDisliked']) {
+        const section = document.getElementById(id);
+        if (section) {
+            section.querySelectorAll('.dashboard-card').forEach(c => { c.innerHTML = ''; });
+            if (id !== 'dashboardNeutral') section.classList.add('hidden');
+        }
+    }
+    // Re-fetch if currently expanded
+    const body = document.getElementById('dashboardBody');
+    if (body && !body.classList.contains('hidden')) {
+        loadDashboard();
+    }
+}
+
+export function toggleDashboardBody() {
+    const body = document.getElementById('dashboardBody');
+    if (!body) return;
+    body.classList.toggle('hidden');
+    const expanded = (!body.classList.contains('hidden')).toString();
+    const header = document.querySelector('#tasteDashboardSection > .train-header');
+    if (header) header.setAttribute('aria-expanded', expanded);
+    const btn = document.getElementById('dashboardToggleBtn');
+    if (btn) {
+        btn.setAttribute('aria-expanded', expanded);
+        btn.textContent = expanded === 'true' ? i18n('btn.hide', 'Hide') : i18n('btn.show', 'Show');
+        btn.setAttribute('data-i18n', expanded === 'true' ? 'btn.hide' : 'btn.show');
+    }
+    localStorage.setItem('sv.dashboard_open', expanded);
+    if (expanded === 'true') loadDashboard();
 }
 
 export function init() {
-    const header = document.querySelector('.taste-dashboard-section .accordion-header');
-    if (!header) return;
+    const section = document.getElementById('tasteDashboardSection');
+    if (!section) return;
 
-    // Restore open/closed state
-    const section = document.querySelector('.taste-dashboard-section');
-    const body = section ? section.querySelector('.accordion-body') : null;
-    const isOpen = localStorage.getItem('sv.dashboard_open') !== 'false';
-
-    if (body) {
-        body.classList.toggle('hidden', !isOpen);
-        if (isOpen) loadDashboard();
+    // Restore open/closed state (collapsed by default)
+    const isOpen = localStorage.getItem('sv.dashboard_open') === 'true';
+    if (isOpen) {
+        toggleDashboardBody();
     }
-
-    header.addEventListener('click', () => {
-        if (!body) return;
-        const nowHidden = body.classList.toggle('hidden');
-        localStorage.setItem('sv.dashboard_open', (!nowHidden).toString());
-        if (!nowHidden) loadDashboard();
-
-        const chevron = header.querySelector('.accordion-chevron');
-        if (chevron) chevron.classList.toggle('rotated', !nowHidden);
-    });
 }
-
