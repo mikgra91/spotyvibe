@@ -590,6 +590,8 @@
   "seed.replace_warning": "Deine aktuellen Profilfelder werden ersetzt. Das Original wird nicht automatisch gelöscht — exportiere es vorher, wenn du es behalten willst.",
   "seed.continue": "Weiter",
   "seed.failed": "Aus dieser Playlist konnte kein Profil erstellt werden. Bitte versuche eine andere.",
+  "seed.no_playlists": "Keine Playlists in deinem Spotify-Konto gefunden.",
+  "seed.retry": "Erneut versuchen",
   "seed.connect_spotify_first": "Spotify in Schritt 4 verbinden, um dies zu aktivieren",
   "ob.seed_playlist_btn": "Playlist wählen →",
   "profile.draft_title": "Aus Playlist erzeugt",

@@ -117,7 +117,7 @@ export function updateSeedCardState() {
     const seedHint = document.getElementById('profileSeedHint');
     if (!seedCard) return;
 
-    const connected = State.spotifyAuthStatus === 'connected';
+    const connected = State.spotifyAuthStatus === 'authenticated';
     if (connected) {
         seedCard.classList.remove('disabled');
         if (seedBtn) seedBtn.disabled = false;

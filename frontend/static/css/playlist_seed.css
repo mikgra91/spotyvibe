@@ -45,6 +45,18 @@
   border-radius: var(--radius-sm); background: var(--bg-elevated);
   color: var(--text-primary); font-size: 0.88rem;
 }
+.playlist-seed-empty {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 12px; padding: 32px 16px; list-style: none;
+  color: var(--text-secondary); font-size: 0.9rem; text-align: center;
+}
+.playlist-seed-retry {
+  padding: 6px 18px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--bg-elevated);
+  color: var(--text-primary); cursor: pointer; font-size: 0.85rem;
+  transition: background 120ms;
+}
+.playlist-seed-retry:hover { background: var(--bg-elevated-hover, rgba(255,255,255,0.08)); }
 
 /* ── Draft banner ───────────────────────────────────────────────── */
 .profile-draft-banner {

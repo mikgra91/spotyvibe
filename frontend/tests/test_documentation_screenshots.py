@@ -390,12 +390,12 @@ class TestDocumentationScreenshotAcquire:
         _shot_element(page, "08_profile_editor_open", "#trainSection")
 
     def test_09_profiles_accordion(self, page: Page, screenshot_url):
-        """Screenshot: Profiles accordion with dropdown and create input"""
+        """Screenshot: Profiles card with dropdown and action cards"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
         page.locator("#trainToggleBtn").click()
         page.wait_for_timeout(600)
-        _shot_element(page, "09_profiles_accordion", "#accProfiles")
+        _shot_element(page, "09_profiles_accordion", "#profilesCard")
 
     def test_10_profile_status(self, page: Page, screenshot_url):
         """Screenshot: Profile status indicators"""
@@ -474,7 +474,7 @@ class TestDocumentationScreenshotAcquire:
         # Open the profile context menu
         page.locator("#profileMenuTrigger").click()
         page.wait_for_timeout(300)
-        _shot_element(page, "17_profile_io_controls", "#accProfiles")
+        _shot_element(page, "17_profile_io_controls", "#profilesCard")
 
     # -- Band/Song Analysis -------------------------------------------------
 
@@ -504,6 +504,9 @@ class TestDocumentationScreenshotAcquire:
         _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(400)
+        # Switch to advanced mode where playlist mode row lives
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(300)
         _shot_element(page, "20_playlist_mode_selector", ".playlist-mode-row")
 
     def test_21_audio_filters(self, page: Page, screenshot_url):
@@ -512,6 +515,9 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_load_state("networkidle")
         _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        # Switch to advanced mode where audio filters live
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
         page.wait_for_timeout(300)
         # Expand the audio filters sub-panel
         page.locator(".audio-filter-toggle").click()
@@ -931,25 +937,25 @@ class TestDocumentationScreenshotAcquire:
     def test_51_onboarding_howto_openai_expanded(self, page: Page, screenshot_url):
         """Screenshot: Step 2 with the 'How do I get this?' accordion expanded."""
         self._goto_onboarding_page(page, screenshot_url, page_index=1)
-        page.locator(".ob-cred-guide-toggle").click()
+        page.locator(".ob-cred-guide-toggle").first.click()
         page.wait_for_timeout(250)
         _shot(page, "51_onboarding_howto_openai_expanded")
 
     def test_52_setup_guide_openai_overlay(self, page: Page, screenshot_url):
         """Screenshot: The full-screen OpenAI setup guide overlay."""
         self._goto_onboarding_page(page, screenshot_url, page_index=1)
-        page.locator(".ob-cred-guide-toggle").click()
+        page.locator(".ob-cred-guide-toggle").first.click()
         page.wait_for_timeout(250)
-        page.locator(".ob-cred-guide-readmore").click()
+        page.locator(".ob-cred-guide-readmore").first.click()
         page.wait_for_timeout(400)
         _shot(page, "52_setup_guide_openai")
 
     def test_53_setup_guide_spotify_overlay(self, page: Page, screenshot_url):
         """Screenshot: The full-screen Spotify setup guide overlay."""
         self._goto_onboarding_page(page, screenshot_url, page_index=2)
-        page.locator(".ob-cred-guide-toggle").click()
+        page.locator(".ob-page.active .ob-cred-guide-toggle").click()
         page.wait_for_timeout(250)
-        page.locator(".ob-cred-guide-readmore").click()
+        page.locator(".ob-page.active .ob-cred-guide-readmore").click()
         page.wait_for_timeout(400)
         _shot(page, "53_setup_guide_spotify")
 
@@ -1003,7 +1009,7 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(300)
         page.evaluate("document.getElementById('explorationSliderQuick').value = 5; document.getElementById('explorationSliderQuick').dispatchEvent(new Event('input'));")
         page.wait_for_timeout(200)
-        _shot_element(page, "58_exploration_slider_adventurous", ".exploration-row")
+        _shot_element(page, "58_exploration_slider_adventurous", ".gen-mode-body--quick .exploration-row")
 
     def test_59_exploration_slider_custom(self, page: Page, screenshot_url):
         """Screenshot: Slider in 'Custom' state after Advanced-mode override."""
@@ -1162,14 +1168,19 @@ class TestDocumentationScreenshotAcquire:
     # -- Wave 3: New features ---------------------------------------------
 
     def test_69_playlist_seed_modal(self, page: Page, screenshot_url):
-        """Screenshot: playlist-seed picker modal (from profile menu)."""
+        """Screenshot: playlist-seed picker modal (from action card)."""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
         page.locator("#trainToggleBtn").click()
         page.wait_for_timeout(300)
-        page.locator("#profileMenuTrigger").click()
-        page.wait_for_timeout(200)
-        page.locator("#profileMenuSeedPlaylist").click()
+        # Enable the seed card (requires Spotify auth state)
+        page.evaluate("""() => {
+            const card = document.getElementById('profileSeedCard');
+            if (card) card.classList.remove('disabled');
+            const btn = document.getElementById('profileSeedBtn');
+            if (btn) btn.disabled = false;
+        }""")
+        page.locator("#profileSeedBtn").click()
         page.wait_for_timeout(400)
         page.evaluate("""() => {
             const list = document.getElementById('playlistSeedList');
@@ -1195,8 +1206,14 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_load_state("networkidle")
         page.locator("#trainToggleBtn").click()
         page.wait_for_timeout(300)
-        page.locator("#profileMenuTrigger").click()
-        page.locator("#profileMenuSeedPlaylist").click()
+        # Enable seed card and open picker
+        page.evaluate("""() => {
+            const card = document.getElementById('profileSeedCard');
+            if (card) card.classList.remove('disabled');
+            const btn = document.getElementById('profileSeedBtn');
+            if (btn) btn.disabled = false;
+        }""")
+        page.locator("#profileSeedBtn").click()
         page.wait_for_timeout(300)
         page.evaluate("document.querySelector('.playlist-seed-loader').classList.remove('hidden')")
         page.evaluate("document.getElementById('playlistSeedList').classList.add('hidden')")
@@ -1469,9 +1486,10 @@ class TestDocumentationScreenshotAcquire:
         _shot(page, "89_onboarding_step6_cost")
 
     def test_90_onboarding_step6_provider_expanded(self, page: Page, screenshot_url):
-        """Screenshot: Onboarding step 6 with 'Use a different provider' expanded."""
-        self._goto_onboarding_page(page, screenshot_url, page_index=5)
-        page.locator("summary:has-text('Use a different provider')").click()
+        """Screenshot: Onboarding step 2 with provider dropdown expanded."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=1)
+        # Open the custom provider dropdown
+        page.locator("#ob-provider-trigger").click()
         page.wait_for_timeout(300)
         _shot(page, "90_onboarding_step6_provider_expanded")
 

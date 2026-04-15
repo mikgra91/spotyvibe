@@ -590,6 +590,8 @@
   "seed.replace_warning": "This will replace your current profile's fields. The original is not deleted automatically — export it first if you want to keep it.",
   "seed.continue": "Continue",
   "seed.failed": "Couldn't draft a profile from this playlist. Please try a different one.",
+  "seed.no_playlists": "No playlists found on your Spotify account.",
+  "seed.retry": "Retry",
   "seed.connect_spotify_first": "Connect Spotify on step 4 to enable this",
   "ob.seed_playlist_btn": "Choose playlist →",
   "profile.draft_title": "Drafted from your playlist",

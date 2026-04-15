@@ -961,7 +961,7 @@ def fetch_llm_models():
 
         return jsonify({"models": sorted(model_ids)})
     except Exception as e:
-        logger.warning("Fetch models failed for %s: %s", base_url, e)
+        app.logger.warning("Fetch models failed for %s: %s", base_url, e)
         return jsonify({"error": str(e)}), 502
 
 

@@ -596,6 +596,16 @@ export function qsDemoReset(step) {
     _renderFrame(step);
 }
 
+/** Start auto-play for a single demo (no-op if already playing). */
+export function qsDemoAutoPlay(step) {
+    const s = _ensureState(step);
+    const frames = _getFrames(step);
+    if (s.playing || !frames.length) return;
+    s.playing = true;
+    s.timer = setInterval(() => qsDemoNext(step), AUTO_PLAY_MS);
+    _updatePlayBtn(step);
+}
+
 /** Initialize all demo players, render first frames, and auto-play. */
 export function initAllDemos() {
     // ── Measure the tallest frame across ALL steps.

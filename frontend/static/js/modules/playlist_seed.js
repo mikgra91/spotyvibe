@@ -46,7 +46,10 @@ export async function openPlaylistSeedPicker(source) {
         const data = await resp.json();
         _renderPlaylistList(data.playlists || [], source);
     } catch (e) {
-        if (list) list.innerHTML = `<p style="color:var(--error);padding:12px">${i18n('seed.failed', 'Could not load playlists.')}</p>`;
+        if (list) list.innerHTML = `<li class="playlist-seed-empty">
+            <p style="color:var(--error)">${i18n('seed.failed', 'Could not load playlists.')}</p>
+            <button class="btn-outline playlist-seed-retry" onclick="openPlaylistSeedPicker('${_esc(source || 'profile')}')">${i18n('seed.retry', 'Retry')}</button>
+        </li>`;
     }
 }
 
@@ -55,6 +58,15 @@ function _renderPlaylistList(playlists, source) {
     if (!list) return;
 
     list.innerHTML = '';
+
+    if (playlists.length === 0) {
+        list.innerHTML = `<li class="playlist-seed-empty">
+            <p>${i18n('seed.no_playlists', 'No playlists found on your Spotify account.')}</p>
+            <button class="btn-outline playlist-seed-retry" onclick="openPlaylistSeedPicker('${_esc(source || _currentSource)}')">${i18n('seed.retry', 'Retry')}</button>
+        </li>`;
+        return;
+    }
+
     playlists.forEach(p => {
         const li = document.createElement('li');
         li.className = 'playlist-seed-item';
