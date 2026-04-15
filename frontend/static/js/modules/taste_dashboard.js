@@ -257,14 +257,20 @@ async function loadDashboard() {
  */
 export function resetDashboard() {
     _loaded = false;
-    // Clear all rendered sections
+    // Clear all rendered sections and hide them
     for (const id of ['dashboardNeutral', 'dashboardLiked', 'dashboardDisliked']) {
         const section = document.getElementById(id);
         if (section) {
             section.querySelectorAll('.dashboard-card').forEach(c => { c.innerHTML = ''; });
-            if (id !== 'dashboardNeutral') section.classList.add('hidden');
+            section.classList.add('hidden');
         }
     }
+    // Hide info footnote
+    const info = document.getElementById('dashboardInfo');
+    if (info) info.classList.add('hidden');
+    // Show the empty-state placeholder until data arrives
+    const empty = document.querySelector('.dashboard-empty');
+    if (empty) empty.classList.remove('hidden');
     // Re-fetch if currently expanded
     const body = document.getElementById('dashboardBody');
     if (body && !body.classList.contains('hidden')) {

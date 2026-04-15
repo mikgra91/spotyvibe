@@ -52,6 +52,38 @@
         <div class="preset-active-indicator"></div>
     </div>
 
+    <!-- ═══ SHARED: Playlist destination (visible in both modes) ═══ -->
+    <div class="playlist-destination-section">
+        <label class="playlist-destination-label" data-i18n="generate.destination_label">Save to</label>
+        <div class="playlist-mode-row">
+            <div class="playlist-mode-options">
+                {% for mode in playlist_modes %}
+                <label class="playlist-mode-option">
+                    <input type="radio" name="playlist_mode" value="{{ mode.value }}"
+                        {% if current_playlist_mode == mode.value %}checked{% endif %}
+                        onchange="onPlaylistModeChange()"> <span data-i18n="generate.mode_{{ mode.value }}">{{ mode.label }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            <div id="playlistNameRow" class="playlist-name-row {% if current_playlist_mode in ('create',) %}{% else %}hidden{% endif %}">
+                <input id="playlistNameInput" type="text" data-i18n-placeholder="generate.playlist_name_placeholder" placeholder="Playlist name" maxlength="200" class="playlist-name-input" value="{{ playlist_name if playlist_name }}">
+            </div>
+            <div id="playlistPickerRow" class="playlist-picker-row {% if current_playlist_mode in ('append', 'replace') %}{% else %}hidden{% endif %}">
+                <select id="playlistPicker" class="playlist-picker-select">
+                    {% if playlist_options %}
+                        {% for pl in playlist_options %}
+                        <option value="{{ pl.id }}">{{ pl.name }}</option>
+                        {% endfor %}
+                    {% else %}
+                    <option value="">Loading playlists…</option>
+                    {% endif %}
+                </select>
+                <button class="playlist-refresh-btn" onclick="refreshDiscoverPlaylistPicker()" aria-label="Refresh playlist list" data-i18n-title="playlist.refresh_aria" title="Refresh playlist list">↻</button>
+                <button class="playlist-delete-btn" onclick="deleteSelectedPlaylist('playlistPicker')" aria-label="Delete selected playlist" data-i18n-title="playlist.delete_aria" title="Delete selected playlist">🗑</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ═══ ADVANCED MODE ═══ -->
     <div class="gen-mode-body gen-mode-body--advanced hidden">
 
@@ -99,35 +131,6 @@
                 </div>
             </div>
             <p class="inline-hint" data-i18n="gen.exploration_hint_3">Balanced — roughly half new artists, moderate novelty.</p>
-        </div>
-
-        <!-- Playlist mode -->
-        <div class="playlist-mode-row">
-            <div class="playlist-mode-options">
-                {% for mode in playlist_modes %}
-                <label class="playlist-mode-option">
-                    <input type="radio" name="playlist_mode" value="{{ mode.value }}"
-                        {% if current_playlist_mode == mode.value %}checked{% endif %}
-                        onchange="onPlaylistModeChange()"> {{ mode.label }}
-                </label>
-                {% endfor %}
-            </div>
-            <div id="playlistNameRow" class="playlist-name-row {% if current_playlist_mode in ('create',) %}{% else %}hidden{% endif %}">
-                <input id="playlistNameInput" type="text" placeholder="Playlist name" maxlength="200" class="playlist-name-input" value="{{ playlist_name if playlist_name }}">
-            </div>
-            <div id="playlistPickerRow" class="playlist-picker-row {% if current_playlist_mode in ('append', 'replace') %}{% else %}hidden{% endif %}">
-                <select id="playlistPicker" class="playlist-picker-select">
-                    {% if playlist_options %}
-                        {% for pl in playlist_options %}
-                        <option value="{{ pl.id }}">{{ pl.name }}</option>
-                        {% endfor %}
-                    {% else %}
-                    <option value="">Loading playlists…</option>
-                    {% endif %}
-                </select>
-                <button class="playlist-refresh-btn" onclick="refreshDiscoverPlaylistPicker()" aria-label="Refresh playlist list" data-i18n-title="playlist.refresh_aria" title="Refresh playlist list">↻</button>
-                <button class="playlist-delete-btn" onclick="deleteSelectedPlaylist('playlistPicker')" aria-label="Delete selected playlist" data-i18n-title="playlist.delete_aria" title="Delete selected playlist">🗑</button>
-            </div>
         </div>
 
         <!-- Emerging artists filter -->

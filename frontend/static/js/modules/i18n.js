@@ -47,6 +47,9 @@ export async function applyLanguage(lang) {
     });
 
     _syncToggle(lang);
+
+    // Notify dynamically-rendered components (presets, exploration, etc.)
+    document.dispatchEvent(new CustomEvent('sv:language-changed', { detail: { lang } }));
 }
 
 export function i18n(key, fallback) {

@@ -102,6 +102,7 @@ spotyvibe/
 │   ├── band_analysis.html         # Artist deep-dive
 │   ├── run_history.html           # Past runs
 │   ├── preview_overlay.html       # Audio preview overlay
+│   ├── taste_dashboard.html       # Taste dashboard charts panel
 │   ├── theme_switcher.html, settings_gear.html, toast.html
 │   └── modals/                    # credentials, help, quickstart, settings,
 │       │                          #   privacy, setup_guide_overlay
@@ -157,6 +158,8 @@ spotyvibe/
 │       theme-spectrum.js, theme-starfield.js
 ├── frontend/static/i18n/          # en.json + de.json
 ├── frontend/tests/                # Playwright tests
+│   ├── test_frontend.py           # Main frontend integration tests
+│   └── test_profile_integration.py # Profile switch/create/delete state reset tests
 ├── prompts/                       # AI prompt templates
 ├── android/                       # Chaquopy APK (see rule 3)
 ├── build-tools/                   # build_exe.sh, build_apk.sh, build_dist.sh, start.sh (launcher)

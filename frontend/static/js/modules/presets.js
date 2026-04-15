@@ -695,6 +695,13 @@ export function init() {
     // Close dropdown on outside click
     document.addEventListener('click', _handleDocClick);
 
+    // Re-render labels when UI language changes
+    document.addEventListener('sv:language-changed', () => {
+        _updateTriggerLabel();
+        _updateActiveIndicator();
+        _renderDropdown();
+    });
+
     // Save preset modal — Enter key
     const saveInput = document.getElementById('savePresetInput');
     if (saveInput) {

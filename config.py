@@ -551,7 +551,7 @@ def get_active_profile_path():
     if not pid:
         return None
     validate_profile_id(pid)
-    return PROFILES_DIR / f"{pid}.json"
+    return PROFILES_DIR / pid / "profile.json"
 
 
 def get_active_history_path():
@@ -560,7 +560,7 @@ def get_active_history_path():
     if not pid:
         return None
     validate_profile_id(pid)
-    return PROFILES_DIR / f"{pid}.history.json"
+    return PROFILES_DIR / pid / "profile.history.json"
 
 
 # ── Wave 4: LLM provider helpers ──────────────────────────────────

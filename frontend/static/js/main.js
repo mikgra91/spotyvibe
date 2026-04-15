@@ -157,6 +157,17 @@ window.importPresetFile = Presets.importPresetFile;
 window._explorationModule = Exploration;
 window.openModal = function(id) { const el = document.getElementById(id); if (el) el.classList.add('open'); };
 
+// Wave 2+: functions referenced via onclick= in templates
+window.toggleCompletenessDetail = Completeness.toggleCompletenessDetail;
+window.confirmPlaylistSeed = PlaylistSeed.confirmPlaylistSeed;
+window.discardProfileDraft = PlaylistSeed.discardProfileDraft;
+window.openPlaylistSeedPicker = PlaylistSeed.openPlaylistSeedPicker;
+window.resetTipsSeen = Tips.resetTipsSeen;
+window.fetchProviderModels = Provider.fetchProviderModels;
+window.toggleModelFreeText = Provider.toggleModelFreeText;
+window.toggleCostPopover = CostEstimate.toggleCostPopover;
+window.toggleVoice = Voice.toggleVoice;
+
 // Listen for spotify auth popup callback
 window.addEventListener('message', async (e) => {
     if (e.data === 'spotify-auth-complete') {

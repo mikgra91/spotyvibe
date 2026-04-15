@@ -1,9 +1,12 @@
 import * as State from './state.js';
-import { showToast, showAlert, showConfirm, closeAllPopovers } from './ui.js';
+import { showToast, showAlert, showConfirm, closeAllPopovers, hidePlaylistLink } from './ui.js';
 import { i18n } from './i18n.js';
 import { renderTracks } from './tracklist.js';
 import { renderReviewTracks } from './review.js';
 import { resetDashboard } from './taste_dashboard.js';
+import { loadHistory } from './history.js';
+import { setGenerating } from './pipeline.js';
+import { renderComponentWarnings } from './warnings.js';
 
 const TRAINING_TEXTS = {
     en: [
@@ -284,6 +287,46 @@ export function initCustomProfileDropdown() {
     });
 }
 
+/**
+ * Shared cleanup after a profile change (switch, create, delete).
+ * Clears all UI state that belongs to the previous profile.
+ */
+async function _cleanupAfterProfileChange() {
+    // Cancel in-progress generation (it belongs to the old profile)
+    if (State.isGenerating) {
+        if (State.currentAbortController) State.currentAbortController.abort();
+        try { await fetch('/api/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ run_id: State.currentRunId, finalize: false }) }); } catch (_) { /* ignore */ }
+        setGenerating(false);
+    }
+
+    // Clear session state belonging to the previous profile
+    State.resetSessionState();
+    renderTracks();
+    renderReviewTracks();
+    resetDashboard();
+
+    // Clear status messages and playlist link from previous profile's run
+    const statusBox = document.getElementById('statusBox');
+    if (statusBox) { statusBox.textContent = ''; statusBox.classList.add('hidden'); }
+    hidePlaylistLink();
+
+    // Dismiss playlist seed draft banner (belongs to old profile)
+    const draftBanner = document.getElementById('profileDraftBanner');
+    if (draftBanner) draftBanner.classList.add('hidden');
+    window._svDraftMeta = null;
+
+    // Refresh history panel so it shows the new profile's runs
+    if (State.historyBodyOpen) loadHistory();
+
+    await Promise.all([checkProfileStatus(), prefillTrainFields()]);
+    // Dispatch input events so completeness meter re-reads fresh values
+    ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid']
+        .forEach(id => document.getElementById(id)?.dispatchEvent(new Event('input')));
+
+    // Re-evaluate component warnings (profileTrained may have changed)
+    renderComponentWarnings();
+}
+
 export async function switchProfile(profileId) {
     if (!profileId || profileId === _activeProfileId) return;
     try {
@@ -296,16 +339,8 @@ export async function switchProfile(profileId) {
         _activeProfileId = profileId;
         _renderCustomDropdown();
 
-        // Clear session state belonging to the previous profile
-        State.resetSessionState();
-        renderTracks();
-        renderReviewTracks();
-        resetDashboard();
+        await _cleanupAfterProfileChange();
 
-        await Promise.all([checkProfileStatus(), prefillTrainFields()]);
-        // Dispatch input events so completeness meter re-reads fresh values
-        ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid']
-            .forEach(id => document.getElementById(id)?.dispatchEvent(new Event('input')));
         showToast(i18n('msg.profile_switched', 'Profile switched.'), 'success');
     } catch (e) {
         showToast(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message), 'error');
@@ -370,7 +405,10 @@ export async function createNewProfile() {
 
         // Reload the profile list — the new profile is auto-activated
         await loadProfileList();
-        await Promise.all([checkProfileStatus(), prefillTrainFields()]);
+
+        // Full cleanup: the new profile is a different profile context
+        await _cleanupAfterProfileChange();
+
         showToast(i18n('msg.profile_created', 'Profile created.'), 'success');
     } catch (e) {
         error.textContent = i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message);
@@ -403,7 +441,8 @@ export async function deleteCurrentProfile() {
         if (_profileList.length > 0) {
             await switchProfile(_profileList[0].id);
         } else {
-            await checkProfileStatus();
+            // No profiles left — still need full cleanup
+            await _cleanupAfterProfileChange();
             _clearTrainFields();
         }
 
@@ -582,6 +621,7 @@ async function handleProfileImportFile(file) {
         }
 
         showToast(i18n('profile.import_success', 'Profile imported. Previous profile saved to history.'), 'success');
+        resetDashboard();
         await Promise.all([checkProfileStatus(), prefillTrainFields()]);
     } catch (e) {
         showToast(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message), 'error');
@@ -673,6 +713,9 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
         if (banner) banner.classList.add('hidden');
         window._svDraftMeta = null;
 
+        // Dashboard data may have changed with the new profile content
+        resetDashboard();
+
         await checkProfileStatus();
 
     } catch (e) {
@@ -721,6 +764,7 @@ export async function resetProfileToHistory() {
         }
 
         showToast(i18n('profile.reset_success', 'Profile reset to history.'), 'success');
+        resetDashboard();
         await Promise.all([checkProfileStatus(), prefillTrainFields()]);
         // F.1: Dispatch input events so completeness meter re-reads fresh values
         ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid']

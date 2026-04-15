@@ -138,5 +138,10 @@ export function init() {
     }
 
     _applyMode(_currentMode);
+
+    // Refresh readouts when UI language changes
+    document.addEventListener('sv:language-changed', () => {
+        document.querySelectorAll('.gen-size-slider').forEach(s => _updateSizeReadout(s));
+    });
 }
 

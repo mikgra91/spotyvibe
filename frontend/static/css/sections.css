@@ -810,13 +810,28 @@
 }
 
 
-/* ── Playlist mode selector ─────────────────────────────────────────── */
-.playlist-mode-row {
+/* ── Playlist destination section (shared, visible in Quick & Advanced) ── */
+.playlist-destination-section {
     background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     padding: 14px 16px;
     margin-bottom: 12px;
+}
+
+.playlist-destination-label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+/* ── Playlist mode selector ─────────────────────────────────────────── */
+.playlist-mode-row {
+    margin-bottom: 0;
 }
 
 .playlist-mode-options {

@@ -37,7 +37,7 @@ def _history_file() -> Path:
     """
     pid = get_active_profile_id()
     if pid:
-        return PROFILES_DIR / f"{pid}_run_history.json"
+        return PROFILES_DIR / pid / "run_history.json"
     return _LEGACY_HISTORY_FILE
 
 

@@ -185,7 +185,7 @@
 /* ── Playlist form utilities ────────────────────────────────────────── */
 .playlist-name-row,
 .playlist-picker-row {
-    margin-top: 30px;
+    margin-top: 10px;
     display: flex;
     gap: 8px;
     align-items: center;

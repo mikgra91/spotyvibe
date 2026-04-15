@@ -178,15 +178,37 @@ Gib einen Künstler und optional einen Track ein. Die KI liefert:
 
 ## Geschmacks-Dashboard
 
-Unter dem Profil-Editor zeigt der Bereich „Dein Geschmack auf einen Blick" drei Diagramme. Klicke auf **Einblenden**, um den Bereich zu öffnen.
+Unter dem Profil-Editor zeigt der Bereich „Dein Geschmack auf einen Blick" interaktive Diagramme, die deine Hörgewohnheiten visualisieren. Die Daten werden automatisch aus deinem Generierungsverlauf aggregiert.
 
-Wenn noch nicht genug Playlists generiert wurden, wird stattdessen „Noch nicht genug Daten" angezeigt. Ab mindestens 10 einzigartigen Tracks erscheinen die Diagramme:
+### Dashboard öffnen
 
-- **Top-Genres** — Donut-Diagramm deiner häufigsten Genres (aus Spotify-Künstlerdaten)
-- **Energie × Valence** — Streudiagramm der Stimmung deiner Tracks (Energie und Valence sind KI-Schätzungen — ein Hinweis unter dem Diagramm weist darauf hin)
-- **Jahrzehnte** — Balkendiagramm der Veröffentlichungsjahrzehnte (aus Spotify-Albumdaten)
+Klicke auf **Einblenden** (oder auf die Bereichsüberschrift), um das Dashboard aufzuklappen. Wenn noch nicht genug Playlists generiert wurden, wird stattdessen „Noch nicht genug Daten" angezeigt. Ab mindestens **10 einzigartigen Tracks** erscheinen die Diagramme.
 
-Die Daten werden automatisch aus deinem Generierungsverlauf aggregiert.
+### Diagramme
+
+- **Top-Genres** — Donut-Diagramm deiner häufigsten Genres (aus Spotify-Künstlerdaten). Fahre mit der Maus über ein Segment, um Genre und Anzahl zu sehen.
+- **Energie × Valence** — Streudiagramm der Stimmung deiner Tracks. Die horizontale Achse zeigt Valence (traurig → fröhlich), die vertikale Achse zeigt Energie (ruhig → intensiv). Energie und Valence sind KI-Schätzungen — ein Hinweis unter dem Diagramm weist darauf hin.
+- **Jahrzehnte** — Balkendiagramm der Veröffentlichungsjahrzehnte (aus Spotify-Albumdaten).
+
+### Stimmungsabschnitte
+
+Wenn du Feedback zu Tracks gegeben hast (Likes/Dislikes), wird das Dashboard in bis zu drei Abschnitte aufgeteilt:
+
+- **Alle Tracks** — Hauptansicht mit allen Tracks deiner Läufe.
+- **Gelikte Tracks** — Diagramme nur für Tracks, die du geliked (👍) hast.
+- **Dislikte Tracks** — Diagramme nur für Tracks, die du disliked (👎) hast.
+
+Die Like-/Dislike-Abschnitte erscheinen nur, wenn genug Daten vorhanden sind.
+
+### Profil-Isolation
+
+Jedes Profil hat seine eigenen, unabhängigen Dashboard-Daten. Wenn du **Profile wechselst** oder ein **neues Profil erstellst**, wird das Dashboard vollständig zurückgesetzt:
+
+- Alle Diagramme werden sofort geleert.
+- Der „Noch nicht genug Daten"-Platzhalter wird angezeigt.
+- Wenn das Dashboard gerade aufgeklappt ist, werden automatisch frische Daten für das neu aktive Profil geladen.
+
+Du siehst also niemals veraltete Diagramme eines vorherigen Profils. Ein neues Profil beginnt immer mit „Noch nicht genug Daten", bis du unter diesem Profil Playlists generierst.
 
 ---
 

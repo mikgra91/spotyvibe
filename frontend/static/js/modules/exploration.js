@@ -202,6 +202,11 @@ export function init() {
     if (emergingCb) {
         emergingCb.addEventListener('change', onUnderlyingFieldChange);
     }
+
+    // Re-render labels when UI language changes
+    document.addEventListener('sv:language-changed', () => {
+        _updateLabels(_currentNotch);
+    });
 }
 
 

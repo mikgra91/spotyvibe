@@ -36,11 +36,13 @@ class TestLoadTemplate:
 
 
 def _patch_active_profile(tmp_path, profile_id="test-id"):
-    """Return context managers that patch active profile paths to use tmp_path/profiles/."""
+    """Return context managers that patch active profile paths to use tmp_path/profiles/<id>/."""
     profiles_dir = tmp_path / "profiles"
     profiles_dir.mkdir(exist_ok=True)
-    profile_path = profiles_dir / f"{profile_id}.json"
-    history_path = profiles_dir / f"{profile_id}.history.json"
+    profile_dir = profiles_dir / profile_id
+    profile_dir.mkdir(exist_ok=True)
+    profile_path = profile_dir / "profile.json"
+    history_path = profile_dir / "profile.history.json"
     return (
         patch("core.src.profile.get_active_profile_path", return_value=profile_path),
         patch("core.src.profile.get_active_history_path", return_value=history_path),
@@ -54,7 +56,7 @@ class TestEnsureProfile:
         p1, p2, p3, p4 = _patch_active_profile(tmp_path)
         with p1, p2, p3, p4:
             ensure_profile()
-            profile_path = tmp_path / "profiles" / "test-id.json"
+            profile_path = tmp_path / "profiles" / "test-id" / "profile.json"
             assert profile_path.exists()
             data = json.loads(profile_path.read_text())
             assert data["last_updated"] is None
@@ -62,8 +64,8 @@ class TestEnsureProfile:
 
     def test_does_not_overwrite_existing(self, tmp_path):
         p1, p2, p3, p4 = _patch_active_profile(tmp_path)
-        profile_path = tmp_path / "profiles" / "test-id.json"
-        (tmp_path / "profiles").mkdir(exist_ok=True)
+        profile_path = tmp_path / "profiles" / "test-id" / "profile.json"
+        profile_path.parent.mkdir(parents=True, exist_ok=True)
         profile_path.write_text('{"custom": true}')
         with p1, p2, p3, p4:
             ensure_profile()
@@ -74,8 +76,8 @@ class TestEnsureProfile:
 class TestLoadProfile:
     def test_loads_existing_profile(self, tmp_path):
         p1, p2, p3, p4 = _patch_active_profile(tmp_path)
-        profile_path = tmp_path / "profiles" / "test-id.json"
-        (tmp_path / "profiles").mkdir(exist_ok=True)
+        profile_path = tmp_path / "profiles" / "test-id" / "profile.json"
+        profile_path.parent.mkdir(parents=True, exist_ok=True)
         expected = {"last_updated": "2025-01-01", "preferences": {}}
         profile_path.write_text(json.dumps(expected))
         with p1, p2, p3, p4:
@@ -86,7 +88,7 @@ class TestLoadProfile:
         p1, p2, p3, p4 = _patch_active_profile(tmp_path)
         with p1, p2, p3, p4:
             result = load_profile()
-        profile_path = tmp_path / "profiles" / "test-id.json"
+        profile_path = tmp_path / "profiles" / "test-id" / "profile.json"
         assert "preferences" in result
         assert profile_path.exists()
 
@@ -94,9 +96,10 @@ class TestLoadProfile:
 class TestSaveProfile:
     def test_writes_profile_and_backup(self, tmp_path):
         p1, p2, p3, p4 = _patch_active_profile(tmp_path)
-        profile_path = tmp_path / "profiles" / "test-id.json"
-        history_path = tmp_path / "profiles" / "test-id.history.json"
-        (tmp_path / "profiles").mkdir(exist_ok=True)
+        profile_dir = tmp_path / "profiles" / "test-id"
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        profile_path = profile_dir / "profile.json"
+        history_path = profile_dir / "profile.history.json"
         original = {"last_updated": None, "preferences": {}, "history": {}, "feedback": {}, "artists": {}, "meta": {"goal": ""}, "taste_rules": {"primary_driver": "", "dealbreaker_priority": []}}
         profile_path.write_text(json.dumps(original))
 
@@ -351,6 +354,9 @@ class TestSaveProfileSections:
 
 
 class TestListProfiles:
+    _UUID_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    _UUID_B = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+
     def test_returns_empty_when_no_profiles(self, tmp_path):
         _, _, _, p4 = _patch_active_profile(tmp_path)
         with p4:
@@ -360,20 +366,28 @@ class TestListProfiles:
     def test_lists_all_profiles(self, tmp_path):
         profiles_dir = tmp_path / "profiles"
         profiles_dir.mkdir()
-        (profiles_dir / "aaa.json").write_text(json.dumps({"name": "Work", "last_updated": "2025-01-01"}))
-        (profiles_dir / "bbb.json").write_text(json.dumps({"name": "Chill", "last_updated": None}))
+        (profiles_dir / self._UUID_A).mkdir()
+        (profiles_dir / self._UUID_A / "profile.json").write_text(
+            json.dumps({"name": "Work", "last_updated": "2025-01-01"}))
+        (profiles_dir / self._UUID_B).mkdir()
+        (profiles_dir / self._UUID_B / "profile.json").write_text(
+            json.dumps({"name": "Chill", "last_updated": None}))
         _, _, _, p4 = _patch_active_profile(tmp_path)
         with p4:
             result = list_profiles()
         assert len(result) == 2
-        assert result[0] == {"id": "aaa", "name": "Work", "trained": True, "last_updated": "2025-01-01"}
-        assert result[1] == {"id": "bbb", "name": "Chill", "trained": False, "last_updated": None}
+        assert result[0] == {"id": self._UUID_A, "name": "Work", "trained": True, "last_updated": "2025-01-01"}
+        assert result[1] == {"id": self._UUID_B, "name": "Chill", "trained": False, "last_updated": None}
 
-    def test_excludes_history_files(self, tmp_path):
+    def test_ignores_non_uuid_directories(self, tmp_path):
         profiles_dir = tmp_path / "profiles"
         profiles_dir.mkdir()
-        (profiles_dir / "aaa.json").write_text(json.dumps({"name": "A", "last_updated": None}))
-        (profiles_dir / "aaa.history.json").write_text(json.dumps({"name": "A", "last_updated": None}))
+        (profiles_dir / self._UUID_A).mkdir()
+        (profiles_dir / self._UUID_A / "profile.json").write_text(
+            json.dumps({"name": "A", "last_updated": None}))
+        (profiles_dir / "not-a-uuid").mkdir()
+        (profiles_dir / "not-a-uuid" / "profile.json").write_text(
+            json.dumps({"name": "B", "last_updated": None}))
         _, _, _, p4 = _patch_active_profile(tmp_path)
         with p4:
             result = list_profiles()
@@ -382,26 +396,58 @@ class TestListProfiles:
     def test_skips_corrupt_files(self, tmp_path):
         profiles_dir = tmp_path / "profiles"
         profiles_dir.mkdir()
-        (profiles_dir / "good.json").write_text(json.dumps({"name": "Good", "last_updated": None}))
-        (profiles_dir / "bad.json").write_text("NOT JSON {{{")
+        (profiles_dir / self._UUID_A).mkdir()
+        (profiles_dir / self._UUID_A / "profile.json").write_text(
+            json.dumps({"name": "Good", "last_updated": None}))
+        (profiles_dir / self._UUID_B).mkdir()
+        (profiles_dir / self._UUID_B / "profile.json").write_text("NOT JSON {{{")
         _, _, _, p4 = _patch_active_profile(tmp_path)
         with p4:
             result = list_profiles()
         assert len(result) == 1
-        assert result[0]["id"] == "good"
+        assert result[0]["id"] == self._UUID_A
 
     def test_excludes_unnamed_profiles(self, tmp_path):
         """Profiles with empty or missing name should be filtered out."""
         profiles_dir = tmp_path / "profiles"
         profiles_dir.mkdir()
-        (profiles_dir / "named.json").write_text(json.dumps({"name": "My Profile", "last_updated": None}))
-        (profiles_dir / "empty.json").write_text(json.dumps({"name": "", "last_updated": None}))
-        (profiles_dir / "missing.json").write_text(json.dumps({"last_updated": None}))
+        (profiles_dir / self._UUID_A).mkdir()
+        (profiles_dir / self._UUID_A / "profile.json").write_text(
+            json.dumps({"name": "My Profile", "last_updated": None}))
+        (profiles_dir / self._UUID_B).mkdir()
+        (profiles_dir / self._UUID_B / "profile.json").write_text(
+            json.dumps({"name": "", "last_updated": None}))
         _, _, _, p4 = _patch_active_profile(tmp_path)
         with p4:
             result = list_profiles()
         assert len(result) == 1
         assert result[0]["name"] == "My Profile"
+
+    def test_migrates_flat_files_to_subdirectories(self, tmp_path):
+        """Flat-layout profile files should be migrated automatically."""
+        profiles_dir = tmp_path / "profiles"
+        profiles_dir.mkdir()
+        # Old flat layout
+        (profiles_dir / f"{self._UUID_A}.json").write_text(
+            json.dumps({"name": "Legacy", "last_updated": "2025-01-01"}))
+        (profiles_dir / f"{self._UUID_A}.history.json").write_text(
+            json.dumps({"name": "Legacy old", "last_updated": None}))
+        (profiles_dir / f"{self._UUID_A}_run_history.json").write_text(
+            json.dumps([{"run_id": "r1"}]))
+        _, _, _, p4 = _patch_active_profile(tmp_path)
+        with p4:
+            result = list_profiles()
+        # Profile should be found via the new layout
+        assert len(result) == 1
+        assert result[0]["id"] == self._UUID_A
+        assert result[0]["name"] == "Legacy"
+        # Flat files should be gone, subdirectory should exist
+        assert not (profiles_dir / f"{self._UUID_A}.json").exists()
+        assert not (profiles_dir / f"{self._UUID_A}.history.json").exists()
+        assert not (profiles_dir / f"{self._UUID_A}_run_history.json").exists()
+        assert (profiles_dir / self._UUID_A / "profile.json").exists()
+        assert (profiles_dir / self._UUID_A / "profile.history.json").exists()
+        assert (profiles_dir / self._UUID_A / "run_history.json").exists()
 
 
 class TestCreateProfile:
@@ -411,7 +457,7 @@ class TestCreateProfile:
             result = create_profile("Workout")
         assert result["name"] == "Workout"
         assert result["id"]  # UUID string
-        profile_path = tmp_path / "profiles" / f"{result['id']}.json"
+        profile_path = tmp_path / "profiles" / result["id"] / "profile.json"
         assert profile_path.exists()
         data = json.loads(profile_path.read_text())
         assert data["name"] == "Workout"
@@ -430,7 +476,10 @@ class TestCreateProfile:
     def test_rejects_duplicate_name(self, tmp_path):
         profiles_dir = tmp_path / "profiles"
         profiles_dir.mkdir()
-        (profiles_dir / "existing.json").write_text(json.dumps({"name": "Workout", "last_updated": None}))
+        existing_id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+        (profiles_dir / existing_id).mkdir()
+        (profiles_dir / existing_id / "profile.json").write_text(
+            json.dumps({"name": "Workout", "last_updated": None}))
         _, _, _, p4 = _patch_active_profile(tmp_path)
         with p4, patch("core.src.profile.set_active_profile_id"), pytest.raises(ValueError, match="already exists"):
             create_profile("workout")  # case-insensitive
@@ -442,23 +491,25 @@ class TestDeleteProfile:
     _UUID_B = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
     _UUID_C = "cccccccc-cccc-cccc-cccc-cccccccccccc"
 
-    def test_deletes_profile_and_history(self, tmp_path):
+    def test_deletes_profile_directory(self, tmp_path):
         profiles_dir = tmp_path / "profiles"
-        profiles_dir.mkdir()
-        (profiles_dir / f"{self._UUID_A}.json").write_text("{}")
-        (profiles_dir / f"{self._UUID_A}.history.json").write_text("{}")
+        profile_dir = profiles_dir / self._UUID_A
+        profile_dir.mkdir(parents=True)
+        (profile_dir / "profile.json").write_text("{}")
+        (profile_dir / "profile.history.json").write_text("{}")
+        (profile_dir / "run_history.json").write_text("[]")
         _, _, _, p4 = _patch_active_profile(tmp_path)
         with p4, patch("core.src.profile.get_active_profile_id", return_value=self._UUID_A), \
              patch("core.src.profile.set_active_profile_id") as mock_set:
             delete_profile(self._UUID_A)
-        assert not (profiles_dir / f"{self._UUID_A}.json").exists()
-        assert not (profiles_dir / f"{self._UUID_A}.history.json").exists()
+        assert not profile_dir.exists()
         mock_set.assert_called_once_with("")
 
     def test_clears_active_when_deleting_active_profile(self, tmp_path):
         profiles_dir = tmp_path / "profiles"
-        profiles_dir.mkdir()
-        (profiles_dir / f"{self._UUID_B}.json").write_text("{}")
+        profile_dir = profiles_dir / self._UUID_B
+        profile_dir.mkdir(parents=True)
+        (profile_dir / "profile.json").write_text("{}")
         _, _, _, p4 = _patch_active_profile(tmp_path)
         with p4, patch("core.src.profile.get_active_profile_id", return_value=self._UUID_B), \
              patch("core.src.profile.set_active_profile_id") as mock_set:
@@ -467,8 +518,9 @@ class TestDeleteProfile:
 
     def test_does_not_clear_active_when_deleting_other_profile(self, tmp_path):
         profiles_dir = tmp_path / "profiles"
-        profiles_dir.mkdir()
-        (profiles_dir / f"{self._UUID_B}.json").write_text("{}")
+        profile_dir = profiles_dir / self._UUID_B
+        profile_dir.mkdir(parents=True)
+        (profile_dir / "profile.json").write_text("{}")
         _, _, _, p4 = _patch_active_profile(tmp_path)
         with p4, patch("core.src.profile.get_active_profile_id", return_value=self._UUID_C), \
              patch("core.src.profile.set_active_profile_id") as mock_set:
@@ -495,8 +547,9 @@ class TestActivateProfile:
 
     def test_activates_existing_profile(self, tmp_path):
         profiles_dir = tmp_path / "profiles"
-        profiles_dir.mkdir()
-        (profiles_dir / f"{self._UUID_A}.json").write_text("{}")
+        profile_dir = profiles_dir / self._UUID_A
+        profile_dir.mkdir(parents=True)
+        (profile_dir / "profile.json").write_text("{}")
         _, _, _, p4 = _patch_active_profile(tmp_path)
         with p4, patch("core.src.profile.set_active_profile_id") as mock_set:
             activate_profile(self._UUID_A)
@@ -598,4 +651,253 @@ class TestDraftProfileFromPlaylist:
 
         assert len(result["must_have"]) == 3
         assert result["avoid"] == []
+
+
+# ── Integration tests ────────────────────────────────────────────────
+#
+# These tests use the `isolated_profiles_env` fixture which patches ONLY
+# the directory constants, letting real path resolution run through
+# config.py. They catch bugs that unit tests with mocked paths miss —
+# like the list_profiles() crash on _run_history.json files.
+
+class TestProfileIntegration:
+    """Integration tests that exercise real disk I/O with real path resolution."""
+
+    def test_create_and_list_round_trip(self, isolated_profiles_env):
+        """Create a profile on disk, then list it — verifies the full chain."""
+        result = create_profile("Rock")
+        pid = result["id"]
+
+        # Verify it's on disk in the correct subdirectory
+        profile_file = isolated_profiles_env["profiles_dir"] / pid / "profile.json"
+        assert profile_file.exists(), "Profile JSON not created on disk"
+
+        data = json.loads(profile_file.read_text())
+        assert data["name"] == "Rock"
+
+        # Verify list_profiles finds it
+        profiles = list_profiles()
+        assert len(profiles) == 1
+        assert profiles[0]["id"] == pid
+        assert profiles[0]["name"] == "Rock"
+        assert profiles[0]["trained"] is False
+
+    def test_create_activate_load_round_trip(self, isolated_profiles_env):
+        """Create → auto-activate → load: verify profile data comes back intact."""
+        from config import get_active_profile_id
+
+        result = create_profile("Jazz")
+        pid = result["id"]
+
+        # create_profile auto-activates
+        assert get_active_profile_id() == pid
+
+        # load_profile should return the template with name set
+        profile = load_profile()
+        assert profile["name"] == "Jazz"
+        assert "preferences" in profile
+        assert "artists" in profile
+        assert "history" in profile
+        assert "feedback" in profile
+        assert "meta" in profile
+        assert "taste_rules" in profile
+        assert profile["last_updated"] is None
+
+    def test_create_two_profiles_list_both(self, isolated_profiles_env):
+        """Two profiles created → both appear in list_profiles."""
+        r1 = create_profile("Rock")
+        r2 = create_profile("Jazz")
+
+        profiles = list_profiles()
+        assert len(profiles) == 2
+        names = {p["name"] for p in profiles}
+        assert names == {"Rock", "Jazz"}
+        ids = {p["id"] for p in profiles}
+        assert r1["id"] in ids
+        assert r2["id"] in ids
+
+    def test_delete_profile_removes_directory(self, isolated_profiles_env):
+        """Delete removes the entire profile subdirectory."""
+        result = create_profile("Temp")
+        pid = result["id"]
+        profile_dir = isolated_profiles_env["profiles_dir"] / pid
+        assert profile_dir.exists()
+
+        delete_profile(pid)
+        assert not profile_dir.exists()
+        assert list_profiles() == []
+
+    def test_activate_profile_switches_context(self, isolated_profiles_env):
+        """Activating a different profile changes which one load_profile returns."""
+        r1 = create_profile("Rock")
+        r2 = create_profile("Jazz")
+
+        # create_profile auto-activates the last one
+        assert load_profile()["name"] == "Jazz"
+
+        activate_profile(r1["id"])
+        assert load_profile()["name"] == "Rock"
+
+        activate_profile(r2["id"])
+        assert load_profile()["name"] == "Jazz"
+
+    def test_save_profile_creates_history_backup(self, isolated_profiles_env):
+        """Save creates a .history.json backup alongside profile.json."""
+        result = create_profile("Rock")
+        pid = result["id"]
+        profile_dir = isolated_profiles_env["profiles_dir"] / pid
+
+        profile = load_profile()
+        profile["preferences"]["core_description"] = "Heavy rock"
+        save_profile(profile)
+
+        assert (profile_dir / "profile.json").exists()
+        assert (profile_dir / "profile.history.json").exists()
+
+        # Current file has the update
+        current = json.loads((profile_dir / "profile.json").read_text())
+        assert current["preferences"]["core_description"] == "Heavy rock"
+
+        # Backup has the original (no core_description or empty)
+        backup = json.loads((profile_dir / "profile.history.json").read_text())
+        assert backup["preferences"]["core_description"] == ""
+
+    def test_list_profiles_survives_stray_flat_files(self, isolated_profiles_env):
+        """Stray flat files (old layout) in profiles dir don't crash list_profiles.
+
+        This is the exact scenario that caused the original bug: _run_history.json
+        in the profiles root is a JSON array, and list_profiles() called .get()
+        on it, causing an AttributeError.
+        """
+        result = create_profile("Rock")
+        pid = result["id"]
+        profiles_dir = isolated_profiles_env["profiles_dir"]
+
+        # Write a stray JSON array file (simulates old _run_history.json)
+        stray = profiles_dir / "some_stray_file.json"
+        stray.write_text(json.dumps([{"run_id": "x"}]))
+
+        # Must not crash
+        profiles = list_profiles()
+        assert len(profiles) == 1
+        assert profiles[0]["name"] == "Rock"
+
+    def test_list_profiles_survives_non_dict_profile_json(self, isolated_profiles_env):
+        """A profile.json containing a JSON array instead of dict is skipped."""
+        profiles_dir = isolated_profiles_env["profiles_dir"]
+        bad_uuid = "deadbeef-dead-beef-dead-beefdeadbeef"
+        bad_dir = profiles_dir / bad_uuid
+        bad_dir.mkdir()
+        (bad_dir / "profile.json").write_text(json.dumps([1, 2, 3]))
+
+        profiles = list_profiles()
+        assert len(profiles) == 0
+
+    def test_list_profiles_ignores_non_uuid_directories(self, isolated_profiles_env):
+        """Directories not matching UUID pattern are ignored."""
+        profiles_dir = isolated_profiles_env["profiles_dir"]
+        bogus = profiles_dir / "my-backup"
+        bogus.mkdir()
+        (bogus / "profile.json").write_text(json.dumps({"name": "Fake", "last_updated": None}))
+
+        profiles = list_profiles()
+        assert len(profiles) == 0
+
+    def test_migration_moves_flat_files_to_subdirectory(self, isolated_profiles_env):
+        """Flat-layout files are migrated to subdirectory on list_profiles call."""
+        profiles_dir = isolated_profiles_env["profiles_dir"]
+        fake_uuid = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+
+        # Write old flat-layout files
+        (profiles_dir / f"{fake_uuid}.json").write_text(
+            json.dumps({"name": "Legacy", "last_updated": "2025-01-01"}))
+        (profiles_dir / f"{fake_uuid}.history.json").write_text(
+            json.dumps({"name": "Legacy old"}))
+        (profiles_dir / f"{fake_uuid}_run_history.json").write_text(
+            json.dumps([{"run_id": "r1"}]))
+
+        profiles = list_profiles()
+
+        # Profile found in new layout
+        assert len(profiles) == 1
+        assert profiles[0]["id"] == fake_uuid
+        assert profiles[0]["name"] == "Legacy"
+
+        # Flat files gone
+        assert not (profiles_dir / f"{fake_uuid}.json").exists()
+        assert not (profiles_dir / f"{fake_uuid}.history.json").exists()
+        assert not (profiles_dir / f"{fake_uuid}_run_history.json").exists()
+
+        # Subdirectory has all files
+        sub = profiles_dir / fake_uuid
+        assert (sub / "profile.json").exists()
+        assert (sub / "profile.history.json").exists()
+        assert (sub / "run_history.json").exists()
+
+    def test_save_profile_sections_round_trip(self, isolated_profiles_env):
+        """Save sections → load → verify preferences match."""
+        create_profile("Rock")
+
+        updated = save_profile_sections({
+            "core_description": "Heavy rock with theatrical vocals",
+            "must_have": "guitar solos\nhigh energy",
+            "soft_preferences": "prog influence",
+            "avoid": "country\nelectronic",
+        })
+
+        # Re-load from disk and verify
+        reloaded = load_profile()
+        assert reloaded["preferences"]["core_description"] == "Heavy rock with theatrical vocals"
+        assert reloaded["preferences"]["must_have"] == ["guitar solos", "high energy"]
+        assert reloaded["preferences"]["soft_preferences"] == ["prog influence"]
+        assert reloaded["preferences"]["avoid"] == ["country", "electronic"]
+        assert reloaded["last_updated"] is not None
+
+    def test_delete_active_profile_clears_active_id(self, isolated_profiles_env):
+        """Deleting the active profile sets ACTIVE_PROFILE_ID to empty."""
+        from config import get_active_profile_id
+
+        result = create_profile("Temp")
+        pid = result["id"]
+        assert get_active_profile_id() == pid
+
+        delete_profile(pid)
+        assert get_active_profile_id() == ""
+
+    def test_create_profile_populates_full_template(self, isolated_profiles_env):
+        """Newly created profile has all template keys and correct structure."""
+        result = create_profile("Test")
+        profile = load_profile()
+
+        # All top-level keys from the template
+        for key in ("name", "last_updated", "meta", "preferences",
+                     "artists", "history", "feedback", "taste_rules"):
+            assert key in profile, f"Missing top-level key: {key}"
+
+        # Preferences has the expected sub-keys
+        prefs = profile["preferences"]
+        for key in ("core_description", "must_have", "soft_preferences", "avoid"):
+            assert key in prefs, f"Missing preferences key: {key}"
+
+        # Lists are actually lists
+        assert isinstance(prefs["must_have"], list)
+        assert isinstance(prefs["soft_preferences"], list)
+        assert isinstance(prefs["avoid"], list)
+
+    def test_profile_data_persists_across_load_save_cycles(self, isolated_profiles_env):
+        """Data written via save_profile survives a full load→save→load cycle."""
+        create_profile("Cycle")
+        profile = load_profile()
+
+        profile["preferences"]["core_description"] = "Progressive rock"
+        profile["preferences"]["must_have"] = ["complex time signatures", "guitar"]
+        profile["artists"]["confirmed"] = ["Rush", "Yes"]
+        save_profile(profile)
+
+        # Load again and verify all fields survived
+        reloaded = load_profile()
+        assert reloaded["preferences"]["core_description"] == "Progressive rock"
+        assert reloaded["preferences"]["must_have"] == ["complex time signatures", "guitar"]
+        assert reloaded["artists"]["confirmed"] == ["Rush", "Yes"]
+        assert reloaded["name"] == "Cycle"
 

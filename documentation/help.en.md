@@ -54,6 +54,11 @@ This guide explains how to use the **SpotyVibe interface** to set up your prefer
   - [Like a Track (Refine)](#like-a-track-refine)
   - [Dislike a Track (Refine)](#dislike-a-track-refine)
   - [Dismiss a Track](#dismiss-a-track)
+- [Taste Dashboard](#taste-dashboard)
+  - [Opening the Dashboard](#opening-the-dashboard)
+  - [Charts](#charts)
+  - [Sentiment Sections](#sentiment-sections)
+  - [Profile Isolation](#profile-isolation)
 - [Song List & Run History](#song-list--run-history)
   - [Persistent Song List](#persistent-song-list)
   - [Run History](#run-history)
@@ -855,6 +860,44 @@ Use this for tracks you feel neutral about but want to remove from the playlist.
 The card animates out of the review list.
 
 ![Dismiss button on review track card](/docs/screenshots/41_review_dismiss_button.png)
+
+---
+
+## Taste Dashboard
+
+Below the Music Profile editor, the **"Your taste at a glance"** section shows interactive charts that visualise your listening patterns. The data is aggregated automatically from your playlist generation history.
+
+### Opening the Dashboard
+
+Click **Show** (or click the section header) to expand the dashboard panel. If you have not generated enough playlists yet, you will see a **"Not enough data yet"** placeholder instead of charts. Charts appear once you have at least **10 unique tracks** across your generation runs.
+
+### Charts
+
+The dashboard displays three chart types:
+
+- **Top Genres** — A donut chart showing your most frequent genres, derived from Spotify artist metadata. Hover over a slice to see the genre name and track count.
+- **Energy × Valence** — A scatter plot mapping the mood of your tracks. The horizontal axis represents valence (sad → happy) and the vertical axis represents energy (calm → intense). Hover over a dot to see the artist and track title. A footnote reminds you that energy and valence values are AI estimates, not exact measurements.
+- **Decades** — A bar chart showing the release decades of your tracks, derived from Spotify album data.
+
+### Sentiment Sections
+
+If you have given feedback on tracks (likes/dislikes), the dashboard splits into up to three sub-sections:
+
+- **All tracks** — The main view aggregating every track from your runs.
+- **Liked tracks** — Charts based only on tracks you liked (👍).
+- **Disliked tracks** — Charts based only on tracks you disliked (👎).
+
+The liked and disliked sections only appear when there is enough data to display.
+
+### Profile Isolation
+
+Each profile has its own independent dashboard data. When you **switch profiles** or **create a new profile**, the dashboard is fully reset:
+
+- All charts are cleared immediately.
+- The empty-state placeholder is shown.
+- If the dashboard panel is currently expanded, fresh data is fetched automatically for the newly active profile.
+
+This means you will never see stale charts from a previous profile. A brand-new profile always starts with the "Not enough data yet" message until you generate playlists under that profile.
 
 ---
 
