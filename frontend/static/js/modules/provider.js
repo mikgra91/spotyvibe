@@ -10,7 +10,6 @@ export const PROVIDER_PRESETS = {
     lmstudio:   { id: 'lmstudio',   name_i18n: 'provider.lmstudio',   default_base_url: 'http://localhost:1234/v1',         local: true,  doc_url: 'https://lmstudio.ai/' },
     groq:       { id: 'groq',       name_i18n: 'provider.groq',       default_base_url: 'https://api.groq.com/openai/v1',  local: false, doc_url: 'https://console.groq.com/keys' },
     openrouter: { id: 'openrouter', name_i18n: 'provider.openrouter', default_base_url: 'https://openrouter.ai/api/v1',    local: false, doc_url: 'https://openrouter.ai/keys' },
-    custom:     { id: 'custom',     name_i18n: 'provider.custom',     default_base_url: '',                                local: false, doc_url: null },
 };
 
 let _currentPreset = 'openai';
@@ -22,13 +21,13 @@ export function onProviderChange() {
     _currentPreset = preset;
     const p = PROVIDER_PRESETS[preset] || PROVIDER_PRESETS.openai;
 
-    // Base URL row visibility
+    // Base URL row — always hidden (presets have fixed URLs)
     const urlRow = document.getElementById('providerBaseUrlRow');
-    if (urlRow) urlRow.classList.toggle('hidden', preset !== 'custom');
+    if (urlRow) urlRow.classList.add('hidden');
 
     // Set default base URL
     const urlInput = document.getElementById('settings-base-url');
-    if (urlInput && preset !== 'custom') urlInput.value = p.default_base_url;
+    if (urlInput) urlInput.value = p.default_base_url;
 
     // API key label
     const keyLabel = document.getElementById('settings-api-key-label');
@@ -61,8 +60,7 @@ export async function fetchProviderModels() {
     const preset = select ? select.value : 'openai';
     const p = PROVIDER_PRESETS[preset] || PROVIDER_PRESETS.openai;
 
-    const urlInput = document.getElementById('settings-base-url');
-    const base_url = (preset === 'custom' && urlInput) ? urlInput.value.trim() : p.default_base_url;
+    const base_url = p.default_base_url;
 
     const keyInput = document.getElementById('settings-api-key');
     const api_key = keyInput ? keyInput.value.trim() : '';
@@ -135,10 +133,6 @@ export function toggleModelFreeText() {
 export function getCurrentPreset() { return _currentPreset; }
 export function getBaseUrl() {
     const p = PROVIDER_PRESETS[_currentPreset] || PROVIDER_PRESETS.openai;
-    if (_currentPreset === 'custom') {
-        const urlInput = document.getElementById('settings-base-url');
-        return urlInput ? urlInput.value.trim() : '';
-    }
     return p.default_base_url;
 }
 

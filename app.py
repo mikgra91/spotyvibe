@@ -713,6 +713,7 @@ def run_pipeline():
                 "result",
                 playlist=visible_playlist,
                 playlist_url=playlist_info.get("url"),
+                playlist_id=playlist_info.get("playlist_id"),
                 added=playlist_info.get("added", 0),
                 not_found=all_not_found,
                 was_cancelled=was_cancelled or gpt_exhausted,
@@ -911,7 +912,7 @@ def write_settings():
         payload["UI_LANGUAGE"] = sanitize_text(str(data["ui_language"]).strip())
 
     # Wave 4: Provider preset + base URL
-    valid_presets = {"openai", "ollama", "lmstudio", "groq", "openrouter", "custom"}
+    valid_presets = {"openai", "ollama", "lmstudio", "groq", "openrouter"}
     if "provider_preset" in data:
         preset = sanitize_text(str(data["provider_preset"]).strip())
         if preset in valid_presets:
@@ -932,6 +933,10 @@ def fetch_llm_models():
     data = request.get_json(silent=True) or {}
     base_url = sanitize_text(str(data.get("base_url", "")).strip())
     api_key = data.get("api_key", "")
+
+    # Fall back to stored credential when caller doesn't provide a key
+    if not api_key:
+        api_key = os.environ.get("OPENAI_API_KEY", "")
 
     if not base_url:
         return jsonify({"error": "base_url is required"}), 400

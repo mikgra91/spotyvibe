@@ -22,7 +22,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/provider.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
 </head>
-<body class="onboarding-body" style="background: var(--bg-deep); min-height: 100vh;">
+<body class="onboarding-body" style="background: var(--bg-deep);">
 
 <!-- Persistent language toggle -->
 <div class="lang-toggle ob-lang-toggle" role="group" aria-label="Language">
@@ -114,19 +114,9 @@
                                     <li role="option" data-value="lmstudio" class="ob-custom-select-option" data-i18n="provider.lmstudio">LM Studio (local)</li>
                                     <li role="option" data-value="groq" class="ob-custom-select-option" data-i18n="provider.groq">Groq</li>
                                     <li role="option" data-value="openrouter" class="ob-custom-select-option" data-i18n="provider.openrouter">OpenRouter</li>
-                                    <li role="option" data-value="custom" class="ob-custom-select-option" data-i18n="provider.custom">Custom…</li>
                                 </ul>
                             </div>
                             <div class="ob-cred-hint" data-i18n="provider.hint">Pick where SpotyVibe gets its AI from.</div>
-                        </div>
-
-                        <!-- Base URL (only for Custom provider) -->
-                        <div class="ob-cred-row hidden" id="ob-base-url-row">
-                            <label for="ob-base-url" class="ob-cred-label" data-i18n="provider.base_url_label">Base URL</label>
-                            <div class="ob-cred-input-wrap">
-                                <input class="ob-cred-input" id="ob-base-url" type="text" placeholder="https://api.example.com/v1" autocomplete="off">
-                            </div>
-                            <div class="ob-cred-hint" data-i18n="provider.base_url_hint">Full URL ending in /v1.</div>
                         </div>
 
                         <!-- API key -->
@@ -144,7 +134,8 @@
                             <p class="provider-local-notice hidden" id="obLocalNotice" data-i18n="provider.local_notice">Local providers don't need an API key — any value or leave empty.</p>
                         </div>
 
-                        <div class="ob-cred-guide">
+                        <!-- Provider-specific "How do I get this?" guides -->
+                        <div class="ob-cred-guide" id="ob-guide-openai">
                             <button class="ob-cred-guide-toggle" aria-expanded="false" aria-controls="ob-openai-guide-body" onclick="toggleObGuide(this, 'ob-openai-guide-body')">
                                 <span class="ob-cred-guide-chevron" aria-hidden="true">▸</span>
                                 <span data-i18n="ob.howto_openai">How do I get this?</span>
@@ -156,6 +147,66 @@
                                     <li data-i18n="ob.openai_step3">Copy it (you won't see it again)</li>
                                 </ol>
                                 <button class="ob-cred-guide-readmore" onclick="openSetupGuide('openai_api_key')">📖 <span data-i18n="ob.read_full_guide">Read full guide</span></button>
+                            </div>
+                        </div>
+
+                        <div class="ob-cred-guide hidden" id="ob-guide-ollama">
+                            <button class="ob-cred-guide-toggle" aria-expanded="false" aria-controls="ob-ollama-guide-body" onclick="toggleObGuide(this, 'ob-ollama-guide-body')">
+                                <span class="ob-cred-guide-chevron" aria-hidden="true">▸</span>
+                                <span data-i18n="ob.howto_local">What do I need?</span>
+                            </button>
+                            <div class="ob-cred-guide-body" id="ob-ollama-guide-body">
+                                <ol class="ob-cred-guide-bullets">
+                                    <li data-i18n="ob.ollama_step1">Install Ollama from ollama.com</li>
+                                    <li data-i18n="ob.ollama_step2">Open a terminal and run: ollama pull llama3</li>
+                                    <li data-i18n="ob.ollama_step3">Make sure Ollama is running (it starts automatically after install)</li>
+                                </ol>
+                                <a class="ob-cred-guide-readmore" href="https://ollama.com/download" target="_blank" rel="noopener">🌐 <span data-i18n="ob.visit_ollama">Visit ollama.com</span></a>
+                            </div>
+                        </div>
+
+                        <div class="ob-cred-guide hidden" id="ob-guide-lmstudio">
+                            <button class="ob-cred-guide-toggle" aria-expanded="false" aria-controls="ob-lmstudio-guide-body" onclick="toggleObGuide(this, 'ob-lmstudio-guide-body')">
+                                <span class="ob-cred-guide-chevron" aria-hidden="true">▸</span>
+                                <span data-i18n="ob.howto_local">What do I need?</span>
+                            </button>
+                            <div class="ob-cred-guide-body" id="ob-lmstudio-guide-body">
+                                <ol class="ob-cred-guide-bullets">
+                                    <li data-i18n="ob.lmstudio_step1">Download LM Studio from lmstudio.ai</li>
+                                    <li data-i18n="ob.lmstudio_step2">Search for and download a model (e.g. Llama 3, Mistral)</li>
+                                    <li data-i18n="ob.lmstudio_step3">Start the local server (Developer → Start Server)</li>
+                                </ol>
+                                <a class="ob-cred-guide-readmore" href="https://lmstudio.ai/" target="_blank" rel="noopener">🌐 <span data-i18n="ob.visit_lmstudio">Visit lmstudio.ai</span></a>
+                            </div>
+                        </div>
+
+                        <div class="ob-cred-guide hidden" id="ob-guide-groq">
+                            <button class="ob-cred-guide-toggle" aria-expanded="false" aria-controls="ob-groq-guide-body" onclick="toggleObGuide(this, 'ob-groq-guide-body')">
+                                <span class="ob-cred-guide-chevron" aria-hidden="true">▸</span>
+                                <span data-i18n="ob.howto_openai">How do I get this?</span>
+                            </button>
+                            <div class="ob-cred-guide-body" id="ob-groq-guide-body">
+                                <ol class="ob-cred-guide-bullets">
+                                    <li data-i18n="ob.groq_step1">Sign up at console.groq.com</li>
+                                    <li data-i18n="ob.groq_step2">Go to API Keys and create a new key</li>
+                                    <li data-i18n="ob.groq_step3">Copy the key (starts with gsk_)</li>
+                                </ol>
+                                <a class="ob-cred-guide-readmore" href="https://console.groq.com/keys" target="_blank" rel="noopener">🌐 <span data-i18n="ob.visit_groq">Visit console.groq.com</span></a>
+                            </div>
+                        </div>
+
+                        <div class="ob-cred-guide hidden" id="ob-guide-openrouter">
+                            <button class="ob-cred-guide-toggle" aria-expanded="false" aria-controls="ob-openrouter-guide-body" onclick="toggleObGuide(this, 'ob-openrouter-guide-body')">
+                                <span class="ob-cred-guide-chevron" aria-hidden="true">▸</span>
+                                <span data-i18n="ob.howto_openai">How do I get this?</span>
+                            </button>
+                            <div class="ob-cred-guide-body" id="ob-openrouter-guide-body">
+                                <ol class="ob-cred-guide-bullets">
+                                    <li data-i18n="ob.openrouter_step1">Sign up at openrouter.ai</li>
+                                    <li data-i18n="ob.openrouter_step2">Go to Keys and create a new API key</li>
+                                    <li data-i18n="ob.openrouter_step3">Copy the key (starts with sk-or-)</li>
+                                </ol>
+                                <a class="ob-cred-guide-readmore" href="https://openrouter.ai/keys" target="_blank" rel="noopener">🌐 <span data-i18n="ob.visit_openrouter">Visit openrouter.ai</span></a>
                             </div>
                         </div>
                     </div>
@@ -277,7 +328,7 @@
             </div>
         </div>
 
-        <!-- ═══════ Step 5 — Seed Your Taste ═══════ -->
+        <!-- ═══════ Step 5 — Pick a Model ═══════ -->
         <div class="ob-page">
             <div class="ob-card">
                 <div class="ob-step-indicator">
@@ -287,55 +338,6 @@
                     <div class="ob-pill ob-pill--complete"></div>
                     <div class="ob-pill ob-pill--current"></div>
                     <div class="ob-pill ob-pill--future"></div>
-                    <div class="ob-pill ob-pill--future"></div>
-                </div>
-                <div class="ob-icon" aria-hidden="true">🎯</div>
-                <div class="ob-title" data-i18n="ob.step5_title">Teach SpotyVibe your taste</div>
-                <div class="ob-subtitle" data-i18n="ob.step5_subtitle">Pick the quickest way in. You can always refine your profile later.</div>
-
-                <div class="ob-seed-grid">
-                    <div class="ob-seed-card" id="obSeedPlaylistCard">
-                        <span class="ob-seed-icon" aria-hidden="true">🎵</span>
-                        <span class="ob-seed-title" data-i18n="ob.seed_playlist_title">From a Spotify playlist</span>
-                        <span class="ob-seed-desc" data-i18n="ob.seed_playlist_desc">Point us at a playlist you already love — SpotyVibe drafts a profile from it you can tweak.</span>
-                        <button class="ob-seed-action" onclick="openPlaylistSeedPicker('onboarding')" data-i18n="ob.seed_playlist_btn">Choose playlist →</button>
-                        <span class="ob-seed-connect-hint hidden" id="obSeedConnectHint" data-i18n="seed.connect_spotify_first">Connect Spotify on step 4 to enable this</span>
-                    </div>
-                    <div class="ob-seed-card">
-                        <span class="ob-seed-icon" aria-hidden="true">📥</span>
-                        <span class="ob-seed-title" data-i18n="ob.seed_import_title">Import a profile</span>
-                        <span class="ob-seed-desc" data-i18n="ob.seed_import_desc">Got a SpotyVibe profile JSON from a friend or a previous install? Load it here.</span>
-                        <button class="ob-seed-action" onclick="obImportProfile()" data-i18n="ob.seed_import_btn">Pick file…</button>
-                    </div>
-                    <div class="ob-seed-card">
-                        <span class="ob-seed-icon" aria-hidden="true">✍</span>
-                        <span class="ob-seed-title" data-i18n="ob.seed_scratch_title">Start from scratch</span>
-                        <span class="ob-seed-desc" data-i18n="ob.seed_scratch_desc">Describe your taste in a sentence or two. You'll edit the full profile in the app next.</span>
-                        <button class="ob-seed-action" onclick="obGoPage(5)" data-i18n="ob.seed_scratch_btn">I'll do it in the app</button>
-                    </div>
-                </div>
-
-                <div id="ob-import-status" class="ob-explain" style="margin-top:8px;text-align:center;"></div>
-                <input id="ob-import-input" type="file" accept="application/json,.json" style="display:none;">
-
-                <div class="ob-nav">
-                    <button class="ob-btn-skip" onclick="obGoPage(3)" data-i18n="ob.back">← Back</button>
-                    <button class="ob-btn-skip ob-btn-skip--inline ob-cta-skip-inline" onclick="obGoPage(5)" data-i18n="ob.skip">Skip</button>
-                    <button class="ob-cta ob-cta-next" onclick="obGoPage(5)" data-i18n="ob.next">Next →</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- ═══════ Step 6 — Pick a Model ═══════ -->
-        <div class="ob-page">
-            <div class="ob-card">
-                <div class="ob-step-indicator">
-                    <div class="ob-pill ob-pill--complete"></div>
-                    <div class="ob-pill ob-pill--complete"></div>
-                    <div class="ob-pill ob-pill--complete"></div>
-                    <div class="ob-pill ob-pill--complete"></div>
-                    <div class="ob-pill ob-pill--complete"></div>
-                    <div class="ob-pill ob-pill--current"></div>
                     <div class="ob-pill ob-pill--future"></div>
                 </div>
                 <div class="ob-icon" aria-hidden="true">💰</div>
@@ -370,7 +372,7 @@
                         <h3 class="cost-estimate-title" data-i18n="cost.title">Estimated cost per generation</h3>
                     </div>
                     <dl class="cost-estimate-list">
-                        <dt data-i18n="cost.model">Model</dt><dd id="obCostModel">—</dd>
+                        <dt data-i18n="cost.model">Model</dt><dd id="obCostModel">Loading…</dd>
                         <dt data-i18n="cost.tracks">Suggestions</dt><dd id="obCostTracks">25 tracks</dd>
                         <dt data-i18n="cost.total" class="cost-total-label">Estimated cost</dt>
                         <dd id="obCostTotal" class="cost-total-value">—</dd>
@@ -380,9 +382,59 @@
                 </div>
 
                 <div class="ob-nav">
-                    <button class="ob-btn-skip" onclick="obGoPage(4)" data-i18n="ob.back">← Back</button>
-                    <button class="ob-btn-skip ob-btn-skip--inline ob-cta-skip-inline" onclick="obGoPage(6)" data-i18n="ob.skip_for_now">Skip for now</button>
+                    <button class="ob-btn-skip" onclick="obGoPage(3)" data-i18n="ob.back">← Back</button>
+                    <button class="ob-btn-skip ob-btn-skip--inline ob-cta-skip-inline" onclick="obGoPage(5)" data-i18n="ob.skip_for_now">Skip for now</button>
                     <button class="ob-cta ob-cta-next" onclick="obSaveAndNext()" data-i18n="ob.next">Next →</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════ Step 6 — Seed Your Taste ═══════ -->
+        <div class="ob-page">
+            <div class="ob-card">
+                <div class="ob-step-indicator">
+                    <div class="ob-pill ob-pill--complete"></div>
+                    <div class="ob-pill ob-pill--complete"></div>
+                    <div class="ob-pill ob-pill--complete"></div>
+                    <div class="ob-pill ob-pill--complete"></div>
+                    <div class="ob-pill ob-pill--complete"></div>
+                    <div class="ob-pill ob-pill--current"></div>
+                    <div class="ob-pill ob-pill--future"></div>
+                </div>
+                <div class="ob-icon" aria-hidden="true">🎯</div>
+                <div class="ob-title" data-i18n="ob.step5_title">Teach SpotyVibe your taste</div>
+                <div class="ob-subtitle" data-i18n="ob.step5_subtitle">Pick the quickest way in. You can always refine your profile later.</div>
+
+                <div class="ob-seed-grid">
+                    <div class="ob-seed-card" id="obSeedPlaylistCard">
+                        <span class="ob-seed-icon" aria-hidden="true">🎵</span>
+                        <span class="ob-seed-title" data-i18n="ob.seed_playlist_title">From a Spotify playlist</span>
+                        <span class="ob-seed-desc" data-i18n="ob.seed_playlist_desc">Point us at a playlist you already love — SpotyVibe drafts a profile from it you can tweak.</span>
+                        <button class="ob-seed-action" onclick="openPlaylistSeedPicker('onboarding')" data-i18n="ob.seed_playlist_btn">Choose playlist →</button>
+                        <span class="ob-seed-connect-hint hidden" id="obSeedConnectHint" data-i18n="seed.connect_spotify_first">Connect Spotify on step 4 to enable this</span>
+                        <span class="ob-seed-connect-hint hidden" id="obSeedAiHint" data-i18n="seed.ai_required">Set up your AI provider and model first</span>
+                    </div>
+                    <div class="ob-seed-card">
+                        <span class="ob-seed-icon" aria-hidden="true">📥</span>
+                        <span class="ob-seed-title" data-i18n="ob.seed_import_title">Import a profile</span>
+                        <span class="ob-seed-desc" data-i18n="ob.seed_import_desc">Got a SpotyVibe profile JSON from a friend or a previous install? Load it here.</span>
+                        <button class="ob-seed-action" onclick="obImportProfile()" data-i18n="ob.seed_import_btn">Pick file…</button>
+                    </div>
+                    <div class="ob-seed-card">
+                        <span class="ob-seed-icon" aria-hidden="true">✍</span>
+                        <span class="ob-seed-title" data-i18n="ob.seed_scratch_title">Start from scratch</span>
+                        <span class="ob-seed-desc" data-i18n="ob.seed_scratch_desc">Describe your taste in a sentence or two. You'll edit the full profile in the app next.</span>
+                        <button class="ob-seed-action" onclick="obGoPage(6)" data-i18n="ob.seed_scratch_btn">I'll do it in the app</button>
+                    </div>
+                </div>
+
+                <div id="ob-import-status" class="ob-explain" style="margin-top:8px;text-align:center;"></div>
+                <input id="ob-import-input" type="file" accept="application/json,.json" style="display:none;">
+
+                <div class="ob-nav">
+                    <button class="ob-btn-skip" onclick="obGoPage(4)" data-i18n="ob.back">← Back</button>
+                    <button class="ob-btn-skip ob-btn-skip--inline ob-cta-skip-inline" onclick="obGoPage(6)" data-i18n="ob.skip">Skip</button>
+                    <button class="ob-cta ob-cta-next" onclick="obGoPage(6)" data-i18n="ob.next">Next →</button>
                 </div>
             </div>
         </div>

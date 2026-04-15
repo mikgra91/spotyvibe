@@ -80,13 +80,15 @@ const obTouched = {
 /* ── B.1/B.4: Provider custom dropdown state ─────────────────── */
 let _obSelectedProvider = 'openai';
 
+/* ── AI readiness tracking (key set + model chosen) ──────────── */
+let _obAiReady = false;
+
 const _PROVIDER_META = {
     openai:     { local: false, label_i18n: 'provider.api_key_label_openai',     hint_i18n: 'provider.api_key_hint_openai',     placeholder: 'sk-…' },
     ollama:     { local: true,  label_i18n: 'provider.api_key_label_ollama',     hint_i18n: 'provider.api_key_hint_ollama',     placeholder: 'any value or leave empty' },
     lmstudio:   { local: true,  label_i18n: 'provider.api_key_label_lmstudio',   hint_i18n: 'provider.api_key_hint_lmstudio',   placeholder: 'any value or leave empty' },
     groq:       { local: false, label_i18n: 'provider.api_key_label_groq',       hint_i18n: 'provider.api_key_hint_groq',       placeholder: 'gsk_…' },
     openrouter: { local: false, label_i18n: 'provider.api_key_label_openrouter', hint_i18n: 'provider.api_key_hint_openrouter', placeholder: 'sk-or-…' },
-    custom:     { local: false, label_i18n: 'provider.api_key_label_custom',     hint_i18n: 'provider.api_key_hint_custom',     placeholder: 'API key…' },
 };
 
 const _PROVIDER_BASE_URLS = {
@@ -95,6 +97,7 @@ const _PROVIDER_BASE_URLS = {
     lmstudio:   'http://localhost:1234/v1',
     groq:       'https://api.groq.com/openai/v1',
     openrouter: 'https://openrouter.ai/api/v1',
+};
     custom:     '',
 };
 
@@ -111,19 +114,22 @@ function obGoPage(idx) {
     });
 
     // Step-specific activations
-    if (idx === 5) {
+    if (idx === 4) {
         obLoadModels();
         _obInitCostWidget();
     }
+    if (idx === 5) _updateSeedCardStates();
     if (idx === 6) obBuildSummary();
 }
 
 function _updateIndicators() {
-    document.querySelectorAll('.ob-pill').forEach((pill, i) => {
-        pill.classList.remove('ob-pill--complete', 'ob-pill--current', 'ob-pill--future');
-        if (i < currentPage) pill.classList.add('ob-pill--complete');
-        else if (i === currentPage) pill.classList.add('ob-pill--current');
-        else pill.classList.add('ob-pill--future');
+    document.querySelectorAll('.ob-step-indicator').forEach(indicator => {
+        indicator.querySelectorAll('.ob-pill').forEach((pill, i) => {
+            pill.classList.remove('ob-pill--complete', 'ob-pill--current', 'ob-pill--future');
+            if (i < currentPage) pill.classList.add('ob-pill--complete');
+            else if (i === currentPage) pill.classList.add('ob-pill--current');
+            else pill.classList.add('ob-pill--future');
+        });
     });
 }
 
@@ -261,9 +267,6 @@ function _selectObProvider(value, label) {
         opt.setAttribute('aria-selected', String(isSel));
     });
 
-    // Show/hide base URL row
-    const urlRow = document.getElementById('ob-base-url-row');
-    if (urlRow) urlRow.classList.toggle('hidden', value !== 'custom');
 
     // Update API key label, hint, placeholder
     const meta = _PROVIDER_META[value] || _PROVIDER_META.openai;
@@ -277,6 +280,13 @@ function _selectObProvider(value, label) {
     // Show/hide local notice
     const notice = document.getElementById('obLocalNotice');
     if (notice) notice.classList.toggle('hidden', !meta.local);
+
+    // Toggle provider-specific guide blocks
+    const guideIds = ['ob-guide-openai', 'ob-guide-ollama', 'ob-guide-lmstudio', 'ob-guide-groq', 'ob-guide-openrouter'];
+    guideIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('hidden', id !== 'ob-guide-' + value);
+    });
 
     // Reset models when provider changes
     _obModelsLoaded = false;
@@ -303,12 +313,9 @@ async function _markComplete() {
 
 async function obSaveAndNext() {
     if (currentPage === 1) {
-        // Step 2: Save provider + OpenAI key
+        // Step 2: Save provider + API key
         const key = document.getElementById('ob-openai-key')?.value.trim();
-        const baseUrlInput = document.getElementById('ob-base-url');
-        const baseUrl = (_obSelectedProvider === 'custom' && baseUrlInput)
-            ? baseUrlInput.value.trim()
-            : (_PROVIDER_BASE_URLS[_obSelectedProvider] || '');
+        const baseUrl = _PROVIDER_BASE_URLS[_obSelectedProvider] || '';
 
         // Save provider settings
         try {
@@ -344,13 +351,9 @@ async function obSaveAndNext() {
             await prefillCredentials();
         }
         obGoPage(3);
-    } else if (currentPage === 5) {
-        // Step 6: Save model
-        const select = document.getElementById('ob-model-select');
-        const freetext = document.getElementById('ob-model-freetext');
-        const model = (freetext && !freetext.closest('.hidden') && freetext.value.trim())
-            ? freetext.value.trim()
-            : (select ? select.value : '');
+    } else if (currentPage === 4) {
+        // Step 5: Save model
+        const model = _obGetEffectiveModel();
         if (model) {
             try {
                 await fetch('/api/settings', {
@@ -359,9 +362,10 @@ async function obSaveAndNext() {
                     body: JSON.stringify({ model }),
                 });
                 obTouched.model = true;
+                _obAiReady = true;
             } catch (e) { /* best-effort */ }
         }
-        obGoPage(6);
+        obGoPage(5);
     } else {
         obGoPage(currentPage + 1);
     }
@@ -478,21 +482,45 @@ function _setObSpotifyState(connected) {
             statusEl.className = 'ob-explain';
         }
     }
-    // Toggle seed-from-playlist card on step 5
+    // Refresh seed card states (Spotify + AI readiness)
+    _updateSeedCardStates();
+}
+
+/**
+ * Update the playlist seed card's enabled/disabled state based on
+ * both Spotify connection AND AI readiness (key + model).
+ */
+function _updateSeedCardStates() {
     const seedCard = document.getElementById('obSeedPlaylistCard');
-    const seedAction = seedCard ? seedCard.querySelector('.ob-seed-action') : null;
-    const seedHint = document.getElementById('obSeedConnectHint');
-    if (seedCard) {
-        if (connected) {
-            seedCard.classList.remove('ob-seed-card--disabled');
-            seedCard.style.opacity = '';
-            if (seedAction) seedAction.classList.remove('hidden');
-            if (seedHint) seedHint.classList.add('hidden');
+    if (!seedCard) return;
+    const seedAction = seedCard.querySelector('.ob-seed-action');
+    const spotifyHint = document.getElementById('obSeedConnectHint');
+    const aiHint = document.getElementById('obSeedAiHint');
+
+    const canSeed = _obSpotifyConnected && _obAiReady;
+
+    if (canSeed) {
+        seedCard.classList.remove('ob-seed-card--disabled');
+        seedCard.style.opacity = '';
+        if (seedAction) seedAction.classList.remove('hidden');
+        if (spotifyHint) spotifyHint.classList.add('hidden');
+        if (aiHint) aiHint.classList.add('hidden');
+    } else {
+        seedCard.classList.add('ob-seed-card--disabled');
+        seedCard.style.opacity = '0.55';
+        if (seedAction) seedAction.classList.add('hidden');
+        // Show the most relevant hint
+        if (!_obAiReady && !_obSpotifyConnected) {
+            // Both missing — show AI hint (more actionable since it comes first in flow)
+            if (aiHint) { aiHint.classList.remove('hidden'); aiHint.textContent = obI18n('seed.ai_and_spotify_required', 'Set up AI provider and connect Spotify first'); }
+            if (spotifyHint) spotifyHint.classList.add('hidden');
+        } else if (!_obAiReady) {
+            if (aiHint) aiHint.classList.remove('hidden');
+            if (spotifyHint) spotifyHint.classList.add('hidden');
         } else {
-            seedCard.classList.add('ob-seed-card--disabled');
-            seedCard.style.opacity = '0.55';
-            if (seedAction) seedAction.classList.add('hidden');
-            if (seedHint) seedHint.classList.remove('hidden');
+            // Only Spotify missing
+            if (spotifyHint) spotifyHint.classList.remove('hidden');
+            if (aiHint) aiHint.classList.add('hidden');
         }
     }
 }
@@ -610,12 +638,9 @@ async function obLoadModels() {
 
     try {
         // Try fetching models from the provider
-        const meta = _PROVIDER_META[_obSelectedProvider] || {};
         const baseUrl = _PROVIDER_BASE_URLS[_obSelectedProvider] || 'https://api.openai.com/v1';
-        const keyInput = document.getElementById('ob-openai-key');
-        const apiKey = keyInput ? keyInput.value.trim() : '';
 
-        // First try the /api/llm/fetch_models endpoint
+        // First try the /api/llm/fetch_models endpoint (server uses stored API key)
         let models = [];
         let fetchOk = false;
         let currentModel = '';
@@ -623,7 +648,7 @@ async function obLoadModels() {
             const resp = await fetch('/api/llm/fetch_models', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ base_url: baseUrl, api_key: apiKey }),
+                body: JSON.stringify({ base_url: baseUrl }),
             });
             if (resp.ok) {
                 const data = await resp.json();
@@ -668,11 +693,32 @@ async function obLoadModels() {
             _obModelsLoaded = true;
         } else {
             // Show error + free-text fallback
-            if (errorEl) errorEl.classList.remove('hidden');
+            if (errorEl) {
+                errorEl.classList.remove('hidden');
+                // Show provider-specific error message
+                const errText = errorEl.querySelector('.ob-model-error-text');
+                if (errText) {
+                    const meta = _PROVIDER_META[_obSelectedProvider] || {};
+                    if (meta.local) {
+                        const providerLabel = document.querySelector(`#ob-provider-list .ob-custom-select-option[data-value="${_obSelectedProvider}"]`);
+                        const name = providerLabel ? providerLabel.textContent.trim() : _obSelectedProvider;
+                        errText.textContent = obI18n('ob.model_error_local', 'Make sure {provider} is running on your machine.').replace('{provider}', name);
+                    } else {
+                        errText.textContent = obI18n('ob.model_error_remote', 'Couldn\'t reach that endpoint. Check the base URL and try again.');
+                    }
+                }
+            }
             if (freetextWrap) freetextWrap.classList.remove('hidden');
+            // Pre-fill freetext with current model if available
+            const ftInput = document.getElementById('ob-model-freetext');
+            if (ftInput && currentModel && !ftInput.value.trim()) {
+                ftInput.value = currentModel;
+            }
             // Keep the dropdown with a placeholder
             select.innerHTML = '<option value="">—</option>';
         }
+        // Refresh cost estimate now that model is known
+        _obInitCostWidget();
     } catch (e) {
         if (errorEl) errorEl.classList.remove('hidden');
         if (freetextWrap) freetextWrap.classList.remove('hidden');
@@ -741,8 +787,8 @@ async function obBuildSummary() {
         'sum-openai': 1,
         'sum-spotify-cred': 2,
         'sum-spotify-conn': 3,
-        'sum-profile': 4,
-        'sum-model': 5,
+        'sum-profile': 5,
+        'sum-model': 4,
     };
 
     const isReplay = new URLSearchParams(location.search).get('replay') === '1';
@@ -847,22 +893,46 @@ async function prefillCredentials() {
     } catch (e) { /* ignore */ }
 }
 
-/* ── Step 6 — Provider & Cost Widget ──────────────────────────── */
+/* ── Step 5 — Provider & Cost Widget ──────────────────────────── */
+
+function _obGetEffectiveModel() {
+    const freetext = document.getElementById('ob-model-freetext');
+    const freetextWrap = document.getElementById('obModelFreetext');
+    // Prefer freetext if visible and non-empty
+    if (freetext && freetextWrap && !freetextWrap.classList.contains('hidden') && freetext.value.trim()) {
+        return freetext.value.trim();
+    }
+    const select = document.getElementById('ob-model-select');
+    const val = select ? select.value : '';
+    // Ignore placeholder values
+    if (!val || val === '—' || val === 'Loading…') return 'gpt-4o-mini';
+    return val;
+}
 
 function _obInitCostWidget() {
-    const modelSelect = document.getElementById('ob-model-select');
-    const model = modelSelect ? modelSelect.value : 'gpt-4o-mini';
+    const model = _obGetEffectiveModel();
     if (typeof window._obEstimateCost === 'function') {
         window._obEstimateCost(model, 25);
     }
-    // Re-estimate on model change
+    // Re-estimate on model select change
+    const modelSelect = document.getElementById('ob-model-select');
     if (modelSelect && !modelSelect._obCostWired) {
         modelSelect.addEventListener('change', () => {
             if (typeof window._obEstimateCost === 'function') {
-                window._obEstimateCost(modelSelect.value, 25);
+                window._obEstimateCost(_obGetEffectiveModel(), 25);
             }
         });
         modelSelect._obCostWired = true;
+    }
+    // Re-estimate on freetext input change
+    const freetext = document.getElementById('ob-model-freetext');
+    if (freetext && !freetext._obCostWired) {
+        freetext.addEventListener('input', () => {
+            if (typeof window._obEstimateCost === 'function') {
+                window._obEstimateCost(_obGetEffectiveModel(), 25);
+            }
+        });
+        freetext._obCostWired = true;
     }
 }
 window._obInitCostWidget = _obInitCostWidget;
@@ -902,6 +972,27 @@ window._obInitCostWidget = _obInitCostWidget;
 
     await prefillCredentials();
     await _checkObSpotifyStatus();
+    await _checkObAiReadiness();
     _updateIndicators();
 })();
+
+/** Check if AI provider key + model are already configured. */
+async function _checkObAiReadiness() {
+    try {
+        const [credResp, settingsResp] = await Promise.all([
+            fetch('/api/settings/credentials'),
+            fetch('/api/settings'),
+        ]);
+        const creds = await credResp.json();
+        const settings = await settingsResp.json();
+
+        const isLocal = (_PROVIDER_META[_obSelectedProvider] || {}).local === true;
+        const hasKey = creds.OPENAI_API_KEY?.is_set === true || isLocal;
+        const hasModel = !!(settings.model);
+
+        _obAiReady = hasKey && hasModel;
+    } catch (e) {
+        _obAiReady = false;
+    }
+}
 

@@ -51,9 +51,8 @@ function _getModel() {
 }
 
 function _getTracks() {
-    // Read from active size slider or settings
-    const activeBody = document.querySelector('.gen-mode-body:not(.hidden)');
-    const slider = activeBody ? activeBody.querySelector('.gen-size-slider') : null;
+    // Read from shared size slider or settings
+    const slider = document.querySelector('.gen-size-slider');
     if (slider) return parseInt(slider.value, 10) || 10;
     return parseInt(localStorage.getItem('sv.playlist_size') || '10', 10);
 }
@@ -170,11 +169,9 @@ export function init() {
     const modelFreetext = document.getElementById('settings-model-freetext');
     if (modelFreetext) modelFreetext.addEventListener('input', _debouncedRefresh);
 
-    // Size sliders → refresh cost estimate
-    ['genSizeQuick', 'genSizeAdvanced'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('input', _debouncedRefresh);
-    });
+    // Size slider → refresh cost estimate
+    const sizeSlider = document.getElementById('genSize');
+    if (sizeSlider) sizeSlider.addEventListener('input', _debouncedRefresh);
 
     // Settings modal open → refresh
     const settingsModal = document.getElementById('settingsModal');

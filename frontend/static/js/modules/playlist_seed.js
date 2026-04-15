@@ -146,9 +146,9 @@ export async function confirmPlaylistSeed() {
                 draft: data.draft,
                 meta: data.meta,
             }));
-            // Advance to step 6 if onboarding wizard function exists
+            // Advance to summary step if onboarding wizard function exists
             if (typeof window.obGoPage === 'function') {
-                window.obGoPage(5);
+                window.obGoPage(6);
             }
         } else {
             _applyDraft(data.draft, data.meta);

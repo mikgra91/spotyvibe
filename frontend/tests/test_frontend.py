@@ -104,7 +104,7 @@ def _navigate_onboarding_to_page(page: Page, base_url: str, target_page: int):
     """Navigate to /onboarding (with incomplete status) and advance to target_page (0-6).
 
     Page 0 = Welcome, 1 = OpenAI key, 2 = Spotify cred, 3 = Connect Spotify,
-    4 = Seed taste, 5 = Model, 6 = Ready.
+    4 = Model, 5 = Seed taste, 6 = Ready.
 
     All seven pages exist in the DOM simultaneously. We use the "Skip for now"
     or "Get started" CTA on each page to advance.
@@ -2772,7 +2772,7 @@ class TestWave2QuickWins:
         page.wait_for_timeout(200)
         # Move slider to 1 (Familiar)
         page.evaluate("""() => {
-            const s = document.getElementById('explorationSliderAdvanced');
+            const s = document.getElementById('explorationSlider');
             s.value = 1;
             s.dispatchEvent(new Event('input'));
         }""")
