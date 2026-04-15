@@ -143,7 +143,12 @@ function _copyToClipboard(text, btn) {
  * Convert markdown-style links to HTML links.
  */
 function _linkify(text) {
-    return text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    // Escape the full text first to prevent HTML injection
+    const d = document.createElement('div');
+    d.textContent = text;
+    const escaped = d.innerHTML;
+    // Only match http:// or https:// URLs in markdown link syntax
+    return escaped.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 }
 
 // Event listeners — close on Esc, close button, done button, outside click

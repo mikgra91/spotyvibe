@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
+import pytest
+
 from core.src.profile import (
     _load_template,
     ensure_profile,
@@ -214,7 +216,6 @@ class TestTrainProfile:
         }
         mock_create.return_value = {"choices": [{"message": {"content": "NOT VALID JSON {{{{"}}]}
 
-        import pytest
         with pytest.raises(ValueError, match="invalid response"):
             train_profile({
                 "core_description": "rock",
@@ -417,19 +418,16 @@ class TestCreateProfile:
         mock_set.assert_called_once_with(result["id"])
 
     def test_rejects_empty_name(self, tmp_path):
-        import pytest
         _, _, _, p4 = _patch_active_profile(tmp_path)
         with p4, pytest.raises(ValueError, match="cannot be empty"):
             create_profile("")
 
     def test_rejects_too_long_name(self, tmp_path):
-        import pytest
         _, _, _, p4 = _patch_active_profile(tmp_path)
         with p4, pytest.raises(ValueError, match="too long"):
             create_profile("A" * 50)
 
     def test_rejects_duplicate_name(self, tmp_path):
-        import pytest
         profiles_dir = tmp_path / "profiles"
         profiles_dir.mkdir()
         (profiles_dir / "existing.json").write_text(json.dumps({"name": "Workout", "last_updated": None}))
@@ -478,18 +476,15 @@ class TestDeleteProfile:
         mock_set.assert_not_called()
 
     def test_raises_on_missing_profile(self, tmp_path):
-        import pytest
         _, _, _, p4 = _patch_active_profile(tmp_path)
         with p4, pytest.raises(ValueError, match="not found"):
             delete_profile(self._UUID_C)
 
     def test_raises_on_empty_id(self):
-        import pytest
         with pytest.raises(ValueError, match="required"):
             delete_profile("")
 
     def test_rejects_path_traversal(self):
-        import pytest
         with pytest.raises(ValueError, match="Invalid profile ID"):
             delete_profile("../../.credentials")
 
@@ -508,18 +503,15 @@ class TestActivateProfile:
         mock_set.assert_called_once_with(self._UUID_A)
 
     def test_raises_on_missing_profile(self, tmp_path):
-        import pytest
         _, _, _, p4 = _patch_active_profile(tmp_path)
         with p4, pytest.raises(ValueError, match="not found"):
             activate_profile(self._UUID_B)
 
     def test_raises_on_empty_id(self):
-        import pytest
         with pytest.raises(ValueError, match="required"):
             activate_profile("")
 
     def test_rejects_path_traversal(self):
-        import pytest
         with pytest.raises(ValueError, match="Invalid profile ID"):
             activate_profile("../../.credentials")
 

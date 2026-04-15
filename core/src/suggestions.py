@@ -602,14 +602,15 @@ def _normalize_key(text):
 
     NFKD normalization handles curly quotes, accented characters, and
     ligatures (e.g. "Beyoncé" vs "Beyonce", "The Mowgli's" vs "The Mowgli´s").
+    Preserves non-Latin scripts (CJK, Cyrillic, Arabic, etc.).
     """
     if not text:
         return ""
     s = unicodedata.normalize("NFKD", str(text))
     s = s.lower()
-    s = re.sub(r'[^a-z0-9\s]', '', s)   # keep only letters, digits, spaces
+    s = re.sub(r'[^\w\s]', '', s, flags=re.UNICODE)  # keep word chars (incl. non-Latin) + spaces
     s = re.sub(r'\s+', ' ', s).strip()   # collapse whitespace
-    return s
+    return s if s else text.lower().strip()  # fallback if normalization yields empty
 
 
 def filter_duplicate_suggestions(profile, result):

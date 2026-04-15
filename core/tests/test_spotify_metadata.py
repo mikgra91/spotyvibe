@@ -18,6 +18,14 @@ from core.src.spotify_metadata import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _reset_token_cache():
+    """Save and restore _token_cache around every test to prevent leaks."""
+    saved = dict(_token_cache)
+    yield
+    _token_cache.update(saved)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -323,6 +331,3 @@ class TestTokenCaching:
             assert token == "cached-token"
             mock_urlopen.assert_not_called()
 
-        # Reset cache for other tests
-        _token_cache["token"] = None
-        _token_cache["expires_at"] = 0.0

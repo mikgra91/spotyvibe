@@ -174,12 +174,12 @@ export function showConfirm(message) {
         const confirmBtn = document.createElement('button');
         confirmBtn.className = 'btn btn-save';
         confirmBtn.textContent = i18n('msg.ok', 'OK');
-        confirmBtn.onclick = () => { overlay.remove(); resolve(true); };
+        confirmBtn.onclick = () => { document.removeEventListener('keydown', onKey); overlay.remove(); resolve(true); };
 
         const cancelBtn = document.createElement('button');
         cancelBtn.className = 'btn btn-cancel';
         cancelBtn.textContent = i18n('btn.cancel', 'Cancel');
-        cancelBtn.onclick = () => { overlay.remove(); resolve(false); };
+        cancelBtn.onclick = () => { document.removeEventListener('keydown', onKey); overlay.remove(); resolve(false); };
 
         actions.append(confirmBtn, cancelBtn);
         modal.append(msg, actions);
@@ -191,7 +191,7 @@ export function showConfirm(message) {
 
         // Close on Escape
         const onKey = (e) => {
-            if (e.key === 'Escape') { overlay.remove(); resolve(false); document.removeEventListener('keydown', onKey); }
+            if (e.key === 'Escape') { document.removeEventListener('keydown', onKey); overlay.remove(); resolve(false); }
         };
         document.addEventListener('keydown', onKey);
     });

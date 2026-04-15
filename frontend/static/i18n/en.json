@@ -1,6 +1,7 @@
 {
   "nav.settings": "Settings",
   "nav.credentials": "Credentials",
+  "credentials.title": "🔑 Credentials",
   "nav.connect_spotify": "Connect Spotify",
   "nav.disconnect_spotify": "Disconnect Spotify",
   "nav.help": "Help",

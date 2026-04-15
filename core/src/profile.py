@@ -709,7 +709,10 @@ def draft_profile_from_playlist(summary: dict) -> dict:
     raw = extract_chat_content(response)
     content = strip_code_fences(raw)
 
-    result = json.loads(content)
+    try:
+        result = json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"GPT returned invalid JSON for playlist seed: {exc}") from exc
 
     # Enforce shape constraints
     draft = {

@@ -237,7 +237,7 @@ export async function populateReviewPlaylistPicker() {
 
     picker.innerHTML = `<option value="">${i18n('review.select_placeholder', 'Select a playlist…')}</option>` +
         playlists.map(pl =>
-            `<option value="${pl.id}">${pl.name}</option>`
+            `<option value="${esc(pl.id)}">${esc(pl.name)}</option>`
         ).join('');
 }
 

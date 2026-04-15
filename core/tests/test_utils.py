@@ -169,8 +169,8 @@ class TestSanitizeText:
         assert sanitize_text("  hello  ") == "hello"
 
     def test_non_string_passthrough(self):
-        assert sanitize_text(42) == 42
-        assert sanitize_text(None) is None
+        assert sanitize_text(42) == ""
+        assert sanitize_text(None) == ""
 
 
 class TestSanitizeProfile:

@@ -334,27 +334,7 @@ s/* components.css — Glass panels, status, toast, tooltip, spinner, switcher, 
     display: none;
 }
 
-/* --- Train success --- */
-.train-success {
-    color: var(--success);
-    font-size: 1.3rem;
-    margin-top: 10px;
-    animation: fadeOut 5s forwards;
-}
-@keyframes fadeOut {
-    0%, 70% { opacity: 1; }
-    100%    { opacity: 0; }
-}
-
-/* --- Train spinner --- */
-.train-spinner {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    padding: 24px 0 8px;
-}
-.train-spinner.hidden { display: none; }
+/* --- Train spinner --- (canonical definition in sections.css) */
 
 .spinner {
     width: var(--spinner-size, 38px);

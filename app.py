@@ -1281,7 +1281,7 @@ def api_playlists_for_seed():
         playlists = fetch_user_playlists(limit=50)
         return jsonify({"playlists": playlists})
     except Exception as e:
-        logger.exception("Failed to fetch playlists for seed")
+        app.logger.exception("Failed to fetch playlists for seed")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1333,7 +1333,7 @@ def api_seed_from_playlist():
         }
         return jsonify({"draft": draft, "meta": meta})
     except Exception as e:
-        logger.exception("Seed draft failed")
+        app.logger.exception("Seed draft failed")
         return jsonify({"error": "draft_failed", "detail": str(e)}), 502
 
 
@@ -1342,10 +1342,11 @@ def api_taste_aggregate():
     """Return aggregated taste data for the dashboard."""
     try:
         runs = load_runs()
-        aggregated = aggregate_taste(runs)
+        profile = load_profile()
+        aggregated = aggregate_taste(runs, profile=profile)
         return jsonify(aggregated)
     except Exception as e:
-        logger.exception("Taste aggregation failed")
+        app.logger.exception("Taste aggregation failed")
         return jsonify({"error": str(e)}), 500
 
 
@@ -1369,8 +1370,9 @@ def save_songlist():
     songs = data.get("songs", [])
     if len(songs) > MAX_SONG_LIST_SIZE:
         return jsonify(error=f"Song list exceeds maximum of {MAX_SONG_LIST_SIZE}"), 400
-    _SONGLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _SONGLIST_FILE.write_text(json.dumps(songs, ensure_ascii=False, indent=2), encoding="utf-8")
+    with _songlist_lock:
+        _SONGLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _SONGLIST_FILE.write_text(json.dumps(songs, ensure_ascii=False, indent=2), encoding="utf-8")
     return jsonify(ok=True, count=len(songs))
 
 
@@ -1378,13 +1380,14 @@ def save_songlist():
 def delete_songlist_track():
     """Permanently remove a specific track from the persistent song list."""
     data = request.get_json(force=True)
-    artist = data.get("artist", "").strip()
-    track = data.get("track", "").strip()
-    if not _SONGLIST_FILE.exists():
-        return jsonify(ok=True, count=0)
-    songs = json.loads(_SONGLIST_FILE.read_text(encoding="utf-8"))
-    songs = [s for s in songs if not (s.get("artist") == artist and s.get("track") == track)]
-    _SONGLIST_FILE.write_text(json.dumps(songs, ensure_ascii=False, indent=2), encoding="utf-8")
+    artist = sanitize_text(data.get("artist", "")).strip()
+    track = sanitize_text(data.get("track", "")).strip()
+    with _songlist_lock:
+        if not _SONGLIST_FILE.exists():
+            return jsonify(ok=True, count=0)
+        songs = json.loads(_SONGLIST_FILE.read_text(encoding="utf-8"))
+        songs = [s for s in songs if not (s.get("artist") == artist and s.get("track") == track)]
+        _SONGLIST_FILE.write_text(json.dumps(songs, ensure_ascii=False, indent=2), encoding="utf-8")
     return jsonify(ok=True, count=len(songs))
 
 

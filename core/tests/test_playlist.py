@@ -4,6 +4,8 @@ import os
 import sys
 from unittest.mock import patch, MagicMock
 
+import pytest
+
 from core.src.playlist import (
     find_existing_playlist,
     get_existing_track_uris,
@@ -348,12 +350,9 @@ class TestAddToPlaylist:
         sp.current_user_playlist_create.side_effect = SpotifyException(
             http_status=403, code=-1, msg="Forbidden"
         )
-        try:
+        with pytest.raises(RuntimeError, match="403"):
             add_to_playlist([{"artist": "a", "track": "b", "uri": "spotify:track:1"}])
-            assert False, "Expected RuntimeError"
-        except RuntimeError as e:
-            assert "403" in str(e)
-            mock_disconnect.assert_called_once()
+        mock_disconnect.assert_called_once()
 
 
 class TestRedirectUri:

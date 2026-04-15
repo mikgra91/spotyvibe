@@ -144,12 +144,18 @@ class TestListModels:
     def test_returns_error_on_missing_key(self, mock_models, mock_get_model, client):
         # Clear the models cache so the error path is hit
         import app as app_module
-        app_module._models_cache["data"] = None
-        app_module._models_cache["expires"] = 0
-        resp = client.get("/api/settings/models")
-        assert resp.status_code == 400
-        data = resp.get_json()
-        assert "error" in data
+        original_data = app_module._models_cache["data"]
+        original_expires = app_module._models_cache["expires"]
+        try:
+            app_module._models_cache["data"] = None
+            app_module._models_cache["expires"] = 0
+            resp = client.get("/api/settings/models")
+            assert resp.status_code == 400
+            data = resp.get_json()
+            assert "error" in data
+        finally:
+            app_module._models_cache["data"] = original_data
+            app_module._models_cache["expires"] = original_expires
 
 
 class TestReadSettings:

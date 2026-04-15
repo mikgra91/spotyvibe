@@ -1,6 +1,7 @@
 {
   "nav.settings": "Einstellungen",
   "nav.credentials": "Zugangsdaten",
+  "credentials.title": "🔑 Zugangsdaten",
   "nav.connect_spotify": "Spotify verbinden",
   "nav.disconnect_spotify": "Spotify trennen",
   "nav.help": "Hilfe",

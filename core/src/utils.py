@@ -118,7 +118,7 @@ def sanitize_text(text):
     Collapses multiple spaces/tabs on a single line to a single space.
     """
     if not isinstance(text, str):
-        return text
+        return ""
     text = text.replace('\x00', '')
     text = re.sub(r'[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
     text = re.sub(r'[ \t]+', ' ', text)
