@@ -429,10 +429,10 @@ def _normalize_rationale(entry: dict) -> list:
             rtype = item.get("type", "")
             if rtype not in _ALLOWED_RATIONALE_TYPES:
                 continue
-            chip = {"type": rtype}
             arg = item.get("arg")
-            if arg is not None:
-                chip["arg"] = str(arg)[:40]
+            if not arg or not str(arg).strip():
+                continue  # skip entries with empty/missing arg
+            chip = {"type": rtype, "arg": str(arg).strip()[:40]}
             normalised.append(chip)
             if len(normalised) >= 2:
                 break

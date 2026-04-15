@@ -16,6 +16,9 @@
 .dashboard-card h4 {
   margin: 0 0 14px; font-size: 0.95rem; font-weight: 700; color: var(--text-primary);
 }
+.dashboard-card svg {
+  display: block; margin: 0 auto;
+}
 
 .dashboard-tooltip {
   position: fixed; background: var(--bg-card); color: var(--text-primary);

@@ -26,12 +26,24 @@ function renderChip(chip) {
     const type = chip.type || 'fallback';
     const templateKey = 'explain.' + type;
     const template = i18n(templateKey, defaultTemplateByType[type] || '{arg}');
-    const label = _escHtml(template.replace('{arg}', truncate(chip.arg || '', 40)));
+    const label = _escHtml(template.replace('{arg}', truncate(chip.arg || '', 40))).trim();
+
+    // Skip chips that resolve to an empty label (e.g. novelty/recency with no arg)
+    if (!label) return '';
 
     return `<span class="rationale-chip rationale-chip--${type}">
         <span class="rationale-chip-dot" aria-hidden="true"></span>
         <span class="rationale-chip-label">${label}</span>
     </span>`;
+}
+
+function _buildChips(rationale) {
+    if (!rationale || !Array.isArray(rationale) || rationale.length === 0) {
+        rationale = [{ type: 'fallback' }];
+    }
+    const html = rationale.slice(0, 2).map(renderChip).filter(Boolean).join('');
+    // If all chips resolved to empty, show a fallback chip
+    return html || renderChip({ type: 'fallback' });
 }
 
 /**
@@ -41,10 +53,7 @@ function renderChip(chip) {
  */
 export function renderRationale(container, rationale) {
     if (!container) return;
-    if (!rationale || !Array.isArray(rationale) || rationale.length === 0) {
-        rationale = [{ type: 'fallback' }];
-    }
-    container.innerHTML = rationale.slice(0, 2).map(renderChip).join('');
+    container.innerHTML = _buildChips(rationale);
 }
 
 /**
@@ -53,10 +62,7 @@ export function renderRationale(container, rationale) {
  * @returns {string} HTML string of chips.
  */
 export function buildRationaleHtml(rationale) {
-    if (!rationale || !Array.isArray(rationale) || rationale.length === 0) {
-        rationale = [{ type: 'fallback' }];
-    }
-    return rationale.slice(0, 2).map(renderChip).join('');
+    return _buildChips(rationale);
 }
 
 /**

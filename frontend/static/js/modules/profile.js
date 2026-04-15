@@ -319,9 +319,8 @@ async function _cleanupAfterProfileChange() {
     if (State.historyBodyOpen) loadHistory();
 
     await Promise.all([checkProfileStatus(), prefillTrainFields()]);
-    // Dispatch input events so completeness meter re-reads fresh values
-    ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid']
-        .forEach(id => document.getElementById(id)?.dispatchEvent(new Event('input')));
+    // Signal completeness meter that a fresh profile was loaded (resets _pristine)
+    document.dispatchEvent(new Event('profile-loaded'));
 
     // Re-evaluate component warnings (profileTrained may have changed)
     renderComponentWarnings();

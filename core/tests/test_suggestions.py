@@ -703,6 +703,19 @@ class TestNormalizeRationale:
         result = _normalize_rationale(entry)
         assert result[0]["type"] == "fallback"
 
+    def test_missing_arg_dropped(self):
+        from core.src.suggestions import _normalize_rationale
+        entry = {"rationale": [{"type": "novelty"}, {"type": "profile_match", "arg": "rock"}]}
+        result = _normalize_rationale(entry)
+        assert len(result) == 1
+        assert result[0]["type"] == "profile_match"
+
+    def test_empty_arg_dropped(self):
+        from core.src.suggestions import _normalize_rationale
+        entry = {"rationale": [{"type": "recency", "arg": ""}, {"type": "novelty", "arg": "  "}]}
+        result = _normalize_rationale(entry)
+        assert result[0]["type"] == "fallback"
+
     def test_normalize_response_adds_rationale(self):
         result = {
             "playlist": [

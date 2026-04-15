@@ -1007,9 +1007,9 @@ class TestDocumentationScreenshotAcquire:
         _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
-        page.evaluate("document.getElementById('explorationSliderQuick').value = 5; document.getElementById('explorationSliderQuick').dispatchEvent(new Event('input'));")
+        page.evaluate("document.getElementById('explorationSlider').value = 5; document.getElementById('explorationSlider').dispatchEvent(new Event('input'));")
         page.wait_for_timeout(200)
-        _shot_element(page, "58_exploration_slider_adventurous", ".gen-mode-body--quick .exploration-row")
+        _shot_element(page, "58_exploration_slider_adventurous", ".gen-shared-controls .exploration-row")
 
     def test_59_exploration_slider_custom(self, page: Page, screenshot_url):
         """Screenshot: Slider in 'Custom' state after Advanced-mode override."""

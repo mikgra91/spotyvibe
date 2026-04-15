@@ -1,8 +1,8 @@
- /**
+/**
  * quick_advanced.js — Generate-panel Quick / Advanced mode toggle.
  *
- * Quick mode: size slider + exploration slider + Generate button.
- * Advanced mode: all controls + presets + exploration.
+ * Quick mode: shared size slider + exploration slider + Generate button.
+ * Advanced mode: all controls + presets + exploration + shared sliders.
  * Mode persists in localStorage.
  */
 
@@ -37,28 +37,6 @@ function _applyMode(mode) {
     tabs.forEach(btn => {
         btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
     });
-
-    // Sync size slider values between modes
-    _syncSizeSliders();
-}
-
-function _syncSizeSliders() {
-    const sliders = document.querySelectorAll('.gen-size-slider');
-    if (sliders.length < 2) return;
-
-    // Use the active mode's slider value as the source
-    const activeBody = document.querySelector('.gen-mode-body:not(.hidden)');
-    if (!activeBody) return;
-    const activeSlider = activeBody.querySelector('.gen-size-slider');
-    if (!activeSlider) return;
-
-    const val = activeSlider.value;
-    sliders.forEach(s => {
-        if (s !== activeSlider) {
-            s.value = val;
-            _updateSizeReadout(s);
-        }
-    });
 }
 
 function _updateSizeReadout(slider) {
@@ -78,18 +56,9 @@ function _onTabClick(e) {
     }
 }
 
+
 function _onSizeInput(e) {
     _updateSizeReadout(e.target);
-    // Keep all size sliders in sync
-    const val = e.target.value;
-    document.querySelectorAll('.gen-size-slider').forEach(s => {
-        if (s !== e.target) {
-            s.value = val;
-            _updateSizeReadout(s);
-        }
-    });
-
-    // Clamp value on blur
 }
 
 function _onSizeBlur(e) {
@@ -100,13 +69,6 @@ function _onSizeBlur(e) {
     val = Math.round(val / 5) * 5;
     e.target.value = val;
     _updateSizeReadout(e.target);
-    // Sync
-    document.querySelectorAll('.gen-size-slider').forEach(s => {
-        if (s !== e.target) {
-            s.value = val;
-            _updateSizeReadout(s);
-        }
-    });
 }
 
 export function getMode() { return _currentMode; }
@@ -119,12 +81,13 @@ export function init() {
         btn.addEventListener('click', _onTabClick);
     });
 
-    // Wire size sliders
-    document.querySelectorAll('.gen-size-slider').forEach(slider => {
-        slider.addEventListener('input', _onSizeInput);
-        slider.addEventListener('change', _onSizeBlur);
-        _updateSizeReadout(slider);
-    });
+    // Wire size slider (single shared instance)
+    const sizeSlider = document.querySelector('.gen-size-slider');
+    if (sizeSlider) {
+        sizeSlider.addEventListener('input', _onSizeInput);
+        sizeSlider.addEventListener('change', _onSizeBlur);
+        _updateSizeReadout(sizeSlider);
+    }
 
     // Also clamp the settings modal playlist-size on blur
     const settingsSize = document.getElementById('settings-playlist-size');
@@ -139,9 +102,9 @@ export function init() {
 
     _applyMode(_currentMode);
 
-    // Refresh readouts when UI language changes
+    // Refresh readout when UI language changes
     document.addEventListener('sv:language-changed', () => {
-        document.querySelectorAll('.gen-size-slider').forEach(s => _updateSizeReadout(s));
+        const s = document.querySelector('.gen-size-slider');
+        if (s) _updateSizeReadout(s);
     });
 }
-

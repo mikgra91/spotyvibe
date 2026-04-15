@@ -16,72 +16,9 @@
         <button class="gen-mode-btn" data-mode="advanced" role="tab" aria-selected="false" data-i18n="gen.mode_advanced">Advanced</button>
     </div>
 
-    <!-- ═══ QUICK MODE ═══ -->
+    <!-- ═══ QUICK MODE (empty — shared sliders below) ═══ -->
     <div class="gen-mode-body gen-mode-body--quick">
-
-        <!-- Size slider (Quick) -->
-        <div class="gen-size-row">
-            <div class="gen-size-header">
-                <label for="genSizeQuick" data-i18n="gen.size_label">Playlist size</label>
-                <span class="gen-size-value">20 <span data-i18n="gen.size_suffix">tracks</span></span>
-            </div>
-            <input type="range" id="genSizeQuick" class="gen-size-slider" min="10" max="30" step="5" value="{{ settings.playlist_size if settings.playlist_size else 20 }}">
-            <p class="inline-hint" data-i18n="settings.playlist_size_hint">How many tracks to generate (max 30).</p>
-        </div>
-
-        <!-- Exploration slider (Quick) -->
-        <div class="exploration-row">
-            <div class="exploration-header">
-                <label for="explorationSliderQuick" class="exploration-label" data-i18n="gen.exploration_label">Exploration vs Accuracy</label>
-                <span class="exploration-value" data-i18n="gen.exploration_notch_3">Balanced</span>
-            </div>
-            <div class="exploration-slider-wrap">
-                <input type="range" id="explorationSliderQuick" class="exploration-slider" min="1" max="5" step="1" value="3" aria-label="Exploration slider">
-                <div class="exploration-ticks" aria-hidden="true">
-                    <span class="tick"></span><span class="tick"></span><span class="tick"></span><span class="tick"></span><span class="tick"></span>
-                </div>
-                <div class="exploration-edge-labels" aria-hidden="true">
-                    <span data-i18n="gen.exploration_left">Familiar</span>
-                    <span data-i18n="gen.exploration_right">Adventurous</span>
-                </div>
-            </div>
-            <p class="inline-hint" data-i18n="gen.exploration_hint_3">Balanced — roughly half new artists, moderate novelty.</p>
-        </div>
-
-        <!-- Run section (Quick) -->
         <div class="preset-active-indicator"></div>
-    </div>
-
-    <!-- ═══ SHARED: Playlist destination (visible in both modes) ═══ -->
-    <div class="playlist-destination-section">
-        <label class="playlist-destination-label" data-i18n="generate.destination_label">Save to</label>
-        <div class="playlist-mode-row">
-            <div class="playlist-mode-options">
-                {% for mode in playlist_modes %}
-                <label class="playlist-mode-option">
-                    <input type="radio" name="playlist_mode" value="{{ mode.value }}"
-                        {% if current_playlist_mode == mode.value %}checked{% endif %}
-                        onchange="onPlaylistModeChange()"> <span data-i18n="generate.mode_{{ mode.value }}">{{ mode.label }}</span>
-                </label>
-                {% endfor %}
-            </div>
-            <div id="playlistNameRow" class="playlist-name-row {% if current_playlist_mode in ('create',) %}{% else %}hidden{% endif %}">
-                <input id="playlistNameInput" type="text" data-i18n-placeholder="generate.playlist_name_placeholder" placeholder="Playlist name" maxlength="200" class="playlist-name-input" value="{{ playlist_name if playlist_name }}">
-            </div>
-            <div id="playlistPickerRow" class="playlist-picker-row {% if current_playlist_mode in ('append', 'replace') %}{% else %}hidden{% endif %}">
-                <select id="playlistPicker" class="playlist-picker-select">
-                    {% if playlist_options %}
-                        {% for pl in playlist_options %}
-                        <option value="{{ pl.id }}">{{ pl.name }}</option>
-                        {% endfor %}
-                    {% else %}
-                    <option value="">Loading playlists…</option>
-                    {% endif %}
-                </select>
-                <button class="playlist-refresh-btn" onclick="refreshDiscoverPlaylistPicker()" aria-label="Refresh playlist list" data-i18n-title="playlist.refresh_aria" title="Refresh playlist list">↻</button>
-                <button class="playlist-delete-btn" onclick="deleteSelectedPlaylist('playlistPicker')" aria-label="Delete selected playlist" data-i18n-title="playlist.delete_aria" title="Delete selected playlist">🗑</button>
-            </div>
-        </div>
     </div>
 
     <!-- ═══ ADVANCED MODE ═══ -->
@@ -98,39 +35,6 @@
                 <ul class="preset-dropdown-list hidden" id="presetDropdownList" role="listbox"></ul>
             </div>
             <button class="preset-save-btn" onclick="window._presetSaveAs()" data-i18n="preset.save_current">💾 Save current as preset…</button>
-        </div>
-
-        <!-- Size slider (Advanced) -->
-        <div class="gen-size-row">
-            <div class="gen-size-header">
-                <label for="genSizeAdvanced" data-i18n="gen.size_label">Playlist size</label>
-                <span class="gen-size-value">20 <span data-i18n="gen.size_suffix">tracks</span></span>
-            </div>
-            <input type="range" id="genSizeAdvanced" class="gen-size-slider" min="10" max="30" step="5" value="{{ settings.playlist_size if settings.playlist_size else 20 }}">
-            <p class="inline-hint" data-i18n="settings.playlist_size_hint">How many tracks to generate (max 30).</p>
-            <details class="learn-more">
-                <summary data-i18n="common.learn_more">Learn more</summary>
-                <div class="learn-more-body" data-i18n="settings.playlist_size_learn_more">Max capped at 30 — beyond that GPT starts repeating itself across 10-track fetch blocks, and review fatigue sets in. If you want a longer session, run twice with different presets.</div>
-            </details>
-        </div>
-
-        <!-- Exploration slider (Advanced) -->
-        <div class="exploration-row">
-            <div class="exploration-header">
-                <label for="explorationSliderAdvanced" class="exploration-label" data-i18n="gen.exploration_label">Exploration vs Accuracy</label>
-                <span class="exploration-value" data-i18n="gen.exploration_notch_3">Balanced</span>
-            </div>
-            <div class="exploration-slider-wrap">
-                <input type="range" id="explorationSliderAdvanced" class="exploration-slider" min="1" max="5" step="1" value="3" aria-label="Exploration slider">
-                <div class="exploration-ticks" aria-hidden="true">
-                    <span class="tick"></span><span class="tick"></span><span class="tick"></span><span class="tick"></span><span class="tick"></span>
-                </div>
-                <div class="exploration-edge-labels" aria-hidden="true">
-                    <span data-i18n="gen.exploration_left">Familiar</span>
-                    <span data-i18n="gen.exploration_right">Adventurous</span>
-                </div>
-            </div>
-            <p class="inline-hint" data-i18n="gen.exploration_hint_3">Balanced — roughly half new artists, moderate novelty.</p>
         </div>
 
         <!-- Emerging artists filter -->
@@ -246,6 +150,73 @@
         </div>
 
         <div class="preset-active-indicator"></div>
+    </div>
+
+    <!-- ═══ SHARED: Size slider (visible in both modes) ═══ -->
+    <div class="gen-shared-controls">
+        <div class="gen-size-row">
+            <div class="gen-size-header">
+                <label for="genSize" data-i18n="gen.size_label">Playlist size</label>
+                <span class="gen-size-value">20 <span data-i18n="gen.size_suffix">tracks</span></span>
+            </div>
+            <input type="range" id="genSize" class="gen-size-slider" min="10" max="30" step="5" value="{{ settings.playlist_size if settings.playlist_size else 20 }}">
+            <p class="inline-hint" data-i18n="settings.playlist_size_hint">How many tracks to generate (max 30).</p>
+            <details class="learn-more">
+                <summary data-i18n="common.learn_more">Learn more</summary>
+                <div class="learn-more-body" data-i18n="settings.playlist_size_learn_more">Max capped at 30 — beyond that GPT starts repeating itself across 10-track fetch blocks, and review fatigue sets in. If you want a longer session, run twice with different presets.</div>
+            </details>
+        </div>
+
+        <!-- ═══ SHARED: Exploration slider (visible in both modes) ═══ -->
+        <div class="exploration-row">
+            <div class="exploration-header">
+                <label for="explorationSlider" class="exploration-label" data-i18n="gen.exploration_label">Exploration vs Accuracy</label>
+                <span class="exploration-value" data-i18n="gen.exploration_notch_3">Balanced</span>
+            </div>
+            <div class="exploration-slider-wrap">
+                <input type="range" id="explorationSlider" class="exploration-slider" min="1" max="5" step="1" value="3" aria-label="Exploration slider">
+                <div class="exploration-ticks" aria-hidden="true">
+                    <span class="tick"></span><span class="tick"></span><span class="tick"></span><span class="tick"></span><span class="tick"></span>
+                </div>
+                <div class="exploration-edge-labels" aria-hidden="true">
+                    <span data-i18n="gen.exploration_left">Familiar</span>
+                    <span data-i18n="gen.exploration_right">Adventurous</span>
+                </div>
+            </div>
+            <p class="inline-hint" data-i18n="gen.exploration_hint_3">Balanced — roughly half new artists, moderate novelty.</p>
+        </div>
+    </div>
+
+    <!-- ═══ SHARED: Playlist destination (visible in both modes) ═══ -->
+    <div class="playlist-destination-section">
+        <label class="playlist-destination-label" data-i18n="generate.destination_label">Save to</label>
+        <div class="playlist-mode-row">
+            <div class="playlist-mode-options">
+                {% for mode in playlist_modes %}
+                <label class="playlist-mode-option">
+                    <input type="radio" name="playlist_mode" value="{{ mode.value }}"
+                        {% if current_playlist_mode == mode.value %}checked{% endif %}
+                        onchange="onPlaylistModeChange()"> <span data-i18n="generate.mode_{{ mode.value }}">{{ mode.label }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            <div id="playlistNameRow" class="playlist-name-row {% if current_playlist_mode in ('create',) %}{% else %}hidden{% endif %}">
+                <input id="playlistNameInput" type="text" data-i18n-placeholder="generate.playlist_name_placeholder" placeholder="Playlist name" maxlength="200" class="playlist-name-input" value="{{ playlist_name if playlist_name }}">
+            </div>
+            <div id="playlistPickerRow" class="playlist-picker-row {% if current_playlist_mode in ('append', 'replace') %}{% else %}hidden{% endif %}">
+                <select id="playlistPicker" class="playlist-picker-select">
+                    {% if playlist_options %}
+                        {% for pl in playlist_options %}
+                        <option value="{{ pl.id }}">{{ pl.name }}</option>
+                        {% endfor %}
+                    {% else %}
+                    <option value="">Loading playlists…</option>
+                    {% endif %}
+                </select>
+                <button class="playlist-refresh-btn" onclick="refreshDiscoverPlaylistPicker()" aria-label="Refresh playlist list" data-i18n-title="playlist.refresh_aria" title="Refresh playlist list">↻</button>
+                <button class="playlist-delete-btn" onclick="deleteSelectedPlaylist('playlistPicker')" aria-label="Delete selected playlist" data-i18n-title="playlist.delete_aria" title="Delete selected playlist">🗑</button>
+            </div>
+        </div>
     </div>
 
     <!-- ═══ SHARED: Run section (outside both mode bodies) ═══ -->

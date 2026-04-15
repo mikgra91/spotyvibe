@@ -816,7 +816,14 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     padding: 14px 16px;
+    margin-top: 6px;
     margin-bottom: 12px;
+}
+
+/* ── Shared generation controls (size + exploration, outside mode bodies) ── */
+.gen-shared-controls {
+    margin-top: 4px;
+    margin-bottom: 4px;
 }
 
 .playlist-destination-label {

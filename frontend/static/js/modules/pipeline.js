@@ -1,14 +1,16 @@
 import * as State from './state.js';
-import { showStatus, showStatusHtml, hidePlaylistLink, showPlaylistLink } from './ui.js';
+import { showStatus, showStatusHtml, hidePlaylistLink, showPlaylistLink, showConfirm } from './ui.js';
 import { checkCredentialStatus, checkSpotifyAuth } from './auth.js';
 import { renderComponentWarnings } from './warnings.js';
-import { getPlaylistModePayload, refreshDiscoverPlaylistPicker } from './playlist-mode.js';
+import { getPlaylistModePayload, getPlaylistMode, refreshDiscoverPlaylistPicker, ensurePlaylistsLoaded, switchToAppendMode } from './playlist-mode.js';
 import { getAudioFilters } from './audio-filters.js';
 import { renderTracks } from './tracklist.js';
 import { loadHistory } from './history.js';
 import { populateReviewPlaylistPicker } from './review.js';
 import { resetDashboard } from './taste_dashboard.js';
 import { i18n } from './i18n.js';
+
+let _runPlaylistMode = null;  // playlist mode at time of generation (for auto-switch)
 
 export function toggleGenerateBody() {
     const body = document.getElementById('generateBody');
@@ -88,6 +90,25 @@ export async function runPipeline() {
 
     if (!canGenerate()) return;
 
+    // Duplicate playlist name check (only for "create" mode)
+    const preMode = getPlaylistMode();
+    if (preMode === 'create') {
+        const nameInput = document.getElementById('playlistNameInput');
+        const desiredName = (nameInput?.value || '').trim();
+        if (desiredName) {
+            const playlists = await ensurePlaylistsLoaded();
+            const duplicate = playlists.some(pl => pl.name.toLowerCase() === desiredName.toLowerCase());
+            if (duplicate) {
+                const msg = i18n('playlist_mode.duplicate_confirm', 'A playlist named "{name}" already exists.\n\nDo you want to create a duplicate?')
+                    .replace('{name}', desiredName);
+                const confirmed = await showConfirm(msg);
+                if (!confirmed) return;
+                const suffix = i18n('playlist_mode.duplicate_suffix', '_Duplicate');
+                nameInput.value = desiredName + suffix;
+            }
+        }
+    }
+
     State.setPartialTrackCount(0);
     State.setCurrentRunId(generateUUID());
     State.setCurrentAbortController(new AbortController());
@@ -96,6 +117,7 @@ export async function runPipeline() {
     hidePlaylistLink();
 
     const playlistPayload = getPlaylistModePayload();
+    _runPlaylistMode = playlistPayload.playlist_mode || 'default';
     const audioFilters = getAudioFilters();
     if (audioFilters) playlistPayload.audio_filters = audioFilters;
     const emergingOnly = document.getElementById('emergingArtistsCheckbox')?.checked || false;
@@ -110,9 +132,8 @@ export async function runPipeline() {
         }
     } catch (_) { /* ignore */ }
 
-    // Wave 2: playlist size from active mode's slider (overrides settings modal)
-    const activeBody = document.querySelector('.gen-mode-body:not(.hidden)');
-    const sizeSlider = activeBody ? activeBody.querySelector('.gen-size-slider') : null;
+    // Wave 2: playlist size from shared slider (overrides settings modal)
+    const sizeSlider = document.querySelector('.gen-size-slider');
     if (sizeSlider) {
         playlistPayload.playlist_size = parseInt(sizeSlider.value, 10);
     }
@@ -302,7 +323,13 @@ export function handleStreamEvent(event) {
                 parts.push(i18n('pipeline.emerging_filter_result', 'Showing {shown} of {checked} checked tracks — only tracks by recently emerged artists are included.').replace('{shown}', event.emerging_shown).replace('{checked}', event.emerging_checked));
             showStatus(parts.join(' '), event.was_cancelled ? 'info' : 'success');
             // Playlist was created or modified — refresh both pickers
-            refreshDiscoverPlaylistPicker().then(() => populateReviewPlaylistPicker());
+            refreshDiscoverPlaylistPicker().then(() => {
+                populateReviewPlaylistPicker();
+                // Auto-switch to "append" mode after a "create" run
+                if (_runPlaylistMode === 'create' && event.playlist_id) {
+                    switchToAppendMode(event.playlist_id);
+                }
+            });
 
             // Refresh taste dashboard and run history with the new data
             resetDashboard();
