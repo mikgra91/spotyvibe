@@ -26,6 +26,8 @@ can later revert to the previous version.
 """
 
 import json
+import logging
+import re as _re
 import shutil
 import threading
 import uuid as _uuid
@@ -56,6 +58,86 @@ TRAINING_PROMPT_FILE = BASE_DIR / "prompts" / "profile_training_prompt.txt"
 # each other's changes.
 _profile_lock = threading.Lock()
 
+_logger = logging.getLogger(__name__)
+
+# Matches a UUID-shaped directory name inside profiles/
+_UUID_DIR_RE = _re.compile(
+    r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
+)
+
+
+def _migrate_flat_profiles():
+    """One-time migration: move flat profile files into per-profile subdirectories.
+
+    Old layout (flat):
+        profiles/<uuid>.json
+        profiles/<uuid>.history.json
+        profiles/<uuid>_run_history.json
+
+    New layout (subdirectory per profile):
+        profiles/<uuid>/profile.json
+        profiles/<uuid>/profile.history.json
+        profiles/<uuid>/run_history.json
+
+    Runs silently and is idempotent — skips files that don't match the
+    old naming convention and never overwrites existing files in the
+    target subdirectory.
+    """
+    if not PROFILES_DIR.exists():
+        return
+
+    # Collect flat profile files (UUID.json, not inside a subdirectory)
+    flat_profiles = [
+        p for p in PROFILES_DIR.glob("*.json")
+        if p.is_file() and _UUID_DIR_RE.match(p.stem)
+    ]
+    if not flat_profiles:
+        return
+
+    migrated_ids = set()
+    for path in flat_profiles:
+        # Determine the profile UUID from the stem
+        # <uuid>.json             → uuid
+        # <uuid>.history.json     → stem is "<uuid>.history", skip (handled below)
+        # <uuid>_run_history.json → stem is "<uuid>_run_history", skip (handled below)
+        if not _UUID_DIR_RE.match(path.stem):
+            continue
+
+        profile_id = path.stem
+        target_dir = PROFILES_DIR / profile_id
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        # Move profile.json
+        target = target_dir / "profile.json"
+        if not target.exists():
+            shutil.move(str(path), str(target))
+            _logger.info("Migrated %s → %s", path.name, target)
+        else:
+            path.unlink()  # target already exists, remove stale flat file
+
+        # Move .history.json
+        history_src = PROFILES_DIR / f"{profile_id}.history.json"
+        history_dst = target_dir / "profile.history.json"
+        if history_src.exists():
+            if not history_dst.exists():
+                shutil.move(str(history_src), str(history_dst))
+            else:
+                history_src.unlink()
+
+        # Move _run_history.json
+        run_hist_src = PROFILES_DIR / f"{profile_id}_run_history.json"
+        run_hist_dst = target_dir / "run_history.json"
+        if run_hist_src.exists():
+            if not run_hist_dst.exists():
+                shutil.move(str(run_hist_src), str(run_hist_dst))
+            else:
+                run_hist_src.unlink()
+
+        migrated_ids.add(profile_id)
+
+    if migrated_ids:
+        _logger.info("Migrated %d profile(s) to subdirectory layout", len(migrated_ids))
+
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -83,10 +165,13 @@ def ensure_profile():
     """Ensure the profiles directory exists and the active profile file is present.
 
     If no active profile is set, does nothing (the UI must create one first).
+    Runs the flat→subdirectory migration on first call.
     """
     PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+    _migrate_flat_profiles()
     profile_path = get_active_profile_path()
     if profile_path and not profile_path.exists():
+        profile_path.parent.mkdir(parents=True, exist_ok=True)
         template = _load_template()
         with open(profile_path, "w", encoding="utf-8") as f:
             json.dump(template, f, indent=2)
@@ -137,7 +222,7 @@ def profile_transaction():
 
     with _profile_lock:
         def _load():
-            PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+            profile_path.parent.mkdir(parents=True, exist_ok=True)
             if not profile_path.exists():
                 template = _load_template()
                 with open(profile_path, "w", encoding="utf-8") as f:
@@ -562,21 +647,29 @@ def train_profile(sections):
 def list_profiles():
     """Return a list of all profiles: [{id, name, trained, last_updated}].
 
-    Scans the profiles/ directory for *.json files (excluding *.history.json).
+    Scans the profiles/ directory for UUID-named subdirectories containing
+    a profile.json file.  Runs the flat→subdirectory migration first so
+    legacy layouts are handled transparently.
     """
     PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+    _migrate_flat_profiles()
     profiles = []
-    for path in sorted(PROFILES_DIR.glob("*.json")):
-        if path.name.endswith(".history.json"):
+    for entry in sorted(PROFILES_DIR.iterdir()):
+        if not entry.is_dir() or not _UUID_DIR_RE.match(entry.name):
+            continue
+        profile_file = entry / "profile.json"
+        if not profile_file.exists():
             continue
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(profile_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            if not isinstance(data, dict):
+                continue
             name = data.get("name", "")
             if not name:
                 continue
             profiles.append({
-                "id": path.stem,
+                "id": entry.name,
                 "name": name,
                 "trained": bool(data.get("last_updated")),
                 "last_updated": data.get("last_updated"),
@@ -606,7 +699,9 @@ def create_profile(name):
 
     PROFILES_DIR.mkdir(parents=True, exist_ok=True)
     profile_id = str(_uuid.uuid4())
-    profile_path = PROFILES_DIR / f"{profile_id}.json"
+    profile_dir = PROFILES_DIR / profile_id
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    profile_path = profile_dir / "profile.json"
 
     template = _load_template()
     template["name"] = name
@@ -623,22 +718,19 @@ def delete_profile(profile_id):
     """Delete a profile by ID.
 
     Raises ValueError if the profile doesn't exist or ID is invalid.
-    Removes both the profile and its history file.
+    Removes the entire profile subdirectory.
     If the deleted profile was active, clears the active pointer.
     """
     if not profile_id:
         raise ValueError("Profile ID is required.")
     validate_profile_id(profile_id)
 
-    profile_path = PROFILES_DIR / f"{profile_id}.json"
-    history_path = PROFILES_DIR / f"{profile_id}.history.json"
+    profile_dir = PROFILES_DIR / profile_id
 
-    if not profile_path.exists():
+    if not profile_dir.exists():
         raise ValueError("Profile not found.")
 
-    profile_path.unlink()
-    if history_path.exists():
-        history_path.unlink()
+    shutil.rmtree(str(profile_dir))
 
     # If this was the active profile, clear the pointer
     if get_active_profile_id() == profile_id:
@@ -654,9 +746,73 @@ def activate_profile(profile_id):
         raise ValueError("Profile ID is required.")
     validate_profile_id(profile_id)
 
-    profile_path = PROFILES_DIR / f"{profile_id}.json"
-    if not profile_path.exists():
+    profile_dir = PROFILES_DIR / profile_id
+    if not profile_dir.exists():
         raise ValueError("Profile not found.")
 
     set_active_profile_id(profile_id)
+
+
+# ── Profile seeding from playlists (Wave 3) ─────────────────────────
+
+SEED_PROMPT_FILE = BASE_DIR / "prompts" / "profile_seed_from_playlist.txt"
+
+
+def draft_profile_from_playlist(summary: dict) -> dict:
+    """Draft a taste profile from a Spotify playlist summary via GPT.
+
+    Args:
+        summary: dict with keys: name, track_count, top_artists, top_genres,
+                 energy, valence, tempo, moods.
+
+    Returns a profile dict with: core_description, must_have, soft_preferences,
+    avoid (always []), vibe_description (always "").
+    """
+    prompt_template = SEED_PROMPT_FILE.read_text(encoding="utf-8")
+
+    top_artists_list = ", ".join(summary.get("top_artists", [])[:5]) or "various"
+    top_genres_list = ", ".join(summary.get("top_genres", [])[:5]) or "mixed"
+    energy = summary.get("energy", "unknown")
+    valence = summary.get("valence", "unknown")
+    tempo = summary.get("tempo", "unknown")
+    moods = ", ".join(summary.get("moods", [])) or "mixed"
+
+    prompt = prompt_template.format(
+        name=summary.get("name", "Untitled"),
+        count=summary.get("track_count", 0),
+        top_artists_list=top_artists_list,
+        top_genres_list=top_genres_list,
+        energy=energy,
+        valence=valence,
+        tempo=tempo,
+        moods=moods,
+    )
+
+    response = chat_completions_create(
+        model=get_model(),
+        messages=[
+            {"role": "system", "content": "You draft music taste profiles from playlist data. Return strict JSON only."},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.7,
+        response_format={"type": "json_object"},
+    )
+
+    raw = extract_chat_content(response)
+    content = strip_code_fences(raw)
+
+    try:
+        result = json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"GPT returned invalid JSON for playlist seed: {exc}") from exc
+
+    # Enforce shape constraints
+    draft = {
+        "core_description": str(result.get("core_description", ""))[:MAX_CORE_DESCRIPTION_LEN],
+        "must_have": [str(x)[:MAX_PROFILE_SECTION_LEN] for x in (result.get("must_have") or [])[:3]],
+        "soft_preferences": [str(x)[:MAX_PROFILE_SECTION_LEN] for x in (result.get("soft_preferences") or [])[:3]],
+        "avoid": [],
+        "vibe_description": str(result.get("vibe_description", "")),
+    }
+    return draft
 

@@ -70,9 +70,30 @@ _RETRY_STATUS = {429, 500, 502, 503, 504}
 
 # ── Internal helpers ─────────────────────────────────────────────────
 
+def _get_base_url() -> str:
+    """Return the currently configured LLM base URL."""
+    try:
+        from config import get_llm_base_url
+        return get_llm_base_url()
+    except (ImportError, Exception):
+        return _BASE_URL
+
+
+def _is_openai_provider() -> bool:
+    """Return True when the configured base URL points to OpenAI's API."""
+    return _get_base_url().rstrip("/") == _BASE_URL
+
+
 def _get_api_key() -> str:
     key = os.getenv("OPENAI_API_KEY")
     if not key:
+        # Wave 4: Local providers don't need a key
+        try:
+            from config import llm_api_key_required
+            if not llm_api_key_required():
+                return "not-needed"  # placeholder for Authorization header
+        except (ImportError, Exception):
+            pass
         raise OpenAIConfigError(
             "OpenAI API key is not configured. "
             "Go to ⚙️ → Credentials to set it."
@@ -115,7 +136,8 @@ def _request_json(method: str, path: str, body=None, retries: int = 1) -> dict:
     """
     api_key = _get_api_key()
     headers = _make_headers(api_key)
-    url = f"{_BASE_URL}{path}"
+    base_url = _get_base_url()
+    url = f"{base_url}{path}"
     data = json.dumps(body).encode("utf-8") if body is not None else None
 
     last_exc: Exception | None = None
@@ -142,7 +164,7 @@ def _request_json(method: str, path: str, body=None, retries: int = 1) -> dict:
             try:
                 body_bytes = exc.read()
                 body_str = body_bytes.decode("utf-8", errors="replace")
-            except Exception:
+            except (IOError, ValueError, OSError):
                 body_str = ""
 
             # 401 — bad API key, raise immediately (no retry)
@@ -234,13 +256,17 @@ def chat_completions_create(
         OpenAIRequestError: Other HTTP or network error.
         OpenAITimeoutError: Request timed out.
     """
-    from config import OPENAI_SUPPORTED_MODELS_JSON, OPENAI_EXTRA_ALLOWED_MODELS
-    allowed = set(OPENAI_SUPPORTED_MODELS_JSON) | set(OPENAI_EXTRA_ALLOWED_MODELS)
-    if model not in allowed:
-        raise OpenAIUnsupportedModelError(
-            f"Model '{model}' is not in the supported model list. "
-            "Select a supported model in ⚙️ Settings."
-        )
+    # Model allowlist only applies when targeting OpenAI's API.
+    # Non-OpenAI providers (Ollama, LM Studio, Groq, etc.) use their own
+    # model IDs which are not in the curated OpenAI list.
+    if _is_openai_provider():
+        from config import OPENAI_SUPPORTED_MODELS_JSON, OPENAI_EXTRA_ALLOWED_MODELS
+        allowed = set(OPENAI_SUPPORTED_MODELS_JSON) | set(OPENAI_EXTRA_ALLOWED_MODELS)
+        if model not in allowed:
+            raise OpenAIUnsupportedModelError(
+                f"Model '{model}' is not in the supported model list. "
+                "Select a supported model in ⚙️ Settings."
+            )
 
     payload: dict = {
         "model": model,

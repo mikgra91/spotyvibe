@@ -1,8 +1,12 @@
 import * as State from './state.js';
-import { showToast, showAlert, showConfirm } from './ui.js';
+import { showToast, showAlert, showConfirm, closeAllPopovers, hidePlaylistLink } from './ui.js';
 import { i18n } from './i18n.js';
 import { renderTracks } from './tracklist.js';
 import { renderReviewTracks } from './review.js';
+import { resetDashboard } from './taste_dashboard.js';
+import { loadHistory } from './history.js';
+import { setGenerating } from './pipeline.js';
+import { renderComponentWarnings } from './warnings.js';
 
 const TRAINING_TEXTS = {
     en: [
@@ -44,6 +48,7 @@ export function toggleProfileMenu() {
     if (isOpen) {
         _closeProfileMenu();
     } else {
+        closeAllPopovers('profileMenuDropdown');
         updateProfileMenuState();
         menu.classList.remove('hidden');
         trigger.setAttribute('aria-expanded', 'true');
@@ -107,6 +112,24 @@ export function updateProfileMenuState() {
             el.classList.add('disabled');
             el.setAttribute('aria-disabled', 'true');
         }
+    }
+}
+
+export function updateSeedCardState() {
+    const seedCard = document.getElementById('profileSeedCard');
+    const seedBtn = document.getElementById('profileSeedBtn');
+    const seedHint = document.getElementById('profileSeedHint');
+    if (!seedCard) return;
+
+    const connected = State.spotifyAuthStatus === 'authenticated';
+    if (connected) {
+        seedCard.classList.remove('disabled');
+        if (seedBtn) seedBtn.disabled = false;
+        if (seedHint) seedHint.classList.add('hidden');
+    } else {
+        seedCard.classList.add('disabled');
+        if (seedBtn) seedBtn.disabled = true;
+        if (seedHint) seedHint.classList.remove('hidden');
     }
 }
 
@@ -224,6 +247,7 @@ function _toggleCustomDropdown() {
     if (isOpen) {
         _closeCustomDropdown();
     } else {
+        closeAllPopovers('profileCustomDropdown');
         list.classList.remove('hidden');
         dropdown.setAttribute('aria-expanded', 'true');
         // Focus the selected item or first item
@@ -263,6 +287,45 @@ export function initCustomProfileDropdown() {
     });
 }
 
+/**
+ * Shared cleanup after a profile change (switch, create, delete).
+ * Clears all UI state that belongs to the previous profile.
+ */
+async function _cleanupAfterProfileChange() {
+    // Cancel in-progress generation (it belongs to the old profile)
+    if (State.isGenerating) {
+        if (State.currentAbortController) State.currentAbortController.abort();
+        try { await fetch('/api/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ run_id: State.currentRunId, finalize: false }) }); } catch (_) { /* ignore */ }
+        setGenerating(false);
+    }
+
+    // Clear session state belonging to the previous profile
+    State.resetSessionState();
+    renderTracks();
+    renderReviewTracks();
+    resetDashboard();
+
+    // Clear status messages and playlist link from previous profile's run
+    const statusBox = document.getElementById('statusBox');
+    if (statusBox) { statusBox.textContent = ''; statusBox.classList.add('hidden'); }
+    hidePlaylistLink();
+
+    // Dismiss playlist seed draft banner (belongs to old profile)
+    const draftBanner = document.getElementById('profileDraftBanner');
+    if (draftBanner) draftBanner.classList.add('hidden');
+    window._svDraftMeta = null;
+
+    // Refresh history panel so it shows the new profile's runs
+    if (State.historyBodyOpen) loadHistory();
+
+    await Promise.all([checkProfileStatus(), prefillTrainFields()]);
+    // Signal completeness meter that a fresh profile was loaded (resets _pristine)
+    document.dispatchEvent(new Event('profile-loaded'));
+
+    // Re-evaluate component warnings (profileTrained may have changed)
+    renderComponentWarnings();
+}
+
 export async function switchProfile(profileId) {
     if (!profileId || profileId === _activeProfileId) return;
     try {
@@ -275,12 +338,8 @@ export async function switchProfile(profileId) {
         _activeProfileId = profileId;
         _renderCustomDropdown();
 
-        // Clear session state belonging to the previous profile
-        State.resetSessionState();
-        renderTracks();
-        renderReviewTracks();
+        await _cleanupAfterProfileChange();
 
-        await Promise.all([checkProfileStatus(), prefillTrainFields()]);
         showToast(i18n('msg.profile_switched', 'Profile switched.'), 'success');
     } catch (e) {
         showToast(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message), 'error');
@@ -345,7 +404,10 @@ export async function createNewProfile() {
 
         // Reload the profile list — the new profile is auto-activated
         await loadProfileList();
-        await Promise.all([checkProfileStatus(), prefillTrainFields()]);
+
+        // Full cleanup: the new profile is a different profile context
+        await _cleanupAfterProfileChange();
+
         showToast(i18n('msg.profile_created', 'Profile created.'), 'success');
     } catch (e) {
         error.textContent = i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message);
@@ -378,7 +440,8 @@ export async function deleteCurrentProfile() {
         if (_profileList.length > 0) {
             await switchProfile(_profileList[0].id);
         } else {
-            await checkProfileStatus();
+            // No profiles left — still need full cleanup
+            await _cleanupAfterProfileChange();
             _clearTrainFields();
         }
 
@@ -557,6 +620,7 @@ async function handleProfileImportFile(file) {
         }
 
         showToast(i18n('profile.import_success', 'Profile imported. Previous profile saved to history.'), 'success');
+        resetDashboard();
         await Promise.all([checkProfileStatus(), prefillTrainFields()]);
     } catch (e) {
         showToast(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message), 'error');
@@ -631,15 +695,25 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
             return;
         }
 
-        document.getElementById('trainBody').classList.add('hidden');
-        State.setUserProfileEditMode(false);
-        updateTrainToggleLabel();
+        // Re-fill fields with the AI-updated profile data
+        await prefillTrainFields();
+        // Dispatch input events so completeness meter re-reads updated values
+        ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid']
+            .forEach(id => document.getElementById(id)?.dispatchEvent(new Event('input')));
 
         const icon = document.getElementById('trainSuccessIcon');
         icon.className = 'train-success';
         icon.textContent = successMsg;
         icon.classList.remove('hidden');
         setTimeout(() => { icon.classList.add('hidden'); }, 5000);
+
+        // Hide draft banner after successful save/train
+        const banner = document.getElementById('profileDraftBanner');
+        if (banner) banner.classList.add('hidden');
+        window._svDraftMeta = null;
+
+        // Dashboard data may have changed with the new profile content
+        resetDashboard();
 
         await checkProfileStatus();
 
@@ -663,7 +737,7 @@ export function sendTrainProfile() {
 
 export function saveProfileDirect() {
     return submitProfile('/api/save-profile', 'trainSaveBtn',
-        i18n('btn.save', 'Save'),
+        i18n('btn.save_no_ai', 'Save without AI'),
         i18n('msg.saving', '⏳ Saving…'),
         i18n('msg.profile_saved', '✅ Profile saved!'),
         false);
@@ -689,7 +763,11 @@ export async function resetProfileToHistory() {
         }
 
         showToast(i18n('profile.reset_success', 'Profile reset to history.'), 'success');
+        resetDashboard();
         await Promise.all([checkProfileStatus(), prefillTrainFields()]);
+        // F.1: Dispatch input events so completeness meter re-reads fresh values
+        ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid']
+            .forEach(id => document.getElementById(id)?.dispatchEvent(new Event('input')));
     } catch (e) {
         showToast(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message), 'error');
     }

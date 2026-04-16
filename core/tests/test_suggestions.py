@@ -399,6 +399,80 @@ class TestNormalizeResponse:
         assert normalized["playlist"][0]["artist"] == "iron & wine"
         assert normalized["playlist"][1]["artist"] == "fun."
 
+    def test_normalizes_energy_valence(self):
+        """Energy and valence floats from GPT are clamped to [0, 1]."""
+        result = {
+            "playlist": [
+                {"artist": "A", "track": "T", "energy": 0.85, "valence": 0.3},
+            ],
+        }
+        normalized = normalize_response(result)
+        assert normalized["playlist"][0]["energy"] == 0.85
+        assert normalized["playlist"][0]["valence"] == 0.3
+
+    def test_clamps_energy_valence_out_of_range(self):
+        """Values outside [0, 1] are clamped."""
+        result = {
+            "playlist": [
+                {"artist": "A", "track": "T", "energy": 1.5, "valence": -0.2},
+            ],
+        }
+        normalized = normalize_response(result)
+        assert normalized["playlist"][0]["energy"] == 1.0
+        assert normalized["playlist"][0]["valence"] == 0.0
+
+    def test_strips_invalid_energy_valence(self):
+        """Non-numeric energy/valence values are removed."""
+        result = {
+            "playlist": [
+                {"artist": "A", "track": "T", "energy": "high", "valence": None},
+            ],
+        }
+        normalized = normalize_response(result)
+        assert "energy" not in normalized["playlist"][0]
+
+    def test_missing_energy_valence_ok(self):
+        """Tracks without energy/valence are accepted (backward compat)."""
+        result = {
+            "playlist": [
+                {"artist": "A", "track": "T", "reason": "fits"},
+            ],
+        }
+        normalized = normalize_response(result)
+        assert "energy" not in normalized["playlist"][0]
+        assert "valence" not in normalized["playlist"][0]
+
+    def test_normalizes_genres(self):
+        """GPT genres are lowercased, trimmed, and capped at 3."""
+        result = {
+            "playlist": [
+                {"artist": "A", "track": "T",
+                 "genres": ["Indie Rock", " Alternative ", "Post-Punk", "Extra"]},
+            ],
+        }
+        normalized = normalize_response(result)
+        assert normalized["playlist"][0]["genres"] == ["indie rock", "alternative", "post-punk"]
+
+    def test_genres_defaults_to_empty_list(self):
+        """Tracks without genres get an empty list."""
+        result = {
+            "playlist": [
+                {"artist": "A", "track": "T", "reason": "fits"},
+            ],
+        }
+        normalized = normalize_response(result)
+        assert normalized["playlist"][0]["genres"] == []
+
+    def test_genres_non_list_replaced(self):
+        """Non-list genres value is replaced with empty list."""
+        result = {
+            "playlist": [
+                {"artist": "A", "track": "T", "genres": "rock"},
+            ],
+        }
+        normalized = normalize_response(result)
+        assert normalized["playlist"][0]["genres"] == []
+
 
 class TestStripGptAnnotation:
     _WORDS = {"different", "excluded", "forbidden", "not in",
@@ -559,4 +633,97 @@ class TestLoadTextFile:
             assert False, "Expected FileNotFoundError"
         except FileNotFoundError:
             pass
+
+
+class TestNormalizeRationale:
+    """Wave 3: rationale parsing tests."""
+
+    def test_well_formed_rationale_passes_through(self):
+        from core.src.suggestions import _normalize_rationale
+        entry = {
+            "rationale": [
+                {"type": "profile_match", "arg": "indie rock"},
+                {"type": "artist_match", "arg": "Foo Fighters"},
+            ]
+        }
+        result = _normalize_rationale(entry)
+        assert len(result) == 2
+        assert result[0]["type"] == "profile_match"
+        assert result[1]["arg"] == "Foo Fighters"
+
+    def test_unknown_type_dropped(self):
+        from core.src.suggestions import _normalize_rationale
+        entry = {
+            "rationale": [
+                {"type": "unknown_type", "arg": "test"},
+                {"type": "profile_match", "arg": "rock"},
+            ]
+        }
+        result = _normalize_rationale(entry)
+        assert len(result) == 1
+        assert result[0]["type"] == "profile_match"
+
+    def test_capped_to_2_entries(self):
+        from core.src.suggestions import _normalize_rationale
+        entry = {
+            "rationale": [
+                {"type": "profile_match", "arg": "a"},
+                {"type": "artist_match", "arg": "b"},
+                {"type": "recency", "arg": "c"},
+            ]
+        }
+        result = _normalize_rationale(entry)
+        assert len(result) == 2
+
+    def test_arg_truncated_to_40_chars(self):
+        from core.src.suggestions import _normalize_rationale
+        long_arg = "a" * 60
+        entry = {"rationale": [{"type": "profile_match", "arg": long_arg}]}
+        result = _normalize_rationale(entry)
+        assert len(result[0]["arg"]) == 40
+
+    def test_legacy_fallback_from_reason(self):
+        from core.src.suggestions import _normalize_rationale
+        entry = {"reason": "Matches your profile"}
+        result = _normalize_rationale(entry)
+        assert len(result) == 1
+        assert result[0]["type"] == "legacy"
+        assert result[0]["arg"] == "Matches your profile"
+
+    def test_fallback_when_both_missing(self):
+        from core.src.suggestions import _normalize_rationale
+        entry = {}
+        result = _normalize_rationale(entry)
+        assert len(result) == 1
+        assert result[0]["type"] == "fallback"
+
+    def test_empty_rationale_array_falls_back(self):
+        from core.src.suggestions import _normalize_rationale
+        entry = {"rationale": []}
+        result = _normalize_rationale(entry)
+        assert result[0]["type"] == "fallback"
+
+    def test_missing_arg_dropped(self):
+        from core.src.suggestions import _normalize_rationale
+        entry = {"rationale": [{"type": "novelty"}, {"type": "profile_match", "arg": "rock"}]}
+        result = _normalize_rationale(entry)
+        assert len(result) == 1
+        assert result[0]["type"] == "profile_match"
+
+    def test_empty_arg_dropped(self):
+        from core.src.suggestions import _normalize_rationale
+        entry = {"rationale": [{"type": "recency", "arg": ""}, {"type": "novelty", "arg": "  "}]}
+        result = _normalize_rationale(entry)
+        assert result[0]["type"] == "fallback"
+
+    def test_normalize_response_adds_rationale(self):
+        result = {
+            "playlist": [
+                {"artist": "Muse", "track": "Hysteria", "rationale": [{"type": "profile_match", "arg": "rock"}]},
+                {"artist": "Queen", "track": "Bohemian Rhapsody", "reason": "classic"},
+            ]
+        }
+        normalized = normalize_response(result)
+        assert normalized["playlist"][0]["rationale"][0]["type"] == "profile_match"
+        assert normalized["playlist"][1]["rationale"][0]["type"] == "legacy"
 

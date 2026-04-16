@@ -1,7 +1,7 @@
-"""Automated screenshot acquisition for documentation/help.md.
+"""Automated screenshot acquisition for documentation/help.en.md.
 
 Launches the app with mocked APIs, navigates to each section described in
-help.md, and captures a screenshot into documentation/assets/screenshots/.
+help.en.md, and captures a screenshot into documentation/assets/screenshots/.
 
 These tests are EXCLUDED from routine test runs (``python -m pytest``).
 They are meant to be run manually by the developer when documentation
@@ -74,6 +74,12 @@ _INJECT_REVIEW_TRACKS_JS = """() => {
         window.renderReviewTracks();
     });
 }"""
+
+
+def _switch_tab(page: Page, tab_name: str):
+    """Click a main nav tab (openai, spotify, history) and wait for it to activate."""
+    page.locator(f"#tab-{tab_name}").click()
+    page.wait_for_timeout(300)
 
 
 def _inject_discover_tracks(page: Page):
@@ -219,6 +225,11 @@ def screenshot_url():
             "prompt_log_path": "prompt.log",
             "playlist_size": 30,
             "new_artist_percentage": 30,
+            "gpt_language": "English",
+            "ui_language": "en",
+            "provider_preset": "openai",
+            "llm_base_url": "https://api.openai.com/v1",
+            "llm_api_key_required": True,
         }
 
     def fake_list_profiles():
@@ -301,10 +312,10 @@ def browser_context_args(browser_context_args):
 
 @pytest.mark.screenshots
 class TestDocumentationScreenshotAcquire:
-    """Capture screenshots for every placeholder in documentation/help.md.
+    """Capture screenshots for every placeholder in documentation/help.en.md.
 
     Each test method corresponds to one or more > **Screenshot placeholder:**
-    entries in help.md. Screenshots are saved to:
+    entries in help.en.md. Screenshots are saved to:
         documentation/assets/screenshots/<name>.png
     """
 
@@ -379,12 +390,12 @@ class TestDocumentationScreenshotAcquire:
         _shot_element(page, "08_profile_editor_open", "#trainSection")
 
     def test_09_profiles_accordion(self, page: Page, screenshot_url):
-        """Screenshot: Profiles accordion with dropdown and create input"""
+        """Screenshot: Profiles card with dropdown and action cards"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
         page.locator("#trainToggleBtn").click()
         page.wait_for_timeout(600)
-        _shot_element(page, "09_profiles_accordion", "#accProfiles")
+        _shot_element(page, "09_profiles_accordion", "#profilesCard")
 
     def test_10_profile_status(self, page: Page, screenshot_url):
         """Screenshot: Profile status indicators"""
@@ -463,7 +474,7 @@ class TestDocumentationScreenshotAcquire:
         # Open the profile context menu
         page.locator("#profileMenuTrigger").click()
         page.wait_for_timeout(300)
-        _shot_element(page, "17_profile_io_controls", "#accProfiles")
+        _shot_element(page, "17_profile_io_controls", "#profilesCard")
 
     # -- Band/Song Analysis -------------------------------------------------
 
@@ -481,6 +492,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot: Discover Music section expanded"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(400)
         _shot_element(page, "19_discover_section", "#generateSection")
@@ -489,15 +501,23 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot: Playlist mode selector"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(400)
+        # Switch to advanced mode where playlist mode row lives
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(300)
         _shot_element(page, "20_playlist_mode_selector", ".playlist-mode-row")
 
     def test_21_audio_filters(self, page: Page, screenshot_url):
         """Screenshot: Audio Filters sub-panel inside Discover Music"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        # Switch to advanced mode where audio filters live
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
         page.wait_for_timeout(300)
         # Expand the audio filters sub-panel
         page.locator(".audio-filter-toggle").click()
@@ -518,6 +538,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot: Refine Playlist section expanded"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#reviewToggleBtn").click()
         page.wait_for_timeout(400)
         _shot_element(page, "22_refine_playlist_section", "#reviewSection")
@@ -528,7 +549,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot: Run History section with expanded entry"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
-        page.locator("#historyToggleBtn").click()
+        _switch_tab(page, "history")
         page.wait_for_timeout(400)
         # Expand the first history entry
         first_entry = page.locator(".history-run-item").first
@@ -538,38 +559,50 @@ class TestDocumentationScreenshotAcquire:
         _shot_element(page, "23_run_history", "#historySection")
 
     # -- Onboarding ---------------------------------------------------------
+    #
+    # The onboarding flow has 7 steps. `help.en.md` links to
+    # `24_onboarding_credentials.png` (step 2 — OpenAI key), so that filename
+    # is kept as-is. The other steps are captured below with numbers 45–55.
 
-    def test_24_onboarding_credentials(self, page: Page, screenshot_url):
-        """Screenshot: Onboarding credentials screen"""
-        # Intercept the onboarding status to prevent redirect
+    def _goto_onboarding_page(self, page: Page, screenshot_url: str, page_index: int):
+        """Open /onboarding?replay=1 and advance to the given 0-based step index.
+
+        page_index 0 = Welcome, 1 = OpenAI key, 2 = Spotify cred,
+        3 = Connect Spotify, 4 = Seed taste, 5 = Model, 6 = Ready.
+        """
         def handle_status(route):
             route.fulfill(
                 status=200,
                 headers={"Content-Type": "application/json"},
                 body=json.dumps({"completed": False}),
             )
-
         page.route("**/api/onboarding/status", handle_status)
-        page.goto(screenshot_url + "/onboarding")
+        page.goto(screenshot_url + "/onboarding?replay=1")
         page.wait_for_load_state("networkidle")
-        # Navigate to page 3 (credentials — after intro and language)
-        page.locator("text=Next →").first.click()
-        page.wait_for_timeout(400)
-        page.locator("text=Next →").nth(1).click()
-        page.wait_for_timeout(400)
+        for i in range(page_index):
+            # Click the visible CTA inside the currently-active page.
+            cta = page.locator(".ob-page.active .ob-cta-next, .ob-page.active .ob-cta-start, .ob-page.active .ob-cta-skip-inline").first
+            cta.click()
+            page.wait_for_timeout(500)
+        page.wait_for_timeout(200)
+
+    def test_24_onboarding_credentials(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding step 2 — OpenAI API key (kept at this filename
+        because documentation/help.en.md links to it)."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=1)
         _shot(page, "24_onboarding_credentials")
 
     # -- Full-page composite screenshots ------------------------------------
 
     def test_25_full_page_all_expanded(self, page: Page, screenshot_url):
-        """Screenshot: Full page with profile editor and discover sections open"""
+        """Screenshot: Full page with profile editor and analysis sections open"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
         # Expand profile editor
         page.locator("#trainToggleBtn").click()
         page.wait_for_timeout(300)
-        # Expand discover section
-        page.locator("#generateToggleBtn").click()
+        # Expand analysis section (same tab)
+        page.locator("#analysisToggleBtn").click()
         page.wait_for_timeout(300)
         _shot(page, "25_full_page_all_expanded")
 
@@ -591,6 +624,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Connect to Spotify banner"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         # Expand the Discover section
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
@@ -636,6 +670,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Generation in progress with inline spinner"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         page.evaluate("""() => {
@@ -653,6 +688,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Cancel and Use X Tracks Now buttons"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         page.evaluate("""() => {
@@ -675,6 +711,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Track cards after generation"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_discover_tracks(page)
@@ -685,6 +722,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Preview player open"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_discover_tracks(page)
@@ -703,6 +741,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Spotify quick links on a song card"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_discover_tracks(page)
@@ -713,6 +752,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Like feedback form"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_discover_tracks(page)
@@ -725,6 +765,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Dislike feedback form"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_discover_tracks(page)
@@ -737,6 +778,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Remove button on song card"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_discover_tracks(page)
@@ -749,6 +791,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Playlist dropdown with playlists loaded"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#reviewToggleBtn").click()
         page.wait_for_timeout(300)
         # Inject mock playlist options
@@ -766,6 +809,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Review track cards"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#reviewToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_review_tracks(page)
@@ -776,6 +820,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Like feedback form in Refine section"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#reviewToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_review_tracks(page)
@@ -788,6 +833,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Dislike feedback form in Refine section"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#reviewToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_review_tracks(page)
@@ -800,6 +846,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Dismiss button on review track card"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#reviewToggleBtn").click()
         page.wait_for_timeout(300)
         _inject_review_tracks(page)
@@ -812,7 +859,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Song list with saved tracks"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
-        page.locator("#historyToggleBtn").click()
+        _switch_tab(page, "history")
         page.wait_for_timeout(400)
         # Expand the first history entry to show its track list
         first_entry = page.locator(".history-run-item").first
@@ -839,6 +886,7 @@ class TestDocumentationScreenshotAcquire:
         """Screenshot placeholder: Example warning or error message"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(300)
         # Simulate missing OpenAI key warning
@@ -851,9 +899,723 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(200)
         _shot_element(page, "44_warning_message", "#runWarn")
 
+    # -- Onboarding (all 7 steps + overlays) ----------------------------------
+    #
+    # Step 2 (OpenAI key) is captured above as `24_onboarding_credentials.png`
+    # (kept at that number because `documentation/help.en.md` links to it).
 
+    def test_45_onboarding_step1_welcome(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding step 1 — welcome / intro with feature bullets."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=0)
+        _shot(page, "45_onboarding_step1_welcome")
 
+    def test_46_onboarding_step3_spotify_cred(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding step 3 — Spotify developer app credentials."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=2)
+        _shot(page, "46_onboarding_step3_spotify_cred")
 
+    def test_47_onboarding_step4_connect(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding step 4 — Connect Spotify account."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=3)
+        _shot(page, "47_onboarding_step4_connect")
 
+    def test_48_onboarding_step5_seed(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding step 5 — Seed your taste (3 cards)."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=4)
+        _shot(page, "48_onboarding_step5_seed")
 
+    def test_49_onboarding_step6_model(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding step 6 — Pick a model."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=5)
+        _shot(page, "49_onboarding_step6_model")
+
+    def test_50_onboarding_step7_ready(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding step 7 — Ready summary."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=6)
+        _shot(page, "50_onboarding_step7_ready")
+
+    def test_51_onboarding_howto_openai_expanded(self, page: Page, screenshot_url):
+        """Screenshot: Step 2 with the 'How do I get this?' accordion expanded."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=1)
+        page.locator(".ob-cred-guide-toggle").first.click()
+        page.wait_for_timeout(250)
+        _shot(page, "51_onboarding_howto_openai_expanded")
+
+    def test_52_setup_guide_openai_overlay(self, page: Page, screenshot_url):
+        """Screenshot: The full-screen OpenAI setup guide overlay."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=1)
+        page.locator(".ob-cred-guide-toggle").first.click()
+        page.wait_for_timeout(250)
+        page.locator(".ob-cred-guide-readmore").first.click()
+        page.wait_for_timeout(400)
+        _shot(page, "52_setup_guide_openai")
+
+    def test_53_setup_guide_spotify_overlay(self, page: Page, screenshot_url):
+        """Screenshot: The full-screen Spotify setup guide overlay."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=2)
+        page.locator(".ob-page.active .ob-cred-guide-toggle").click()
+        page.wait_for_timeout(250)
+        page.locator(".ob-page.active .ob-cred-guide-readmore").click()
+        page.wait_for_timeout(400)
+        _shot(page, "53_setup_guide_spotify")
+
+    def test_54_privacy_modal(self, page: Page, screenshot_url):
+        """Screenshot: Privacy 'What gets sent where?' modal, opened from step 1."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=0)
+        page.locator(".ob-privacy-link").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "54_privacy_modal", "#privacyModal .modal")
+
+    def test_55_rerun_setup_menu_item(self, page: Page, screenshot_url):
+        """Screenshot: The gear-menu burger with 'Re-run setup' visible."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("button[aria-label='Menu']").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "55_rerun_setup_menu_item", ".header-controls")
+
+    # -- Wave 2: Quick wins ------------------------------------------------
+
+    def test_56_generate_quick_mode(self, page: Page, screenshot_url):
+        """Screenshot: Generate panel in Quick mode with exploration slider."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.evaluate("localStorage.setItem('sv.gen_mode', 'quick')")
+        page.reload()
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(400)
+        _shot_element(page, "56_generate_quick_mode", "#generateSection")
+
+    def test_57_generate_advanced_mode(self, page: Page, screenshot_url):
+        """Screenshot: Generate panel in Advanced mode with all controls visible."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "57_generate_advanced_mode", "#generateSection")
+
+    def test_58_exploration_slider_adventurous(self, page: Page, screenshot_url):
+        """Screenshot: Exploration slider at notch 5 (Adventurous)."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.evaluate("document.getElementById('explorationSlider').value = 5; document.getElementById('explorationSlider').dispatchEvent(new Event('input'));")
+        page.wait_for_timeout(200)
+        _shot_element(page, "58_exploration_slider_adventurous", ".gen-shared-controls .exploration-row")
+
+    def test_59_exploration_slider_custom(self, page: Page, screenshot_url):
+        """Screenshot: Slider in 'Custom' state after Advanced-mode override."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(200)
+        page.locator("#genNewArtistPct").fill("33")
+        page.locator("body").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "59_exploration_slider_custom", ".gen-mode-body--advanced .exploration-row")
+
+    def test_60_preset_dropdown_open(self, page: Page, screenshot_url):
+        """Screenshot: Preset dropdown expanded in Advanced mode."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.evaluate("""() => {
+            const userPresets = [
+                { id: 'user_1', name: 'Morning coffee', builtin: false, version: 1, settings: {} },
+                { id: 'user_2', name: 'Workout mix',    builtin: false, version: 1, settings: {} },
+            ];
+            localStorage.setItem('sv.presets.user', JSON.stringify(userPresets));
+        }""")
+        page.reload()
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(200)
+        page.locator("#presetDropdownTrigger").click()
+        page.wait_for_timeout(200)
+        _shot_element(page, "60_preset_dropdown_open", ".preset-row")
+
+    def test_61_preset_dropdown_empty_user(self, page: Page, screenshot_url):
+        """Screenshot: Preset dropdown when user has zero custom presets."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.evaluate("localStorage.removeItem('sv.presets.user')")
+        page.reload()
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(200)
+        page.locator("#presetDropdownTrigger").click()
+        page.wait_for_timeout(200)
+        _shot_element(page, "61_preset_dropdown_empty_user", ".preset-row")
+
+    def test_62_save_preset_dialog(self, page: Page, screenshot_url):
+        """Screenshot: 'Save current as preset' dialog."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(200)
+        page.locator(".preset-save-btn").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "62_save_preset_dialog", "#savePresetModal .modal")
+
+    def test_63_preset_manager(self, page: Page, screenshot_url):
+        """Screenshot: Manage presets modal with user + built-in rows."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.evaluate("""() => {
+            const userPresets = [
+                { id: 'user_1', name: 'Morning coffee', builtin: false, version: 1, settings: {} },
+                { id: 'user_2', name: 'Workout mix',    builtin: false, version: 1, settings: {} },
+            ];
+            localStorage.setItem('sv.presets.user', JSON.stringify(userPresets));
+        }""")
+        page.reload()
+        page.wait_for_load_state("networkidle")
+        page.locator("button[aria-label='Menu']").click()
+        page.wait_for_timeout(200)
+        page.locator("button:has-text('Manage presets')").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "63_preset_manager", "#presetManagerModal .modal")
+
+    def test_64_completeness_meter_weak(self, page: Page, screenshot_url):
+        """Screenshot: Completeness meter at low score (red) on an empty profile."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#trainToggleBtn").click()
+        page.wait_for_timeout(400)
+        page.evaluate("""() => {
+            document.getElementById('trainCoreDesc').value = '';
+            document.getElementById('trainMustHave').value = '';
+            document.getElementById('trainSoftPrefs').value = '';
+            document.getElementById('trainAvoid').value = '';
+            ['trainCoreDesc','trainMustHave','trainSoftPrefs','trainAvoid'].forEach(id => {
+                document.getElementById(id).dispatchEvent(new Event('input'));
+            });
+        }""")
+        page.wait_for_timeout(400)
+        _shot_element(page, "64_completeness_meter_weak", "#profileCompletenessCard")
+
+    def test_65_completeness_meter_medium(self, page: Page, screenshot_url):
+        """Screenshot: Completeness meter at ~45% (yellow)."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#trainToggleBtn").click()
+        page.wait_for_timeout(400)
+        page.evaluate("""() => {
+            document.getElementById('trainCoreDesc').value = 'Upbeat melodic rock.';
+            document.getElementById('trainMustHave').value = 'high energy';
+            document.getElementById('trainSoftPrefs').value = '';
+            document.getElementById('trainAvoid').value = '';
+            ['trainCoreDesc','trainMustHave','trainSoftPrefs','trainAvoid'].forEach(id => {
+                document.getElementById(id).dispatchEvent(new Event('input'));
+            });
+        }""")
+        page.wait_for_timeout(400)
+        _shot_element(page, "65_completeness_meter_medium", "#profileCompletenessCard")
+
+    def test_66_audio_filter_inline_hints(self, page: Page, screenshot_url):
+        """Screenshot: Audio filter panel showing inline hints."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.locator(".gen-mode-btn[data-mode='advanced']").click()
+        page.wait_for_timeout(200)
+        page.locator(".audio-filter-toggle").click()
+        page.wait_for_timeout(200)
+        page.locator(".audio-filter-row:has-text('Energy') .learn-more > summary").click()
+        page.wait_for_timeout(200)
+        _shot_element(page, "66_audio_filter_inline_hints", "#audioFiltersSection")
+
+    def test_67_settings_modal_inline_hints(self, page: Page, screenshot_url):
+        """Screenshot: Settings modal with new inline hints."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("button[aria-label='Menu']").click()
+        page.wait_for_timeout(200)
+        page.locator("button:has-text('Settings')").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "67_settings_modal_inline_hints", "#settingsModal .modal")
+
+    def test_68_gen_mode_tabs_isolated(self, page: Page, screenshot_url):
+        """Screenshot: The Quick / Advanced tab row."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "68_gen_mode_tabs", ".gen-mode-tabs")
+
+    # -- Wave 3: New features ---------------------------------------------
+
+    def test_69_playlist_seed_modal(self, page: Page, screenshot_url):
+        """Screenshot: playlist-seed picker modal (from action card)."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#trainToggleBtn").click()
+        page.wait_for_timeout(300)
+        # Enable the seed card (requires Spotify auth state)
+        page.evaluate("""() => {
+            const card = document.getElementById('profileSeedCard');
+            if (card) card.classList.remove('disabled');
+            const btn = document.getElementById('profileSeedBtn');
+            if (btn) btn.disabled = false;
+        }""")
+        page.locator("#profileSeedBtn").click()
+        page.wait_for_timeout(400)
+        page.evaluate("""() => {
+            const list = document.getElementById('playlistSeedList');
+            list.innerHTML = '';
+            const samples = [
+                { id: 'a', name: 'Road Trip Mix', owner: 'Jane', track_count: 25, cover_url: '' },
+                { id: 'b', name: 'Weekend Vibes', owner: 'Jane', track_count: 40, cover_url: '' },
+                { id: 'c', name: 'Focus Flow',    owner: 'Jane', track_count: 30, cover_url: '' },
+            ];
+            samples.forEach(p => {
+                const li = document.createElement('li');
+                li.className = 'playlist-seed-item';
+                li.innerHTML = `<div class="playlist-seed-cover"></div><div class="playlist-seed-text"><div class="playlist-seed-name">${p.name}</div><div class="playlist-seed-meta">${p.track_count} tracks · by ${p.owner}</div></div><div class="playlist-seed-check"></div>`;
+                list.appendChild(li);
+            });
+        }""")
+        page.wait_for_timeout(200)
+        _shot_element(page, "69_playlist_seed_modal", "#playlistSeedModal .modal")
+
+    def test_70_playlist_seed_drafting(self, page: Page, screenshot_url):
+        """Screenshot: picker modal in drafting state with spinner."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#trainToggleBtn").click()
+        page.wait_for_timeout(300)
+        # Enable seed card and open picker
+        page.evaluate("""() => {
+            const card = document.getElementById('profileSeedCard');
+            if (card) card.classList.remove('disabled');
+            const btn = document.getElementById('profileSeedBtn');
+            if (btn) btn.disabled = false;
+        }""")
+        page.locator("#profileSeedBtn").click()
+        page.wait_for_timeout(300)
+        page.evaluate("document.querySelector('.playlist-seed-loader').classList.remove('hidden')")
+        page.evaluate("document.getElementById('playlistSeedList').classList.add('hidden')")
+        _shot_element(page, "70_playlist_seed_drafting", "#playlistSeedModal .modal")
+
+    def test_71_profile_draft_banner(self, page: Page, screenshot_url):
+        """Screenshot: draft banner on the profile editor after a seed."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#trainToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.evaluate("""() => {
+            const b = document.getElementById('profileDraftBanner');
+            b.classList.remove('hidden');
+            document.getElementById('profileDraftSub').textContent = 'Generated from "Road Trip Mix" — review and save below.';
+        }""")
+        page.wait_for_timeout(200)
+        _shot_element(page, "71_profile_draft_banner", "#trainSection")
+
+    def test_72_rationale_chips_default(self, page: Page, screenshot_url):
+        """Screenshot: track card with default chip pair (profile_match + artist_match)."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.evaluate(_INJECT_TRACKS_JS % json.dumps([{
+            **_FAKE_SONGLIST[0],
+            "rationale": [
+                {"type": "profile_match", "arg": "theatrical rock"},
+                {"type": "artist_match",  "arg": "Queen"},
+            ],
+        }]))
+        page.wait_for_timeout(400)
+        _shot_element(page, "72_rationale_chips_default", "#track-0")
+
+    def test_73_rationale_chips_fallback(self, page: Page, screenshot_url):
+        """Screenshot: track card with fallback chip (no rationale returned)."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.evaluate(_INJECT_TRACKS_JS % json.dumps([{
+            **_FAKE_SONGLIST[0],
+            "rationale": [{"type": "fallback"}],
+        }]))
+        page.wait_for_timeout(400)
+        _shot_element(page, "73_rationale_chips_fallback", "#track-0")
+
+    def test_74_rationale_chips_all_types(self, page: Page, screenshot_url):
+        """Screenshot: multiple rows showcasing each chip type."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(300)
+        tracks = [
+            {**_FAKE_SONGLIST[0], "rationale": [{"type": "profile_match", "arg": "indie rock"}]},
+            {**_FAKE_SONGLIST[1], "rationale": [{"type": "artist_match", "arg": "Foo Fighters"}]},
+            {**_FAKE_SONGLIST[2], "rationale": [{"type": "recency", "arg": "released 2025"}]},
+        ]
+        page.evaluate(_INJECT_TRACKS_JS % json.dumps(tracks))
+        page.wait_for_timeout(400)
+        _shot_element(page, "74_rationale_chips_all_types", "#discoverTrackArea")
+
+    def test_75_taste_dashboard(self, page: Page, screenshot_url):
+        """Screenshot: taste dashboard with all three charts populated."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.route("**/api/taste/aggregate", lambda route: route.fulfill(
+            status=200,
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({
+                "tracks_considered": 87,
+                "runs_considered": 12,
+                "top_genres": [
+                    {"genre": "indie rock", "count": 34},
+                    {"genre": "alt rock",   "count": 22},
+                    {"genre": "post-rock",  "count": 14},
+                    {"genre": "dream pop",  "count": 10},
+                    {"genre": "shoegaze",   "count": 7},
+                    {"genre": "folk rock",  "count": 5},
+                ],
+                "energy_valence": [
+                    {"energy": 0.85, "valence": 0.62, "artist": "Muse",     "title": "Hysteria"},
+                    {"energy": 0.40, "valence": 0.30, "artist": "Radiohead", "title": "No Surprises"},
+                    {"energy": 0.75, "valence": 0.80, "artist": "Queen",    "title": "Don't Stop Me Now"},
+                ] * 10,
+                "decades": [
+                    {"decade": "1970s", "count": 8},
+                    {"decade": "1990s", "count": 21},
+                    {"decade": "2000s", "count": 25},
+                    {"decade": "2010s", "count": 15},
+                ],
+            }),
+        ))
+        page.reload()
+        page.wait_for_load_state("networkidle")
+        page.locator(".taste-dashboard-section .accordion-header").click()
+        page.wait_for_timeout(500)
+        _shot_element(page, "75_taste_dashboard", ".taste-dashboard-section")
+
+    def test_76_taste_dashboard_empty(self, page: Page, screenshot_url):
+        """Screenshot: dashboard empty state (< 10 tracks)."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.route("**/api/taste/aggregate", lambda route: route.fulfill(
+            status=200,
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({"tracks_considered": 3, "runs_considered": 1,
+                             "top_genres": [], "energy_valence": [], "decades": []}),
+        ))
+        page.reload()
+        page.wait_for_load_state("networkidle")
+        page.locator(".taste-dashboard-section .accordion-header").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "76_taste_dashboard_empty", ".taste-dashboard-section")
+
+    def test_77_tip_toast_first_generation(self, page: Page, screenshot_url):
+        """Screenshot: tip toast (first generation complete)."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.evaluate("""() => {
+            import('/static/js/modules/tips.js').then(Tips => {
+                Tips.showTipById('first_generation_complete');
+            });
+        }""")
+        page.wait_for_timeout(500)
+        _shot_element(page, "77_tip_toast_first_generation", ".toast--tip")
+
+    def test_78_tip_toast_disliked(self, page: Page, screenshot_url):
+        """Screenshot: tip toast (disliked 2+ tracks)."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.evaluate("""() => {
+            import('/static/js/modules/tips.js').then(Tips => {
+                Tips.showTipById('disliked_2_plus');
+            });
+        }""")
+        page.wait_for_timeout(500)
+        _shot_element(page, "78_tip_toast_disliked", ".toast--tip")
+
+    def test_79_reset_tips_menu(self, page: Page, screenshot_url):
+        """Screenshot: burger menu with 'Reset tips' entry visible."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator(".burger-btn[aria-controls='settingsDropdown']").click()
+        page.wait_for_timeout(300)
+        _shot_element(page, "79_reset_tips_menu", ".header-controls")
+
+    def test_80_onboarding_step5_card1_enabled(self, page: Page, screenshot_url):
+        """Screenshot: onboarding step 5 with card 1 enabled (Wave-3 state)."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=4)
+        _shot(page, "80_onboarding_step5_card1_enabled")
+
+    # -- Wave 4: Power users ----------------------------------------------
+
+    def test_81_provider_dropdown_expanded(self, page: Page, screenshot_url):
+        """Screenshot: Settings modal with provider dropdown open."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator(".burger-btn[aria-controls='settingsDropdown']").click()
+        page.wait_for_timeout(200)
+        page.locator("button:has-text('Settings')").click()
+        page.wait_for_timeout(300)
+        page.locator("#settings-provider").click()
+        page.wait_for_timeout(200)
+        _shot_element(page, "81_provider_dropdown_expanded", "#settingsModal .modal")
+
+    def test_82_provider_custom_selected(self, page: Page, screenshot_url):
+        """Screenshot: Settings modal with Custom provider selected, base URL row visible."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator(".burger-btn[aria-controls='settingsDropdown']").click()
+        page.wait_for_timeout(200)
+        page.locator("button:has-text('Settings')").click()
+        page.wait_for_timeout(300)
+        page.select_option("#settings-provider", "custom")
+        page.wait_for_timeout(300)
+        _shot_element(page, "82_provider_custom_selected", "#settingsModal .modal")
+
+    def test_83_provider_local_ollama(self, page: Page, screenshot_url):
+        """Screenshot: Settings modal with Ollama selected, local notice visible."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator(".burger-btn[aria-controls='settingsDropdown']").click()
+        page.wait_for_timeout(200)
+        page.locator("button:has-text('Settings')").click()
+        page.wait_for_timeout(300)
+        page.select_option("#settings-provider", "ollama")
+        page.wait_for_timeout(300)
+        _shot_element(page, "83_provider_local_ollama", "#settingsModal .modal")
+
+    def test_84_fetch_models_success(self, page: Page, screenshot_url):
+        """Screenshot: Fetch-models successful (populated dropdown)."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.route("**/api/llm/fetch_models", lambda route: route.fulfill(
+            status=200,
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({"models": ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini"]}),
+        ))
+        page.locator(".burger-btn[aria-controls='settingsDropdown']").click()
+        page.wait_for_timeout(200)
+        page.locator("button:has-text('Settings')").click()
+        page.wait_for_timeout(300)
+        page.locator("#btnFetchModels").click()
+        page.wait_for_timeout(500)
+        _shot_element(page, "84_fetch_models_success", "#settingsModal .modal")
+
+    def test_85_fetch_models_failure(self, page: Page, screenshot_url):
+        """Screenshot: Fetch-models with error message inline."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.route("**/api/llm/fetch_models", lambda route: route.fulfill(
+            status=502,
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({"error": "unreachable"}),
+        ))
+        page.locator(".burger-btn[aria-controls='settingsDropdown']").click()
+        page.wait_for_timeout(200)
+        page.locator("button:has-text('Settings')").click()
+        page.wait_for_timeout(300)
+        page.select_option("#settings-provider", "custom")
+        page.locator("#settings-base-url").fill("http://unreachable.example/v1")
+        page.locator("#btnFetchModels").click()
+        page.wait_for_timeout(500)
+        _shot_element(page, "85_fetch_models_failure", "#settingsModal .modal")
+
+    def test_86_cost_estimate_full_card(self, page: Page, screenshot_url):
+        """Screenshot: Full cost-estimate card in Settings modal (gpt-4.1-mini)."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator(".burger-btn[aria-controls='settingsDropdown']").click()
+        page.wait_for_timeout(200)
+        page.locator("button:has-text('Settings')").click()
+        page.wait_for_timeout(400)
+        _shot_element(page, "86_cost_estimate_full_card", "#costEstimateCard")
+
+    def test_87_cost_estimate_unavailable(self, page: Page, screenshot_url):
+        """Screenshot: Cost estimate showing unavailable state for an unknown model."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator(".burger-btn[aria-controls='settingsDropdown']").click()
+        page.wait_for_timeout(200)
+        page.locator("button:has-text('Settings')").click()
+        page.wait_for_timeout(300)
+        page.evaluate("""() => {
+            document.getElementById('btnModelMode').click();
+            document.getElementById('settings-model-freetext').value = 'llama3.1:8b';
+            document.getElementById('settings-model-freetext').dispatchEvent(new Event('input'));
+        }""")
+        page.wait_for_timeout(400)
+        _shot_element(page, "87_cost_estimate_unavailable", "#costEstimateCard")
+
+    def test_88_cost_footnote_generate(self, page: Page, screenshot_url):
+        """Screenshot: Generate panel with cost-estimate footnote below the button."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#generateToggleBtn").click()
+        page.wait_for_timeout(400)
+        _shot_element(page, "88_cost_footnote_generate", "#generateSection .run-section")
+
+    def test_89_onboarding_step6_cost(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding step 6 with the Wave-4 cost widget live."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=5)
+        page.wait_for_timeout(400)
+        _shot(page, "89_onboarding_step6_cost")
+
+    def test_90_onboarding_step6_provider_expanded(self, page: Page, screenshot_url):
+        """Screenshot: Onboarding step 2 with provider dropdown expanded."""
+        self._goto_onboarding_page(page, screenshot_url, page_index=1)
+        # Open the custom provider dropdown
+        page.locator("#ob-provider-trigger").click()
+        page.wait_for_timeout(300)
+        _shot(page, "90_onboarding_step6_provider_expanded")
+
+    def test_91_voice_button_idle(self, page: Page, screenshot_url):
+        """Screenshot: Voice button in idle state inside the Vibe accordion."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#trainToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.evaluate("document.getElementById('voiceBtnVibe').classList.remove('hidden')")
+        page.wait_for_timeout(200)
+        _shot_element(page, "91_voice_button_idle", "#accVibeDesc .vibe-textarea-wrap")
+
+    def test_92_voice_button_recording(self, page: Page, screenshot_url):
+        """Screenshot: Voice button in recording state."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator("#trainToggleBtn").click()
+        page.wait_for_timeout(300)
+        page.evaluate("""() => {
+            const btn = document.getElementById('voiceBtnVibe');
+            btn.classList.remove('hidden');
+            btn.classList.add('voice-btn--recording');
+            btn.setAttribute('aria-pressed', 'true');
+        }""")
+        page.wait_for_timeout(200)
+        _shot_element(page, "92_voice_button_recording", "#accVibeDesc .vibe-textarea-wrap")
+
+    # -- Wave 5: Polish ---------------------------------------------------
+
+    def test_93_help_modal_en(self, page: Page, screenshot_url):
+        """Screenshot: Help modal in English."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.locator(".burger-btn[aria-controls='settingsDropdown']").click()
+        page.wait_for_timeout(200)
+        page.locator("button:has-text('Help')").click()
+        page.wait_for_timeout(500)
+        _shot_element(page, "93_help_modal_en", "#helpModal .modal")
+
+    def test_94_help_modal_de(self, page: Page, screenshot_url):
+        """Screenshot: Help modal served in German (DE file present)."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.evaluate("localStorage.setItem('svLang', 'de')")
+        page.reload()
+        page.wait_for_load_state("networkidle")
+        page.locator(".burger-btn[aria-controls='settingsDropdown']").click()
+        page.wait_for_timeout(200)
+        page.locator("button:has-text('Hilfe'), button:has-text('Help')").first.click()
+        page.wait_for_timeout(500)
+        _shot_element(page, "94_help_modal_de", "#helpModal .modal")
+
+    def test_95_help_fallback_banner(self, page: Page, screenshot_url):
+        """Screenshot: Help modal with fallback banner visible (simulated)."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        def handle(route):
+            route.fulfill(
+                status=200,
+                headers={"Content-Type": "application/json"},
+                body=json.dumps({
+                    "html": "<h2>About SpotyVibe</h2><p>...</p>",
+                    "requested_lang": "de",
+                    "served_lang": "en",
+                    "fallback_used": True,
+                }),
+            )
+        page.route("**/api/help", handle)
+        page.locator(".burger-btn[aria-controls='settingsDropdown']").click()
+        page.wait_for_timeout(200)
+        page.locator("button:has-text('Help'), button:has-text('Hilfe')").first.click()
+        page.wait_for_timeout(500)
+        _shot_element(page, "95_help_fallback_banner", "#helpModal .modal")
+
+    def test_96_guide_python_macos_overlay(self, page: Page, screenshot_url):
+        """Screenshot: Python-install-macOS guide overlay (English)."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.evaluate("""() => {
+            import('/static/js/modules/setup_guide.js').then(SG => {
+                SG.openSetupGuide('python_install_macos');
+            });
+        }""")
+        page.wait_for_timeout(700)
+        _shot(page, "96_guide_python_macos_overlay")
+
+    def test_97_guide_python_linux_overlay(self, page: Page, screenshot_url):
+        """Screenshot: Python-install-Linux guide overlay (English)."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.evaluate("""() => {
+            import('/static/js/modules/setup_guide.js').then(SG => {
+                SG.openSetupGuide('python_install_linux');
+            });
+        }""")
+        page.wait_for_timeout(700)
+        _shot(page, "97_guide_python_linux_overlay")
+
+    def test_98_guide_openai_overlay_de(self, page: Page, screenshot_url):
+        """Screenshot: OpenAI setup guide overlay in German."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.evaluate("localStorage.setItem('svLang', 'de')")
+        page.reload()
+        page.wait_for_load_state("networkidle")
+        page.evaluate("""() => {
+            import('/static/js/modules/setup_guide.js').then(SG => {
+                SG.openSetupGuide('openai_api_key');
+            });
+        }""")
+        page.wait_for_timeout(700)
+        _shot(page, "98_guide_openai_overlay_de")
+
+    def test_99_guide_spotify_overlay_de(self, page: Page, screenshot_url):
+        """Screenshot: Spotify setup guide overlay in German."""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        page.evaluate("localStorage.setItem('svLang', 'de')")
+        page.reload()
+        page.wait_for_load_state("networkidle")
+        page.evaluate("""() => {
+            import('/static/js/modules/setup_guide.js').then(SG => {
+                SG.openSetupGuide('spotify_developer_app');
+            });
+        }""")
+        page.wait_for_timeout(700)
+        _shot(page, "99_guide_spotify_overlay_de")
 

@@ -72,13 +72,44 @@ def debug_log(label, messages, response_content):
 
 
 def clear_debug_log():
-    """Delete both debug and prompt log files if they exist."""
-    for f in (DEBUG_LOG_FILE, PROMPT_LOG_FILE):
-        try:
-            if f.exists():
-                f.unlink()
-        except OSError as e:
-            logger.warning("Failed to delete log file %s: %s", f, e)
+    """Clear both debug and prompt log files.
+
+    On Windows the ``RotatingFileHandler`` keeps ``debug.log`` open, so
+    ``unlink()`` fails with *WinError 32 (file in use)*.  We therefore
+    truncate files that are held by an active logging handler, and only
+    ``unlink()`` files that are not (e.g. the prompt log).
+    """
+    import logging.handlers
+    from pathlib import Path
+
+    root = logging.getLogger()
+
+    for log_path in (DEBUG_LOG_FILE, PROMPT_LOG_FILE):
+        # Try to truncate via an active handler first (avoids WinError 32)
+        truncated = False
+        for handler in root.handlers:
+            if isinstance(handler, (logging.FileHandler, logging.handlers.RotatingFileHandler)):
+                try:
+                    handler_file = Path(handler.baseFilename).resolve()
+                except Exception:
+                    continue
+                if handler_file == log_path.resolve():
+                    handler.acquire()
+                    try:
+                        handler.stream.seek(0)
+                        handler.stream.truncate(0)
+                        truncated = True
+                    finally:
+                        handler.release()
+                    break
+
+        if not truncated:
+            # No active handler holds this file — safe to delete
+            try:
+                if log_path.exists():
+                    log_path.unlink()
+            except OSError as e:
+                logger.warning("Failed to delete log file %s: %s", log_path, e)
 
 
 def app_log(message):
@@ -118,7 +149,7 @@ def sanitize_text(text):
     Collapses multiple spaces/tabs on a single line to a single space.
     """
     if not isinstance(text, str):
-        return text
+        return ""
     text = text.replace('\x00', '')
     text = re.sub(r'[\x01-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
     text = re.sub(r'[ \t]+', ' ', text)

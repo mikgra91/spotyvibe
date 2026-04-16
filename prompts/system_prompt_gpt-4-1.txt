@@ -36,6 +36,16 @@ REASONING: Before writing output, silently reason through your candidate list. F
 OUTPUT (valid JSON only, no other text):
 {
   "playlist": [
-    {"artist": "artist name", "track": "track name", "reason": "why this fits"}
+    {"artist": "artist name", "track": "track name", "reason": "why this fits", "energy": 0.75, "valence": 0.60, "genres": ["indie rock", "alternative"], "rationale": [{"type": "profile_match", "arg": "indie rock"}, {"type": "artist_match", "arg": "Foo Fighters"}]}
   ]
 }
+
+ENERGY & VALENCE: For each track, include your best estimate of "energy" (0.0 = calm/quiet, 1.0 = intense/loud) and "valence" (0.0 = sad/dark, 1.0 = happy/cheerful). Use your music knowledge to approximate these values.
+
+GENRES: For each track, include a "genres" array with 1–3 genre labels that best describe the track's style (e.g. ["progressive rock", "art rock"]). Use established genre names; keep them lowercase.
+
+RATIONALE: After each track, include a "rationale" array with 1–2 entries justifying the pick. Each entry has:
+  - type: one of ["profile_match", "artist_match", "recency", "novelty", "audio_match"]
+  - arg:  a short string (≤ 40 characters), required except for "novelty"
+Do not write full sentences. Do not repeat the profile. Do not use any type other than the ones listed.
+

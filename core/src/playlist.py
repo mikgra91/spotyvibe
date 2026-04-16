@@ -25,6 +25,7 @@ Technologies & patterns used:
 import logging
 import os
 import re
+import time
 from datetime import datetime, timezone
 # concurrent.futures provides a high-level interface for asynchronous
 # execution. ThreadPoolExecutor is used here (not ProcessPoolExecutor)
@@ -32,6 +33,13 @@ from datetime import datetime, timezone
 # not CPU-bound. Threads share memory and have lower overhead than
 # processes for this use case.
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# requests is spotipy's HTTP transport layer and a transitive dependency.
+# We use it here to create a shared Session with connection pooling for
+# parallel Spotify searches, avoiding the cost of a fresh TLS handshake
+# per thread.
+import requests
+from requests.adapters import HTTPAdapter
 
 # spotipy is a lightweight Python wrapper for all Spotify Web API
 # endpoints. It handles OAuth token lifecycle, request serialization,
@@ -118,21 +126,25 @@ def get_spotify_client():
     return spotipy.Spotify(auth_manager=get_spotify_oauth())
 
 
+# Cache for get_spotify_auth_status() — avoids redundant /v1/me/ calls
+# when multiple callers check status within a short window.
+_auth_status_cache = {"status": None, "expires": 0.0}
+_AUTH_STATUS_TTL = 5  # seconds
+
+
 def get_spotify_auth_status():
     """Check whether Spotify credentials are configured and authenticated.
 
     Returns one of: "not_configured", "not_authenticated", "authenticated".
 
-    Beyond checking for a cached token this also makes a lightweight API
-    call (``current_user``) to verify the token is still valid.  Stale or
-    revoked tokens are detected and reported as "not_authenticated" so the
-    UI can prompt the user to re-connect.
-
-    This three-state return value drives the UI's conditional rendering:
-    - not_configured  → show "Enter Spotify credentials" form
-    - not_authenticated → show "Connect to Spotify" button
-    - authenticated → show the main playlist generation UI
+    Results are cached for a few seconds to avoid redundant API calls
+    when multiple callers (e.g., the frontend status poll and the
+    /api/run guard) check in quick succession.
     """
+    now = time.monotonic()
+    if _auth_status_cache["status"] and now < _auth_status_cache["expires"]:
+        return _auth_status_cache["status"]
+
     client_id = os.getenv("SPOTIPY_CLIENT_ID")
     client_secret = os.getenv("SPOTIPY_CLIENT_SECRET")
 
@@ -148,9 +160,12 @@ def get_spotify_auth_status():
         # Validate via auth_manager so expired tokens are auto-refreshed
         sp = spotipy.Spotify(auth_manager=oauth)
         sp.current_user()
+        _auth_status_cache["status"] = "authenticated"
+        _auth_status_cache["expires"] = now + _AUTH_STATUS_TTL
         return "authenticated"
     except Exception as e:
         logger.warning("Spotify auth check failed: %s", e)
+        _auth_status_cache["status"] = None
         return "not_authenticated"
 
 
@@ -249,20 +264,79 @@ def remove_from_playlist(artist, track):
     return {"removed": True}
 
 
+def _parse_release_year(release_date: str | None) -> int | None:
+    """Extract a 4-digit year from a Spotify release_date string.
+
+    Spotify returns dates in 'YYYY', 'YYYY-MM', or 'YYYY-MM-DD' format.
+    Returns None if the date is missing or unparseable.
+    """
+    if not release_date or not isinstance(release_date, str):
+        return None
+    try:
+        year = int(release_date[:4])
+        return year if 1900 < year <= 2100 else None
+    except (ValueError, IndexError):
+        return None
+
+
+def _enrich_tracks_with_metadata(tracks: list) -> None:
+    """Enrich track dicts with release_year from Spotify search data.
+
+    - Parses release_year from each track's release_date (returned by
+      Spotify search).
+    - Ensures a 'genres' key exists (genres are provided by GPT in the
+      suggestion response and already present on the track dict).
+    - Mutates track dicts in-place.
+    """
+    for t in tracks:
+        t["release_year"] = _parse_release_year(t.get("release_date"))
+        # Genres come from GPT (set in normalize_response).
+        # Ensure the key exists for downstream consumers.
+        t.setdefault("genres", [])
+
+
+def _make_pooled_session(pool_size=10):
+    """Create a ``requests.Session`` with enlarged connection pool.
+
+    ``urllib3``'s default pool_maxsize is 10, but its pool_connections
+    default is only 1 (one host-slot). By mounting an ``HTTPAdapter``
+    with ``pool_connections`` and ``pool_maxsize`` both equal to
+    *pool_size*, all concurrent threads reuse persistent TCP+TLS
+    connections to ``api.spotify.com`` instead of opening a fresh
+    TLS handshake per request.
+
+    The ``requests.Session`` object itself is thread-safe for making
+    concurrent requests — ``urllib3`` synchronises access to the
+    underlying connection pool internally.
+    """
+    session = requests.Session()
+    adapter = HTTPAdapter(
+        pool_connections=pool_size,
+        pool_maxsize=pool_size,
+    )
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
+
+
 def search_tracks(tracks, on_progress=None):
     """Search Spotify for each track using parallel requests.
 
-    **Concurrency model**: Uses `ThreadPoolExecutor` with 10 workers.
-    Each worker creates its own `spotipy.Spotify` client because the
-    underlying `requests.Session` is NOT thread-safe. This is a common
-    pattern: share-nothing threading where each thread owns its state.
+    **Concurrency model**: Uses ``ThreadPoolExecutor`` with 10 workers
+    sharing a single ``requests.Session`` with a matching connection
+    pool. The access token is fetched **once** before the pool starts,
+    and each worker creates a lightweight ``spotipy.Spotify`` client
+    that reuses the shared session and pre-fetched token. This avoids:
+
+    - N redundant cache-file reads + token validations
+    - N fresh TLS handshakes (connections are pooled and reused)
 
     Why 10 workers? This is a practical sweet spot — enough to saturate
     the network for typical batch sizes (10–30 tracks) without hitting
     Spotify's rate limits. Spotify's API allows ~30 req/sec for most
     endpoints.
 
-    **Progress callback**: The optional `on_progress(completed, total)`
+    **Progress callback**: The optional ``on_progress(completed, total)``
     callback enables the UI to show a real-time progress bar via
     Server-Sent Events (SSE). Each completed search triggers a callback.
 
@@ -282,12 +356,43 @@ def search_tracks(tracks, on_progress=None):
             seen.add(key)
             unique_tracks.append(t)
 
+    # ── Pre-fetch token + shared session ──────────────────────────────
+    # Validate / refresh the token once.  All workers then use the raw
+    # access_token string, skipping per-thread OAuth overhead.
+    oauth = get_spotify_oauth()
+    token_info = oauth.validate_token(oauth.cache_handler.get_cached_token())
+    if not token_info:
+        logger.error("Spotify token unavailable — cannot search tracks")
+        return [], [f"{t['artist']} - {t['track']}" for t in unique_tracks]
+    access_token = token_info["access_token"]
+
+    pool_size = min(10, len(unique_tracks)) or 1
+    shared_session = _make_pooled_session(pool_size)
+
+    # Single shared client: pre-fetched token + pooled session.
+    # The underlying requests.Session / urllib3 pool is thread-safe for
+    # concurrent requests — no need for a per-thread client.
+    shared_sp = spotipy.Spotify(
+        auth=access_token,
+        requests_session=shared_session,
+    )
+
     def search_one(t):
-        # Each thread gets its own client to avoid sharing a non-thread-safe
-        # requests.Session across concurrent workers.
-        thread_sp = get_spotify_client()
         query = _build_track_artist_query(t["artist"], t["track"])
-        res = thread_sp.search(q=query, type="track", limit=1, market="from_token")
+
+        # Retry once on 429 (rate limit) using Retry-After header,
+        # mirroring the pattern in spotify_metadata.py.
+        res = None
+        for attempt in range(2):
+            try:
+                res = shared_sp.search(q=query, type="track", limit=1, market="from_token")
+                break
+            except SpotifyException as e:
+                if e.http_status == 429 and attempt == 0:
+                    retry_after = int(e.headers.get("Retry-After", 1))
+                    time.sleep(min(retry_after, 10))
+                    continue
+                raise
 
         if res and res["tracks"]["items"]:
             item = res["tracks"]["items"][0]
@@ -302,6 +407,7 @@ def search_tracks(tracks, on_progress=None):
             release_date = item.get("album", {}).get("release_date")
             artists = item.get("artists", [])
             artist_url = artists[0].get("external_urls", {}).get("spotify") if artists else None
+            artist_id = artists[0].get("id") if artists else None
             enriched = {
                 **t,
                 "uri": uri,
@@ -312,29 +418,36 @@ def search_tracks(tracks, on_progress=None):
                 "album_url": album_url,
                 "release_date": release_date,
                 "artist_url": artist_url,
+                "artist_id": artist_id,
             }
             return "found", enriched
         return "not_found", f"{t['artist']} - {t['track']}"
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = {executor.submit(search_one, t): t for t in unique_tracks}
-        completed = 0
-        for future in as_completed(futures):
-            try:
-                result_type, result_data = future.result()
-                if result_type == "found":
-                    found.append(result_data)
-                else:
-                    logger.warning("Not found on Spotify: %s", result_data)
-                    not_found.append(result_data)
-            except Exception as e:
-                t = futures[future]
-                label = f"{t['artist']} - {t['track']}"
-                logger.error("Spotify search error for %s: %s", label, e)
-                not_found.append(label)
-            completed += 1
-            if on_progress:
-                on_progress(completed, len(unique_tracks))
+    try:
+        with ThreadPoolExecutor(max_workers=pool_size) as executor:
+            futures = {executor.submit(search_one, t): t for t in unique_tracks}
+            completed = 0
+            for future in as_completed(futures):
+                try:
+                    result_type, result_data = future.result()
+                    if result_type == "found":
+                        found.append(result_data)
+                    else:
+                        logger.warning("Not found on Spotify: %s", result_data)
+                        not_found.append(result_data)
+                except Exception as e:
+                    t = futures[future]
+                    label = f"{t['artist']} - {t['track']}"
+                    logger.error("Spotify search error for %s: %s", label, e)
+                    not_found.append(label)
+                completed += 1
+                if on_progress:
+                    on_progress(completed, len(unique_tracks))
+    finally:
+        shared_session.close()
+
+    # ── Batch-enrich: artist genres + release_year ────────────────────
+    _enrich_tracks_with_metadata(found)
 
     return found, not_found
 
@@ -417,25 +530,12 @@ def get_user_playlists():
     """Return the current user's Spotify playlists as a list of dicts.
 
     Returns: [{"id": "...", "name": "...", "track_count": N}]
+
+    Delegates to fetch_user_playlists() and strips fields not needed by
+    the playlist management UI (owner, cover_url).
     """
-    sp = get_spotify_client()
-    result = []
-    offset = 0
-    while True:
-        playlists = sp.current_user_playlists(limit=50, offset=offset)
-        for pl in playlists.get("items", []):
-            # Feb 2026: Spotify renamed the summary field from "tracks" to
-            # "items".  Try the new key first, fall back to old.
-            summary = pl.get("items") or pl.get("tracks") or {}
-            result.append({
-                "id": pl["id"],
-                "name": pl["name"],
-                "track_count": summary.get("total", 0) if isinstance(summary, dict) else 0,
-            })
-        if playlists.get("next") is None:
-            break
-        offset += 50
-    return result
+    rich = fetch_user_playlists(limit=500)
+    return [{"id": p["id"], "name": p["name"], "track_count": p["track_count"]} for p in rich]
 
 
 def get_playlist_tracks(playlist_id):
@@ -596,3 +696,93 @@ def delete_playlist(playlist_id):
     sp = get_spotify_client()
     sp.current_user_unfollow_playlist(playlist_id)
     logger.info("Deleted (unfollowed) playlist: %s", playlist_id)
+
+
+def fetch_user_playlists(limit=50):
+    """Fetch the current user's playlists for the seed-from-playlist picker.
+
+    Returns a list of dicts: {id, name, owner, track_count, cover_url}.
+    Paginates when the user has more playlists than *limit*.
+    """
+    sp = get_spotify_client()
+    playlists = []
+    offset = 0
+    while True:
+        results = sp.current_user_playlists(limit=min(limit - len(playlists), 50), offset=offset)
+        for item in results.get("items", []):
+            if not item:
+                continue
+            images = item.get("images") or []
+            cover_url = images[0]["url"] if images else ""
+            owner = (item.get("owner") or {}).get("display_name", "")
+            # Feb 2026: Spotify moved the summary from "tracks" to "items".
+            summary = item.get("items") or item.get("tracks") or {}
+            playlists.append({
+                "id": item["id"],
+                "name": item.get("name", ""),
+                "owner": owner,
+                "track_count": summary.get("total", 0) if isinstance(summary, dict) else 0,
+                "cover_url": cover_url,
+            })
+        if results.get("next") is None or len(playlists) >= limit:
+            break
+        offset += 50
+    return playlists
+
+
+def fetch_playlist_items_for_seed(playlist_id):
+    """Fetch playlist items for seeding a taste profile.
+
+    Uses sp.playlist_items() (not playlist_tracks per CLAUDE.md rule 2).
+    Inner key is 'item' (Feb 2026 change).
+
+    Returns: {name, owner, track_count, tracks: [{artist, title, artist_id, album, release_date}], top_artists, top_genres}
+    """
+    sp = get_spotify_client()
+
+    # Get playlist metadata
+    playlist_info = sp.playlist(playlist_id, fields="name,owner(display_name),tracks(total)")
+    name = playlist_info.get("name", "")
+    owner = (playlist_info.get("owner") or {}).get("display_name", "")
+    total = (playlist_info.get("tracks") or {}).get("total", 0)
+
+    # Fetch items (up to 100 for seed — enough for a good profile)
+    results = sp.playlist_items(playlist_id, limit=100,
+                                fields="items(item(name,artists(name,id),album(name,release_date)))")
+    tracks = []
+    artist_counts = {}
+    artist_ids = set()
+    for item_wrapper in results.get("items", []):
+        item = item_wrapper.get("item")
+        if not item:
+            continue
+        artists = item.get("artists") or []
+        primary_artist = artists[0] if artists else {}
+        artist_name = primary_artist.get("name", "")
+        artist_id = primary_artist.get("id", "")
+        album = item.get("album") or {}
+
+        tracks.append({
+            "artist": artist_name,
+            "title": item.get("name", ""),
+            "artist_id": artist_id,
+            "album": album.get("name", ""),
+            "release_date": album.get("release_date", ""),
+        })
+
+        if artist_name:
+            artist_counts[artist_name] = artist_counts.get(artist_name, 0) + 1
+        if artist_id:
+            artist_ids.add(artist_id)
+
+    # Top artists by frequency
+    top_artists = sorted(artist_counts.keys(), key=lambda a: artist_counts[a], reverse=True)[:5]
+
+    return {
+        "name": name,
+        "owner": owner,
+        "track_count": total,
+        "tracks": tracks,
+        "top_artists": top_artists,
+        "artist_ids": list(artist_ids),
+    }

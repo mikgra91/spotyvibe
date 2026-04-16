@@ -1,6 +1,7 @@
 import * as State from './state.js';
 import { showToast, showAlert, esc, attr } from './ui.js';
 import { i18n } from './i18n.js';
+import { buildRationaleHtml } from './rationale.js';
 
 /**
  * Build the inner HTML for a track card (shared by discover and review lists).
@@ -40,7 +41,7 @@ export function buildTrackCardHtml(track, idx, source = 'discover') {
             ${coverHtml}
             <div class="track-info">
                 <div class="track-name">${esc(track.artist)} — ${esc(track.track)}${spotifyLinks ? `<span class="track-links">${spotifyLinks}</span>` : ''}</div>
-                ${track.reason ? `<div class="track-reason">${esc(track.reason)}</div>` : ''}
+                <div class="track-rationale">${buildRationaleHtml(track.rationale)}</div>
                 ${noPreviewHtml}
             </div>
             <div class="track-actions">
@@ -144,6 +145,12 @@ export async function submitFeedback(idx) {
                 ? i18n('feedback.disliked_removed_playlist', '👎 Disliked & removed from playlist: {track}').replace('{track}', `${artist}${trackLabel}`)
                 : i18n('feedback.disliked', '👎 Disliked: {track}').replace('{track}', `${artist}${trackLabel}`);
             showToast(msg);
+
+            // Wave 3: Dislike counter → tip trigger
+            window._svSessionDislikes = (window._svSessionDislikes || 0) + 1;
+            if (window._svSessionDislikes >= 2 && window.Tips) {
+                window.Tips.maybeTrigger('disliked_2_plus');
+            }
         } else {
             showToast(i18n('feedback.liked', '👍 Liked: {track}').replace('{track}', `${artist}${trackLabel}`));
         }

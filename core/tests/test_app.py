@@ -2,6 +2,7 @@
 
 import json
 from unittest.mock import patch
+from pathlib import Path
 
 import pytest
 
@@ -42,31 +43,60 @@ class TestIndex:
 
 class TestOnboarding:
     def test_returns_html(self, client):
-        resp = client.get("/onboarding")
+        resp = client.get("/onboarding?replay=1")
         assert resp.status_code == 200
 
     def test_contains_onboarding_pages(self, client):
-        resp = client.get("/onboarding")
+        resp = client.get("/onboarding?replay=1")
         html = resp.data.decode()
         assert "SpotyVibe" in html
         assert "ob-page" in html
 
     def test_contains_credentials_section(self, client):
-        resp = client.get("/onboarding")
+        resp = client.get("/onboarding?replay=1")
         html = resp.data.decode()
         assert "OpenAI" in html
         assert "Spotify" in html
 
+    @patch("app.is_onboarding_completed", return_value=True)
+    def test_redirects_when_completed_without_replay(self, _mock, client):
+        resp = client.get("/onboarding")
+        assert resp.status_code == 302
+
+    @patch("app.is_onboarding_completed", return_value=False)
+    def test_renders_when_not_completed(self, _mock, client):
+        resp = client.get("/onboarding")
+        assert resp.status_code == 200
+
+
+class TestSetupGuide:
+    def test_guide_openai_returns_json(self, client):
+        resp = client.get("/api/help/guide/openai_api_key")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "title" in data
+        assert "steps" in data
+        assert len(data["steps"]) >= 1
+
+    def test_guide_spotify_returns_json(self, client):
+        resp = client.get("/api/help/guide/spotify_developer_app")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "title" in data
+        assert "steps" in data
+        assert len(data["steps"]) >= 1
+
+    def test_guide_unknown_slug_returns_404(self, client):
+        resp = client.get("/api/help/guide/nonexistent")
+        assert resp.status_code == 404
+
 
 class TestHelpContent:
-    @patch("app.BASE_DIR")
-    def test_returns_html_from_manual(self, mock_base_dir, client, tmp_path):
-        (tmp_path / "documentation").mkdir()
-        manual = tmp_path / "documentation" / "help.md"
-        manual.write_text("# Help\n\nSome **bold** text.")
-        mock_base_dir.__truediv__ = lambda self, x: tmp_path / x
-        # Need to patch the actual path resolution
-        with patch("app.BASE_DIR", tmp_path):
+    def test_returns_html_from_manual(self, client, tmp_path):
+        doc_root = tmp_path / "documentation"
+        doc_root.mkdir()
+        (doc_root / "help.en.md").write_text("# Help\n\nSome **bold** text.")
+        with patch("core.src.localised_docs.DOC_ROOT", doc_root):
             resp = client.get("/api/help")
         assert resp.status_code == 200
         data = resp.get_json()
@@ -115,12 +145,18 @@ class TestListModels:
     def test_returns_error_on_missing_key(self, mock_models, mock_get_model, client):
         # Clear the models cache so the error path is hit
         import app as app_module
-        app_module._models_cache["data"] = None
-        app_module._models_cache["expires"] = 0
-        resp = client.get("/api/settings/models")
-        assert resp.status_code == 400
-        data = resp.get_json()
-        assert "error" in data
+        original_data = app_module._models_cache["data"]
+        original_expires = app_module._models_cache["expires"]
+        try:
+            app_module._models_cache["data"] = None
+            app_module._models_cache["expires"] = 0
+            resp = client.get("/api/settings/models")
+            assert resp.status_code == 400
+            data = resp.get_json()
+            assert "error" in data
+        finally:
+            app_module._models_cache["data"] = original_data
+            app_module._models_cache["expires"] = original_expires
 
 
 class TestReadSettings:
@@ -519,6 +555,65 @@ class TestRunPipeline:
         assert "result" in data
         assert "open.spotify.com" in data
 
+    @patch("app.save_run")
+    @patch("app.add_to_playlist")
+    @patch("app.search_tracks")
+    @patch("app.filter_duplicate_suggestions")
+    @patch("app.call_gpt")
+    @patch("app.save_profile")
+    @patch("app.update_profile")
+    @patch("app.normalize_history")
+    @patch("app.load_profile")
+    @patch("app.get_new_artist_percentage", return_value=30)
+    @patch("app.get_playlist_size", return_value=10)
+    @patch("app.get_debug_mode", return_value=False)
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    @patch("app.is_profile_trained", return_value=True)
+    def test_accepts_temperature_and_playlist_size(
+        self, mock_trained, mock_spotify, mock_debug, mock_size,
+        mock_percentage, mock_load, mock_norm, mock_update,
+        mock_save, mock_gpt, mock_filter, mock_search, mock_add,
+        mock_save_run, client
+    ):
+        """Wave 2: /api/run accepts temperature and playlist_size from client."""
+        mock_load.return_value = {
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {},
+            "preferences": {},
+        }
+        mock_norm.return_value = mock_load.return_value
+        mock_gpt.return_value = {
+            "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 15,
+            "new_artists": ["a"],
+            "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
+        }
+        mock_filter.return_value = {
+            "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 15,
+            "new_artists": ["a"],
+            "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
+        }
+        mock_update.return_value = mock_load.return_value
+        mock_search.return_value = (
+            [{"artist": "a", "track": "b", "uri": f"spotify:track:{i}", "cover_url": None} for i in range(15)],
+            [],
+        )
+        mock_add.return_value = {"url": "https://open.spotify.com/playlist/test", "added": 15}
+
+        resp = client.post(
+            "/api/run",
+            data=json.dumps({"temperature": 1.0, "playlist_size": 15}),
+            content_type="application/json",
+        )
+        data = resp.data.decode()
+        assert "result" in data
+        # Verify call_gpt was called with a temperature near 1.0 (not default 0.7)
+        call_args = mock_gpt.call_args
+        assert call_args is not None
+        used_temp = call_args[1].get("temperature", call_args[0][1] if len(call_args[0]) > 1 else None)
+        # Temperature should be close to 1.0 (the base_temp from client)
+        assert used_temp is not None
+        assert used_temp >= 0.8  # at least 0.8 (1.0 - 0.2 max decay)
+
 
 class TestSpotifyCallback:
     def test_xss_in_error_param_is_escaped(self, client):
@@ -759,3 +854,308 @@ class TestActivateProfileEndpoint:
         resp = client.post("/api/profiles/nonexistent/activate")
         assert resp.status_code == 400
         assert "not found" in resp.get_json()["error"].lower()
+
+
+# ── HTML structure tests ─────────────────────────────────────────────
+#
+# Verify that the rendered main page contains all critical interactive
+# elements with proper attributes. A missing button, broken dropdown,
+# or unregistered onclick handler is caught here.
+
+class TestMainPageStructure:
+    """Verify the rendered main page has all critical interactive UI elements."""
+
+    @pytest.fixture(autouse=True)
+    def _load_page(self, client):
+        with patch("app.is_onboarding_completed", return_value=True):
+            resp = client.get("/")
+        self.html = resp.data.decode()
+
+    def test_profile_dropdown_exists(self):
+        """Profile dropdown must be present for users to switch profiles."""
+        assert 'id="profileSelect"' in self.html
+        assert 'id="profileDropdownLabel"' in self.html
+
+    def test_profile_create_button_exists(self):
+        """New profile button must exist and call createNewProfile."""
+        assert 'id="profileCreateToggle"' in self.html
+        assert 'onclick="createNewProfile()"' in self.html
+
+    def test_profile_menu_exists(self):
+        """Profile context menu (⋯) must exist with export, reset, delete actions."""
+        assert 'id="profileMenuTrigger"' in self.html
+        assert 'id="profileMenuExport"' in self.html
+        assert 'id="profileMenuReset"' in self.html
+        assert 'id="profileMenuDelete"' in self.html
+
+    def test_train_buttons_exist(self):
+        """AI train and save buttons must exist with proper onclick handlers."""
+        assert 'id="trainSendBtn"' in self.html
+        assert 'onclick="sendTrainProfile()"' in self.html
+        assert 'id="trainSaveBtn"' in self.html
+        assert 'onclick="saveProfileDirect()"' in self.html
+
+    def test_generate_button_exists(self):
+        """Generate playlist button must exist."""
+        assert 'id="runBtn"' in self.html
+        assert 'onclick="runPipeline()"' in self.html
+
+    def test_cancel_button_exists(self):
+        """Cancel generation button must exist."""
+        assert 'id="cancelBtn"' in self.html
+        assert 'onclick="cancelGeneration()"' in self.html
+
+    def test_analysis_button_exists(self):
+        """Analysis send button must exist."""
+        assert 'id="analysisSendBtn"' in self.html
+        assert 'onclick="runAnalysis()"' in self.html
+
+    def test_section_toggles_exist(self):
+        """All section toggle buttons must have onclick handlers."""
+        assert 'onclick="toggleTrainBody()"' in self.html
+        assert 'onclick="toggleGenerateBody()"' in self.html
+        assert 'onclick="toggleAnalysisBody()"' in self.html
+        assert 'onclick="toggleReviewBody()"' in self.html
+
+    def test_credentials_modal_exists(self):
+        """Credentials modal must exist with save button."""
+        assert 'id="credentialsModal"' in self.html
+        assert 'onclick="saveCredentials()"' in self.html
+
+    def test_settings_modal_exists(self):
+        """Settings modal must exist with save button."""
+        assert 'id="settingsModal"' in self.html or 'onclick="saveSettings()"' in self.html
+
+    def test_help_modal_exists(self):
+        assert 'id="helpModal"' in self.html
+
+    def test_preview_overlay_exists(self):
+        assert 'id="spotifyPreviewOverlay"' in self.html
+
+    def test_completeness_meter_exists(self):
+        """Profile completeness meter must be rendered."""
+        assert 'id="profileCompletenessCard"' in self.html
+        assert 'id="completenessScore"' in self.html
+        assert 'id="completenessBarFill"' in self.html
+
+    def test_taste_dashboard_section_exists(self):
+        """Taste dashboard section must be rendered."""
+        assert 'id="tasteDashboardSection"' in self.html or 'id="dashboardBody"' in self.html
+
+    def test_tab_navigation_exists(self):
+        """Tab bar with all three tabs must exist."""
+        assert 'id="tab-openai"' in self.html
+        assert 'id="tab-spotify"' in self.html
+        assert 'id="tab-history"' in self.html
+
+    def test_main_js_loaded(self):
+        """main.js must be loaded as an ES module."""
+        assert 'type="module"' in self.html
+        assert 'main.js' in self.html
+
+    def test_train_fields_exist(self):
+        """Profile editing text fields must be rendered."""
+        assert 'id="trainCoreDesc"' in self.html
+        assert 'id="trainMustHave"' in self.html
+        assert 'id="trainSoftPrefs"' in self.html
+        assert 'id="trainAvoid"' in self.html
+
+    def test_playlist_mode_controls_exist(self):
+        """Playlist mode selector and playlist picker must exist."""
+        assert 'id="playlistPicker"' in self.html or 'name="playlistMode"' in self.html
+
+
+class TestOnclickHandlersRegistered:
+    """Verify that every onclick function referenced in the main page HTML
+    is either registered as window.X in main.js or defined in a non-module
+    script loaded before it.
+
+    This catches dead buttons — elements that look clickable but throw
+    ReferenceError because the function was never exposed globally.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _setup(self):
+        import re
+        # Collect all window.X assignments from main.js
+        main_js = (Path(__file__).resolve().parent.parent.parent
+                   / "frontend" / "static" / "js" / "main.js")
+        main_text = main_js.read_text(encoding="utf-8")
+        self.window_fns = set(re.findall(r'window\.(\w+)\s*=', main_text))
+
+        # Collect functions from non-module scripts that are globally scoped
+        non_module_scripts = [
+            "frontend/static/js/modules/setup_guide.js",
+        ]
+        for script_path in non_module_scripts:
+            full = Path(__file__).resolve().parent.parent.parent / script_path
+            if full.exists():
+                text = full.read_text(encoding="utf-8")
+                # Match top-level function declarations
+                self.window_fns.update(re.findall(r'^function\s+(\w+)', text, re.MULTILINE))
+
+        # Inline scripts in templates (privacy_modal etc.) define functions too
+        templates_dir = (Path(__file__).resolve().parent.parent.parent
+                         / "frontend" / "templates")
+        for tmpl in templates_dir.rglob("*.html"):
+            text = tmpl.read_text(encoding="utf-8")
+            # Functions defined in <script> blocks inside templates
+            self.window_fns.update(re.findall(r'function\s+(\w+)\s*\(', text))
+
+        # Collect all onclick="fnName(..." from the main page templates
+        self.onclick_fns = set()
+        for tmpl in templates_dir.rglob("*.html"):
+            # Skip onboarding — it has its own script ecosystem
+            if "onboarding" in tmpl.name:
+                continue
+            text = tmpl.read_text(encoding="utf-8")
+            self.onclick_fns.update(re.findall(r'onclick="(\w+)\(', text))
+
+        # Remove control-flow keywords that aren't function names
+        self.onclick_fns.discard("if")
+        self.onclick_fns.discard("event")
+
+    def test_all_onclick_handlers_are_registered(self):
+        """Every onclick handler in the main page must resolve to a global function."""
+        missing = self.onclick_fns - self.window_fns
+        assert missing == set(), (
+            f"These onclick handlers are referenced in templates but never "
+            f"registered as window globals or top-level functions: {sorted(missing)}"
+        )
+
+
+# ── Endpoint integration tests ───────────────────────────────────────
+#
+# These use the isolated_profiles_env fixture so the real business logic
+# runs against a temp filesystem. No mocking of list_profiles, create_profile,
+# etc. — only the filesystem location is redirected.
+
+class TestProfileEndpointIntegration:
+    """Integration tests for profile CRUD endpoints with real business logic."""
+
+    def test_create_then_list_via_endpoints(self, client, isolated_profiles_env):
+        """POST /api/profiles → GET /api/profiles: created profile must appear."""
+        # Create
+        resp = client.post("/api/profiles", json={"name": "Rock"})
+        assert resp.status_code == 201
+        created = resp.get_json()
+        pid = created["id"]
+        assert created["name"] == "Rock"
+
+        # List
+        resp = client.get("/api/profiles")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data["profiles"]) == 1
+        assert data["profiles"][0]["id"] == pid
+        assert data["profiles"][0]["name"] == "Rock"
+        assert data["active_id"] == pid  # auto-activated
+
+    def test_create_then_get_profile_data(self, client, isolated_profiles_env):
+        """POST /api/profiles → GET /api/profile/data: profile data loads."""
+        client.post("/api/profiles", json={"name": "Jazz"})
+
+        resp = client.get("/api/profile/data")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["name"] == "Jazz"
+        assert "preferences" in data
+
+    def test_create_then_get_profile_status(self, client, isolated_profiles_env):
+        """POST /api/profiles → GET /api/profile/status: untrained status."""
+        client.post("/api/profiles", json={"name": "Test"})
+
+        resp = client.get("/api/profile/status")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["trained"] is False
+        assert "no_profile" not in data  # profile exists, just untrained
+
+    def test_create_two_then_activate_first(self, client, isolated_profiles_env):
+        """Create two profiles, activate the first, verify it's the active one."""
+        r1 = client.post("/api/profiles", json={"name": "Rock"}).get_json()
+        r2 = client.post("/api/profiles", json={"name": "Jazz"}).get_json()
+
+        # Jazz is active (last created)
+        resp = client.get("/api/profiles")
+        assert resp.get_json()["active_id"] == r2["id"]
+
+        # Activate Rock
+        resp = client.post(f"/api/profiles/{r1['id']}/activate")
+        assert resp.status_code == 200
+
+        # Verify Rock is now active
+        resp = client.get("/api/profiles")
+        assert resp.get_json()["active_id"] == r1["id"]
+
+        # Profile data should be Rock's
+        resp = client.get("/api/profile/data")
+        assert resp.get_json()["name"] == "Rock"
+
+    def test_create_then_delete(self, client, isolated_profiles_env):
+        """Create → delete → list: profile must be gone."""
+        created = client.post("/api/profiles", json={"name": "Temp"}).get_json()
+        pid = created["id"]
+
+        resp = client.delete(f"/api/profiles/{pid}")
+        assert resp.status_code == 200
+
+        resp = client.get("/api/profiles")
+        data = resp.get_json()
+        assert len(data["profiles"]) == 0
+        assert data["active_id"] == ""
+
+    def test_save_then_load_profile_sections(self, client, isolated_profiles_env):
+        """POST /api/save-profile → GET /api/profile/data: sections persist."""
+        client.post("/api/profiles", json={"name": "Rock"})
+
+        resp = client.post("/api/save-profile", json={
+            "core_description": "Heavy rock with soaring vocals",
+            "must_have": "guitar solos\nhigh energy",
+            "soft_preferences": "prog",
+            "avoid": "country",
+        })
+        assert resp.status_code == 200
+        assert resp.get_json()["last_updated"] is not None
+
+        resp = client.get("/api/profile/data")
+        prefs = resp.get_json()["preferences"]
+        assert prefs["core_description"] == "Heavy rock with soaring vocals"
+        assert prefs["must_have"] == ["guitar solos", "high energy"]
+        assert prefs["soft_preferences"] == ["prog"]
+        assert prefs["avoid"] == ["country"]
+
+    def test_no_profile_returns_empty_data(self, client, isolated_profiles_env):
+        """GET /api/profile/data with no active profile returns empty JSON."""
+        resp = client.get("/api/profile/data")
+        assert resp.status_code == 200
+        assert resp.get_json() == {}
+
+    def test_no_profile_returns_no_profile_status(self, client, isolated_profiles_env):
+        """GET /api/profile/status with no active profile returns no_profile flag."""
+        resp = client.get("/api/profile/status")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["no_profile"] is True
+        assert data["trained"] is False
+
+    def test_list_profiles_survives_corrupted_profile_dir(self, client, isolated_profiles_env):
+        """GET /api/profiles doesn't crash when profiles dir has corrupt data."""
+        profiles_dir = isolated_profiles_env["profiles_dir"]
+
+        # Create a valid profile first
+        created = client.post("/api/profiles", json={"name": "Good"}).get_json()
+
+        # Add a corrupt subdirectory
+        bad_uuid = "deadbeef-dead-beef-dead-beefdeadbeef"
+        bad_dir = profiles_dir / bad_uuid
+        bad_dir.mkdir()
+        (bad_dir / "profile.json").write_text("NOT VALID JSON {{{")
+
+        # Must not crash — returns only the valid profile
+        resp = client.get("/api/profiles")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert len(data["profiles"]) == 1
+        assert data["profiles"][0]["name"] == "Good"
+

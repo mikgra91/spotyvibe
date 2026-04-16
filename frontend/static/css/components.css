@@ -7,6 +7,7 @@
 .analysis-section,
 .history-section,
 .review-section,
+.taste-dashboard-section,
 .track-item,
 .settings-dropdown,
 .modal,
@@ -24,7 +25,8 @@
 .train-section,
 .analysis-section,
 .history-section,
-.review-section {
+.review-section,
+.taste-dashboard-section {
     border-radius: var(--radius-lg);
     padding: 32px 28px;
     margin-bottom: 1.5rem;
@@ -33,10 +35,9 @@
 }
 .run-section {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    flex-wrap: wrap;
+    gap: 0.5rem;
     margin-top: 10px;
 }
 
@@ -191,6 +192,22 @@
     }
 }
 
+.settings-dropdown-header {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: 10px 20px 4px;
+    user-select: none;
+}
+
+.settings-dropdown-sep {
+    height: 0;
+    border-top: 1px solid var(--border);
+    margin: 8px 0;
+}
+
 
 
 /* --- Inline component warnings --- */
@@ -319,27 +336,7 @@
     display: none;
 }
 
-/* --- Train success --- */
-.train-success {
-    color: var(--success);
-    font-size: 1.3rem;
-    margin-top: 10px;
-    animation: fadeOut 5s forwards;
-}
-@keyframes fadeOut {
-    0%, 70% { opacity: 1; }
-    100%    { opacity: 0; }
-}
-
-/* --- Train spinner --- */
-.train-spinner {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    padding: 24px 0 8px;
-}
-.train-spinner.hidden { display: none; }
+/* --- Train spinner --- (canonical definition in sections.css) */
 
 .spinner {
     width: var(--spinner-size, 38px);

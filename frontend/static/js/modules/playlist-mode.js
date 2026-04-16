@@ -82,3 +82,47 @@ export function getPlaylistModePayload() {
     }
     return payload;
 }
+
+/**
+ * Ensure the cached playlists are loaded (for duplicate checks etc.).
+ * Returns the playlist array.
+ */
+export async function ensurePlaylistsLoaded() {
+    if (State.cachedPlaylists) return State.cachedPlaylists;
+    try {
+        const resp = await fetch('/api/playlists');
+        const data = await resp.json();
+        const playlists = data.playlists || [];
+        State.setCachedPlaylists(playlists);
+        return playlists;
+    } catch (_) {
+        return [];
+    }
+}
+
+/**
+ * Programmatically switch to "Append to existing" mode and select a specific playlist.
+ * Used after a successful "create" run to let the user continue appending.
+ */
+export async function switchToAppendMode(playlistId) {
+    // Check the "append" radio button
+    const appendRadio = document.querySelector('input[name="playlist_mode"][value="append"]');
+    if (!appendRadio) return;
+    appendRadio.checked = true;
+
+    // Toggle row visibility
+    const nameRow = document.getElementById('playlistNameRow');
+    const pickerRow = document.getElementById('playlistPickerRow');
+    if (nameRow) nameRow.classList.add('hidden');
+    if (pickerRow) {
+        pickerRow.classList.remove('hidden');
+        pickerRow.dataset.loaded = '1';
+    }
+
+    // Refresh picker and select the target playlist
+    await refreshDiscoverPlaylistPicker();
+    const sel = document.getElementById('playlistPicker');
+    if (sel && playlistId) {
+        sel.value = playlistId;
+    }
+}

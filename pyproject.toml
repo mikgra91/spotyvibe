@@ -44,7 +44,10 @@ exclude = [
 "frontend/static"                    = "spotyvibe/frontend/static"
 "prompts"                            = "spotyvibe/prompts"
 "data"                               = "spotyvibe/data"
-"documentation/help.md"              = "spotyvibe/documentation/help.md"
+"documentation/help.en.md"           = "spotyvibe/documentation/help.en.md"
+"documentation/help.de.md"           = "spotyvibe/documentation/help.de.md"
+"documentation/guides"               = "spotyvibe/documentation/guides"
+"documentation/assets/guides"        = "spotyvibe/documentation/assets/guides"
 "documentation/assets/screenshots"   = "spotyvibe/documentation/assets/screenshots"
 
 # ── Source distribution (sdist) — not used for end-user distribution ──
@@ -58,7 +61,10 @@ include = [
     "frontend/",
     "prompts/",
     "data/",
-    "documentation/help.md",
+    "documentation/help.en.md",
+    "documentation/help.de.md",
+    "documentation/guides/",
+    "documentation/assets/guides/",
     "documentation/assets/screenshots/",
     "pyproject.toml",
     "README.md",

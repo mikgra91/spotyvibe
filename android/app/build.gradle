@@ -19,7 +19,7 @@ android {
         minSdk 26
         targetSdk 34
         versionCode 1
-        versionName "1.0"
+        versionName "0.9.9-beta"  // Keep in sync with version.py
 
         python {
             version "3.10"
@@ -35,16 +35,19 @@ android {
                 install "markdown>=3.4,<4.0"
             }
         }
-
-        ndk {
-            // arm64-v8a for physical devices; x86_64 for Android Studio emulators.
-            // Remove x86_64 from release builds to reduce APK size.
-            abiFilters "arm64-v8a", "x86_64"
-        }
     }
 
     buildTypes {
+        debug {
+            ndk {
+                // arm64-v8a for physical devices; x86_64 for Android Studio emulators.
+                abiFilters "arm64-v8a", "x86_64"
+            }
+        }
         release {
+            ndk {
+                abiFilters "arm64-v8a"
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }

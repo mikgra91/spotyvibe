@@ -44,10 +44,34 @@
     flex-shrink: 0;
 }
 
+/* ── Persistent Profiles card (G: not an accordion) ─────────────── */
+.profiles-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    margin-bottom: 18px;
+}
+.profiles-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+.profiles-card-header h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
 .profile-menu-wrapper {
     position: relative;
     display: flex;
     justify-content: flex-end;
+}
+/* Only add bottom margin when inside accordion body (legacy) */
+.accordion-body-inner > .profile-menu-wrapper {
     margin-bottom: 8px;
 }
 
@@ -256,7 +280,103 @@
 }
 
 
-/* Card container for the create profile button */
+/* D.1: Two side-by-side profile action cards */
+.profile-action-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    width: 100%;
+}
+
+.profile-action-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    width: 100%;
+    min-height: 80px;
+    padding: 14px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+@media (hover: hover) {
+    .profile-action-card:hover {
+        border-color: var(--glass-hover-border);
+    }
+}
+.profile-action-card--primary {
+    border-color: var(--border);
+}
+
+.profile-action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    width: 100%;
+    color: var(--text-primary);
+    font-family: inherit;
+}
+.profile-action-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+.profile-action-icon {
+    font-size: 1.3rem;
+}
+
+.profile-action-title {
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+.profile-action-desc {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    text-align: center;
+    line-height: 1.3;
+}
+
+.profile-action-hint {
+    font-size: 0.74rem;
+    color: var(--warning);
+    text-align: center;
+}
+
+.profile-action-card.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+.profile-action-card.disabled .profile-action-btn {
+    cursor: not-allowed;
+}
+
+.profile-action-card .profile-create-input-wrap {
+    width: 100%;
+}
+
+.profile-action-card .profile-create-error {
+    font-size: 0.78rem;
+    color: var(--error);
+    width: 100%;
+}
+
+@media (max-width: 540px) {
+    .profile-action-cards {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Legacy single create card (kept for backward compat) */
 .profile-create-card {
     display: flex;
     flex-direction: column;
@@ -419,6 +539,7 @@
     color: var(--success);
     font-size: 1.3rem;
     margin-top: 10px;
+    text-align: center;
     animation: fadeOut 5s forwards;
 }
 @keyframes fadeOut {
@@ -437,6 +558,40 @@
 .train-spinner.hidden { display: none; }
 
 
+/* ── Quick / Advanced mode toggle ────────────────────────────────── */
+.gen-mode-tabs {
+    display: inline-flex;
+    background: var(--bg-input);
+    padding: 4px;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--border);
+    margin-bottom: 18px;
+}
+.gen-mode-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    font-weight: 600;
+    padding: 8px 18px;
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 150ms, color 150ms;
+}
+.gen-mode-btn.active {
+    background: var(--primary);
+    color: var(--btn-cta-text);
+}
+@media (hover: hover) {
+    .gen-mode-btn:not(.active):hover {
+        color: var(--text-primary);
+    }
+}
+.gen-mode-btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
 
 
 /* ── Band/Song Analysis ─────────────────────────────────────────────── */
@@ -655,13 +810,35 @@
 }
 
 
-/* ── Playlist mode selector ─────────────────────────────────────────── */
-.playlist-mode-row {
+/* ── Playlist destination section (shared, visible in Quick & Advanced) ── */
+.playlist-destination-section {
     background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     padding: 14px 16px;
+    margin-top: 6px;
     margin-bottom: 12px;
+}
+
+/* ── Shared generation controls (size + exploration, outside mode bodies) ── */
+.gen-shared-controls {
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+.playlist-destination-label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+/* ── Playlist mode selector ─────────────────────────────────────────── */
+.playlist-mode-row {
+    margin-bottom: 0;
 }
 
 .playlist-mode-options {
@@ -756,6 +933,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     padding: 12px 16px;
+    margin-top: 16px;
     margin-bottom: 12px;
 }
 

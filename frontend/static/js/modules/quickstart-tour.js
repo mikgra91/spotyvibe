@@ -9,7 +9,7 @@
  * that match the current provider. _posInVisible is the cursor into that array.
  */
 import { i18n } from './i18n.js';
-import { qsDemoReset } from './quickstart-demo.js';
+import { qsDemoReset, qsDemoAutoPlay } from './quickstart-demo.js';
 
 let _currentProvider = 'openai';
 let _visiblePageIndices = [0, 1, 2, 6]; // default: openai
@@ -105,8 +105,11 @@ function _renderPage() {
         _renderToc();
     }
 
-    // Reset demo preview for step pages
-    if (realIdx >= 1) qsDemoReset(realIdx);
+    // Reset demo preview for step pages and auto-play
+    if (realIdx >= 1) {
+        qsDemoReset(realIdx);
+        qsDemoAutoPlay(realIdx);
+    }
 
     // Pagination always visible
     const pag = document.getElementById('qsPagination');

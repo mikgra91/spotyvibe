@@ -1,0 +1,37 @@
+/* ── Tip toast ───────────────────────────────────────────────────── */
+.toast--tip {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-left: 3px solid var(--primary); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-elevated, 0 4px 12px rgba(0,0,0,0.3));
+  padding: 12px 14px; max-width: 360px;
+  display: flex; gap: 10px; align-items: flex-start;
+  position: fixed; top: 14px; right: 14px; z-index: 500;
+  animation: tipSlideIn 300ms ease-out;
+}
+.toast--tip.hidden { display: none; }
+
+@keyframes tipSlideIn {
+  from { transform: translateX(120%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+.toast-tip-icon { font-size: 1.15rem; flex-shrink: 0; line-height: 1; }
+.toast-tip-text { flex: 1; }
+.toast-tip-title {
+  font-size: 0.88rem; font-weight: 700; color: var(--text-primary); margin-bottom: 2px;
+}
+.toast-tip-body {
+  font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 6px;
+}
+.toast-tip-link {
+  background: none; border: none; color: var(--primary);
+  font-size: 0.82rem; font-weight: 600; cursor: pointer; padding: 0;
+}
+.toast-tip-link:hover { text-decoration: underline; }
+.toast-tip-close {
+  background: none; border: none; color: var(--text-muted);
+  font-size: 1rem; cursor: pointer; padding: 2px 4px;
+  border-radius: var(--radius-sm);
+}
+.toast-tip-close:hover { color: var(--text-primary); }
+

@@ -6,7 +6,37 @@ on:
       - 'beta-*'
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright browsers
+        run: python -m playwright install chromium --with-deps
+
+      - name: Run core tests
+        run: python -m pytest core/tests/ -v --tb=short --junitxml=test-results/core.xml
+
+      - name: Run frontend tests
+        run: python -m pytest frontend/tests/ -v --tb=short --junitxml=test-results/frontend.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
+
   build-windows:
+    needs: [test]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5

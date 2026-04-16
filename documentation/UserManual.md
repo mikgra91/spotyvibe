@@ -292,6 +292,42 @@ The AI Profile Update merges with what the AI already knows — your feedback hi
 
 Once your profile is trained and Spotify is connected, go to the **Spotify** section and expand the **Discover Music** area.
 
+### Quick vs Advanced Mode
+
+The Generate panel has two modes, selectable via the pill toggle at the top:
+
+- **Quick mode** (default) — shows only the playlist size slider, the exploration slider, and the Generate button. Perfect for everyday use.
+- **Advanced mode** — shows all controls including playlist mode, emerging artists, audio filters, new artist %, and the preset picker.
+
+Your mode choice is remembered across sessions.
+
+### Exploration Slider
+
+Both modes include the **Exploration vs Accuracy** slider — a 5-notch control that adjusts how adventurous your suggestions will be:
+
+| Notch | Label | New artist % | Emerging only | Temperature |
+|-------|-------|-------------|---------------|-------------|
+| 1 | Familiar | 10% | No | 0.5 |
+| 2 | Mostly known | 25% | No | 0.7 |
+| 3 | Balanced | 50% | No | 0.8 |
+| 4 | Mostly new | 70% | No | 0.9 |
+| 5 | Adventurous | 90% | Yes | 1.0 |
+
+In Advanced mode, if you hand-edit the "New Artist %" or "Emerging artists" checkbox to a value that doesn't match any notch, the slider shows a **Custom** state with a dashed thumb. Moving the slider back to any notch resets those fields.
+
+### Generation Presets
+
+In Advanced mode, a **Preset** dropdown lets you save and recall complete generation configurations (size, exploration level, audio filters, etc.):
+
+- **3 built-in presets** ship with the app: Safe picks, Balanced, and Deep discovery. These cannot be edited but can be cloned.
+- **User presets** appear above the built-ins. Create one via "💾 Save current as preset…".
+- Open **☰ Menu → 🎛 Manage presets** to rename, delete, reorder, import, or export presets.
+- Presets are stored locally on your device.
+
+### Profile Completeness Meter
+
+When editing your Music Profile, a **Profile Strength** meter is visible inside the profile editor. It shows five dimensions (Core Description, Must Have, Soft Preferences, Avoid, Edited) with a percentage score, and suggests what to improve next. At 60% or above, the meter displays a green glow to indicate the profile is strong enough for good recommendations. The meter updates in real-time as you type or when fields are filled programmatically (e.g., from a playlist draft).
+
 ### Playlist Mode
 
 Before generating, choose a **playlist mode** from the selector:
@@ -623,6 +659,83 @@ python -m core.feedback dislike "Artist Name" --reason "why"
 ```
 
 ---
+
+## Advanced Features
+
+### Playlist-Seeded Profiles (Wave 3)
+
+You can seed your taste profile directly from an existing Spotify playlist:
+1. Open the profile editor (⋯ menu → **Seed from playlist**) or use the option during onboarding.
+2. Pick one of your Spotify playlists from the picker.
+3. SpotyVibe analyses the playlist's artists, genres, and audio features, then drafts a profile.
+4. Review and edit the draft in the profile editor, then save.
+
+### Explainable Recommendations (Wave 3)
+
+Each suggested track now shows 1–2 rationale chips explaining why it was picked:
+- **matches 'genre/trait'** — aligns with your profile description
+- **similar to Artist** — related to an artist in your history
+- **released YYYY** — recent release
+- **discovery pick** — intentional variety pick
+- **matches energy/tempo** — falls within your active audio filter range
+
+### Taste Visualisation Dashboard (Wave 3)
+
+Below the profile editor, a collapsible section ("Your taste at a glance") shows three charts summarising your listening patterns. Click **Show** to expand.
+
+If you haven't generated enough playlists yet, the section displays "Not enough data yet" instead of empty charts. Once you have at least 10 unique tracks in your history, the charts appear:
+
+- **Top genres** — donut chart of your most common genres (sourced from Spotify artist data)
+- **Energy × valence** — scatter plot of your tracks' mood (energy and valence are GPT estimates, not exact measurements — a footnote below the chart notes this)
+- **Decades** — bar chart of release decades (sourced from Spotify album data)
+
+Data is aggregated from your run history. Each playlist generation enriches tracks with genre, release year, and estimated energy/valence metadata automatically.
+
+### Feature Discovery Tips (Wave 3)
+
+SpotyVibe shows contextual tips as you use the app (at most one per session):
+- After your first generation
+- After disliking 2+ tracks
+- When viewing history for the first time
+- When opening audio filters
+- After 5 generations
+
+Reset tips via ☰ → **Reset tips**.
+
+### Custom AI Provider (Wave 4)
+
+SpotyVibe can talk to any OpenAI-compatible API endpoint — not just OpenAI. Open ⚙️ Settings and pick a provider:
+
+| Provider | API Key required? | Notes |
+|---|---|---|
+| OpenAI | Yes | Default. |
+| Ollama (local) | No | Runs on your machine, free. |
+| LM Studio (local) | No | Runs on your machine, free. |
+| Groq | Yes | Cloud, fast inference. |
+| OpenRouter | Yes | Multi-model proxy. |
+| Custom | Depends | Paste any `/v1`-compatible URL. |
+
+Click **🔁 Fetch models** to populate the model dropdown from the provider's `/v1/models` endpoint. If that fails, click ✎ to type a model name manually.
+
+### Cost Estimator (Wave 4)
+
+A live cost estimate appears in the Settings modal and as a footnote under the Generate button. It approximates input/output tokens and looks up pricing from the shipped price table. Models not in the table show "estimate unavailable".
+
+### Voice Input (Wave 4)
+
+A 🎤 **Speak** button appears inside the "Describe Your Vibe" textarea (desktop browsers only). Click to start dictation; click again to stop. The transcript appends at the cursor position. No audio leaves your device — the Web Speech API handles recognition locally or via browser-managed cloud services.
+
+### Help Page Language Support (Wave 5)
+
+The in-app help page is now available in German. When the UI language is set to German and a translated help file exists, it is served automatically. If the translation is not yet available, English is shown with a subtle banner: "This page isn't translated yet. Showing English."
+
+### Setup Guides (Wave 5)
+
+Two new setup guides have been added:
+- **Install Python on macOS** — for macOS users running SpotyVibe via the Python wheel
+- **Install Python on Linux** — for Linux users with venv setup
+
+All four guides (OpenAI, Spotify, macOS, Linux) are now available in German translation.
 
 ## Troubleshooting
 

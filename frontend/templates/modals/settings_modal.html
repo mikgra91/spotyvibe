@@ -4,50 +4,79 @@
         <div class="modal-loading" id="settingsLoading">
             <div class="spinner"></div>
         </div>
-        <h2 id="settingsModalTitle"><span aria-hidden="true">⚙️</span> Settings</h2>
+        <h2 id="settingsModalTitle" data-i18n="settings.title"><span aria-hidden="true">⚙️</span> Settings</h2>
+
+        <!-- Provider (Wave 4) -->
+        <div class="form-row">
+            <label for="settings-provider" data-i18n="provider.label">Provider</label>
+            <select id="settings-provider" onchange="onProviderChange()">
+                <option value="openai" data-i18n="provider.openai">OpenAI</option>
+                <option value="ollama" data-i18n="provider.ollama">Ollama (local)</option>
+                <option value="lmstudio" data-i18n="provider.lmstudio">LM Studio (local)</option>
+                <option value="groq" data-i18n="provider.groq">Groq</option>
+                <option value="openrouter" data-i18n="provider.openrouter">OpenRouter</option>
+            </select>
+            <p class="inline-hint" data-i18n="provider.hint">Pick where SpotyVibe gets its AI from.</p>
+            <details class="learn-more">
+                <summary data-i18n="common.learn_more">Learn more</summary>
+                <div class="learn-more-body" data-i18n="provider.learn_more">SpotyVibe speaks the OpenAI API protocol. Any OpenAI-compatible provider works — cloud (Groq, OpenRouter) or local (Ollama, LM Studio).</div>
+            </details>
+        </div>
+        <div class="form-row provider-base-url-row hidden" id="providerBaseUrlRow">
+            <label for="settings-base-url" data-i18n="provider.base_url_label">Base URL</label>
+            <input id="settings-base-url" type="text" placeholder="https://api.example.com/v1" autocomplete="off">
+            <p class="inline-hint" data-i18n="provider.base_url_hint">Full URL ending in /v1.</p>
+        </div>
+        <p class="provider-local-notice hidden" id="providerLocalNotice" data-i18n="provider.local_notice">Local providers don't need an API key — any value or leave empty.</p>
 
         <!-- Model -->
         <div class="form-row">
-            <label for="settings-model" data-i18n="settings.model">Used Model</label>
-            <select id="settings-model">
-                {% if available_models %}
-                    {% for model in available_models %}
-                    <option value="{{ model }}" {% if settings.model == model %}selected{% endif %}>{{ model }}</option>
-                    {% endfor %}
-                {% else %}
-                <option value="{{ settings.model if settings.model }}">{{ settings.model if settings.model else 'Loading models…' }}</option>
-                {% endif %}
-            </select>
+            <label for="settings-model" data-i18n="settings.model_label">Used Model</label>
+            <div class="provider-model-wrap">
+                <select id="settings-model">
+                    {% if available_models %}
+                        {% for model in available_models %}
+                        <option value="{{ model }}" {% if settings.model == model %}selected{% endif %}>{{ model }}</option>
+                        {% endfor %}
+                    {% else %}
+                    <option value="{{ settings.model if settings.model }}">{{ settings.model if settings.model else 'Loading models…' }}</option>
+                    {% endif %}
+                </select>
+                <input id="settings-model-freetext" type="text" class="hidden" placeholder="llama3.1:8b" autocomplete="off">
+                <button class="btn-model-mode" id="btnModelMode" onclick="toggleModelFreeText()" data-i18n-title="provider.model_mode_toggle" title="Toggle free-text">✎</button>
+                <button class="btn-fetch-models" id="btnFetchModels" onclick="fetchProviderModels()" data-i18n-title="provider.fetch_models_title" title="Fetch available models">🔁</button>
+            </div>
+            <p class="inline-hint" data-i18n="settings.model_hint">Which model produces your suggestions.</p>
+            <p class="provider-fetch-error hidden" id="providerFetchError"></p>
+            <details class="learn-more">
+                <summary data-i18n="common.learn_more">Learn more</summary>
+                <div class="learn-more-body" data-i18n="settings.model_learn_more">Higher-tier models cost more per run. For music suggestions the difference is noticeable but not dramatic; gpt-4o-mini is a sensible default.</div>
+            </details>
             <div class="cred-status" id="status-settings-model"></div>
-            <div class="modal-cost-warning">⚠️ Different models have different costs. Check <a href="https://platform.openai.com/docs/pricing" target="_blank" rel="noopener">OpenAI Pricing</a> before switching.</div>
         </div>
 
-        <!-- Playlist size -->
-        <div class="form-row">
-            <label for="settings-playlist-size" class="modal-label-with-tooltip">
-                Playlist Size
-                <span class="tooltip-trigger" data-tooltip="Tracks are fetched in blocks of 10 per GPT request. Large values will cause many requests and therefore higher token usage / cost.">?</span>
-            </label>
-            <input id="settings-playlist-size" type="number" min="10" step="10"
-                value="{{ settings.playlist_size if settings.playlist_size }}">
-            <div class="cred-status" id="status-settings-playlist-size"></div>
-        </div>
-
-        <!-- New artist % -->
-        <div class="form-row">
-            <label for="settings-new-artist-pct" class="modal-label-with-tooltip">
-                New Artist %
-                <span class="tooltip-trigger" data-tooltip="Minimum percentage of suggestions that must come from artists not yet in your history. Higher values push GPT to explore new territory; lower values let it revisit familiar artists more often.">?</span>
-            </label>
-            <input id="settings-new-artist-pct" type="number" min="1" max="100" step="1"
-                value="{{ settings.new_artist_pct if settings.new_artist_pct is not none }}">
-            <div class="cred-status" id="status-settings-new-artist-pct"></div>
+        <!-- Cost estimate (Wave 4) -->
+        <div class="cost-estimate-card" id="costEstimateCard">
+            <div class="cost-estimate-header">
+                <span class="cost-estimate-icon" aria-hidden="true">💰</span>
+                <h3 class="cost-estimate-title" data-i18n="cost.title">Estimated cost per generation</h3>
+            </div>
+            <dl class="cost-estimate-list">
+                <dt data-i18n="cost.model">Model</dt><dd id="costModelName">—</dd>
+                <dt data-i18n="cost.profile_size">Profile size</dt><dd id="costProfileTokens">—</dd>
+                <dt data-i18n="cost.tracks">Suggestions</dt><dd id="costTracks">—</dd>
+                <dt data-i18n="cost.tokens_in">Tokens in</dt><dd id="costTokensIn">—</dd>
+                <dt data-i18n="cost.tokens_out">Tokens out</dt><dd id="costTokensOut">—</dd>
+                <dt data-i18n="cost.total" class="cost-total-label">Estimated cost</dt><dd id="costTotal" class="cost-total-value">—</dd>
+            </dl>
+            <p class="cost-estimate-disclaimer" data-i18n="cost.disclaimer">Estimate only — actual cost depends on your profile size and provider rates.</p>
+            <p class="cost-estimate-unavailable hidden" id="costUnavailable" data-i18n="cost.unavailable">Cost estimate unavailable for this model.</p>
         </div>
 
 
         <!-- Debug mode (desktop-only) -->
         <div class="form-row {% if not debug_controls_available %}hidden{% endif %}" id="debugModeRow">
-            <label>Debug Mode</label>
+            <label>Debug Mode <span class="optional-badge" data-i18n="common.optional">(optional)</span></label>
             <div class="modal-checkbox-row">
                 <label class="modal-checkbox-label">
                     <input type="checkbox" id="settings-debug"
@@ -55,6 +84,11 @@
                     Log GPT requests &amp; responses to debug file
                 </label>
             </div>
+            <p class="inline-hint" data-i18n="settings.debug_hint">Log every GPT request and response to a local file.</p>
+            <details class="learn-more">
+                <summary data-i18n="common.learn_more">Learn more</summary>
+                <div class="learn-more-body" data-i18n="settings.debug_learn_more">For developers and bug reports. Never affects behaviour. The log file stays on your device — see the Privacy modal.</div>
+            </details>
             <div class="cred-status" id="status-settings-debug"></div>
         </div>
 

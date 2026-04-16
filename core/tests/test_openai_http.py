@@ -241,3 +241,44 @@ class TestExceptionHierarchy:
         err = OpenAIRequestError("msg", status_code=429, response_body="body")
         assert err.status_code == 429
         assert err.response_body == "body"
+
+
+# ── C10: Base URL and local provider tests ───────────────────────────
+
+class TestBaseUrlAndLocalProvider:
+    """C10: Tests for custom base URL and local providers (Wave 4)."""
+
+    def test_uses_configured_base_url(self):
+        """_request_json should use the base URL from config."""
+        custom_url = "http://localhost:11434/v1"
+        response_body = json.dumps({"choices": [{"message": {"content": "hi"}}]}).encode()
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = response_body
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("core.src.openai_http._get_base_url", return_value=custom_url), \
+             patch("core.src.openai_http._get_api_key", return_value="test-key"), \
+             patch("urllib.request.urlopen", return_value=mock_resp) as mock_urlopen:
+            result = _request_json("POST", "/chat/completions", body={"model": "llama3"})
+
+        # Verify the URL used starts with the custom base URL
+        actual_request = mock_urlopen.call_args[0][0]
+        assert actual_request.full_url.startswith(custom_url)
+        assert result["choices"][0]["message"]["content"] == "hi"
+
+    def test_local_provider_skips_key_requirement(self):
+        """When llm_api_key_required returns False, _get_api_key should return 'not-needed'."""
+        with patch.dict(os.environ, {}, clear=True), \
+             patch("config.llm_api_key_required", return_value=False):
+            key = _get_api_key()
+        assert key == "not-needed"
+
+    def test_raises_when_no_key_and_required(self):
+        """When llm_api_key_required returns True (or not available), should raise."""
+        with patch.dict(os.environ, {}, clear=True), \
+             patch("config.llm_api_key_required", return_value=True):
+            with pytest.raises(OpenAIConfigError, match="not configured"):
+                _get_api_key()
+

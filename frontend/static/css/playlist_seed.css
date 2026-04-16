@@ -1,0 +1,100 @@
+/* ── Playlist seed modal ─────────────────────────────────────────── */
+.playlist-seed-modal { max-width: 540px; min-height: 480px; position: relative; overflow: visible; }
+.playlist-seed-modal .modal-close {
+  position: absolute;
+  top: -44px;
+  right: -56px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+  transition: color var(--transition), opacity var(--transition);
+  z-index: 250;
+  opacity: 0.85;
+}
+@media (hover: hover) {
+  .playlist-seed-modal .modal-close:hover { color: #fff; opacity: 1; }
+}
+.playlist-seed-modal .modal-header { padding-right: 8px; }
+
+.playlist-seed-loading {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 12px; padding: 40px 16px; color: var(--text-secondary); font-size: 0.9rem;
+}
+
+.playlist-seed-list {
+  list-style: none; padding: 0; margin: 12px 0 0; max-height: 360px; overflow-y: auto;
+}
+.playlist-seed-item {
+  display: flex; gap: 12px; align-items: center; padding: 10px 12px;
+  border-radius: var(--radius-sm); cursor: pointer; transition: background 120ms;
+}
+.playlist-seed-item:hover { background: var(--bg-elevated); }
+.playlist-seed-item.selected {
+  background: rgba(30,215,96,0.08); outline: 1px solid rgba(30,215,96,0.35);
+}
+.playlist-seed-cover {
+  width: 48px; height: 48px; border-radius: var(--radius-sm);
+  object-fit: cover; flex-shrink: 0; background: var(--bg-elevated);
+}
+.playlist-seed-text { flex: 1; min-width: 0; }
+.playlist-seed-name {
+  font-size: 0.92rem; font-weight: 600; color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.playlist-seed-meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+.playlist-seed-check {
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 2px solid var(--border); flex-shrink: 0;
+}
+.playlist-seed-item.selected .playlist-seed-check {
+  border-color: var(--primary);
+  background: radial-gradient(circle, var(--primary) 40%, transparent 42%);
+}
+.playlist-seed-replace-warn {
+  background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25);
+  border-radius: var(--radius-sm); padding: 10px 12px; margin: 12px 0;
+  font-size: 0.84rem; color: var(--text-secondary);
+}
+.playlist-seed-loader {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 14px; padding: 40px 20px;
+}
+.playlist-seed-search-row { margin: 12px 0 0; }
+.playlist-seed-search-row input {
+  width: 100%; padding: 8px 12px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--bg-elevated);
+  color: var(--text-primary); font-size: 0.88rem;
+}
+.playlist-seed-empty {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 12px; padding: 32px 16px; list-style: none;
+  color: var(--text-secondary); font-size: 0.9rem; text-align: center;
+}
+.playlist-seed-retry {
+  padding: 6px 18px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--bg-elevated);
+  color: var(--text-primary); cursor: pointer; font-size: 0.85rem;
+  transition: background 120ms;
+}
+.playlist-seed-retry:hover { background: var(--bg-elevated-hover, rgba(255,255,255,0.08)); }
+
+/* ── Draft banner ───────────────────────────────────────────────── */
+.profile-draft-banner {
+  background: rgba(30,215,96,0.05); border: 1px solid rgba(30,215,96,0.2);
+  border-radius: var(--radius-md); padding: 12px 14px;
+  display: flex; gap: 12px; align-items: center; margin: 12px 0;
+}
+.profile-draft-icon { font-size: 1.1rem; flex-shrink: 0; }
+.profile-draft-text { flex: 1; }
+.profile-draft-title { font-size: 0.92rem; font-weight: 600; color: var(--text-primary); }
+.profile-draft-sub { font-size: 0.82rem; color: var(--text-secondary); margin-top: 2px; }
+.profile-draft-discard {
+  color: var(--primary); background: none; border: none;
+  cursor: pointer; font-size: 0.85rem; font-weight: 600; flex-shrink: 0;
+}
+.profile-draft-discard:hover { text-decoration: underline; }
+

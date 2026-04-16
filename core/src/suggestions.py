@@ -409,6 +409,44 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
     ]
 
 
+_ALLOWED_RATIONALE_TYPES = {"profile_match", "artist_match", "recency", "novelty", "audio_match"}
+
+
+def _normalize_rationale(entry: dict) -> list:
+    """Parse and normalise the rationale array from a GPT track entry.
+
+    - Drops entries whose type is not in the allowed set.
+    - Truncates arg to 40 characters.
+    - Caps array length to 2.
+    - Falls back to legacy/fallback if nothing valid remains.
+    """
+    raw = entry.get("rationale")
+    if isinstance(raw, list):
+        normalised = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            rtype = item.get("type", "")
+            if rtype not in _ALLOWED_RATIONALE_TYPES:
+                continue
+            arg = item.get("arg")
+            if not arg or not str(arg).strip():
+                continue  # skip entries with empty/missing arg
+            chip = {"type": rtype, "arg": str(arg).strip()[:40]}
+            normalised.append(chip)
+            if len(normalised) >= 2:
+                break
+        if normalised:
+            return normalised
+
+    # Fallback: legacy reason string
+    reason = entry.get("reason", "")
+    if reason:
+        return [{"type": "legacy", "arg": str(reason)[:40]}]
+
+    return [{"type": "fallback"}]
+
+
 def normalize_response(result):
     """Force-lowercase all artist and track names in the GPT response.
 
@@ -421,6 +459,7 @@ def normalize_response(result):
       with reasons like "Forbidden track, excluded." instead of omitting them).
     - Strips parenthetical meta-commentary from artist names (e.g.
       "Tycho (different track)" → "tycho") to prevent profile pollution.
+    - Normalises rationale arrays to the bounded chip vocabulary (Wave 3).
     """
     result.pop("validation", None)
 
@@ -447,6 +486,33 @@ def normalize_response(result):
         artist = _strip_gpt_annotation(artist, _ANNOTATION_WORDS)
         entry["artist"] = artist.lower().strip()
         entry["track"] = entry.get("track", "").lower().strip()
+
+        # Normalise rationale (Wave 3)
+        entry["rationale"] = _normalize_rationale(entry)
+
+        # Normalise energy & valence estimates from GPT (Wave 3 dashboard)
+        for af_key in ("energy", "valence"):
+            raw = entry.get(af_key)
+            if raw is not None:
+                try:
+                    val = float(raw)
+                    entry[af_key] = max(0.0, min(1.0, round(val, 3)))
+                except (TypeError, ValueError):
+                    entry.pop(af_key, None)
+
+        # Normalise genres from GPT (Wave 3 dashboard)
+        raw_genres = entry.get("genres")
+        if isinstance(raw_genres, list):
+            clean = []
+            for g in raw_genres:
+                if isinstance(g, str) and g.strip():
+                    clean.append(g.strip().lower()[:40])
+                if len(clean) >= 3:
+                    break
+            entry["genres"] = clean
+        else:
+            entry["genres"] = []
+
         sanitized_playlist.append(entry)
 
     result["playlist"] = sanitized_playlist
@@ -559,14 +625,15 @@ def _normalize_key(text):
 
     NFKD normalization handles curly quotes, accented characters, and
     ligatures (e.g. "Beyoncé" vs "Beyonce", "The Mowgli's" vs "The Mowgli´s").
+    Preserves non-Latin scripts (CJK, Cyrillic, Arabic, etc.).
     """
     if not text:
         return ""
     s = unicodedata.normalize("NFKD", str(text))
     s = s.lower()
-    s = re.sub(r'[^a-z0-9\s]', '', s)   # keep only letters, digits, spaces
+    s = re.sub(r'[^\w\s]', '', s, flags=re.UNICODE)  # keep word chars (incl. non-Latin) + spaces
     s = re.sub(r'\s+', ' ', s).strip()   # collapse whitespace
-    return s
+    return s if s else text.lower().strip()  # fallback if normalization yields empty
 
 
 def filter_duplicate_suggestions(profile, result):

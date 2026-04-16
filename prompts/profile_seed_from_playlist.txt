@@ -1,0 +1,21 @@
+You are drafting a SpotyVibe taste profile from a Spotify playlist the user already likes.
+
+Given the following playlist summary, produce a profile JSON with these exact keys:
+- core_description: 2–3 sentence prose in the first person ("I love …") describing the sonic qualities of the playlist.
+- must_have: array of up to 3 short strings, each a trait the user seems to require (e.g. "driving guitar", "strong melody", "similar to <artist>").
+- soft_preferences: array of up to 3 short strings, softer preferences inferred from genre/mood.
+- avoid: empty array.
+- vibe_description: empty string.
+
+Playlist summary:
+  Name:        {name}
+  Track count: {count}
+  Top artists: {top_artists_list}
+  Top genres:  {top_genres_list}
+  Median energy: {energy}
+  Median valence: {valence}
+  Median tempo: {tempo}
+  Moods detected (derived): {moods}
+
+Return strict JSON. No trailing commentary.
+

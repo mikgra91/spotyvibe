@@ -47,11 +47,17 @@ export async function applyLanguage(lang) {
     });
 
     _syncToggle(lang);
+
+    // Notify dynamically-rendered components (presets, exploration, etc.)
+    document.dispatchEvent(new CustomEvent('sv:language-changed', { detail: { lang } }));
 }
 
 export function i18n(key, fallback) {
     return _i18nStrings[key] !== undefined ? _i18nStrings[key] : (fallback || key);
 }
+
+// Expose for non-module scripts (e.g. setup_guide.js)
+window._i18n = i18n;
 
 export async function initI18n() {
     // Fallback chain: server setting → localStorage → browser language

@@ -17,13 +17,35 @@ Read `SKILL.md` before any Spotify API change. Read `RULES.md` for a11y and deta
 
 ```bash
 python app.py                                        # http://127.0.0.1:5000
-python -m pytest core/tests/ frontend/tests/ -v      # run tests (required before completing code changes)
+python -m pytest core/tests/ frontend/tests/ -v      # run ALL tests (required before completing code changes)
 bash build-tools/build_exe.sh                        # PyInstaller Windows EXE
 bash build-tools/build_apk.sh debug                  # Chaquopy Android APK
 pip install build && python -m build --wheel         # Python wheel for macOS/Linux
 # macOS/Linux end-user: pip install spotyvibe-*.whl && spotyvibe
 # Dev: bash build-tools/start.sh
 ```
+
+### Running Tests
+
+| Command | What it runs |
+|---|---|
+| `python -m pytest core/tests/ -v` | Core unit tests only (~458 tests, ~3s) |
+| `bash build-tools/run_frontend_tests.sh` | **All frontend tests in 3 parallel groups** (~237 tests) |
+| `bash build-tools/run_frontend_tests.sh --screenshots` | Frontend tests + documentation screenshot refresh |
+| `bash build-tools/run_tests.sh` | Core + frontend in parallel (4 groups) |
+| `bash build-tools/run_tests.sh core` | Core only |
+| `bash build-tools/run_tests.sh frontend` | Frontend only (3 parallel groups) |
+| `bash build-tools/run_tests_podman.sh` | All tests in Podman containers (CI) |
+
+**Frontend test groups** (run in parallel):
+
+| Group | Files | Tests |
+|---|---|---|
+| UI | `test_page_load.py`, `test_navigation.py`, `test_modals.py` | ~76 |
+| Features + Onboarding | `test_profile.py`, `test_generation.py`, `test_edge_cases.py`, `test_onboarding.py`, `test_profile_integration.py` | ~108 |
+| Workflow | `test_wf_onboarding.py`, `test_wf_generate_create.py`, `test_wf_generate_append.py`, `test_wf_generate_override.py`, `test_wf_analysis.py`, `test_wf_quickstart_openai.py`, `test_wf_quickstart_spotify.py` | ~53 |
+
+**⚠️ `test_documentation_screenshots.py` is NEVER run automatically.** It captures screenshots for documentation assets and should only be run when the user explicitly requests a screenshot refresh (e.g., "update documentation screenshots"). It is excluded via the `screenshots` pytest marker in `pytest.ini`.
 
 `tree` is available in git bash — use it for directory exploration.
 
@@ -56,8 +78,8 @@ pip install build && python -m build --wheel         # Python wheel for macOS/Li
 1. **i18n** — All user-facing text uses `data-i18n="key"` in HTML or `i18n('key','fallback')` in JS. Never hardcode strings. Always add keys to both `en.json` and `de.json`.
 2. **Spotify** — Use `sp.playlist_items()` not `playlist_tracks()`. Search `limit` max is 10. Inner key is `"item"` not `"track"` (Feb 2026 change). See `SKILL.md` for full reference.
 3. **Android** — No Rust-extension packages. No `openai` SDK. `pydantic` must be <2.0 if used. Test with `build_apk.sh debug`.
-4. **Tests** — Run pytest before completing any code/styling change. Mock all external APIs. Skip for docs-only changes.
-5. **Documentation** — Feature changes must update: `README.md`, `documentation/UserManual.md`, `documentation/help.md` (served at `/api/help`), `documentation/TechnicalManual.md`.
+4. **Tests** — Run pytest before completing any code/styling change. Mock all external APIs. Skip for docs-only changes. **🔴 Pre-existing test failures are NOT to be ignored.** When running the test suite, **all** failures must be investigated and fixed — not just those caused by changes made in the current session. A test that was already broken before you started is still a bug. Report it, diagnose it, and fix it. Never dismiss a failure with "this wasn't caused by my changes" or silently skip it.
+5. **Documentation** — Feature changes must update: `README.md`, `documentation/UserManual.md`, `documentation/help.en.md` + `documentation/help.de.md` (both served at `/api/help` per UI language; keep in sync), `documentation/TechnicalManual.md`.
 6. **Git** — No destructive commands (`restore`, `checkout --`, `reset`, `clean`). Sentence-case commit subjects, no trailing period. **🔴 NEVER run `git commit` or `git push` unless the user has explicitly instructed you to in the current message. A one-time instruction (e.g., "perform a segmented commit") grants permission for that operation only — once completed, permission is revoked. Planning, reviewing, fixing, or editing code is NEVER implicit permission to commit.**
 7. **Security** — Never hardcode API keys. Never commit `.credentials`, `.spotify-cache`, or `personalized_music_profile.json`.
 8. **Large tasks** — Present a plan with files/order/summary and wait for confirmation before implementing.
@@ -89,21 +111,28 @@ spotyvibe/
 │   ├── history.py                 # Run history persistence
 │   ├── analysis.py                # Band/artist analysis
 │   ├── spotify_metadata.py        # Spotify metadata enrichment
+│   ├── taste.py                   # Taste aggregation for dashboard (Wave 3)
+│   ├── localised_docs.py          # Language-aware Markdown resolver (Wave 5)
 │   └── utils.py                   # Shared utilities
 ├── core/tests/                    # Unit tests — one per core module
 ├── frontend/templates/            # Jinja2 HTML
 │   ├── base.html                  # Main layout (loads all partials)
-│   ├── onboarding.html            # First-run setup (standalone, own i18n)
+│   ├── onboarding.html            # 7-step setup wizard (standalone, own i18n)
 │   ├── train_profile.html         # Music profile editor
 │   ├── generate_section.html      # Playlist generation controls
 │   ├── playlist_review.html       # Track review UI
 │   ├── band_analysis.html         # Artist deep-dive
 │   ├── run_history.html           # Past runs
 │   ├── preview_overlay.html       # Audio preview overlay
+│   ├── taste_dashboard.html       # Taste dashboard charts panel
 │   ├── theme_switcher.html, settings_gear.html, toast.html
-│   └── modals/                    # credentials, help, quickstart, settings
+│   └── modals/                    # credentials, help, quickstart, settings,
+│       │                          #   privacy, setup_guide_overlay
+│       ├── privacy_modal.html     # "What gets sent where?" data-flow table
+│       ├── setup_guide_overlay.html # Full-screen setup guide detail overlay
+│       └── preset_manager_modal.html # Preset manager sub-screen
 ├── frontend/static/favicon.ico    # Browser favicon
-├── frontend/static/css/           # Modular CSS (11 files, no bundler)
+├── frontend/static/css/           # Modular CSS (13 files, no bundler)
 │   ├── base.css                   # Design tokens, reset, body, scrollbar
 │   ├── layout.css                 # Container, typography, sr-only, focus
 │   ├── buttons.css                # All .btn-* variants
@@ -114,6 +143,18 @@ spotyvibe/
 │   ├── quickstart.css             # Quickstart guide (qs-*/qd-* prefixes)
 │   ├── sections.css               # Profile, analysis, providers, metadata
 │   ├── preview.css                # Spotify preview overlay
+│   ├── onboarding.css             # Onboarding wizard shell + step styles
+│   ├── setup_guide.css            # Setup guide overlay + privacy table styles
+│   ├── completeness.css           # Profile completeness meter styling
+│   ├── exploration_slider.css     # 5-notch exploration slider
+│   ├── presets.css                # Preset dropdown + manager modal
+│   ├── playlist_seed.css          # Playlist seed modal + draft banner (Wave 3)
+│   ├── rationale_chips.css        # Rationale chip styling (Wave 3)
+│   ├── taste_dashboard.css        # Taste dashboard charts (Wave 3)
+│   ├── tips.css                   # Feature discovery tip toasts (Wave 3)
+│   ├── provider.css               # Provider dropdown + credential rows (Wave 4)
+│   ├── cost_estimate.css          # Cost-estimate card + footnote (Wave 4)
+│   ├── voice.css                  # Microphone button states (Wave 4)
 │   └── responsive.css             # All @media queries
 ├── frontend/static/js/modules/   # JS feature modules
 │   ├── state.js                   # Central app state
@@ -122,14 +163,31 @@ spotyvibe/
 │   ├── history.js, analysis.js, audio-filters.js
 │   ├── modals.js, i18n.js, warnings.js, provider-pills.js
 │   ├── quickstart-demo.js, quickstart-tour.js, tabs.js
+│   ├── onboarding.js              # Wizard state, navigation, language toggle
+│   ├── setup_guide.js             # Detail overlay open/close, copy, keyboard
+│   ├── completeness.js            # Profile completeness meter calculator
+│   ├── exploration.js             # Exploration slider state + bidirectional sync
+│   ├── presets.js                 # Preset CRUD, built-in catalogue, import/export
+│   ├── quick_advanced.js          # Generate-panel mode toggle + control sync
+│   ├── playlist_seed.js           # Playlist-seeded profile flow (Wave 3)
+│   ├── rationale.js               # Rationale chip rendering (Wave 3)
+│   ├── taste_dashboard.js         # SVG taste visualisation dashboard (Wave 3)
+│   ├── tips.js                    # Feature discovery tip toasts (Wave 3)
+│   ├── provider.js                # Custom LLM endpoint management (Wave 4)
+│   ├── cost_estimate.js           # Token & cost estimator widget (Wave 4)
+│   ├── voice.js                   # Web Speech API voice input (Wave 4)
 │   └── theme-switcher.js, theme-equalizer.js, theme-pulse.js,
 │       theme-spectrum.js, theme-starfield.js
 ├── frontend/static/i18n/          # en.json + de.json
 ├── frontend/tests/                # Playwright tests
+│   ├── test_frontend.py           # Main frontend integration tests
+│   └── test_profile_integration.py # Profile switch/create/delete state reset tests
 ├── prompts/                       # AI prompt templates
 ├── android/                       # Chaquopy APK (see rule 3)
 ├── build-tools/                   # build_exe.sh, build_apk.sh, build_dist.sh, start.sh (launcher)
-├── documentation/                 # UserManual, TechnicalManual, help.md
+├── documentation/                 # UserManual, TechnicalManual, help.en.md, help.de.md
+│   ├── guides/                    # Setup guide markdown (openai, spotify)
+│   └── assets/guides/             # Guide screenshot placeholders (openai/, spotify/)
 ├── spotyvibe/                     # Python package (wheel entry point)
 │   ├── __init__.py, __main__.py
 │   └── cli.py                     # Console entry point (spotyvibe command)
@@ -139,10 +197,97 @@ spotyvibe/
 ## Architecture
 
 - **Single-page Flask app** — `base.html` includes partials; JS modules handle SPA behavior.
-- **No build step** — vanilla JS (ES modules), modular CSS (11 files, no bundler).
+- **No build step** — vanilla JS (ES modules), modular CSS (13 files, no bundler).
 - **Spotify isolation** — all API calls in `core/src/playlist.py`.
 - **OpenAI isolation** — all calls via `core/src/openai_http.py` (raw HTTP).
 - **macOS/Linux packaging** — `pyproject.toml` + hatchling builds a `.whl`; `spotyvibe/cli.py` is the entry point.
+
+## Optional MCP Servers (per-developer)
+
+MCP server configs live in each developer's `settings.local.json` (not committed). Below are recommended servers for this project.
+
+### Spotify MCP (`marcelmarais/spotify-mcp-server`)
+
+Provides 30+ Spotify Web API tools (search, playlist CRUD, playback, queue, devices). Useful for live API exploration, verifying response shapes after API changes, and testing search queries without running the app.
+
+**Setup:**
+```bash
+cd ~/.claude/mcp-servers
+git clone https://github.com/marcelmarais/spotify-mcp-server.git
+cd spotify-mcp-server
+npm install && npm run build
+```
+Then create a Spotify app at https://developer.spotify.com/dashboard with redirect URI `http://127.0.0.1:8888/callback`, and run `npm run auth` to complete OAuth. Add to your `settings.local.json`:
+```json
+{
+  "mcpServers": {
+    "spotify": {
+      "command": "node",
+      "args": ["<HOME>/.claude/mcp-servers/spotify-mcp-server/build/index.js"]
+    }
+  }
+}
+```
+
+**When to use:** Verify Spotify API behavior, test search queries, inspect playlist structures, debug field names after API changes. Consult `SKILL.md` alongside MCP results for known breaking changes.
+
+### GitHub MCP (`github/github-mcp-server`)
+
+Official GitHub MCP server. Monitor CI/CD workflow runs (`release.yml`, `beta.yml`), inspect check failures, review PRs, and manage issues directly from Claude.
+
+**Setup (requires Docker or Podman):**
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "podman",
+      "args": ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "<YOUR_PAT>"
+      }
+    }
+  }
+}
+```
+Create a PAT at https://github.com/settings/personal-access-tokens/new with `repo` and `read:org` scopes. Substitute `docker` for `podman` if using Docker Desktop. On Windows, use the full path to the Podman executable if it's not in PATH.
+
+**When to use:** Monitor CI/CD builds, review PRs, trace test failures to commits, manage issues.
+
+### Playwright MCP (`microsoft/playwright-mcp`)
+
+Browser automation via accessibility snapshots (not screenshots). Run Playwright tests, debug frontend behavior, and verify UI changes in a real browser.
+
+**Setup (no build needed):**
+```json
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    }
+  }
+}
+```
+
+**When to use:** Test UI changes in a live browser, debug DOM/accessibility issues, verify responsive layout behavior.
+
+### MDN MCP (`mdn/mcp`)
+
+Live MDN Web Docs access — current CSS, JavaScript, and Web API references with browser compatibility data. No stale knowledge cutoff.
+
+**Setup (remote, no install):**
+```json
+{
+  "mcpServers": {
+    "mdn": {
+      "type": "url",
+      "url": "https://mcp.mdn.mozilla.net/sse"
+    }
+  }
+}
+```
+
+**When to use:** Look up vanilla JS APIs, CSS properties, browser compatibility. Especially useful for this project's no-framework, no-bundler frontend stack.
 
 ## On Commit
 

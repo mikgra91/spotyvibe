@@ -14,13 +14,19 @@
             <span class="burger-icon" aria-hidden="true"></span>
         </button>
         <div class="settings-dropdown" id="settingsDropdown" role="menu">
+            <div class="settings-dropdown-header" role="presentation" data-i18n="nav.group_configuration">CONFIGURATION</div>
             <button role="menuitem" onclick="openCredentials()"><span aria-hidden="true">🔑</span> <span data-i18n="nav.credentials">Credentials</span></button>
             <button role="menuitem" onclick="openSettings()"><span aria-hidden="true">⚙️</span> <span data-i18n="nav.settings">Settings</span></button>
+            <button role="menuitem" onclick="openModal('presetManagerModal'); toggleSettingsMenu();"><span aria-hidden="true">🎛</span> <span data-i18n="nav.manage_presets">Manage presets</span></button>
             <button role="menuitem" id="spotifyToggleBtn" onclick="toggleSpotifyConnection()">
                 {{ '🔌 Disconnect Spotify' if spotify_connected else '🔌 Connect Spotify' }}
             </button>
+            <div class="settings-dropdown-sep" role="presentation"></div>
+            <div class="settings-dropdown-header" role="presentation" data-i18n="nav.group_help">HELP & GUIDANCE</div>
             <button role="menuitem" onclick="openHelp()"><span aria-hidden="true">❓</span> <span data-i18n="nav.help">Help</span></button>
             <button role="menuitem" onclick="openQuickstart(true)"><span aria-hidden="true">🚀</span> <span data-i18n="nav.quickstart">Quick Start</span></button>
+            <button role="menuitem" onclick="window.location.href='/onboarding?replay=1'"><span aria-hidden="true">🪄</span> <span data-i18n="nav.rerun_setup">Re-run setup</span></button>
+            <button role="menuitem" onclick="resetTipsSeen(); toggleSettingsMenu();"><span aria-hidden="true">🔄</span> <span data-i18n="nav.reset_tips">Reset tips</span></button>
         </div>
     </div>
 </nav>

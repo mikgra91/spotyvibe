@@ -26,10 +26,9 @@
 
 .spotify-preview-panel {
     position: relative;
-    background: #121212;
+    background: var(--bg-deep);
     border-radius: 16px 0 0 0;
     padding: 20px 24px;
-    width: 42vw;
     min-width: 400px;
     max-width: 620px;
     flex-shrink: 0;
@@ -42,9 +41,8 @@
     right: 14px;
     background: none;
     border: none;
-    color: #b3b3b3;
+    color: var(--text-secondary);
     font-size: 1.5rem;
-    cursor: pointer;
     line-height: 1;
     padding: 4px 8px;
     border-radius: 4px;
@@ -60,7 +58,7 @@
 .spotify-preview-title {
     font-size: 0.9rem;
     font-weight: 500;
-    color: #fff;
+    color: var(--text-primary);
     margin-bottom: 12px;
     padding-right: 32px;
     white-space: nowrap;
@@ -113,7 +111,7 @@
 .spotify-preview-counter {
     text-align: center;
     font-size: 0.78rem;
-    color: #b3b3b3;
+    color: var(--text-secondary);
     margin-top: 8px;
 }
 
@@ -124,7 +122,7 @@
     flex-direction: column;
     gap: 8px;
     flex-shrink: 0;
-    background: #121212;          /* same colour as the preview panel */
+    background: var(--bg-deep);          /* same colour as the preview panel */
     border-radius: 0 14px 14px 0;
     padding: 12px 8px;
 }
@@ -184,7 +182,7 @@
     flex: 0 0 0px;                /* collapsed: zero width */
     overflow: hidden;
     opacity: 0;
-    background: #121212;          /* same colour as the preview panel */
+    background: var(--bg-deep);          /* same colour as the preview panel */
     border-radius: 0 14px 0 0;
     box-shadow: 4px -4px 16px rgba(0, 0, 0, 0.4);
     transition: flex-basis 0.25s ease, opacity 0.2s ease, max-width 0.25s ease;
@@ -200,7 +198,7 @@
     border-top: 3px solid #1DB954;
 }
 .preview-feedback-panel.action-dislike {
-    border-top: 3px solid #e74c3c;
+    border-top: 3px solid var(--error); /* TODO: add design token for #e74c3c */
 }
 
 .preview-feedback-form {
@@ -212,9 +210,8 @@
 }
 .preview-feedback-form label {
     display: block;
-    color: #b3b3b3;
+    color: var(--text-secondary);
     font-size: 0.75rem;
-    text-transform: uppercase;
     margin-bottom: 3px;
 }
 .preview-feedback-form input[type="text"] {
@@ -223,12 +220,12 @@
     border: 1px solid rgba(255,255,255,0.15);
     border-radius: var(--radius-sm);
     background: rgba(255,255,255,0.06);
-    color: #fff;
+    color: var(--text-primary);
     font-size: 0.85rem;
 }
 .preview-feedback-form .form-hint {
     font-size: 0.7rem;
-    color: #888;
+    color: var(--text-muted);
     margin-top: 2px;
 }
 .preview-feedback-form .form-actions {

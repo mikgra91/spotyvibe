@@ -7,7 +7,9 @@ export async function checkCredentialStatus() {
     try {
         const resp = await fetch('/api/settings/credentials');
         const data = await resp.json();
-        State.setOpenaiKeySet(!!(data.OPENAI_API_KEY && data.OPENAI_API_KEY.is_set));
+        const physicalKeySet = !!(data.OPENAI_API_KEY && data.OPENAI_API_KEY.is_set);
+        // Local providers (Ollama, LM Studio) don't need an API key
+        State.setOpenaiKeySet(physicalKeySet || !State.llmApiKeyRequired);
     } catch (e) {
         State.setOpenaiKeySet(false);
     }
@@ -19,6 +21,10 @@ export async function fetchSettingsState() {
         const data = await resp.json();
         State.setSelectedModel(data.model || '');
         State.setGptLanguage(data.gpt_language || '');
+        // Wave 4: track whether the current provider needs an API key
+        if (data.llm_api_key_required !== undefined) {
+            State.setLlmApiKeyRequired(data.llm_api_key_required);
+        }
     } catch (e) { /* ignore */ }
 }
 

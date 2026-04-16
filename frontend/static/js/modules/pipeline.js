@@ -1,13 +1,16 @@
 import * as State from './state.js';
-import { showStatus, showStatusHtml, hidePlaylistLink, showPlaylistLink } from './ui.js';
+import { showStatus, showStatusHtml, hidePlaylistLink, showPlaylistLink, showConfirm } from './ui.js';
 import { checkCredentialStatus, checkSpotifyAuth } from './auth.js';
 import { renderComponentWarnings } from './warnings.js';
-import { getPlaylistModePayload, refreshDiscoverPlaylistPicker } from './playlist-mode.js';
+import { getPlaylistModePayload, getPlaylistMode, refreshDiscoverPlaylistPicker, ensurePlaylistsLoaded, switchToAppendMode } from './playlist-mode.js';
 import { getAudioFilters } from './audio-filters.js';
 import { renderTracks } from './tracklist.js';
 import { loadHistory } from './history.js';
 import { populateReviewPlaylistPicker } from './review.js';
+import { resetDashboard } from './taste_dashboard.js';
 import { i18n } from './i18n.js';
+
+let _runPlaylistMode = null;  // playlist mode at time of generation (for auto-switch)
 
 export function toggleGenerateBody() {
     const body = document.getElementById('generateBody');
@@ -87,6 +90,25 @@ export async function runPipeline() {
 
     if (!canGenerate()) return;
 
+    // Duplicate playlist name check (only for "create" mode)
+    const preMode = getPlaylistMode();
+    if (preMode === 'create') {
+        const nameInput = document.getElementById('playlistNameInput');
+        const desiredName = (nameInput?.value || '').trim();
+        if (desiredName) {
+            const playlists = await ensurePlaylistsLoaded();
+            const duplicate = playlists.some(pl => pl.name.toLowerCase() === desiredName.toLowerCase());
+            if (duplicate) {
+                const msg = i18n('playlist_mode.duplicate_confirm', 'A playlist named "{name}" already exists.\n\nDo you want to create a duplicate?')
+                    .replace('{name}', desiredName);
+                const confirmed = await showConfirm(msg);
+                if (!confirmed) return;
+                const suffix = i18n('playlist_mode.duplicate_suffix', '_Duplicate');
+                nameInput.value = desiredName + suffix;
+            }
+        }
+    }
+
     State.setPartialTrackCount(0);
     State.setCurrentRunId(generateUUID());
     State.setCurrentAbortController(new AbortController());
@@ -95,10 +117,26 @@ export async function runPipeline() {
     hidePlaylistLink();
 
     const playlistPayload = getPlaylistModePayload();
+    _runPlaylistMode = playlistPayload.playlist_mode || 'default';
     const audioFilters = getAudioFilters();
     if (audioFilters) playlistPayload.audio_filters = audioFilters;
     const emergingOnly = document.getElementById('emergingArtistsCheckbox')?.checked || false;
     if (emergingOnly) playlistPayload.emerging_only = true;
+
+    // Wave 2: temperature from exploration slider
+    try {
+        const Exploration = window._explorationModule;
+        if (Exploration) {
+            const temp = Exploration.getTemperature();
+            if (temp != null) playlistPayload.temperature = temp;
+        }
+    } catch (_) { /* ignore */ }
+
+    // Wave 2: playlist size from shared slider (overrides settings modal)
+    const sizeSlider = document.querySelector('.gen-size-slider');
+    if (sizeSlider) {
+        playlistPayload.playlist_size = parseInt(sizeSlider.value, 10);
+    }
 
     try {
         await _startSseStream(State.currentRunId, State.currentAbortController.signal, playlistPayload);
@@ -165,7 +203,7 @@ async function _startSseStream(runId, signal, payload) {
 export function showSseDisconnectBanner() {
     const savedRunId = State.currentRunId;
     showStatusHtml(
-        i18n('pipeline.connection_lost', '⚠️ Connection lost.') + ' <button onclick="resumeRun(\'' + savedRunId + '\')" class="btn btn-save" style="margin-left:8px;padding:4px 12px;font-size:0.82rem;">' + i18n('pipeline.resume', 'Resume') + '</button>',
+        i18n('pipeline.connection_lost', '⚠️ Connection lost.') + ' <button onclick="resumeRun(\'' + esc(savedRunId) + '\')" class="btn btn-save" style="margin-left:8px;padding:4px 12px;font-size:0.82rem;">' + i18n('pipeline.resume', 'Resume') + '</button>',
         'error'
     );
 }
@@ -285,7 +323,28 @@ export function handleStreamEvent(event) {
                 parts.push(i18n('pipeline.emerging_filter_result', 'Showing {shown} of {checked} checked tracks — only tracks by recently emerged artists are included.').replace('{shown}', event.emerging_shown).replace('{checked}', event.emerging_checked));
             showStatus(parts.join(' '), event.was_cancelled ? 'info' : 'success');
             // Playlist was created or modified — refresh both pickers
-            refreshDiscoverPlaylistPicker().then(() => populateReviewPlaylistPicker());
+            refreshDiscoverPlaylistPicker().then(() => {
+                populateReviewPlaylistPicker();
+                // Auto-switch to "append" mode after a "create" run
+                if (_runPlaylistMode === 'create' && event.playlist_id) {
+                    switchToAppendMode(event.playlist_id);
+                }
+            });
+
+            // Refresh taste dashboard and run history with the new data
+            resetDashboard();
+            loadHistory();
+
+            // Wave 3: Tip triggers after successful generation
+            if (window.Tips) {
+                window.Tips.maybeTrigger('first_generation_complete');
+                // Track generation count for the "five generations" tip
+                try {
+                    const genCount = parseInt(localStorage.getItem('sv.gen_count') || '0', 10) + 1;
+                    localStorage.setItem('sv.gen_count', genCount.toString());
+                    if (genCount >= 5) window.Tips.maybeTrigger('five_generations');
+                } catch (_) { /* ignore */ }
+            }
             break;
         }
         case 'error':

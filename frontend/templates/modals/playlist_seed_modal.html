@@ -1,0 +1,37 @@
+<!-- Playlist seed picker modal (Wave 3 C.1) -->
+<div id="playlistSeedModal" class="modal-overlay">
+    <div class="modal playlist-seed-modal" role="dialog" aria-modal="true" aria-labelledby="playlistSeedTitle">
+        <button class="modal-close" onclick="closeModal('playlistSeedModal')" aria-label="Close">✕</button>
+        <div class="modal-header">
+            <h2 id="playlistSeedTitle"><span aria-hidden="true">🎵</span> <span data-i18n="seed.modal_title">Seed from a Spotify playlist</span></h2>
+        </div>
+        <p class="playlist-seed-subtitle" data-i18n="seed.modal_subtitle">Pick one of your playlists — SpotyVibe drafts a profile you can tweak.</p>
+
+        <div class="playlist-seed-search-row">
+            <input id="playlistSeedSearch" type="search" data-i18n-placeholder="seed.search_placeholder" placeholder="Search your playlists…">
+        </div>
+
+        <div class="playlist-seed-loading hidden">
+            <div class="spinner"></div>
+            <p data-i18n="msg.loading">Loading…</p>
+        </div>
+
+        <ul id="playlistSeedList" class="playlist-seed-list" role="listbox" aria-label="Your playlists">
+        </ul>
+
+        <div class="playlist-seed-replace-warn hidden" data-i18n="seed.replace_warning">
+            This will replace your current profile's fields. The original is not deleted automatically — export it first if you want to keep it.
+        </div>
+
+        <div class="playlist-seed-loader hidden">
+            <div class="spinner spinner--lg"></div>
+            <p data-i18n="seed.drafting">Drafting your profile… this may take up to 30 seconds.</p>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn btn-cancel" onclick="closeModal('playlistSeedModal')" data-i18n="btn.cancel">Cancel</button>
+            <button class="btn btn-save" id="playlistSeedConfirmBtn" disabled onclick="confirmPlaylistSeed()" data-i18n="seed.use_playlist">Use this playlist</button>
+        </div>
+    </div>
+</div>
+

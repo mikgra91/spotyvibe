@@ -10,7 +10,7 @@ import threading
 import time
 import traceback
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 # Ensure the spotyvibe package directory is on sys.path so all
@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from flask import Flask, Response, render_template, jsonify, request, redirect, stream_with_context, send_from_directory
 from config import (
     load_config, get_credentials, save_credentials, save_settings,
-    CREDENTIALS_FILE, SETTINGS_FILE,
+    CREDENTIALS_FILE,
     BATCH_SIZE, BASE_DIR, get_model, get_settings, get_debug_mode,
     get_playlist_size, DEBUG_LOG_FILE, MAX_CONSECUTIVE_EMPTY_BATCHES,
     get_new_artist_percentage, get_gpt_language, IS_ANDROID, PROFILE_IMPORT_MAX_BYTES,
@@ -29,6 +29,7 @@ from config import (
     MAX_FEEDBACK_REASON_LEN, MAX_FEEDBACK_ARTIST_LEN, MAX_FEEDBACK_TRACK_LEN,
     is_onboarding_completed, set_onboarding_completed, MAX_SONG_LIST_SIZE,
     _get_app_dir, get_active_profile_id, MAX_PROFILE_NAME_LEN,
+    get_ui_language,
 )
 import markdown
 
@@ -68,7 +69,10 @@ def _setup_logging():
     # Console handler — for development
     ch = logging.StreamHandler()
     ch.setLevel(logging.DEBUG if get_debug_mode() else logging.WARNING)
-    ch.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+    ch.setFormatter(logging.Formatter(
+        "[%(asctime)s] %(levelname)s: %(message)s",
+        datefmt="%H:%M:%S",
+    ))
     root.addHandler(ch)
 
 
@@ -80,6 +84,7 @@ from core.src.profile import (
     export_profile_dict, import_profile_dict,
     swap_profile_with_history,
     list_profiles, create_profile, delete_profile, activate_profile,
+    draft_profile_from_playlist,
 )
 from core.src.suggestions import (
     normalize_history,
@@ -88,15 +93,17 @@ from core.src.suggestions import (
 )
 from core.src.feedback import like_track, dislike_track
 from core.src.analysis import analyze_band_song
-from core.src.history import save_run, load_runs
+from core.src.history import save_run, load_runs, update_track_sentiment
 from core.src.utils import get_openai_models, clear_debug_log, sanitize_text, app_log
 from core.src.openai_http import OpenAIConfigError, OpenAIError
 from core.src.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist, delete_playlist,
     get_spotify_auth_status, get_spotify_auth_url, handle_spotify_callback,
     disconnect_spotify, get_user_playlists, get_playlist_tracks,
-    filter_emerging_artists,
+    filter_emerging_artists, fetch_user_playlists, fetch_playlist_items_for_seed,
+    get_spotify_client,
 )
+from core.src.taste import aggregate_taste
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(24)
@@ -122,6 +129,10 @@ _MODELS_CACHE_TTL = 300  # 5 minutes
 _runs: dict = {}
 _runs_lock = threading.Lock()
 _STALE_RUN_SECONDS = 600  # 10 minutes
+
+# Persistent song list file and lock
+_SONGLIST_FILE = _get_app_dir() / "songlist.json"
+_songlist_lock = threading.Lock()
 
 
 def _sweep_stale_runs():
@@ -202,6 +213,9 @@ def index():
 
 @app.route("/onboarding")
 def onboarding():
+    # Allow re-running the wizard even if onboarding was completed
+    if request.args.get('replay') != '1' and is_onboarding_completed():
+        return redirect('/')
     return render_template("onboarding.html")
 
 
@@ -229,15 +243,101 @@ def docs_screenshot(filename):
     return send_from_directory(str(screenshot_dir), filename)
 
 
+@app.route("/docs/guides/<path:filename>")
+def docs_guide_image(filename):
+    """Serve setup guide images (screenshots for the setup guide overlays)."""
+    guide_img_dir = BASE_DIR / "documentation" / "assets" / "guides"
+    return send_from_directory(str(guide_img_dir), filename)
+
+
+_GUIDE_SLUG_WHITELIST = {"openai_api_key", "spotify_developer_app", "python_install_macos", "python_install_linux"}
+
+
+@app.route("/api/help/guide/<slug>")
+def help_guide(slug):
+    """Return a setup guide as structured JSON.
+
+    Reads ``documentation/guides/<slug>.en.md``, parses YAML-like frontmatter
+    and ``## Step N — Title`` sections into a JSON response.
+    """
+    if slug not in _GUIDE_SLUG_WHITELIST:
+        return jsonify({"error": "Guide not found."}), 404
+
+    # Try localised version first, fall back to English
+    from core.src.localised_docs import resolve_guide
+    lang = get_ui_language() or 'en'
+    try:
+        guide_path, served_lang, fallback_used = resolve_guide(slug, lang)
+    except FileNotFoundError:
+        return jsonify({"error": "Guide not found."}), 404
+
+    raw = guide_path.read_text(encoding="utf-8")
+
+    # Parse frontmatter (between --- lines)
+    title = ""
+    subtitle = ""
+    body = raw
+    fm_match = re.match(r"^---\s*\n(.*?)\n---\s*\n", raw, re.DOTALL)
+    if fm_match:
+        fm_text = fm_match.group(1)
+        body = raw[fm_match.end():]
+        for line in fm_text.strip().splitlines():
+            if line.startswith("title:"):
+                title = line.split(":", 1)[1].strip().strip("\"'")
+            elif line.startswith("subtitle:"):
+                subtitle = line.split(":", 1)[1].strip().strip("\"'")
+
+    # Parse steps: split on ## Step N — Title
+    step_pattern = re.compile(r"^## Step \d+ — (.+)$", re.MULTILINE)
+    splits = list(step_pattern.finditer(body))
+    steps = []
+    for i, m in enumerate(splits):
+        step_title = m.group(1).strip()
+        start = m.end()
+        end = splits[i + 1].start() if i + 1 < len(splits) else len(body)
+        content = body[start:end].strip()
+
+        # Extract optional image: ![alt](path)
+        image = None
+        img_match = re.search(r"!\[.*?\]\((.+?)\)", content)
+        if img_match:
+            image = img_match.group(1)
+            content = content[:img_match.start()] + content[img_match.end():]
+
+        # Extract optional copy block: ```copy ... ```
+        copy = None
+        copy_match = re.search(r"```copy\s*\n(.+?)\n```", content, re.DOTALL)
+        if copy_match:
+            copy = copy_match.group(1).strip()
+            content = content[:copy_match.start()] + content[copy_match.end():]
+
+        steps.append({
+            "title": step_title,
+            "description": content.strip(),
+            "image": image,
+            "copy": copy,
+        })
+
+    return jsonify({"title": title, "subtitle": subtitle, "steps": steps})
+
+
 @app.route("/api/help")
 def help_content():
-    """Return the help guide rendered as HTML."""
-    manual_path = BASE_DIR / "documentation" / "help.md"
-    if not manual_path.exists():
+    """Return the help guide rendered as HTML, language-aware."""
+    from core.src.localised_docs import resolve_help
+    lang = get_ui_language() or 'en'
+    try:
+        path, served_lang, fallback_used = resolve_help(lang)
+        md_text = path.read_text(encoding="utf-8")
+        html = markdown.markdown(md_text, extensions=["tables", "fenced_code", "toc"])
+        return jsonify({
+            "html": html,
+            "requested_lang": lang,
+            "served_lang": served_lang,
+            "fallback_used": fallback_used,
+        })
+    except FileNotFoundError:
         return jsonify({"error": "Help file not found."}), 404
-    md_text = manual_path.read_text(encoding="utf-8")
-    html = markdown.markdown(md_text, extensions=["tables", "fenced_code", "toc"])
-    return jsonify({"html": html})
 
 
 def _extract_help_section(full_html, anchor):
@@ -272,15 +372,18 @@ def _extract_help_section(full_html, anchor):
 @app.route("/api/help/section/<anchor>")
 def help_section(anchor):
     """Return a single help section by its heading anchor ID."""
-    manual_path = BASE_DIR / "documentation" / "help.md"
-    if not manual_path.exists():
+    from core.src.localised_docs import resolve_help
+    lang = get_ui_language() or 'en'
+    try:
+        path, served_lang, fallback_used = resolve_help(lang)
+        md_text = path.read_text(encoding="utf-8")
+        full_html = markdown.markdown(md_text, extensions=["tables", "fenced_code", "toc"])
+        section_html = _extract_help_section(full_html, anchor)
+        if not section_html:
+            return jsonify({"error": "Section not found."}), 404
+        return jsonify({"html": section_html, "fallback_used": fallback_used})
+    except FileNotFoundError:
         return jsonify({"error": "Help file not found."}), 404
-    md_text = manual_path.read_text(encoding="utf-8")
-    full_html = markdown.markdown(md_text, extensions=["tables", "fenced_code", "toc"])
-    section_html = _extract_help_section(full_html, anchor)
-    if not section_html:
-        return jsonify({"error": "Section not found."}), 404
-    return jsonify({"html": section_html})
 
 
 def _sse(event_type, **data):
@@ -308,6 +411,22 @@ def run_pipeline():
     # Audio feature filters: {"energy": {"min": 0.6, "max": 1.0}, ...}
     audio_filters = body.get("audio_filters") or {}
     emerging_only = bool(body.get("emerging_only"))
+    # Wave 2: client-specified temperature (clamped to 0.0–2.0)
+    client_temperature = body.get("temperature")
+    if client_temperature is not None:
+        try:
+            client_temperature = float(client_temperature)
+            client_temperature = max(0.0, min(2.0, client_temperature))
+        except (TypeError, ValueError):
+            client_temperature = None
+    # Wave 2: client-specified playlist size (clamped to 10–30)
+    client_playlist_size = body.get("playlist_size")
+    if client_playlist_size is not None:
+        try:
+            client_playlist_size = int(client_playlist_size)
+            client_playlist_size = max(10, min(30, client_playlist_size))
+        except (TypeError, ValueError):
+            client_playlist_size = None
     cancel_event = threading.Event()
     _sweep_stale_runs()
     with _runs_lock:
@@ -333,6 +452,9 @@ def run_pipeline():
             app_log(f"Generation run started: run_id={run_id} mode={playlist_mode}")
 
             playlist_size = get_playlist_size()
+            # Wave 2: client-specified size overrides server default
+            if client_playlist_size is not None:
+                playlist_size = client_playlist_size
             new_artist_percentage = get_new_artist_percentage()
 
             yield _sse("progress", message="Loading profile…")
@@ -406,8 +528,13 @@ def run_pipeline():
                     emerging_only=emerging_only,
                 )
                 gpt_call_count += 1
-                # Adaptive temperature: lower on retries for more deterministic output
-                temperature = max(0.3, 0.7 - (consecutive_empty_batches * 0.2))
+                # Adaptive temperature: lower on retries for more deterministic output.
+                # When the user explicitly sets a temperature, use their value as the
+                # baseline and allow it to go as low as 0.0.  The 0.3 floor only
+                # applies to the server default (no user override).
+                base_temp = client_temperature if client_temperature is not None else 0.7
+                floor = 0.0 if client_temperature is not None else 0.3
+                temperature = max(floor, base_temp - (consecutive_empty_batches * 0.2))
                 result = call_gpt(messages, temperature=temperature)
 
                 # ── Check again after the blocking GPT call ──
@@ -570,14 +697,15 @@ def run_pipeline():
 
             # Append new tracks to the persistent song list (best-effort)
             try:
-                if _SONGLIST_FILE.exists():
-                    existing_songs = json.loads(_SONGLIST_FILE.read_text(encoding="utf-8"))
-                else:
-                    existing_songs = []
-                combined = existing_songs + visible_playlist
-                combined = combined[-MAX_SONG_LIST_SIZE:]  # keep newest, drop oldest
-                _SONGLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
-                _SONGLIST_FILE.write_text(json.dumps(combined, ensure_ascii=False, indent=2), encoding="utf-8")
+                with _songlist_lock:
+                    if _SONGLIST_FILE.exists():
+                        existing_songs = json.loads(_SONGLIST_FILE.read_text(encoding="utf-8"))
+                    else:
+                        existing_songs = []
+                    combined = existing_songs + visible_playlist
+                    combined = combined[-MAX_SONG_LIST_SIZE:]  # keep newest, drop oldest
+                    _SONGLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
+                    _SONGLIST_FILE.write_text(json.dumps(combined, ensure_ascii=False, indent=2), encoding="utf-8")
             except Exception:
                 pass
 
@@ -585,6 +713,7 @@ def run_pipeline():
                 "result",
                 playlist=visible_playlist,
                 playlist_url=playlist_info.get("url"),
+                playlist_id=playlist_info.get("playlist_id"),
                 added=playlist_info.get("added", 0),
                 not_found=all_not_found,
                 was_cancelled=was_cancelled or gpt_exhausted,
@@ -670,8 +799,14 @@ def submit_feedback():
         removal = None
         if action == "like":
             like_track(artist, track=track, reason=reason)
+            # Stamp sentiment in run history for dashboard charts
+            if track:
+                update_track_sentiment(artist, track, "liked")
         else:
             dislike_track(artist, track=track, reason=reason)
+            # Stamp sentiment in run history for dashboard charts
+            if track:
+                update_track_sentiment(artist, track, "disliked")
             # Also remove the track from the Spotify playlist
             if track:
                 removal = remove_from_playlist(artist, track)
@@ -775,9 +910,73 @@ def write_settings():
             payload["GPT_LANGUAGE"] = lang
     if "ui_language" in data:
         payload["UI_LANGUAGE"] = sanitize_text(str(data["ui_language"]).strip())
+
+    # Wave 4: Provider preset + base URL
+    valid_presets = {"openai", "ollama", "lmstudio", "groq", "openrouter"}
+    if "provider_preset" in data:
+        preset = sanitize_text(str(data["provider_preset"]).strip())
+        if preset in valid_presets:
+            payload["PROVIDER_PRESET"] = preset
+    if "llm_base_url" in data:
+        url = sanitize_text(str(data["llm_base_url"]).strip())
+        if url:
+            payload["LLM_BASE_URL"] = url
+
     save_settings(payload)
     app_log(f"Settings changed: {list(payload.keys())}")
     return jsonify({"status": "ok"})
+
+
+@app.route("/api/llm/fetch_models", methods=["POST"])
+def fetch_llm_models():
+    """Proxy a GET {base_url}/models to fetch available models from a provider."""
+    data = request.get_json(silent=True) or {}
+    base_url = sanitize_text(str(data.get("base_url", "")).strip())
+    api_key = data.get("api_key", "")
+
+    # Fall back to stored credential when caller doesn't provide a key
+    if not api_key:
+        api_key = os.environ.get("OPENAI_API_KEY", "")
+
+    if not base_url:
+        return jsonify({"error": "base_url is required"}), 400
+
+    # SSRF mitigation: only allow https:// or http:// on localhost/127.0.0.1
+    from urllib.parse import urlparse
+    parsed = urlparse(base_url)
+    is_local = parsed.hostname in ("localhost", "127.0.0.1")
+    if parsed.scheme == "http" and not is_local:
+        return jsonify({"error": "Only HTTPS is allowed for remote providers."}), 400
+    if parsed.scheme not in ("http", "https"):
+        return jsonify({"error": "Invalid URL scheme."}), 400
+
+    # Determine timeout: 2s for localhost, 5s for remote
+    timeout = 2 if is_local else 5
+
+    models_url = base_url.rstrip("/") + "/models"
+
+    try:
+        import urllib.request
+        import urllib.error
+
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        req = urllib.request.Request(models_url, headers=headers, method="GET")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+
+        model_ids = []
+        for item in payload.get("data", []):
+            mid = item.get("id", "")
+            if mid:
+                model_ids.append(mid)
+
+        return jsonify({"models": sorted(model_ids)})
+    except Exception as e:
+        app.logger.warning("Fetch models failed for %s: %s", base_url, e)
+        return jsonify({"error": str(e)}), 502
 
 
 @app.route("/api/settings/open-data-dir", methods=["POST"])
@@ -1085,8 +1284,87 @@ def get_runs():
         return jsonify({"error": str(e), "runs": []}), 500
 
 
+# ── Wave 3: Playlist seed, taste aggregate ───────────────────────────
 
-_SONGLIST_FILE = _get_app_dir() / "songlist.json"
+@app.route("/api/spotify/playlists_for_seed")
+def api_playlists_for_seed():
+    """Return user's Spotify playlists for the seed picker."""
+    if get_spotify_auth_status() != "authenticated":
+        return jsonify({"error": "not_authenticated"}), 401
+    try:
+        playlists = fetch_user_playlists(limit=50)
+        return jsonify({"playlists": playlists})
+    except Exception as e:
+        app.logger.exception("Failed to fetch playlists for seed")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/profile/seed_from_playlist", methods=["POST"])
+def api_seed_from_playlist():
+    """Draft a taste profile from a Spotify playlist."""
+    data = request.get_json(silent=True) or {}
+    pid = data.get("playlist_id")
+    if not pid:
+        return jsonify({"error": "missing_playlist_id"}), 400
+    if get_spotify_auth_status() != "authenticated":
+        return jsonify({"error": "not_authenticated"}), 401
+
+    try:
+        summary = fetch_playlist_items_for_seed(pid)
+
+        # Compute top genres from artist metadata if we have artist_ids
+        # Note: audio features API was removed Feb 2026, so we pass descriptive values
+        top_genres = []
+        try:
+            sp = get_spotify_client()
+            artist_ids = summary.get("artist_ids", [])[:50]
+            if artist_ids:
+                # Batch fetch artist details (max 50 per request)
+                artists_data = sp.artists(artist_ids)
+                genre_counts = {}
+                for a in artists_data.get("artists", []):
+                    for g in (a.get("genres") or []):
+                        genre_counts[g] = genre_counts.get(g, 0) + 1
+                top_genres = sorted(genre_counts.keys(), key=lambda g: genre_counts[g], reverse=True)[:5]
+        except Exception:
+            pass
+
+        summary["top_genres"] = top_genres
+        summary["energy"] = "moderate"
+        summary["valence"] = "moderate"
+        summary["tempo"] = "120"
+        summary["moods"] = ["mixed"]
+
+        draft = draft_profile_from_playlist(summary)
+
+        meta = {
+            "playlist_id": pid,
+            "playlist_name": summary["name"],
+            "track_count": summary["track_count"],
+            "top_genres": summary.get("top_genres", [])[:5],
+            "top_artists": summary.get("top_artists", [])[:5],
+            "drafted_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        }
+        return jsonify({"draft": draft, "meta": meta})
+    except Exception as e:
+        app.logger.exception("Seed draft failed")
+        return jsonify({"error": "draft_failed", "detail": str(e)}), 502
+
+
+@app.route("/api/taste/aggregate")
+def api_taste_aggregate():
+    """Return aggregated taste data for the dashboard."""
+    try:
+        runs = load_runs()
+        profile = load_profile()
+        aggregated = aggregate_taste(runs, profile=profile)
+        return jsonify(aggregated)
+    except Exception as e:
+        app.logger.exception("Taste aggregation failed")
+        return jsonify({"error": str(e)}), 500
+
+
+
 
 
 @app.route("/api/songlist")
@@ -1106,8 +1384,9 @@ def save_songlist():
     songs = data.get("songs", [])
     if len(songs) > MAX_SONG_LIST_SIZE:
         return jsonify(error=f"Song list exceeds maximum of {MAX_SONG_LIST_SIZE}"), 400
-    _SONGLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _SONGLIST_FILE.write_text(json.dumps(songs, ensure_ascii=False, indent=2), encoding="utf-8")
+    with _songlist_lock:
+        _SONGLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _SONGLIST_FILE.write_text(json.dumps(songs, ensure_ascii=False, indent=2), encoding="utf-8")
     return jsonify(ok=True, count=len(songs))
 
 
@@ -1115,13 +1394,14 @@ def save_songlist():
 def delete_songlist_track():
     """Permanently remove a specific track from the persistent song list."""
     data = request.get_json(force=True)
-    artist = data.get("artist", "").strip()
-    track = data.get("track", "").strip()
-    if not _SONGLIST_FILE.exists():
-        return jsonify(ok=True, count=0)
-    songs = json.loads(_SONGLIST_FILE.read_text(encoding="utf-8"))
-    songs = [s for s in songs if not (s.get("artist") == artist and s.get("track") == track)]
-    _SONGLIST_FILE.write_text(json.dumps(songs, ensure_ascii=False, indent=2), encoding="utf-8")
+    artist = sanitize_text(data.get("artist", "")).strip()
+    track = sanitize_text(data.get("track", "")).strip()
+    with _songlist_lock:
+        if not _SONGLIST_FILE.exists():
+            return jsonify(ok=True, count=0)
+        songs = json.loads(_SONGLIST_FILE.read_text(encoding="utf-8"))
+        songs = [s for s in songs if not (s.get("artist") == artist and s.get("track") == track)]
+        _SONGLIST_FILE.write_text(json.dumps(songs, ensure_ascii=False, indent=2), encoding="utf-8")
     return jsonify(ok=True, count=len(songs))
 
 
