@@ -69,6 +69,7 @@ jobs:
             dist/spotyvibe_package.zip
 
   build-wheel:
+    needs: [test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -93,6 +94,7 @@ jobs:
           path: dist/SpotyVibe-macOS-Linux.zip
 
   build-android:
+    needs: [test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

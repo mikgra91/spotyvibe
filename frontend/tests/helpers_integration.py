@@ -322,6 +322,8 @@ def create_integration_server():
         patch("app.get_active_profile_id", return_value=""),
         patch("app.aggregate_taste", return_value=TASTE_DATA_EMPTY),
         patch("app.load_runs", return_value=[]),
+        patch("app.get_user_playlists", return_value=PLAYLISTS),
+        patch("app.get_playlist_tracks", return_value=[]),
     ]
 
     for p in patches:
