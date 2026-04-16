@@ -47,6 +47,14 @@ pip install build && python -m build --wheel         # Python wheel for macOS/Li
 
 **⚠️ `test_documentation_screenshots.py` is NEVER run automatically.** It captures screenshots for documentation assets and should only be run when the user explicitly requests a screenshot refresh (e.g., "update documentation screenshots"). It is excluded via the `screenshots` pytest marker in `pytest.ini`.
 
+**Simulate CI locally (empty app directory):**
+
+```bash
+PLAYWRIGHT_BROWSERS_PATH="$LOCALAPPDATA/ms-playwright" LOCALAPPDATA=$(mktemp -d) python -m pytest frontend/tests/ -v
+```
+
+This gives the app an empty data directory (no profiles, no credentials, no Spotify session) — exactly what CI sees. `PLAYWRIGHT_BROWSERS_PATH` preserves the existing Playwright browser install so it doesn't re-download. Use this to catch missing test mocks that pass locally due to real user data on disk.
+
 `tree` is available in git bash — use it for directory exploration.
 
 ## Where to Change What

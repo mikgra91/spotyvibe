@@ -205,6 +205,13 @@ def _base_url():
         patch("app.get_new_artist_percentage", return_value=30),
         patch("app.is_onboarding_completed", return_value=True),
         patch("app.get_gpt_language", return_value="English"),
+        patch("app.list_profiles", return_value=[
+            {"id": "test-profile", "name": "Test Profile", "trained": False},
+        ]),
+        patch("app.get_active_profile_id", return_value="test-profile"),
+        patch("app.create_profile", return_value={"id": "new-id", "name": "New"}),
+        patch("app.delete_profile", return_value=None),
+        patch("app.activate_profile", return_value=None),
     ]
 
     for p in patches:
