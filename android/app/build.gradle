@@ -21,6 +21,11 @@ android {
         versionCode 1
         versionName "0.9.9-beta"  // Keep in sync with version.py
 
+        ndk {
+            // arm64-v8a for physical devices; x86_64 for Android Studio emulators.
+            abiFilters "arm64-v8a", "x86_64"
+        }
+
         python {
             version "3.10"
 
@@ -39,10 +44,6 @@ android {
 
     buildTypes {
         debug {
-            ndk {
-                // arm64-v8a for physical devices; x86_64 for Android Studio emulators.
-                abiFilters "arm64-v8a", "x86_64"
-            }
         }
         release {
             ndk {

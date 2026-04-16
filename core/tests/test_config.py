@@ -351,6 +351,7 @@ class TestEnsureEnv:
 class TestGetAppDir:
     def test_desktop_uses_localappdata(self):
         with patch.object(config, "IS_ANDROID", False), \
+             patch("sys.platform", "win32"), \
              patch.dict(os.environ, {"LOCALAPPDATA": "C:\\Users\\test\\AppData\\Local"}):
             result = config._get_app_dir()
             assert result == Path("C:\\Users\\test\\AppData\\Local") / "spotyvibe"
@@ -359,6 +360,7 @@ class TestGetAppDir:
         env = os.environ.copy()
         env.pop("LOCALAPPDATA", None)
         with patch.object(config, "IS_ANDROID", False), \
+             patch("sys.platform", "win32"), \
              patch.dict(os.environ, env, clear=True):
             result = config._get_app_dir()
             assert result == Path(os.path.expanduser("~")) / "spotyvibe"
