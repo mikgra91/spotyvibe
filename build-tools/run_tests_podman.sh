@@ -4,8 +4,9 @@
 #
 # Builds a test image, then spins up parallel containers for:
 #   1. Core unit tests
-#   2. Frontend tests — test_frontend.py
-#   3. Frontend tests — test_profile_integration.py + test_workflow_integration.py
+#   2. Frontend — page load, navigation, modals
+#   3. Frontend — profile, generation, edge cases
+#   4. Frontend — onboarding + integration tests
 #
 # Results are collected as JUnit XML in test-results/.
 #
@@ -39,35 +40,60 @@ run_suite() {
     "$IMAGE" "$@" &
 }
 
-# ── Launch 3 containers in parallel ──────────────────────────
+# ── Launch 5 containers in parallel ──────────────────────────
 run_suite core \
   core/tests/ -v --tb=short --junitxml=/app/test-results/core.xml
 
-run_suite frontend-main \
-  frontend/tests/test_frontend.py -v --tb=short -n auto \
-  --junitxml=/app/test-results/frontend-main.xml
+run_suite frontend-ui \
+  frontend/tests/test_page_load.py \
+  frontend/tests/test_navigation.py \
+  frontend/tests/test_modals.py \
+  -v --tb=short \
+  --junitxml=/app/test-results/frontend-ui.xml
 
-run_suite frontend-integration \
+run_suite frontend-features \
+  frontend/tests/test_profile.py \
+  frontend/tests/test_generation.py \
+  frontend/tests/test_edge_cases.py \
+  -v --tb=short \
+  --junitxml=/app/test-results/frontend-features.xml
+
+run_suite frontend-onboarding \
+  frontend/tests/test_onboarding.py \
   frontend/tests/test_profile_integration.py \
-  frontend/tests/test_workflow_integration.py \
-  -v --tb=short -n auto \
-  --junitxml=/app/test-results/frontend-integration.xml 2>/dev/null || true
+  -v --tb=short \
+  --junitxml=/app/test-results/frontend-onboarding.xml
+
+run_suite frontend-wf \
+  frontend/tests/test_wf_onboarding.py \
+  frontend/tests/test_wf_generate_create.py \
+  frontend/tests/test_wf_generate_append.py \
+  frontend/tests/test_wf_generate_override.py \
+  frontend/tests/test_wf_analysis.py \
+  frontend/tests/test_wf_quickstart_openai.py \
+  frontend/tests/test_wf_quickstart_spotify.py \
+  -v --tb=short \
+  --junitxml=/app/test-results/frontend-wf.xml
 
 # ── Wait for all ─────────────────────────────────────────────
-CORE_EXIT=0
-FRONTEND_MAIN_EXIT=0
-FRONTEND_INT_EXIT=0
+EXIT_CORE=0
+EXIT_UI=0
+EXIT_FEAT=0
+EXIT_OB=0
+EXIT_WF=0
 
-wait %1 || CORE_EXIT=$?
-wait %2 || FRONTEND_MAIN_EXIT=$?
-wait %3 || FRONTEND_INT_EXIT=$?
+wait %1 || EXIT_CORE=$?
+wait %2 || EXIT_UI=$?
+wait %3 || EXIT_FEAT=$?
+wait %4 || EXIT_OB=$?
+wait %5 || EXIT_WF=$?
 
 # ── Summary ──────────────────────────────────────────────────
 echo ""
 echo "═══════════════════════════════════"
 echo "  Podman Test Summary"
 echo "═══════════════════════════════════"
-for pair in "Core:$CORE_EXIT" "Frontend-main:$FRONTEND_MAIN_EXIT" "Frontend-integration:$FRONTEND_INT_EXIT"; do
+for pair in "Core:$EXIT_CORE" "Frontend-UI:$EXIT_UI" "Frontend-Features:$EXIT_FEAT" "Frontend-Onboarding:$EXIT_OB" "Workflow:$EXIT_WF"; do
   NAME="${pair%%:*}"
   CODE="${pair##*:}"
   if [[ "$CODE" -eq 0 ]]; then
@@ -80,5 +106,4 @@ echo "════════════════════════�
 echo "  XML results in test-results/"
 echo "═══════════════════════════════════"
 
-exit $((CORE_EXIT + FRONTEND_MAIN_EXIT + FRONTEND_INT_EXIT))
-
+exit $((EXIT_CORE + EXIT_UI + EXIT_FEAT + EXIT_OB + EXIT_WF))
