@@ -17,13 +17,35 @@ Read `SKILL.md` before any Spotify API change. Read `RULES.md` for a11y and deta
 
 ```bash
 python app.py                                        # http://127.0.0.1:5000
-python -m pytest core/tests/ frontend/tests/ -v      # run tests (required before completing code changes)
+python -m pytest core/tests/ frontend/tests/ -v      # run ALL tests (required before completing code changes)
 bash build-tools/build_exe.sh                        # PyInstaller Windows EXE
 bash build-tools/build_apk.sh debug                  # Chaquopy Android APK
 pip install build && python -m build --wheel         # Python wheel for macOS/Linux
 # macOS/Linux end-user: pip install spotyvibe-*.whl && spotyvibe
 # Dev: bash build-tools/start.sh
 ```
+
+### Running Tests
+
+| Command | What it runs |
+|---|---|
+| `python -m pytest core/tests/ -v` | Core unit tests only (~458 tests, ~3s) |
+| `bash build-tools/run_frontend_tests.sh` | **All frontend tests in 3 parallel groups** (~237 tests) |
+| `bash build-tools/run_frontend_tests.sh --screenshots` | Frontend tests + documentation screenshot refresh |
+| `bash build-tools/run_tests.sh` | Core + frontend in parallel (4 groups) |
+| `bash build-tools/run_tests.sh core` | Core only |
+| `bash build-tools/run_tests.sh frontend` | Frontend only (3 parallel groups) |
+| `bash build-tools/run_tests_podman.sh` | All tests in Podman containers (CI) |
+
+**Frontend test groups** (run in parallel):
+
+| Group | Files | Tests |
+|---|---|---|
+| UI | `test_page_load.py`, `test_navigation.py`, `test_modals.py` | ~76 |
+| Features + Onboarding | `test_profile.py`, `test_generation.py`, `test_edge_cases.py`, `test_onboarding.py`, `test_profile_integration.py` | ~108 |
+| Workflow | `test_wf_onboarding.py`, `test_wf_generate_create.py`, `test_wf_generate_append.py`, `test_wf_generate_override.py`, `test_wf_analysis.py`, `test_wf_quickstart_openai.py`, `test_wf_quickstart_spotify.py` | ~53 |
+
+**⚠️ `test_documentation_screenshots.py` is NEVER run automatically.** It captures screenshots for documentation assets and should only be run when the user explicitly requests a screenshot refresh (e.g., "update documentation screenshots"). It is excluded via the `screenshots` pytest marker in `pytest.ini`.
 
 `tree` is available in git bash — use it for directory exploration.
 

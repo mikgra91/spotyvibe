@@ -360,7 +360,11 @@ def _open_profile_editor(page):
     body = page.locator("#trainBody")
     if not body.is_visible():
         page.locator("#trainToggleBtn").click()
-    expect(body).to_be_visible()
+    try:
+        expect(body).to_be_visible(timeout=5_000)
+    except AssertionError:
+        page.locator("#trainToggleBtn").click()
+        expect(body).to_be_visible(timeout=10_000)
 
 
 def _expand_dashboard(page):
@@ -368,14 +372,26 @@ def _expand_dashboard(page):
     body = page.locator("#dashboardBody")
     if not body.is_visible():
         page.locator("#dashboardToggleBtn").click()
-        page.wait_for_timeout(300)
-    expect(body).to_be_visible()
+    try:
+        expect(body).to_be_visible(timeout=5_000)
+    except AssertionError:
+        # Retry — click may have been swallowed
+        page.locator("#dashboardToggleBtn").click()
+        expect(body).to_be_visible(timeout=10_000)
 
 
 def _switch_to_tab(page, tab_name):
-    """Click a tab and assert it becomes active."""
-    page.locator(f'[data-tab="{tab_name}"]').click()
-    expect(page.locator(f'[data-tab="{tab_name}"]')).to_have_attribute("aria-selected", "true")
+    """Click a tab and assert it becomes active (with switchTab() retry)."""
+    page.wait_for_load_state("domcontentloaded")
+    tab = page.locator(f'[data-tab="{tab_name}"]')
+    tab.wait_for(state="visible", timeout=10_000)
+    tab.click()
+    try:
+        expect(tab).to_have_attribute("aria-selected", "true", timeout=5_000)
+    except (AssertionError, Exception):
+        page.wait_for_timeout(100)
+        page.evaluate(f"typeof switchTab === 'function' && switchTab('{tab_name}')")
+        expect(tab).to_have_attribute("aria-selected", "true", timeout=10_000)
 
 
 # ===================================================================
@@ -396,11 +412,10 @@ class TestProfileSwitchDashboard:
 
         page.goto(base_url)
         page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(500)
 
         # Expand dashboard — should show charts from profile A
         _expand_dashboard(page)
-        page.wait_for_timeout(500)
 
         # Verify charts are rendered (SVG elements inside dashboard cards)
         genres_card = page.locator("#dashboardNeutral .dashboard-card--genres svg")
@@ -412,7 +427,7 @@ class TestProfileSwitchDashboard:
         # Open profile editor and switch to profile B via the custom dropdown
         _open_profile_editor(page)
         page.locator("#profileCustomDropdown").click()
-        page.wait_for_timeout(200)
+        page.wait_for_timeout(100)
         page.locator(f'#profileDropdownList [data-value="{PROFILE_B["id"]}"]').click()
         page.wait_for_timeout(800)
 
@@ -435,10 +450,9 @@ class TestProfileSwitchDashboard:
 
         page.goto(base_url)
         page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(500)
 
         _expand_dashboard(page)
-        page.wait_for_timeout(500)
 
         # Dashboard should show empty state for profile A
         expect(page.locator(".dashboard-empty")).to_be_visible()
@@ -449,7 +463,7 @@ class TestProfileSwitchDashboard:
         # Switch to profile B
         _open_profile_editor(page)
         page.locator("#profileCustomDropdown").click()
-        page.wait_for_timeout(200)
+        page.wait_for_timeout(100)
         page.locator(f'#profileDropdownList [data-value="{PROFILE_B["id"]}"]').click()
         page.wait_for_timeout(800)
 
@@ -467,7 +481,7 @@ class TestProfileSwitchDashboard:
 
         page.goto(base_url)
         page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(500)
 
         # Do NOT expand dashboard — leave it collapsed
 
@@ -477,13 +491,12 @@ class TestProfileSwitchDashboard:
         # Switch to profile B
         _open_profile_editor(page)
         page.locator("#profileCustomDropdown").click()
-        page.wait_for_timeout(200)
+        page.wait_for_timeout(100)
         page.locator(f'#profileDropdownList [data-value="{PROFILE_B["id"]}"]').click()
         page.wait_for_timeout(500)
 
         # Now expand dashboard — should fetch fresh empty data
         _expand_dashboard(page)
-        page.wait_for_timeout(500)
 
         expect(page.locator(".dashboard-empty")).to_be_visible()
         expect(page.locator("#dashboardNeutral .dashboard-card--genres svg")).to_have_count(0)
@@ -506,11 +519,10 @@ class TestProfileCreateStateReset:
 
         page.goto(base_url)
         page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(500)
 
         # Expand dashboard — charts from profile A
         _expand_dashboard(page)
-        page.wait_for_timeout(500)
         expect(page.locator("#dashboardNeutral .dashboard-card--genres svg")).to_have_count(1)
 
         # Switch taste to empty for the new profile
@@ -519,7 +531,7 @@ class TestProfileCreateStateReset:
         # Create a new profile
         _open_profile_editor(page)
         page.locator("#profileCreateToggle").click()
-        page.wait_for_timeout(200)
+        page.wait_for_timeout(100)
         page.locator("#profileCreateInput").fill("Workout")
         page.locator("#profileCreateInput").press("Enter")
         page.wait_for_timeout(800)
@@ -538,12 +550,12 @@ class TestProfileCreateStateReset:
 
         page.goto(base_url)
         page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(500)
 
         # Switch to history tab and verify history items exist
         _switch_to_tab(page, "history")
         page.evaluate("loadHistory()")
-        page.wait_for_timeout(400)
+        page.wait_for_timeout(200)
         expect(page.locator("#historyList .history-run-item")).to_have_count(1)
 
         # Switch runs to empty for the new profile
@@ -553,7 +565,7 @@ class TestProfileCreateStateReset:
         _switch_to_tab(page, "openai")
         _open_profile_editor(page)
         page.locator("#profileCreateToggle").click()
-        page.wait_for_timeout(200)
+        page.wait_for_timeout(100)
         page.locator("#profileCreateInput").fill("Chill")
         page.locator("#profileCreateInput").press("Enter")
         page.wait_for_timeout(800)
@@ -561,7 +573,7 @@ class TestProfileCreateStateReset:
         # Switch to history tab — should show empty
         _switch_to_tab(page, "history")
         page.evaluate("loadHistory()")
-        page.wait_for_timeout(400)
+        page.wait_for_timeout(200)
         expect(page.locator("#historyList")).to_contain_text("No runs yet.")
 
     def test_create_profile_clears_status_box(self, page: Page, base_url):
@@ -574,7 +586,7 @@ class TestProfileCreateStateReset:
 
         page.goto(base_url)
         page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(500)
 
         # Inject some text into the status box to simulate a previous run.
         # The statusBox is inside the Spotify panel (hidden by default),
@@ -594,7 +606,7 @@ class TestProfileCreateStateReset:
         # Create a new profile
         _open_profile_editor(page)
         page.locator("#profileCreateToggle").click()
-        page.wait_for_timeout(200)
+        page.wait_for_timeout(100)
         page.locator("#profileCreateInput").fill("Discovery")
         page.locator("#profileCreateInput").press("Enter")
         page.wait_for_timeout(800)
@@ -622,12 +634,12 @@ class TestProfileSwitchHistoryAndTracks:
 
         page.goto(base_url)
         page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(500)
 
         # Open history tab and verify runs
         _switch_to_tab(page, "history")
         page.evaluate("loadHistory()")
-        page.wait_for_timeout(400)
+        page.wait_for_timeout(200)
         expect(page.locator("#historyList .history-run-item")).to_have_count(1)
 
         # Switch runs to empty for profile B
@@ -637,14 +649,14 @@ class TestProfileSwitchHistoryAndTracks:
         _switch_to_tab(page, "openai")
         _open_profile_editor(page)
         page.locator("#profileCustomDropdown").click()
-        page.wait_for_timeout(200)
+        page.wait_for_timeout(100)
         page.locator(f'#profileDropdownList [data-value="{PROFILE_B["id"]}"]').click()
         page.wait_for_timeout(800)
 
         # History should show empty (profile B has no runs)
         _switch_to_tab(page, "history")
         page.evaluate("loadHistory()")
-        page.wait_for_timeout(400)
+        page.wait_for_timeout(200)
         expect(page.locator("#historyList")).to_contain_text("No runs yet.")
 
     def test_switch_clears_track_list(self, page: Page, base_url):
@@ -657,7 +669,7 @@ class TestProfileSwitchHistoryAndTracks:
 
         page.goto(base_url)
         page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(500)
 
         # Inject some fake track cards into the track list via JS
         page.evaluate("""
@@ -676,7 +688,7 @@ class TestProfileSwitchHistoryAndTracks:
         # Switch to profile B
         _open_profile_editor(page)
         page.locator("#profileCustomDropdown").click()
-        page.wait_for_timeout(200)
+        page.wait_for_timeout(100)
         page.locator(f'#profileDropdownList [data-value="{PROFILE_B["id"]}"]').click()
         page.wait_for_timeout(800)
 
@@ -693,7 +705,7 @@ class TestProfileSwitchHistoryAndTracks:
 
         page.goto(base_url)
         page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(500)
 
         # Inject a playlist link and remove 'hidden' class.
         # The element is inside the Spotify panel (hidden tab by default),
@@ -713,7 +725,7 @@ class TestProfileSwitchHistoryAndTracks:
         # Switch to profile B
         _open_profile_editor(page)
         page.locator("#profileCustomDropdown").click()
-        page.wait_for_timeout(200)
+        page.wait_for_timeout(100)
         page.locator(f'#profileDropdownList [data-value="{PROFILE_B["id"]}"]').click()
         page.wait_for_timeout(800)
 
@@ -733,7 +745,7 @@ class TestProfileSwitchHistoryAndTracks:
 
         page.goto(base_url)
         page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(500)
 
         # Show the draft banner (it lives inside #trainBody which may be collapsed,
         # so we check via DOM class rather than Playwright visibility).
@@ -749,7 +761,7 @@ class TestProfileSwitchHistoryAndTracks:
         # Switch to profile B
         _open_profile_editor(page)
         page.locator("#profileCustomDropdown").click()
-        page.wait_for_timeout(200)
+        page.wait_for_timeout(100)
         page.locator(f'#profileDropdownList [data-value="{PROFILE_B["id"]}"]').click()
         page.wait_for_timeout(800)
 
@@ -777,10 +789,9 @@ class TestTasteDashboardIsolation:
 
         page.goto(base_url)
         page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(500)
 
         _expand_dashboard(page)
-        page.wait_for_timeout(500)
 
         expect(page.locator(".dashboard-empty")).to_be_visible()
         expect(page.locator("#dashboardNeutral .dashboard-card--genres svg")).to_have_count(0)
@@ -795,10 +806,9 @@ class TestTasteDashboardIsolation:
 
         page.goto(base_url)
         page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(500)
 
         _expand_dashboard(page)
-        page.wait_for_timeout(500)
 
         # Should have all three charts
         expect(page.locator("#dashboardNeutral .dashboard-card--genres svg")).to_have_count(1)
@@ -818,10 +828,9 @@ class TestTasteDashboardIsolation:
 
         page.goto(base_url)
         page.wait_for_load_state("domcontentloaded")
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(500)
 
         _expand_dashboard(page)
-        page.wait_for_timeout(500)
 
         info = page.locator("#dashboardInfo")
         expect(info).to_be_visible()

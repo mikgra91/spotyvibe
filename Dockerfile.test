@@ -1,0 +1,36 @@
+# ─────────────────────────────────────────────────────────────
+# Dockerfile.test — SpotyVibe test runner image
+#
+# Build:  podman build -f Dockerfile.test -t spotyvibe-test .
+# Run:    podman run --rm spotyvibe-test core
+#         podman run --rm spotyvibe-test frontend
+# ─────────────────────────────────────────────────────────────
+FROM python:3.13-slim
+
+# System deps for Playwright Chromium
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+    libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 \
+    libpango-1.0-0 libcairo2 libasound2 libxshmfence1 libx11-xcb1 \
+    fonts-liberation libappindicator3-1 xdg-utils wget ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python deps
+COPY requirements.txt requirements-core.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install Playwright Chromium
+RUN python -m playwright install chromium && python -m playwright install-deps chromium
+
+# Copy project
+COPY . .
+
+# Results volume
+RUN mkdir -p /app/test-results
+
+ENTRYPOINT ["python", "-m", "pytest"]
+# Default: run all tests
+CMD ["core/tests/", "frontend/tests/", "-v", "--tb=short", "--junitxml=/app/test-results/results.xml"]
+
