@@ -152,6 +152,10 @@ function _linkify(text) {
     return escaped.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 }
 
+// Expose for HTML onclick= attributes (templates reference openSetupGuide)
+window.openSetupGuide = openSetupGuide;
+window.closeSetupGuide = closeSetupGuide;
+
 // Event listeners — close on Esc, close button, done button, outside click
 document.addEventListener('DOMContentLoaded', function () {
     const overlay = el('setupGuideOverlay');

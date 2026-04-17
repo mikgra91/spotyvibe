@@ -207,11 +207,11 @@ export async function dismissReviewTrack(idx) {
 }
 
 function animateReviewRemove(idx) {
-    const el = el(`review-track-${idx}`);
-    if (!el) return;
-    el.style.opacity = '0';
-    el.style.transform = 'translateX(40px)';
-    setTimeout(() => el.remove(), 300);
+    const node = el(`review-track-${idx}`);
+    if (!node) return;
+    node.style.opacity = '0';
+    node.style.transform = 'translateX(40px)';
+    setTimeout(() => node.remove(), 300);
 
     State.spliceReviewTrack(idx);
     // Track count changed — refresh both playlist pickers

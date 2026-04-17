@@ -39,8 +39,8 @@ export async function estimate({ model, profileText, tracks }) {
 function _getProfileText() {
     const fields = ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid'];
     return fields.map(id => {
-        const el = el(id);
-        return el ? el.value : '';
+        const node = el(id);
+        return node ? node.value : '';
     }).join('\n');
 }
 
@@ -76,7 +76,6 @@ async function _refresh() {
 
     if (card) {
         if (result) {
-            const el = (id) => el(id);
             if (el('costModelName')) el('costModelName').textContent = result.model;
             if (el('costProfileTokens')) el('costProfileTokens').textContent = i18n('cost.tokens_approx', '~{n} tokens').replace('{n}', result.profileTokens.toLocaleString());
             if (el('costTracks')) el('costTracks').textContent = i18n('cost.tracks_count', '{n} tracks').replace('{n}', result.tracks);
@@ -86,7 +85,6 @@ async function _refresh() {
             if (unavail) unavail.classList.add('hidden');
         } else {
             if (unavail) unavail.classList.remove('hidden');
-            const el = (id) => el(id);
             if (el('costModelName')) el('costModelName').textContent = model || '—';
             if (el('costTotal')) el('costTotal').textContent = '—';
         }
@@ -112,7 +110,6 @@ async function _refresh() {
 }
 
 function _refreshPopoverCard(result, model) {
-    const el = (id) => el(id);
     const unavail = el('costPopUnavailable');
 
     if (result) {
@@ -160,8 +157,8 @@ export function init() {
 
     // Wire listeners for live refresh
     ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid'].forEach(id => {
-        const el = el(id);
-        if (el) el.addEventListener('blur', _debouncedRefresh);
+        const node = el(id);
+        if (node) node.addEventListener('blur', _debouncedRefresh);
     });
 
     const modelSelect = el('settings-model');

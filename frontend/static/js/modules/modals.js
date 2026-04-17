@@ -21,9 +21,9 @@ export async function clearCredential(key) {
             body: JSON.stringify({ [key]: '' }),
         });
         if (resp.ok) {
-            const el = el('status-' + key);
-            el.textContent = i18n('cred.status_not_set', '✗ Not set');
-            el.className = 'cred-status unset';
+            const statusEl = el('status-' + key);
+            statusEl.textContent = i18n('cred.status_not_set', '✗ Not set');
+            statusEl.className = 'cred-status unset';
             el('clear-' + key).classList.add('hidden');
             el('cred-' + key).value = '';
 
@@ -46,16 +46,16 @@ export async function openCredentials() {
         const resp = await fetch('/api/settings/credentials');
         const data = await resp.json();
         CRED_KEYS.forEach(k => {
-            const el = el('status-' + k);
+            const statusEl = el('status-' + k);
             const clearBtn = el('clear-' + k);
             const info = data[k];
             if (info && info.is_set) {
-                el.textContent = i18n('cred.status_set', '✓ Set ({masked})').replace('{masked}', info.masked);
-                el.className = 'cred-status set';
+                statusEl.textContent = i18n('cred.status_set', '✓ Set ({masked})').replace('{masked}', info.masked);
+                statusEl.className = 'cred-status set';
                 clearBtn.classList.remove('hidden');
             } else {
-                el.textContent = i18n('cred.status_not_set', '✗ Not set');
-                el.className = 'cred-status unset';
+                statusEl.textContent = i18n('cred.status_not_set', '✗ Not set');
+                statusEl.className = 'cred-status unset';
                 clearBtn.classList.add('hidden');
             }
         });
@@ -380,8 +380,8 @@ function _handleHelpImgClick(e) {
 function _initScreenshotLightbox() {
     // Delegate clicks on images inside help-content and section-help
     for (const id of ['helpContent', 'sectionHelpContent']) {
-        const el = el(id);
-        if (el) el.addEventListener('click', _handleHelpImgClick);
+        const node = el(id);
+        if (node) node.addEventListener('click', _handleHelpImgClick);
     }
 
     // Close lightbox via close button
@@ -418,8 +418,8 @@ function _lockBodyScroll() {
 function _unlockBodyScroll() {
     // Only unlock if no overlay modals are still open
     const anyOpen = ['helpModal', 'quickstartModal', 'sectionHelpOverlay'].some(id => {
-        const el = el(id);
-        return el && el.classList.contains('open');
+        const node = el(id);
+        return node && node.classList.contains('open');
     });
     if (!anyOpen) document.body.classList.remove('modal-scroll-lock');
 }
@@ -529,8 +529,8 @@ document.addEventListener('keydown', (e) => {
         return;
     }
     for (const id of ['helpModal', 'credentialsModal', 'settingsModal']) {
-        const el = el(id);
-        if (el && el.classList.contains('open')) {
+        const node = el(id);
+        if (node && node.classList.contains('open')) {
             closeModal(id);
             return;
         }

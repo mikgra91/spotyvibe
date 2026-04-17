@@ -281,12 +281,12 @@ function removeCurrentAndAdvance() {
 
     // Remove the card from the track list UI
     if (source === 'review') {
-        const el = el(`review-track-${idx}`);
-        if (el) { el.style.opacity = '0'; el.style.transform = 'translateX(40px)'; setTimeout(() => el.remove(), 300); }
+        const node = el(`review-track-${idx}`);
+        if (node) { node.style.opacity = '0'; node.style.transform = 'translateX(40px)'; setTimeout(() => node.remove(), 300); }
         State.spliceReviewTrack(idx);
     } else {
-        const el = el(`track-${idx}`);
-        if (el) { el.style.opacity = '0'; el.style.transform = 'translateX(40px)'; setTimeout(() => el.remove(), 300); }
+        const node = el(`track-${idx}`);
+        if (node) { node.style.opacity = '0'; node.style.transform = 'translateX(40px)'; setTimeout(() => node.remove(), 300); }
         State.spliceSuggestion(idx);
     }
 

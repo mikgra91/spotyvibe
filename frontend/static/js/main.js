@@ -156,7 +156,7 @@ window.togglePresetDropdown = Presets.togglePresetDropdown;
 window.confirmSaveAsPreset = Presets.confirmSaveAsPreset;
 window.importPresetFile = Presets.importPresetFile;
 window._explorationModule = Exploration;
-window.openModal = function(id) { const el = el(id); if (el) el.classList.add('open'); };
+window.openModal = function(id) { const node = el(id); if (node) node.classList.add('open'); };
 
 // Wave 2+: functions referenced via onclick= in templates
 window.toggleCompletenessDetail = Completeness.toggleCompletenessDetail;
@@ -230,11 +230,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Playlist mode
     onPlaylistModeChange();
 
+    // Tab navigation — wire click handlers before awaiting i18n so tests
+    // (and fast users) don't click a tab before listeners are attached.
+    initTabs();
+
     // i18n
     await initI18n();
-
-    // Tab navigation
-    initTabs();
 
     // Wave 2: Quick/Advanced mode, exploration slider, presets, completeness
     QuickAdvanced.init();

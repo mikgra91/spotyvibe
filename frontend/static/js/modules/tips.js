@@ -90,8 +90,8 @@ function markSeen(id) {
 let _autoDismissTimer = null;
 
 function _dismissTip() {
-    const el = el('tipToast');
-    if (el) el.classList.add('hidden');
+    const toast = el('tipToast');
+    if (toast) toast.classList.add('hidden');
     if (_autoDismissTimer) {
         clearTimeout(_autoDismissTimer);
         _autoDismissTimer = null;
@@ -100,15 +100,15 @@ function _dismissTip() {
 
 function _showTip(tip) {
     // Remove existing tip toast if any
-    let el = el('tipToast');
-    if (el) el.remove();
+    const existing = el('tipToast');
+    if (existing) existing.remove();
 
-    el = document.createElement('div');
-    el.id = 'tipToast';
-    el.className = 'toast--tip';
-    el.setAttribute('role', 'status');
-    el.setAttribute('aria-live', 'polite');
-    el.innerHTML = `
+    const toast = document.createElement('div');
+    toast.id = 'tipToast';
+    toast.className = 'toast--tip';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    toast.innerHTML = `
         <span class="toast-tip-icon">💡</span>
         <div class="toast-tip-text">
             <div class="toast-tip-title">${i18n(tip.title_i18n, tip.id)}</div>
@@ -117,19 +117,19 @@ function _showTip(tip) {
         </div>
         <button class="toast-tip-close" aria-label="${i18n('tip.dismiss', 'Dismiss')}" id="tipToastClose">✕</button>
     `;
-    document.body.appendChild(el);
+    document.body.appendChild(toast);
 
-    el.querySelector('#tipToastLink').addEventListener('click', () => {
+    toast.querySelector('#tipToastLink').addEventListener('click', () => {
         if (tip.linkAction) tip.linkAction();
         _dismissTip();
     });
-    el.querySelector('#tipToastClose').addEventListener('click', _dismissTip);
+    toast.querySelector('#tipToastClose').addEventListener('click', _dismissTip);
 
     // Pause auto-dismiss on hover
-    el.addEventListener('mouseenter', () => {
+    toast.addEventListener('mouseenter', () => {
         if (_autoDismissTimer) { clearTimeout(_autoDismissTimer); _autoDismissTimer = null; }
     });
-    el.addEventListener('mouseleave', () => {
+    toast.addEventListener('mouseleave', () => {
         _autoDismissTimer = setTimeout(_dismissTip, 12000);
     });
 

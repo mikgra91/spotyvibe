@@ -1,7 +1,8 @@
-import { el } from './dom.js';
 /* onboarding.js — Wizard state, navigation, language toggle, credential saving,
    Spotify connect, import, model picker, summary builder.
    Loaded as a regular <script> (not ES module) in onboarding.html. */
+
+const el = (id) => document.getElementById(id);
 
 /* ── Lightweight i18n for onboarding ─────────────────────────── */
 let _obStrings = {};
@@ -289,8 +290,8 @@ function _selectObProvider(value, label) {
     // Toggle provider-specific guide blocks
     const guideIds = ['ob-guide-openai', 'ob-guide-ollama', 'ob-guide-lmstudio', 'ob-guide-groq', 'ob-guide-openrouter'];
     guideIds.forEach(id => {
-        const el = el(id);
-        if (el) el.classList.toggle('hidden', id !== 'ob-guide-' + value);
+        const guide = el(id);
+        if (guide) guide.classList.toggle('hidden', id !== 'ob-guide-' + value);
     });
 
     // Reset models when provider changes
@@ -803,16 +804,16 @@ async function obBuildSummary() {
     let hasSkipped = false;
 
     rows.forEach(row => {
-        const el = el(row.id);
-        if (!el) return;
+        const rowEl = el(row.id);
+        if (!rowEl) return;
 
         const isSet = checks[row.id];
         const touched = obTouched[row.touchKey];
 
-        const statusEl = el.querySelector('.ob-summary-status');
-        const labelEl = el.querySelector('.ob-summary-label');
-        const subEl = el.querySelector('.ob-summary-sub');
-        const editBtn = el.querySelector('.ob-summary-edit');
+        const statusEl = rowEl.querySelector('.ob-summary-status');
+        const labelEl = rowEl.querySelector('.ob-summary-label');
+        const subEl = rowEl.querySelector('.ob-summary-sub');
+        const editBtn = rowEl.querySelector('.ob-summary-edit');
 
         // Determine display state
         let state; // 'done', 'previous', 'skipped'

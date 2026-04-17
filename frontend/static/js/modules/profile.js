@@ -104,14 +104,14 @@ export function updateProfileMenuState() {
     const hasProfile = Boolean(_activeProfileId);
     const ids = ['profileMenuExport', 'profileMenuReset', 'profileMenuDelete'];
     for (const id of ids) {
-        const el = el(id);
-        if (!el) continue;
+        const item = el(id);
+        if (!item) continue;
         if (hasProfile) {
-            el.classList.remove('disabled');
-            el.removeAttribute('aria-disabled');
+            item.classList.remove('disabled');
+            item.removeAttribute('aria-disabled');
         } else {
-            el.classList.add('disabled');
-            el.setAttribute('aria-disabled', 'true');
+            item.classList.add('disabled');
+            item.setAttribute('aria-disabled', 'true');
         }
     }
 }
@@ -455,8 +455,8 @@ export async function deleteCurrentProfile() {
 function _clearTrainFields() {
     const ids = ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid'];
     for (const id of ids) {
-        const el = el(id);
-        if (el) el.value = '';
+        const field = el(id);
+        if (field) field.value = '';
     }
 }
 
@@ -477,18 +477,18 @@ export async function checkProfileStatus() {
 
         if (data.no_profile) {
             State.setProfileTrained(false);
-            const el = el('trainStatus');
-            if (el) el.textContent = i18n('profile.no_profile_hint', 'Create a profile to get started.');
+            const status = el('trainStatus');
+            if (status) status.textContent = i18n('profile.no_profile_hint', 'Create a profile to get started.');
             return;
         }
 
         State.setProfileTrained(data.trained);
-        const el = el('trainStatus');
+        const status = el('trainStatus');
         if (data.trained) {
             const d = new Date(data.last_updated);
-            el.textContent = i18n('profile.last_trained', '✓ Last trained: {date}').replace('{date}', d.toLocaleString());
+            status.textContent = i18n('profile.last_trained', '✓ Last trained: {date}').replace('{date}', d.toLocaleString());
         } else {
-            el.textContent = i18n('profile.not_trained_hint', '⚠ Not yet trained — describe your taste below.');
+            status.textContent = i18n('profile.not_trained_hint', '⚠ Not yet trained — describe your taste below.');
             el('trainBody').classList.remove('hidden');
             State.setUserProfileEditMode(true);
             updateTrainToggleLabel();

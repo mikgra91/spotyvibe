@@ -74,8 +74,8 @@ function compute() {
     for (const dim of DIMENSIONS) {
         let text = '';
         if (dim.field) {
-            const el = el(dim.field);
-            text = el ? el.value : '';
+            const node = el(dim.field);
+            text = node ? node.value : '';
         }
         const result = dim.scorer(text);
         total += result.value * dim.weight;
@@ -213,10 +213,10 @@ function _restoreDetailState() {
 export function init() {
     const fields = ['trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid'];
     for (const id of fields) {
-        const el = el(id);
-        if (el) {
-            el.addEventListener('input', _scheduleUpdate);
-            el.addEventListener('change', _scheduleUpdate);
+        const node = el(id);
+        if (node) {
+            node.addEventListener('input', _scheduleUpdate);
+            node.addEventListener('change', _scheduleUpdate);
         }
     }
 

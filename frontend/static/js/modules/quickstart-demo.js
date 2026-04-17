@@ -10,6 +10,12 @@ import { i18n } from './i18n.js';
 /* ── Frame definitions for each step ── */
 
 function _step1Frames() {
+    const tabs = `
+        <div class="qd-tab-bar">
+            <div class="qd-tab qd-tab-active">${i18n('quickstart.demo_ui_tab_ai_profile', 'AI Profile & Analysis')}</div>
+            <div class="qd-tab">${i18n('quickstart.demo_ui_tab_discover', 'Discover & Playlists')}</div>
+            <div class="qd-tab">${i18n('quickstart.demo_ui_tab_history', 'Run History')}</div>
+        </div>`;
     return [
         {
             caption: i18n('quickstart.demo1_f1', 'Click the menu icon (☰) in the top-right corner'),
@@ -19,13 +25,9 @@ function _step1Frames() {
                     <div class="qd-lang-toggle"><span class="qd-lang-active">EN</span><span>DE</span></div>
                     <div class="qd-burger qd-pulse"><div class="qd-burger-line"></div><div class="qd-burger-line"></div><div class="qd-burger-line"></div></div>
                 </div>
-                <div class="qd-tab-bar">
-                    <div class="qd-tab qd-tab-active">AI Profile &amp; Analysis</div>
-                    <div class="qd-tab">Discover &amp; Playlists</div>
-                    <div class="qd-tab">Run History</div>
-                </div>
+                ${tabs}
                 <div class="qd-provider qd-provider-openai" style="opacity:0.4">
-                    <div class="qd-provider-header"><div class="qd-provider-name">OpenAI</div><div class="qd-pills-row"><span class="qd-pill qd-pill-err">Key missing</span></div></div>
+                    <div class="qd-provider-header"><div class="qd-provider-name">OpenAI</div><div class="qd-pills-row"><span class="qd-pill qd-pill-err">${i18n('quickstart.demo_ui_key_missing', 'Key missing')}</span></div></div>
                 </div>
                 <div class="qd-cursor" style="top:10px;right:16px"></div>
             </div>`
@@ -39,10 +41,10 @@ function _step1Frames() {
                     <div class="qd-burger qd-active"><div class="qd-burger-line"></div><div class="qd-burger-line"></div><div class="qd-burger-line"></div></div>
                 </div>
                 <div class="qd-dropdown">
-                    <div class="qd-menu-item qd-highlight qd-pulse">🔑 Credentials</div>
-                    <div class="qd-menu-item">⚙️ Settings</div>
-                    <div class="qd-menu-item">🔌 Connect Spotify</div>
-                    <div class="qd-menu-item">❓ Help</div>
+                    <div class="qd-menu-item qd-highlight qd-pulse">${i18n('quickstart.demo_ui_menu_creds', '🔑 Credentials')}</div>
+                    <div class="qd-menu-item">${i18n('quickstart.demo_ui_menu_settings', '⚙️ Settings')}</div>
+                    <div class="qd-menu-item">${i18n('quickstart.demo_ui_menu_connect', '🔌 Connect Spotify')}</div>
+                    <div class="qd-menu-item">${i18n('quickstart.demo_ui_menu_help', '❓ Help')}</div>
                 </div>
                 <div class="qd-cursor" style="top:48px;right:36px"></div>
             </div>`
@@ -51,13 +53,13 @@ function _step1Frames() {
             caption: i18n('quickstart.demo1_f3', 'Enter your API keys and click Save'),
             html: `<div class="qd-scene">
                 <div class="qd-mini-modal">
-                    <div class="qd-modal-title">🔑 Credentials</div>
-                    <div class="qd-field"><span class="qd-label">OpenAI API Key</span><span class="qd-input qd-typing">sk-proj-abc…xyz</span></div>
-                    <div class="qd-field"><span class="qd-label">Spotify Client ID</span><span class="qd-input qd-typing">a1b2c3d4e5…</span></div>
-                    <div class="qd-field"><span class="qd-label">Spotify Client Secret</span><span class="qd-input qd-typing">x9y8z7w6…</span></div>
+                    <div class="qd-modal-title">${i18n('quickstart.demo_ui_menu_creds', '🔑 Credentials')}</div>
+                    <div class="qd-field"><span class="qd-label">${i18n('quickstart.demo_ui_label_openai_key', 'OpenAI API Key')}</span><span class="qd-input qd-typing">sk-proj-abc…xyz</span></div>
+                    <div class="qd-field"><span class="qd-label">${i18n('quickstart.demo_ui_label_sp_id', 'Spotify Client ID')}</span><span class="qd-input qd-typing">a1b2c3d4e5…</span></div>
+                    <div class="qd-field"><span class="qd-label">${i18n('quickstart.demo_ui_label_sp_secret', 'Spotify Client Secret')}</span><span class="qd-input qd-typing">x9y8z7w6…</span></div>
                     <div style="display:flex;gap:6px;justify-content:flex-end;padding-top:4px">
-                        <button class="qd-btn qd-btn-secondary">Cancel</button>
-                        <button class="qd-btn qd-btn-primary qd-pulse">Save</button>
+                        <button class="qd-btn qd-btn-secondary">${i18n('quickstart.demo_ui_btn_cancel', 'Cancel')}</button>
+                        <button class="qd-btn qd-btn-primary qd-pulse">${i18n('quickstart.demo_ui_btn_save', 'Save')}</button>
                     </div>
                 </div>
                 <div class="qd-cursor" style="bottom:20px;right:30px"></div>
@@ -71,41 +73,41 @@ function _step1Frames() {
                     <div class="qd-lang-toggle"><span class="qd-lang-active">EN</span><span>DE</span></div>
                     <div class="qd-burger"><div class="qd-burger-line"></div><div class="qd-burger-line"></div><div class="qd-burger-line"></div></div>
                 </div>
-                <div class="qd-tab-bar">
-                    <div class="qd-tab qd-tab-active">AI Profile &amp; Analysis</div>
-                    <div class="qd-tab">Discover &amp; Playlists</div>
-                    <div class="qd-tab">Run History</div>
-                </div>
+                ${tabs}
                 <div class="qd-provider qd-provider-openai">
                     <div class="qd-provider-header">
                         <div class="qd-provider-name">OpenAI</div>
                         <div class="qd-pills-row">
-                            <span class="qd-pill qd-pill-green qd-pop">Key configured</span>
+                            <span class="qd-pill qd-pill-green qd-pop">${i18n('quickstart.demo_ui_key_configured', 'Key configured')}</span>
                             <span class="qd-pill qd-pill-green qd-pop" style="animation-delay:.15s">gpt-5.4</span>
                         </div>
                     </div>
                 </div>
-                <div class="qd-result-msg qd-fade-in">✅ Ready to go!</div>
+                <div class="qd-result-msg qd-fade-in">${i18n('quickstart.demo_ui_msg_ready', '✅ Ready to go!')}</div>
             </div>`
         }
     ];
 }
 
 function _step2Frames() {
+    const secProfile = i18n('quickstart.demo_ui_sec_music_profile', 'Music Profile');
+    const secAnalysis = i18n('quickstart.demo_ui_sec_analysis', 'Band/Song Analysis');
+    const show = i18n('quickstart.demo_ui_accordion_show', 'Show');
+    const hide = i18n('quickstart.demo_ui_accordion_hide', 'Hide');
     return [
         {
             caption: i18n('quickstart.demo2_f1', 'Expand the Music Profile section'),
             html: `<div class="qd-scene">
                 <div class="qd-provider qd-provider-openai">
-                    <div class="qd-provider-header"><div class="qd-provider-name">OpenAI</div><div class="qd-pills-row"><span class="qd-pill qd-pill-green">Key configured</span></div></div>
+                    <div class="qd-provider-header"><div class="qd-provider-name">OpenAI</div><div class="qd-pills-row"><span class="qd-pill qd-pill-green">${i18n('quickstart.demo_ui_key_configured', 'Key configured')}</span></div></div>
                     <div class="qd-accordion qd-pulse">
                         <div class="qd-accordion-header">
-                            <h4><span class="qd-icon">🎯</span> Music Profile</h4>
-                            <span class="qd-accordion-toggle">Show</span>
+                            <h4><span class="qd-icon">🎯</span> ${secProfile}</h4>
+                            <span class="qd-accordion-toggle">${show}</span>
                         </div>
                     </div>
                     <div class="qd-accordion" style="opacity:0.4">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔍</span> Band/Song Analysis</h4><span class="qd-accordion-toggle">Show</span></div>
+                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔍</span> ${secAnalysis}</h4><span class="qd-accordion-toggle">${show}</span></div>
                     </div>
                 </div>
                 <div class="qd-cursor" style="top:52px;left:50%"></div>
@@ -116,14 +118,14 @@ function _step2Frames() {
             html: `<div class="qd-scene">
                 <div class="qd-provider qd-provider-openai">
                     <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🎯</span> Music Profile</h4><span class="qd-accordion-toggle">Hide</span></div>
+                        <div class="qd-accordion-header"><h4><span class="qd-icon">🎯</span> ${secProfile}</h4><span class="qd-accordion-toggle">${hide}</span></div>
                         <div class="qd-accordion-body">
                             <div class="qd-accordion" style="border-color:rgba(255,255,255,0.1)">
-                                <div class="qd-accordion-header"><h4><span class="qd-icon">👤</span> Profiles</h4></div>
+                                <div class="qd-accordion-header"><h4><span class="qd-icon">👤</span> ${i18n('quickstart.demo_ui_sec_profiles', 'Profiles')}</h4></div>
                                 <div class="qd-accordion-body">
                                     <div class="qd-select" style="margin-bottom:4px">🎸 Emma ▾</div>
-                                    <button class="qd-btn qd-btn-primary qd-pulse" style="width:100%">+ Create new Profile</button>
-                                    <div class="qd-field qd-fade-in" style="flex-direction:row;gap:6px"><span class="qd-input qd-typing" style="flex:1">My Workout Mix</span><span style="color:var(--primary);font-size:0.7rem">✓</span></div>
+                                    <button class="qd-btn qd-btn-primary qd-pulse" style="width:100%">${i18n('quickstart.demo_ui_btn_create_profile', '+ Create new Profile')}</button>
+                                    <div class="qd-field qd-fade-in" style="flex-direction:row;gap:6px"><span class="qd-input qd-typing" style="flex:1">${i18n('quickstart.demo_ui_example_workout_mix', 'My Workout Mix')}</span><span style="color:var(--primary);font-size:0.7rem">✓</span></div>
                                 </div>
                             </div>
                         </div>
@@ -137,16 +139,16 @@ function _step2Frames() {
             html: `<div class="qd-scene">
                 <div class="qd-provider qd-provider-openai">
                     <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🎯</span> Music Profile</h4><span class="qd-accordion-toggle">Hide</span></div>
+                        <div class="qd-accordion-header"><h4><span class="qd-icon">🎯</span> ${secProfile}</h4><span class="qd-accordion-toggle">${hide}</span></div>
                         <div class="qd-accordion-body">
-                            <div class="qd-accordion" style="border-color:rgba(255,255,255,0.1);opacity:0.4"><div class="qd-accordion-header"><h4><span class="qd-icon">👤</span> Profiles</h4></div></div>
+                            <div class="qd-accordion" style="border-color:rgba(255,255,255,0.1);opacity:0.4"><div class="qd-accordion-header"><h4><span class="qd-icon">👤</span> ${i18n('quickstart.demo_ui_sec_profiles', 'Profiles')}</h4></div></div>
                             <div class="qd-accordion qd-open qd-pulse">
-                                <div class="qd-accordion-header"><h4><span class="qd-icon">💬</span> Describe Your Vibe</h4></div>
+                                <div class="qd-accordion-header"><h4><span class="qd-icon">💬</span> ${i18n('quickstart.demo_ui_sec_describe', 'Describe Your Vibe')}</h4></div>
                                 <div class="qd-accordion-body">
-                                    <div class="qd-textarea qd-typing">I love energetic rock with theatrical vocals like Queen. High-energy and melodic!</div>
+                                    <div class="qd-textarea qd-typing">${i18n('quickstart.demo_ui_example_vibe', 'I love energetic rock with theatrical vocals like Queen. High-energy and melodic!')}</div>
                                 </div>
                             </div>
-                            <div class="qd-accordion" style="opacity:0.4"><div class="qd-accordion-header"><h4><span class="qd-icon">🎵</span> Core Description</h4></div></div>
+                            <div class="qd-accordion" style="opacity:0.4"><div class="qd-accordion-header"><h4><span class="qd-icon">🎵</span> ${i18n('quickstart.demo_ui_sec_core_desc', 'Core Description')}</h4></div></div>
                         </div>
                     </div>
                 </div>
@@ -159,37 +161,41 @@ function _step2Frames() {
                 <div class="qd-provider qd-provider-openai">
                     <div class="qd-accordion qd-open">
                         <div class="qd-accordion-header">
-                            <h4><span class="qd-icon">🎯</span> Music Profile</h4>
-                            <span class="qd-status-line qd-fade-in">✓ Last trained: just now</span>
+                            <h4><span class="qd-icon">🎯</span> ${secProfile}</h4>
+                            <span class="qd-status-line qd-fade-in">${i18n('quickstart.demo_ui_status_trained', '✓ Last trained: just now')}</span>
                         </div>
                         <div class="qd-accordion-body">
                             <div style="display:flex;gap:6px">
-                                <button class="qd-btn qd-btn-primary qd-pulse" style="flex:1">🤖 AI Profile Update</button>
-                                <button class="qd-btn qd-btn-secondary" style="flex:1">💾 Save without AI</button>
+                                <button class="qd-btn qd-btn-primary qd-pulse" style="flex:1">${i18n('quickstart.demo_ui_btn_ai_update', '🤖 AI Profile Update')}</button>
+                                <button class="qd-btn qd-btn-secondary" style="flex:1">${i18n('quickstart.demo_ui_btn_save_no_ai', '💾 Save without AI')}</button>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="qd-result-msg qd-fade-in">✅ Profile trained!</div>
+                <div class="qd-result-msg qd-fade-in">${i18n('quickstart.demo_ui_msg_trained', '✅ Profile trained!')}</div>
             </div>`
         }
     ];
 }
 
 function _step3Frames() {
+    const secDiscover = i18n('quickstart.demo_ui_sec_discover', 'Discover Music');
+    const secRefine = i18n('quickstart.demo_ui_sec_refine', 'Refine Playlist');
+    const show = i18n('quickstart.demo_ui_accordion_show', 'Show');
+    const hide = i18n('quickstart.demo_ui_accordion_hide', 'Hide');
     return [
         {
             caption: i18n('quickstart.demo3_f1', 'Expand "Discover Music" in the Spotify section'),
             html: `<div class="qd-scene">
                 <div class="qd-provider qd-provider-spotify">
-                    <div class="qd-provider-header"><div class="qd-provider-name">Spotify</div><div class="qd-pills-row"><span class="qd-pill qd-pill-green">Connected</span></div></div>
+                    <div class="qd-provider-header"><div class="qd-provider-name">Spotify</div><div class="qd-pills-row"><span class="qd-pill qd-pill-green">${i18n('quickstart.demo_ui_connected', 'Connected')}</span></div></div>
                     <div class="qd-accordion qd-pulse">
                         <div class="qd-accordion-header">
-                            <h4><span class="qd-icon">🎧</span> Discover Music</h4>
-                            <span class="qd-accordion-toggle">Show</span>
+                            <h4><span class="qd-icon">🎧</span> ${secDiscover}</h4>
+                            <span class="qd-accordion-toggle">${show}</span>
                         </div>
                     </div>
-                    <div class="qd-accordion" style="opacity:0.4"><div class="qd-accordion-header"><h4><span class="qd-icon">🔄</span> Refine Playlist</h4><span class="qd-accordion-toggle">Show</span></div></div>
+                    <div class="qd-accordion" style="opacity:0.4"><div class="qd-accordion-header"><h4><span class="qd-icon">🔄</span> ${secRefine}</h4><span class="qd-accordion-toggle">${show}</span></div></div>
                 </div>
                 <div class="qd-cursor" style="top:48px;left:50%"></div>
             </div>`
@@ -199,19 +205,19 @@ function _step3Frames() {
             html: `<div class="qd-scene">
                 <div class="qd-provider qd-provider-spotify">
                     <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🎧</span> Discover Music</h4><span class="qd-accordion-toggle">Hide</span></div>
+                        <div class="qd-accordion-header"><h4><span class="qd-icon">🎧</span> ${secDiscover}</h4><span class="qd-accordion-toggle">${hide}</span></div>
                         <div class="qd-accordion-body">
                             <div class="qd-radio-group">
-                                <div class="qd-radio"><div class="qd-radio-dot"></div> Default</div>
-                                <div class="qd-radio qd-active qd-pulse"><div class="qd-radio-dot"></div> Create new</div>
-                                <div class="qd-radio"><div class="qd-radio-dot"></div> Append</div>
-                                <div class="qd-radio"><div class="qd-radio-dot"></div> Replace</div>
+                                <div class="qd-radio"><div class="qd-radio-dot"></div> ${i18n('quickstart.demo_ui_mode_default', 'Default')}</div>
+                                <div class="qd-radio qd-active qd-pulse"><div class="qd-radio-dot"></div> ${i18n('quickstart.demo_ui_mode_create_new', 'Create new')}</div>
+                                <div class="qd-radio"><div class="qd-radio-dot"></div> ${i18n('quickstart.demo_ui_mode_append', 'Append')}</div>
+                                <div class="qd-radio"><div class="qd-radio-dot"></div> ${i18n('quickstart.demo_ui_mode_replace', 'Replace')}</div>
                             </div>
-                            <div class="qd-field"><span class="qd-input qd-typing" style="font-family:inherit">SpotyVibe {date}</span></div>
+                            <div class="qd-field"><span class="qd-input qd-typing" style="font-family:inherit">${i18n('quickstart.demo_ui_example_playlist_name', 'SpotyVibe {date}')}</span></div>
                             <div class="qd-accordion" style="border-color:rgba(30,215,96,0.12)">
-                                <div class="qd-accordion-header"><h4 style="font-size:0.65rem">🎚 Audio Filters (optional)</h4></div>
+                                <div class="qd-accordion-header"><h4 style="font-size:0.65rem">${i18n('quickstart.demo_ui_sec_audio_filters', '🎚 Audio Filters (optional)')}</h4></div>
                                 <div class="qd-accordion-body">
-                                    <div class="qd-filter-tags"><span class="qd-tag">Energy 60–90%</span><span class="qd-tag">Tempo 120–150</span><span class="qd-tag">Valence 50–80%</span></div>
+                                    <div class="qd-filter-tags"><span class="qd-tag">${i18n('quickstart.demo_ui_tag_energy', 'Energy 60–90%')}</span><span class="qd-tag">${i18n('quickstart.demo_ui_tag_tempo', 'Tempo 120–150')}</span><span class="qd-tag">${i18n('quickstart.demo_ui_tag_valence', 'Valence 50–80%')}</span></div>
                                 </div>
                             </div>
                         </div>
@@ -225,10 +231,10 @@ function _step3Frames() {
             html: `<div class="qd-scene">
                 <div class="qd-provider qd-provider-spotify">
                     <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🎧</span> Discover Music</h4></div>
+                        <div class="qd-accordion-header"><h4><span class="qd-icon">🎧</span> ${secDiscover}</h4></div>
                         <div class="qd-accordion-body">
-                            <button class="qd-btn qd-btn-primary qd-btn-wide qd-pulse">▶ Generate &amp; Create Playlist</button>
-                            <div class="qd-spinner qd-fade-in">Generating suggestions…</div>
+                            <button class="qd-btn qd-btn-primary qd-btn-wide qd-pulse">${i18n('quickstart.demo_ui_btn_generate', '▶ Generate & Create Playlist')}</button>
+                            <div class="qd-spinner qd-fade-in">${i18n('quickstart.demo_ui_status_generating', 'Generating suggestions…')}</div>
                         </div>
                     </div>
                 </div>
@@ -240,7 +246,7 @@ function _step3Frames() {
             html: `<div class="qd-scene">
                 <div class="qd-provider qd-provider-spotify">
                     <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🎧</span> Discover Music</h4></div>
+                        <div class="qd-accordion-header"><h4><span class="qd-icon">🎧</span> ${secDiscover}</h4></div>
                         <div class="qd-accordion-body" style="gap:4px">
                             <div class="qd-track-list">
                                 <div class="qd-track qd-pop"><div class="qd-cover"></div><div class="qd-track-info"><span>Bohemian Rhapsody</span><small>Queen</small></div><div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">✕</span></div></div>
@@ -250,13 +256,14 @@ function _step3Frames() {
                         </div>
                     </div>
                 </div>
-                <div class="qd-result-msg qd-fade-in">✅ 10 tracks added to Spotify!</div>
+                <div class="qd-result-msg qd-fade-in">${i18n('quickstart.demo_ui_msg_tracks_added', '✅ 10 tracks added to Spotify!')}</div>
             </div>`
         }
     ];
 }
 
 function _step4Frames() {
+    const badgeLiked = i18n('quickstart.demo_ui_badge_liked', '👍 Liked');
     return [
         {
             caption: i18n('quickstart.demo4_f1', 'Click album art to open the preview overlay'),
@@ -290,7 +297,7 @@ function _step4Frames() {
                 <div class="qd-overlay qd-fade-in">
                     <div class="qd-preview-bar">
                         <span class="qd-nav-arrow">‹</span>
-                        <div class="qd-embed"><div class="qd-embed-inner">♫ Spotify Preview<small>Bohemian Rhapsody — Queen</small></div></div>
+                        <div class="qd-embed"><div class="qd-embed-inner">${i18n('quickstart.demo_ui_preview_title', '♫ Spotify Preview')}<small>Bohemian Rhapsody — Queen</small></div></div>
                         <span class="qd-nav-arrow">›</span>
                     </div>
                     <div style="text-align:center;font-size:0.55rem;color:var(--text-muted)">1 / 10</div>
@@ -308,10 +315,10 @@ function _step4Frames() {
                     <div class="qd-preview-actions"><span class="qd-action-tab qd-tab-active-like qd-pulse">👍</span><span class="qd-action-tab">👎</span><span class="qd-action-tab">✕</span></div>
                     <div class="qd-feedback-form qd-fade-in">
                         <div style="display:flex;flex-direction:column;gap:3px;flex:1">
-                            <span class="qd-label">Reason (optional)</span>
-                            <span class="qd-input qd-typing" style="font-family:inherit">Perfect energy!</span>
+                            <span class="qd-label">${i18n('quickstart.demo_ui_label_reason', 'Reason (optional)')}</span>
+                            <span class="qd-input qd-typing" style="font-family:inherit">${i18n('quickstart.demo_ui_example_reason', 'Perfect energy!')}</span>
                         </div>
-                        <button class="qd-btn qd-btn-primary qd-btn-sm">Submit</button>
+                        <button class="qd-btn qd-btn-primary qd-btn-sm">${i18n('quickstart.demo_ui_btn_submit', 'Submit')}</button>
                     </div>
                 </div>
                 <div class="qd-cursor" style="bottom:22px;right:24px"></div>
@@ -324,7 +331,7 @@ function _step4Frames() {
                     <div class="qd-track qd-liked">
                         <div class="qd-cover"></div>
                         <div class="qd-track-info"><span>Bohemian Rhapsody</span><small>Queen</small></div>
-                        <span class="qd-track-badge">👍 Liked</span>
+                        <span class="qd-track-badge">${badgeLiked}</span>
                     </div>
                     <div class="qd-track">
                         <div class="qd-cover"></div>
@@ -332,26 +339,29 @@ function _step4Frames() {
                         <div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">✕</span></div>
                     </div>
                 </div>
-                <div class="qd-result-msg qd-fade-in">✅ Feedback saved — profile updated!</div>
+                <div class="qd-result-msg qd-fade-in">${i18n('quickstart.demo_ui_msg_feedback_saved', '✅ Feedback saved — profile updated!')}</div>
             </div>`
         }
     ];
 }
 
 function _step5Frames() {
+    const secRefine = i18n('quickstart.demo_ui_sec_refine', 'Refine Playlist');
+    const badgeLiked = i18n('quickstart.demo_ui_badge_liked', '👍 Liked');
+    const exampleMix = i18n('quickstart.demo_ui_example_workout_mix', 'My Workout Mix');
     return [
         {
             caption: i18n('quickstart.demo5_f1', 'Expand "Refine Playlist" and select a playlist'),
             html: `<div class="qd-scene">
                 <div class="qd-provider qd-provider-spotify">
                     <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔄</span> Refine Playlist</h4><span class="qd-accordion-toggle">Hide</span></div>
+                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔄</span> ${secRefine}</h4><span class="qd-accordion-toggle">${i18n('quickstart.demo_ui_accordion_hide', 'Hide')}</span></div>
                         <div class="qd-accordion-body">
                             <div class="qd-field" style="flex-direction:row;gap:6px;align-items:center">
-                                <div class="qd-select qd-pulse" style="flex:1">My Workout Mix ▾</div>
+                                <div class="qd-select qd-pulse" style="flex:1">${exampleMix} ▾</div>
                                 <span style="font-size:0.7rem;color:var(--text-muted)">↻</span>
                             </div>
-                            <button class="qd-btn qd-btn-primary" style="width:100%">🔄 Load Playlist</button>
+                            <button class="qd-btn qd-btn-primary" style="width:100%">${i18n('quickstart.demo_ui_btn_load_playlist', '🔄 Load Playlist')}</button>
                         </div>
                     </div>
                 </div>
@@ -363,7 +373,7 @@ function _step5Frames() {
             html: `<div class="qd-scene">
                 <div class="qd-provider qd-provider-spotify">
                     <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔄</span> Refine Playlist</h4></div>
+                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔄</span> ${secRefine}</h4></div>
                         <div class="qd-accordion-body" style="gap:4px">
                             <div class="qd-track-list">
                                 <div class="qd-track"><div class="qd-cover"></div><div class="qd-track-info"><span>Bohemian Rhapsody</span><small>Queen</small></div><div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">✕</span></div></div>
@@ -382,17 +392,17 @@ function _step5Frames() {
                     <div class="qd-track qd-liked">
                         <div class="qd-cover"></div>
                         <div class="qd-track-info"><span>Bohemian Rhapsody</span><small>Queen</small></div>
-                        <span class="qd-track-badge">👍 Liked</span>
+                        <span class="qd-track-badge">${badgeLiked}</span>
                     </div>
                     <div class="qd-track qd-liked">
                         <div class="qd-cover"></div>
                         <div class="qd-track-info"><span>Stairway to Heaven</span><small>Led Zeppelin</small></div>
-                        <span class="qd-track-badge">👍 Liked</span>
+                        <span class="qd-track-badge">${badgeLiked}</span>
                     </div>
                     <div class="qd-track qd-disliked qd-pulse">
                         <div class="qd-cover"></div>
                         <div class="qd-track-info"><span class="qd-strikethrough">Low-fi beat #47</span><small>Unknown</small></div>
-                        <span class="qd-track-badge qd-badge-red">👎 Removed</span>
+                        <span class="qd-track-badge qd-badge-red">${i18n('quickstart.demo_ui_badge_removed', '👎 Removed')}</span>
                     </div>
                 </div>
                 <div class="qd-cursor" style="top:95px;right:16px"></div>
@@ -413,23 +423,24 @@ function _step5Frames() {
                         <span class="qd-track-badge">👍</span>
                     </div>
                 </div>
-                <div class="qd-result-msg qd-fade-in">✅ Playlist refined — 1 track removed!</div>
+                <div class="qd-result-msg qd-fade-in">${i18n('quickstart.demo_ui_msg_playlist_refined', '✅ Playlist refined — 1 track removed!')}</div>
             </div>`
         }
     ];
 }
 
 function _step6Frames() {
+    const runLabel = i18n('quickstart.demo_ui_run_label', 'Run');
     return [
         {
             caption: i18n('quickstart.demo6_f1', 'Generate again — each run gets better'),
             html: `<div class="qd-scene">
                 <div class="qd-provider qd-provider-spotify">
                     <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🎧</span> Discover Music</h4></div>
+                        <div class="qd-accordion-header"><h4><span class="qd-icon">🎧</span> ${i18n('quickstart.demo_ui_sec_discover', 'Discover Music')}</h4></div>
                         <div class="qd-accordion-body">
-                            <button class="qd-btn qd-btn-primary qd-btn-wide qd-pulse">▶ Generate &amp; Create Playlist</button>
-                            <div class="qd-status-line qd-fade-in">Run #3 — profile improved from 12 feedbacks</div>
+                            <button class="qd-btn qd-btn-primary qd-btn-wide qd-pulse">${i18n('quickstart.demo_ui_btn_generate', '▶ Generate & Create Playlist')}</button>
+                            <div class="qd-status-line qd-fade-in">${i18n('quickstart.demo_ui_status_run_improved', 'Run #3 — profile improved from 12 feedbacks')}</div>
                         </div>
                     </div>
                 </div>
@@ -440,15 +451,15 @@ function _step6Frames() {
             html: `<div class="qd-scene">
                 <div class="qd-provider qd-provider-openai">
                     <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔍</span> Band/Song Analysis</h4></div>
+                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔍</span> ${i18n('quickstart.demo_ui_sec_analysis', 'Band/Song Analysis')}</h4></div>
                         <div class="qd-accordion-body">
                             <div class="qd-field" style="flex-direction:row;gap:6px;align-items:center">
                                 <span class="qd-input" style="flex:1;font-family:inherit">Queen</span>
-                                <button class="qd-btn qd-btn-primary qd-pulse">Analyse</button>
+                                <button class="qd-btn qd-btn-primary qd-pulse">${i18n('quickstart.demo_ui_btn_analyse', 'Analyse')}</button>
                             </div>
                             <div class="qd-analysis-result qd-fade-in">
-                                <span class="qd-tag">Rock</span><span class="qd-tag">Theatrical</span><span class="qd-tag">High Energy</span><span class="qd-tag">Melodic</span>
-                                <div style="margin-top:4px;width:100%"><button class="qd-btn qd-btn-sm qd-btn-outline">⇒ Use All as Filters</button></div>
+                                <span class="qd-tag">${i18n('quickstart.demo_ui_tag_rock', 'Rock')}</span><span class="qd-tag">${i18n('quickstart.demo_ui_tag_theatrical', 'Theatrical')}</span><span class="qd-tag">${i18n('quickstart.demo_ui_tag_high_energy', 'High Energy')}</span><span class="qd-tag">${i18n('quickstart.demo_ui_tag_melodic', 'Melodic')}</span>
+                                <div style="margin-top:4px;width:100%"><button class="qd-btn qd-btn-sm qd-btn-outline">${i18n('quickstart.demo_ui_btn_use_all_filters', '⇒ Use All as Filters')}</button></div>
                             </div>
                         </div>
                     </div>
@@ -459,31 +470,34 @@ function _step6Frames() {
             caption: i18n('quickstart.demo6_f3', 'Your profile grows stronger with every interaction ✓'),
             html: `<div class="qd-scene qd-scene-center">
                 <div class="qd-profile-growth">
-                    <div class="qd-growth-bar" style="--pct:30%">Run 1</div>
-                    <div class="qd-growth-bar" style="--pct:55%">Run 2</div>
-                    <div class="qd-growth-bar" style="--pct:80%">Run 3</div>
-                    <div class="qd-growth-bar qd-growth-current" style="--pct:95%">Run 4</div>
+                    <div class="qd-growth-bar" style="--pct:30%">${runLabel} 1</div>
+                    <div class="qd-growth-bar" style="--pct:55%">${runLabel} 2</div>
+                    <div class="qd-growth-bar" style="--pct:80%">${runLabel} 3</div>
+                    <div class="qd-growth-bar qd-growth-current" style="--pct:95%">${runLabel} 4</div>
                 </div>
-                <div class="qd-result-msg">🎯 Profile accuracy improves each run!</div>
+                <div class="qd-result-msg">${i18n('quickstart.demo_ui_msg_profile_improves', '🎯 Profile accuracy improves each run!')}</div>
             </div>`
         }
     ];
 }
 
 function _step7Frames() {
+    const secAnalysis = i18n('quickstart.demo_ui_sec_analysis', 'Band/Song Analysis');
+    const tags = `<span class="qd-tag">${i18n('quickstart.demo_ui_tag_alt_rock', 'Alt-Rock')}</span><span class="qd-tag">${i18n('quickstart.demo_ui_tag_experimental', 'Experimental')}</span><span class="qd-tag">${i18n('quickstart.demo_ui_tag_melancholic', 'Melancholic')}</span><span class="qd-tag">${i18n('quickstart.demo_ui_tag_atmospheric', 'Atmospheric')}</span>`;
+    const btnCopy = i18n('quickstart.demo_ui_btn_copy_profile', '📋 Copy to Profile');
     return [
         {
             caption: i18n('quickstart.demo7_f1', 'Open Band/Song Analysis and enter an artist'),
             html: `<div class="qd-scene">
                 <div class="qd-provider qd-provider-openai">
                     <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔍</span> Band/Song Analysis</h4></div>
+                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔍</span> ${secAnalysis}</h4></div>
                         <div class="qd-accordion-body">
                             <div class="qd-field" style="flex-direction:row;gap:6px;align-items:center">
                                 <span class="qd-input qd-typing" style="flex:1;font-family:inherit">Radiohead</span>
-                                <span class="qd-input" style="flex:1;font-family:inherit;opacity:0.4">Track (optional)</span>
+                                <span class="qd-input" style="flex:1;font-family:inherit;opacity:0.4">${i18n('quickstart.demo_ui_placeholder_track', 'Track (optional)')}</span>
                             </div>
-                            <button class="qd-btn qd-btn-primary qd-pulse" style="margin-top:6px">Analyse</button>
+                            <button class="qd-btn qd-btn-primary qd-pulse" style="margin-top:6px">${i18n('quickstart.demo_ui_btn_analyse', 'Analyse')}</button>
                         </div>
                     </div>
                 </div>
@@ -495,15 +509,15 @@ function _step7Frames() {
             html: `<div class="qd-scene">
                 <div class="qd-provider qd-provider-openai">
                     <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔍</span> Band/Song Analysis</h4></div>
+                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔍</span> ${secAnalysis}</h4></div>
                         <div class="qd-accordion-body">
                             <div class="qd-analysis-result qd-fade-in">
-                                <span class="qd-tag">Alt-Rock</span><span class="qd-tag">Experimental</span><span class="qd-tag">Melancholic</span><span class="qd-tag">Atmospheric</span>
+                                ${tags}
                             </div>
                             <div class="qd-suggestion-box qd-fade-in" style="margin-top:6px">
-                                <div style="font-size:0.7rem;font-weight:600;margin-bottom:3px">Profile Suggestions</div>
-                                <div style="font-size:0.65rem;opacity:0.8">Core: atmospheric alt-rock with emotional depth…</div>
-                                <button class="qd-btn qd-btn-sm qd-btn-outline qd-pulse" style="margin-top:4px">📋 Copy to Profile</button>
+                                <div style="font-size:0.7rem;font-weight:600;margin-bottom:3px">${i18n('quickstart.demo_ui_profile_suggestions', 'Profile Suggestions')}</div>
+                                <div style="font-size:0.65rem;opacity:0.8">${i18n('quickstart.demo_ui_example_core', 'Core: atmospheric alt-rock with emotional depth…')}</div>
+                                <button class="qd-btn qd-btn-sm qd-btn-outline qd-pulse" style="margin-top:4px">${btnCopy}</button>
                             </div>
                         </div>
                     </div>
@@ -515,16 +529,16 @@ function _step7Frames() {
             html: `<div class="qd-scene">
                 <div class="qd-provider qd-provider-openai">
                     <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔍</span> Band/Song Analysis</h4></div>
+                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔍</span> ${secAnalysis}</h4></div>
                         <div class="qd-accordion-body">
                             <div class="qd-analysis-result">
-                                <span class="qd-tag">Alt-Rock</span><span class="qd-tag">Experimental</span><span class="qd-tag">Melancholic</span><span class="qd-tag">Atmospheric</span>
+                                ${tags}
                             </div>
                             <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
-                                <button class="qd-btn qd-btn-sm qd-btn-outline">📋 Copy to Profile</button>
-                                <button class="qd-btn qd-btn-sm qd-btn-outline qd-pulse">🎛️ Use as Filters</button>
+                                <button class="qd-btn qd-btn-sm qd-btn-outline">${btnCopy}</button>
+                                <button class="qd-btn qd-btn-sm qd-btn-outline qd-pulse">${i18n('quickstart.demo_ui_btn_use_filters', '🎛️ Use as Filters')}</button>
                             </div>
-                            <div class="qd-result-msg qd-fade-in" style="margin-top:6px">✅ Suggestions copied — profile updated!</div>
+                            <div class="qd-result-msg qd-fade-in" style="margin-top:6px">${i18n('quickstart.demo_ui_msg_suggestions_copied', '✅ Suggestions copied — profile updated!')}</div>
                         </div>
                     </div>
                 </div>
@@ -661,6 +675,12 @@ export function destroyAllDemos() {
     _state.clear();
     _closeLightbox();
 }
+
+// Re-render every active demo when the UI language changes so mockup
+// strings update immediately instead of waiting for the next auto-advance.
+document.addEventListener('sv:language-changed', () => {
+    for (const step of _state.keys()) _renderFrame(step);
+});
 
 /* ── Lightbox (expanded demo view) ── */
 

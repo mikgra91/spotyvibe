@@ -207,11 +207,11 @@ export async function removeTrack(idx) {
 }
 
 export function animateRemove(idx) {
-    const el = el(`track-${idx}`);
-    if (!el) return;
-    el.style.opacity = '0';
-    el.style.transform = 'translateX(40px)';
-    setTimeout(() => el.remove(), 300);
+    const node = el(`track-${idx}`);
+    if (!node) return;
+    node.style.opacity = '0';
+    node.style.transform = 'translateX(40px)';
+    setTimeout(() => node.remove(), 300);
 
     State.spliceSuggestion(idx);
 

@@ -11,20 +11,20 @@ export function renderProviderPills() {
 }
 
 function renderOpenaiPills() {
-    const el = el('openaiStatusPills');
-    if (!el) return;
+    const container = el('openaiStatusPills');
+    if (!container) return;
     const pills = [];
     // Only show model pill — clickable to open settings
     if (State.selectedModel) {
         const label = `${i18n('pill.used_model', 'Model')}: ${escHtml(State.selectedModel)}`;
         pills.push(`<button class="status-pill status-pill--ok status-pill--clickable" onclick="openSettings()" title="${escHtml(i18n('pill.change_model', 'Change model'))}">${label}</button>`);
     }
-    el.innerHTML = pills.join('');
+    container.innerHTML = pills.join('');
 }
 
 function renderSpotifyPills() {
-    const el = el('spotifyStatusPills');
-    if (!el) return;
+    const container = el('spotifyStatusPills');
+    if (!container) return;
     const pills = [];
     const authStatus = State.spotifyAuthStatus;
     if (authStatus === 'authenticated') {
@@ -36,7 +36,7 @@ function renderSpotifyPills() {
     } else {
         pills.push(pill('warn', i18n('pill.status_unknown', 'Status unknown')));
     }
-    el.innerHTML = pills.join('');
+    container.innerHTML = pills.join('');
 }
 
 function renderDepChips() {
