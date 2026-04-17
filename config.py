@@ -369,18 +369,21 @@ def is_onboarding_completed() -> bool:
     return False
 
 
+def _persist_setting(key: str, value: str):
+    """Write a key=value pair to settings.conf and sync to os.environ."""
+    ensure_env()
+    set_key(str(SETTINGS_FILE), key, value)
+    os.environ[key] = value
+
+
 def set_onboarding_completed(completed: bool = True) -> None:
     """Persist the onboarding completion flag."""
-    ensure_env()
-    set_key(str(SETTINGS_FILE), "ONBOARDING_COMPLETED", "true" if completed else "")
-    load_dotenv(dotenv_path=str(SETTINGS_FILE), override=True)
+    _persist_setting("ONBOARDING_COMPLETED", "true" if completed else "")
 
 
 def set_gpt_language(language: str):
     """Persist the GPT language setting."""
-    ensure_env()
-    set_key(str(SETTINGS_FILE), "GPT_LANGUAGE", language)
-    load_dotenv(dotenv_path=str(SETTINGS_FILE), override=True)
+    _persist_setting("GPT_LANGUAGE", language)
 
 
 def get_ui_language():
@@ -390,9 +393,7 @@ def get_ui_language():
 
 def set_ui_language(lang: str):
     """Persist the UI language setting."""
-    ensure_env()
-    set_key(str(SETTINGS_FILE), "UI_LANGUAGE", lang)
-    os.environ["UI_LANGUAGE"] = lang
+    _persist_setting("UI_LANGUAGE", lang)
 
 
 def get_settings():
@@ -540,9 +541,7 @@ def get_active_profile_id():
 
 def set_active_profile_id(profile_id: str):
     """Store the active profile UUID in settings.conf."""
-    ensure_env()
-    set_key(str(SETTINGS_FILE), "ACTIVE_PROFILE_ID", profile_id)
-    os.environ["ACTIVE_PROFILE_ID"] = profile_id
+    _persist_setting("ACTIVE_PROFILE_ID", profile_id)
 
 
 def get_active_profile_path():
@@ -572,9 +571,7 @@ def get_llm_base_url() -> str:
 
 def set_llm_base_url(url: str):
     """Persist the LLM base URL in settings.conf."""
-    ensure_env()
-    set_key(str(SETTINGS_FILE), "LLM_BASE_URL", url.strip())
-    os.environ["LLM_BASE_URL"] = url.strip()
+    _persist_setting("LLM_BASE_URL", url.strip())
 
 
 def get_llm_provider_preset() -> str:
@@ -584,9 +581,7 @@ def get_llm_provider_preset() -> str:
 
 def set_llm_provider_preset(preset: str):
     """Persist the provider preset in settings.conf."""
-    ensure_env()
-    set_key(str(SETTINGS_FILE), "PROVIDER_PRESET", preset.strip())
-    os.environ["PROVIDER_PRESET"] = preset.strip()
+    _persist_setting("PROVIDER_PRESET", preset.strip())
 
 
 def llm_api_key_required() -> bool:

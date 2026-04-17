@@ -1,0 +1,143 @@
+/* utilities.css — Reusable utility classes (spacing, flex, typography, components) */
+
+/* --- Display & Flex --- */
+.flex          { display: flex; }
+.flex-col      { display: flex; flex-direction: column; }
+.flex-wrap     { flex-wrap: wrap; }
+.flex-center   { display: flex; align-items: center; justify-content: center; }
+.flex-between  { display: flex; align-items: center; justify-content: space-between; }
+.items-center  { align-items: center; }
+.items-start   { align-items: flex-start; }
+.justify-center { justify-content: center; }
+.flex-1        { flex: 1; min-width: 0; }
+.shrink-0      { flex-shrink: 0; }
+.w-full        { width: 100%; }
+
+/* --- Gaps --- */
+.gap-xs  { gap: var(--sp-1); }
+.gap-sm  { gap: var(--sp-2); }
+.gap-md  { gap: var(--sp-3); }
+.gap-lg  { gap: var(--sp-4); }
+
+/* --- Padding --- */
+.p-0   { padding: 0; }
+.p-xs  { padding: var(--sp-1); }
+.p-sm  { padding: var(--sp-2); }
+.p-md  { padding: var(--sp-3) var(--sp-4); }
+.p-lg  { padding: var(--sp-4) var(--sp-5); }
+.p-xl  { padding: var(--sp-8) var(--sp-6); }
+.px-sm { padding-left: var(--sp-2); padding-right: var(--sp-2); }
+.px-md { padding-left: var(--sp-4); padding-right: var(--sp-4); }
+.py-sm { padding-top: var(--sp-2); padding-bottom: var(--sp-2); }
+.py-md { padding-top: var(--sp-3); padding-bottom: var(--sp-3); }
+
+/* --- Margin --- */
+.mb-0  { margin-bottom: 0; }
+.mb-xs { margin-bottom: var(--sp-1); }
+.mb-sm { margin-bottom: var(--sp-2); }
+.mb-md { margin-bottom: var(--sp-3); }
+.mb-lg { margin-bottom: var(--sp-4); }
+.mt-sm { margin-top: var(--sp-2); }
+.mt-md { margin-top: var(--sp-3); }
+
+/* --- Typography --- */
+.text-2xs { font-size: var(--fs-2xs); }
+.text-xs  { font-size: var(--fs-xs); }
+.text-sm  { font-size: var(--fs-sm); }
+.text-md  { font-size: var(--fs-md); }
+.text-lg  { font-size: var(--fs-lg); }
+.text-xl  { font-size: var(--fs-xl); }
+.text-2xl { font-size: var(--fs-2xl); }
+
+.text-muted     { color: var(--text-muted); }
+.text-secondary { color: var(--text-secondary); }
+.text-primary   { color: var(--text-primary); }
+.text-brand     { color: var(--primary); }
+
+.font-bold   { font-weight: 700; }
+.font-semibold { font-weight: 600; }
+.font-medium { font-weight: 500; }
+.uppercase   { text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* --- Reusable component patterns --- */
+.card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+.glass {
+    background: var(--glass-bg);
+    border: var(--glass-border);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+}
+.rounded-md { border-radius: var(--radius-md); }
+.rounded-lg { border-radius: var(--radius-lg); }
+.rounded-pill { border-radius: var(--radius-pill); }
+
+.input-base {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+.input-base:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--focus-glow);
+}
+
+/* --- Icon button (36×36 square, centered content) --- */
+.btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: color var(--transition), border-color var(--transition);
+    padding: 0;
+    flex-shrink: 0;
+    font-family: inherit;
+}
+
+/* --- Form label --- */
+.form-label {
+    display: block;
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-weight: 700;
+}
+
+/* --- Checkbox row --- */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    cursor: pointer;
+    font-size: var(--fs-md);
+    color: var(--text-secondary);
+}
+.checkbox-label input[type="checkbox"] {
+    width: auto;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+/* --- Hint text --- */
+.hint {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+

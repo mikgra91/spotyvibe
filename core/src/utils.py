@@ -156,6 +156,15 @@ def sanitize_text(text):
     return text.strip()
 
 
+def safe_text(data, key):
+    """Extract, sanitize, and strip a text field from a request dict.
+
+    Shorthand for the common pattern:
+        sanitize_text(str(data.get(key) or "").strip())
+    """
+    return sanitize_text(str(data.get(key) or "").strip())
+
+
 def sanitize_profile(profile):
     """Recursively apply sanitize_text() to all string values in a profile dict."""
     if isinstance(profile, dict):

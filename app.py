@@ -94,7 +94,7 @@ from core.src.suggestions import (
 from core.src.feedback import like_track, dislike_track
 from core.src.analysis import analyze_band_song
 from core.src.history import save_run, load_runs, update_track_sentiment
-from core.src.utils import get_openai_models, clear_debug_log, sanitize_text, app_log
+from core.src.utils import get_openai_models, clear_debug_log, sanitize_text, safe_text, app_log
 from core.src.openai_http import OpenAIConfigError, OpenAIError
 from core.src.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist, delete_playlist,
@@ -108,6 +108,25 @@ from core.src.taste import aggregate_taste
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(24)
 app.config["MAX_CONTENT_LENGTH"] = GENERAL_REQUEST_MAX_BYTES
+
+# --- Performance: gzip compression for all responses ---
+try:
+    from flask_compress import Compress
+    Compress(app)
+except ImportError:
+    pass  # flask-compress is optional; skip if not installed
+
+# --- Performance: Cache-Control for static assets ---
+@app.after_request
+def _add_cache_headers(response):
+    if request.path.startswith('/static/'):
+        if '/i18n/' in request.path:
+            # Translation files: short cache so language updates propagate quickly
+            response.headers['Cache-Control'] = 'public, max-age=300'  # 5 min
+        else:
+            # CSS, JS, images, fonts: cache for 1 day
+            response.headers['Cache-Control'] = 'public, max-age=86400'
+    return response
 
 
 @app.template_filter("datetimeformat")
@@ -321,17 +340,30 @@ def help_guide(slug):
     return jsonify({"title": title, "subtitle": subtitle, "steps": steps})
 
 
+def _load_help_html(lang):
+    """Load and render the help guide to HTML for the given language.
+
+    Returns:
+        Tuple of (html, served_lang, fallback_used).
+
+    Raises:
+        FileNotFoundError: If the help file doesn't exist in any language.
+    """
+    from core.src.localised_docs import resolve_help
+    path, served_lang, fallback_used = resolve_help(lang)
+    md_text = path.read_text(encoding="utf-8")
+    html_content = markdown.markdown(md_text, extensions=["tables", "fenced_code", "toc"])
+    return html_content, served_lang, fallback_used
+
+
 @app.route("/api/help")
 def help_content():
     """Return the help guide rendered as HTML, language-aware."""
-    from core.src.localised_docs import resolve_help
     lang = get_ui_language() or 'en'
     try:
-        path, served_lang, fallback_used = resolve_help(lang)
-        md_text = path.read_text(encoding="utf-8")
-        html = markdown.markdown(md_text, extensions=["tables", "fenced_code", "toc"])
+        html_content, served_lang, fallback_used = _load_help_html(lang)
         return jsonify({
-            "html": html,
+            "html": html_content,
             "requested_lang": lang,
             "served_lang": served_lang,
             "fallback_used": fallback_used,
@@ -393,12 +425,9 @@ def _extract_help_section(full_html, anchor):
 @app.route("/api/help/section/<anchor>")
 def help_section(anchor):
     """Return a single help section by its heading anchor ID."""
-    from core.src.localised_docs import resolve_help
     lang = get_ui_language() or 'en'
     try:
-        path, served_lang, fallback_used = resolve_help(lang)
-        md_text = path.read_text(encoding="utf-8")
-        full_html = markdown.markdown(md_text, extensions=["tables", "fenced_code", "toc"])
+        full_html, served_lang, fallback_used = _load_help_html(lang)
         section_html = _extract_help_section(full_html, anchor)
         if not section_html:
             return jsonify({"error": "Section not found."}), 404
@@ -601,7 +630,6 @@ def run_pipeline():
                                 f"Sending explicit reminder to GPT…",
                     )
                     profile = update_profile(profile, result)
-                    save_profile(profile)
                     continue
 
                 # Success — reset consecutive-empty counter
@@ -639,9 +667,8 @@ def run_pipeline():
                     if run_id in _runs:
                         _runs[run_id]["verified_tracks"] = list(verified_tracks)
 
-                # 4 — Update history
+                # 4 — Update history (in memory; saved once after loop)
                 profile = update_profile(profile, result)
-                save_profile(profile)
 
                 yield _sse(
                     "progress",
@@ -682,6 +709,9 @@ def run_pipeline():
             if not verified_tracks:
                 yield _sse("error", message="No tracks could be verified on Spotify.")
                 return
+
+            # Persist accumulated profile updates (history) once after all batches
+            save_profile(profile)
 
             # Cap at target count — skip when emerging_only so all survivors are shown
             emerging_checked = len(verified_tracks)
@@ -801,9 +831,9 @@ def submit_feedback():
     """
     data   = request.get_json(force=True)
     action = data.get("action")
-    artist = sanitize_text(str(data.get("artist") or ""))
-    track  = sanitize_text(str(data.get("track") or "")) or None
-    reason = sanitize_text(str(data.get("reason") or "")) or None
+    artist = safe_text(data, "artist")
+    track  = safe_text(data, "track") or None
+    reason = safe_text(data, "reason") or None
 
     if not artist:
         return jsonify({"error": "Artist is required."}), 400
@@ -847,8 +877,8 @@ def submit_feedback():
 def remove_track():
     """Remove a track from the Spotify playlist without recording feedback."""
     data   = request.get_json(force=True)
-    artist = sanitize_text(str(data.get("artist") or ""))
-    track  = sanitize_text(str(data.get("track") or ""))
+    artist = safe_text(data, "artist")
+    track  = safe_text(data, "track")
 
     if not artist or not track:
         return jsonify({"error": "Artist and track are required."}), 400
@@ -926,20 +956,20 @@ def write_settings():
         except (ValueError, TypeError):
             return jsonify({"error": "new_artist_percentage must be a valid integer."}), 400
     if "gpt_language" in data:
-        lang = sanitize_text(str(data["gpt_language"]).strip())
+        lang = safe_text(data, "gpt_language")
         if lang:
             payload["GPT_LANGUAGE"] = lang
     if "ui_language" in data:
-        payload["UI_LANGUAGE"] = sanitize_text(str(data["ui_language"]).strip())
+        payload["UI_LANGUAGE"] = safe_text(data, "ui_language")
 
     # Wave 4: Provider preset + base URL
     valid_presets = {"openai", "ollama", "lmstudio", "groq", "openrouter"}
     if "provider_preset" in data:
-        preset = sanitize_text(str(data["provider_preset"]).strip())
+        preset = safe_text(data, "provider_preset")
         if preset in valid_presets:
             payload["PROVIDER_PRESET"] = preset
     if "llm_base_url" in data:
-        url = sanitize_text(str(data["llm_base_url"]).strip())
+        url = safe_text(data, "llm_base_url")
         if url:
             payload["LLM_BASE_URL"] = url
 
@@ -952,7 +982,7 @@ def write_settings():
 def fetch_llm_models():
     """Proxy a GET {base_url}/models to fetch available models from a provider."""
     data = request.get_json(silent=True) or {}
-    base_url = sanitize_text(str(data.get("base_url", "")).strip())
+    base_url = safe_text(data, "base_url")
     api_key = data.get("api_key", "")
 
     # Fall back to stored credential when caller doesn't provide a key
@@ -1056,8 +1086,8 @@ def analyze_endpoint():
     Returns structured JSON with genre, style_tags, characteristics, profile_suggestions.
     """
     data = request.get_json(force=True, silent=True) or {}
-    artist = sanitize_text(str(data.get("artist") or "").strip())
-    track = sanitize_text(str(data.get("track") or "").strip())
+    artist = safe_text(data, "artist")
+    track = safe_text(data, "track")
 
     if not artist:
         return jsonify({"error": "Artist name is required."}), 400
@@ -1228,28 +1258,45 @@ def reset_profile_to_history_endpoint():
 
 
 
+def _parse_profile_sections(data, require_description=False):
+    """Parse and validate profile section fields from request data.
+
+    Args:
+        data: Parsed JSON request body.
+        require_description: If True, at least one of vibe/core description must be non-empty.
+
+    Returns:
+        Tuple of (sections_dict, error_response_or_None).
+        If error_response is not None, the caller should return it immediately.
+    """
+    vibe_description = safe_text(data, "vibe_description")
+    core_description = safe_text(data, "core_description")
+
+    if require_description and not core_description and not vibe_description:
+        return None, (jsonify({"error": "Either a vibe description or core description is required."}), 400)
+    if core_description and len(core_description) > MAX_CORE_DESCRIPTION_LEN:
+        return None, (jsonify({"error": f"Core description too long (max {MAX_CORE_DESCRIPTION_LEN} chars)."}), 400)
+    if vibe_description and len(vibe_description) > MAX_CORE_DESCRIPTION_LEN:
+        return None, (jsonify({"error": f"Vibe description too long (max {MAX_CORE_DESCRIPTION_LEN} chars)."}), 400)
+
+    sections = {
+        "vibe_description": vibe_description,
+        "core_description": core_description,
+        "must_have": safe_text(data, "must_have")[:MAX_PROFILE_SECTION_LEN],
+        "soft_preferences": safe_text(data, "soft_preferences")[:MAX_PROFILE_SECTION_LEN],
+        "avoid": safe_text(data, "avoid")[:MAX_PROFILE_SECTION_LEN],
+    }
+    return sections, None
+
+
 @app.route("/api/train-profile", methods=["POST"])
 def train_profile_endpoint():
     """Send the user's structured taste description to GPT and update the profile."""
     data = request.get_json(force=True)
 
-    vibe_description = sanitize_text((data.get("vibe_description") or "").strip())
-    core_description = sanitize_text((data.get("core_description") or "").strip())
-
-    if not core_description and not vibe_description:
-        return jsonify({"error": "Either a vibe description or core description is required."}), 400
-    if core_description and len(core_description) > MAX_CORE_DESCRIPTION_LEN:
-        return jsonify({"error": f"Core description too long (max {MAX_CORE_DESCRIPTION_LEN} chars)."}), 400
-    if vibe_description and len(vibe_description) > MAX_CORE_DESCRIPTION_LEN:
-        return jsonify({"error": f"Vibe description too long (max {MAX_CORE_DESCRIPTION_LEN} chars)."}), 400
-
-    sections = {
-        "vibe_description": vibe_description,
-        "core_description": core_description,
-        "must_have": sanitize_text((data.get("must_have") or "").strip())[:MAX_PROFILE_SECTION_LEN],
-        "soft_preferences": sanitize_text((data.get("soft_preferences") or "").strip())[:MAX_PROFILE_SECTION_LEN],
-        "avoid": sanitize_text((data.get("avoid") or "").strip())[:MAX_PROFILE_SECTION_LEN],
-    }
+    sections, error = _parse_profile_sections(data, require_description=True)
+    if error:
+        return error
 
     try:
         updated = train_profile(sections)
@@ -1266,21 +1313,9 @@ def save_profile_endpoint():
     """Save the user's profile preferences directly without AI processing."""
     data = request.get_json(force=True)
 
-    vibe_description = sanitize_text((data.get("vibe_description") or "").strip())
-    core_description = sanitize_text((data.get("core_description") or "").strip())
-
-    if core_description and len(core_description) > MAX_CORE_DESCRIPTION_LEN:
-        return jsonify({"error": f"Core description too long (max {MAX_CORE_DESCRIPTION_LEN} chars)."}), 400
-    if vibe_description and len(vibe_description) > MAX_CORE_DESCRIPTION_LEN:
-        return jsonify({"error": f"Vibe description too long (max {MAX_CORE_DESCRIPTION_LEN} chars)."}), 400
-
-    sections = {
-        "vibe_description": vibe_description,
-        "core_description": core_description,
-        "must_have": sanitize_text((data.get("must_have") or "").strip())[:MAX_PROFILE_SECTION_LEN],
-        "soft_preferences": sanitize_text((data.get("soft_preferences") or "").strip())[:MAX_PROFILE_SECTION_LEN],
-        "avoid": sanitize_text((data.get("avoid") or "").strip())[:MAX_PROFILE_SECTION_LEN],
-    }
+    sections, error = _parse_profile_sections(data, require_description=False)
+    if error:
+        return error
 
     try:
         updated = save_profile_sections(sections)
@@ -1549,6 +1584,9 @@ if __name__ == "__main__":
         debug=os.environ.get("FLASK_DEBUG", "0") == "1",
         host="127.0.0.1",
         port=5000,
+        # Enable threaded mode so API calls (settings, feedback, status)
+        # are not blocked while an SSE generation stream is active.
+        threaded=True,
         # The reloader forks a child process which crashes under Chaquopy
         use_reloader=False if IS_ANDROID else None,
     )

@@ -297,3 +297,48 @@ def extract_chat_content(response: dict) -> str:
         raise OpenAIResponseError(
             f"Unexpected chat completion response structure: {exc}"
         ) from exc
+
+
+def call_gpt_json(messages, temperature=0.7, label="GPT Call"):
+    """Call GPT with JSON mode, parse the response, and return a dict.
+
+    Combines the repeated pattern of:
+        response = chat_completions_create(...)
+        raw = extract_chat_content(response)
+        debug_log(label, messages, raw)
+        content = strip_code_fences(raw)
+        result = json.loads(content)
+
+    Args:
+        messages:    List of {"role", "content"} message dicts.
+        temperature: Sampling temperature (0–2).
+        label:       Debug log label for this call.
+
+    Returns:
+        Parsed JSON dict from the GPT response.
+
+    Raises:
+        ValueError: If GPT returns empty or unparseable JSON.
+    """
+    from .utils import strip_code_fences, debug_log
+    from config import get_model
+
+    response = chat_completions_create(
+        model=get_model(),
+        messages=messages,
+        temperature=temperature,
+        response_format={"type": "json_object"},
+    )
+
+    raw = extract_chat_content(response)
+    debug_log(label, messages, raw)
+    content = strip_code_fences(raw)
+
+    if not content:
+        raise ValueError(f"AI returned an empty response ({label}). Please try again.")
+
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"AI returned invalid JSON ({label}). Please try again.") from exc
+

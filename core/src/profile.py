@@ -44,7 +44,7 @@ from config import (
     validate_profile_id,
 )
 from .utils import debug_log, strip_code_fences, sanitize_profile, sanitize_text
-from .openai_http import chat_completions_create, extract_chat_content
+from .openai_http import chat_completions_create, extract_chat_content, call_gpt_json
 
 
 # Template and prompt paths are resolved from BASE_DIR (the project root)
@@ -57,6 +57,10 @@ TRAINING_PROMPT_FILE = BASE_DIR / "prompts" / "profile_training_prompt.txt"
 # requests (e.g. feedback during generation) cannot silently overwrite
 # each other's changes.
 _profile_lock = threading.Lock()
+
+# In-memory profile cache — avoids redundant disk reads when the file
+# hasn't changed. Keyed by absolute path, stores (mtime, data).
+_profile_cache: dict = {"path": None, "mtime": 0.0, "data": None}
 
 _logger = logging.getLogger(__name__)
 
@@ -180,20 +184,38 @@ def ensure_profile():
 def load_profile():
     """Load the active music profile from the profiles directory.
 
+    Uses an mtime-based cache to avoid redundant disk reads — the file
+    is only re-parsed when its modification time changes.
+
     Thread-safe: acquires _profile_lock internally.
     Raises ValueError if no active profile is set.
     """
+    import copy
     profile_path, _ = _require_active_profile()
     with _profile_lock:
         ensure_profile()
+        resolved = str(profile_path.resolve())
+        try:
+            mtime = profile_path.stat().st_mtime
+        except OSError:
+            mtime = 0.0
+        if (_profile_cache["path"] == resolved
+                and _profile_cache["mtime"] == mtime
+                and _profile_cache["data"] is not None):
+            return copy.deepcopy(_profile_cache["data"])
         with open(profile_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        _profile_cache["path"] = resolved
+        _profile_cache["mtime"] = mtime
+        _profile_cache["data"] = data
+        return copy.deepcopy(data)
 
 
 def save_profile(profile):
     """Save the active profile, keeping one history backup.
 
     Thread-safe: acquires _profile_lock internally.
+    Invalidates the in-memory profile cache.
     Raises ValueError if no active profile is set.
     """
     profile_path, history_path = _require_active_profile()
@@ -202,6 +224,8 @@ def save_profile(profile):
             shutil.copy2(str(profile_path), str(history_path))
         with open(profile_path, "w", encoding="utf-8") as f:
             json.dump(profile, f, indent=2)
+        # Invalidate cache so next load_profile() re-reads from disk
+        _profile_cache["data"] = None
 
 
 @contextmanager
@@ -593,32 +617,7 @@ def train_profile(sections):
         {"role": "user", "content": user_message},
     ]
 
-    response = chat_completions_create(
-        model=get_model(),
-        messages=train_messages,
-        temperature=0.3,
-        response_format={"type": "json_object"},
-    )
-
-    raw_content = extract_chat_content(response)
-    if not raw_content:
-        raise ValueError(
-            "AI returned an empty response while training the profile. "
-            "Please try again."
-        )
-
-    debug_log("Profile Training", train_messages, raw_content)
-
-
-    content = strip_code_fences(raw_content)
-
-    try:
-        gpt_profile = json.loads(content)
-    except json.JSONDecodeError:
-        raise ValueError(
-            "AI returned an invalid response while training the profile. "
-            "Please try again."
-        )
+    gpt_profile = call_gpt_json(train_messages, temperature=0.3, label="Profile Training")
 
     # Start from the template to guarantee all required keys survive,
     # then deep-merge the GPT output on top (shallow .update() would lose
@@ -788,23 +787,14 @@ def draft_profile_from_playlist(summary: dict) -> dict:
         moods=moods,
     )
 
-    response = chat_completions_create(
-        model=get_model(),
-        messages=[
+    result = call_gpt_json(
+        [
             {"role": "system", "content": "You draft music taste profiles from playlist data. Return strict JSON only."},
             {"role": "user", "content": prompt},
         ],
         temperature=0.7,
-        response_format={"type": "json_object"},
+        label="Playlist Seed Draft",
     )
-
-    raw = extract_chat_content(response)
-    content = strip_code_fences(raw)
-
-    try:
-        result = json.loads(content)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"GPT returned invalid JSON for playlist seed: {exc}") from exc
 
     # Enforce shape constraints
     draft = {

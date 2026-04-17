@@ -18,8 +18,6 @@ THEME_RENDERERS.equalizer = function(canvas) {
     const MAX_H_FRAC = 0.85;
     const SPRING     = 0.08;
     const DAMPING    = 0.78;
-    const REFL_FRAC  = 0;
-
     const heights    = new Float32Array(BAR_COUNT);
     const targets    = new Float32Array(BAR_COUNT);
     const velocities = new Float32Array(BAR_COUNT);
@@ -53,8 +51,17 @@ THEME_RENDERERS.equalizer = function(canvas) {
     }
 
     const colors = new Array(BAR_COUNT);
+    // Pre-compute RGBA color strings to avoid string concatenation per bar per frame
+    const colorStrs = new Array(BAR_COUNT);
     for (var i = 0; i < BAR_COUNT; i++) {
         colors[i] = barColor(i);
+        var cr = colors[i][0] | 0, cg = colors[i][1] | 0, cb = colors[i][2] | 0;
+        colorStrs[i] = {
+            grad0:   'rgba(' + cr + ',' + cg + ',' + cb + ',0.95)',
+            grad50:  'rgba(' + cr + ',' + cg + ',' + cb + ',0.75)',
+            grad100: 'rgba(' + cr + ',' + cg + ',' + cb + ',0.35)',
+            shadow:  'rgba(' + cr + ',' + cg + ',' + cb + ',0.55)',
+        };
         phases[i] = i * 0.18 + Math.random() * 0.4;
         heights[i] = 0.05 + Math.random() * 0.15;
         targets[i] = heights[i];
@@ -63,6 +70,7 @@ THEME_RENDERERS.equalizer = function(canvas) {
     var nextBeatAt   = 800 + Math.random() * 600;
     var beatAccum    = 0;
     var lastTime     = 0;
+    var frameCount   = 0;
 
     function waveTarget(idx, time) {
         var t  = idx / BAR_COUNT;
@@ -79,6 +87,12 @@ THEME_RENDERERS.equalizer = function(canvas) {
 
         // Pause when tab/app is backgrounded
         if (document.visibilityState === 'hidden') {
+            animId = requestAnimationFrame(draw);
+            return;
+        }
+
+        // Throttle to ~30fps on mobile by skipping every other frame
+        if (isMobile && ++frameCount % 2 !== 0) {
             animId = requestAnimationFrame(draw);
             return;
         }
@@ -131,16 +145,15 @@ THEME_RENDERERS.equalizer = function(canvas) {
             var barH = heights[i] * maxBarH;
             if (barH < 1) barH = 1;
             var yTop = yFloor - barH;
-            var c    = colors[i];
-            var cr   = c[0] | 0, cg = c[1] | 0, cb = c[2] | 0;
+            var cs   = colorStrs[i];
 
             var grad = ctx.createLinearGradient(x, yFloor, x, yTop);
-            grad.addColorStop(0, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.95)');
-            grad.addColorStop(0.5, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.75)');
-            grad.addColorStop(1, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.35)');
+            grad.addColorStop(0, cs.grad0);
+            grad.addColorStop(0.5, cs.grad50);
+            grad.addColorStop(1, cs.grad100);
 
             if (!isMobile) {
-                ctx.shadowColor = 'rgba(' + cr + ',' + cg + ',' + cb + ',0.55)';
+                ctx.shadowColor = cs.shadow;
                 ctx.shadowBlur  = 14 + heights[i] * 10;
             }
 
@@ -162,14 +175,6 @@ THEME_RENDERERS.equalizer = function(canvas) {
             ctx.strokeStyle = 'rgba(255,255,255,' + (0.12 + heights[i] * 0.15) + ')';
             ctx.lineWidth   = 1;
             ctx.stroke();
-
-            var reflH = barH * REFL_FRAC;
-            var reflGrad = ctx.createLinearGradient(x, yFloor, x, yFloor + reflH);
-            reflGrad.addColorStop(0, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.12)');
-            reflGrad.addColorStop(0.6, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.03)');
-            reflGrad.addColorStop(1, 'rgba(' + cr + ',' + cg + ',' + cb + ',0.0)');
-            ctx.fillStyle = reflGrad;
-            ctx.fillRect(x, yFloor + 1, barW, reflH);
         }
 
         ctx.shadowBlur = 0;
@@ -180,12 +185,7 @@ THEME_RENDERERS.equalizer = function(canvas) {
         ctx.lineWidth   = 1;
         ctx.stroke();
 
-        if (isMobile) {
-            // Throttle to ~30fps on mobile
-            setTimeout(() => { animId = requestAnimationFrame(draw); }, 17);
-        } else {
-            animId = requestAnimationFrame(draw);
-        }
+        animId = requestAnimationFrame(draw);
     }
     animId = requestAnimationFrame(draw);
     return () => { stopped = true; cancelAnimationFrame(animId); };

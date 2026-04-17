@@ -9,8 +9,7 @@ import json
 from pathlib import Path
 
 from config import BASE_DIR, get_model, get_gpt_language
-from .utils import strip_code_fences, debug_log
-from .openai_http import chat_completions_create, extract_chat_content
+from .openai_http import call_gpt_json
 
 ANALYSIS_PROMPT_FILE = BASE_DIR / "prompts" / "analysis_prompt.txt"
 
@@ -45,24 +44,7 @@ def analyze_band_song(artist: str, track: str = "") -> dict:
         {"role": "user", "content": user_message},
     ]
 
-    response = chat_completions_create(
-        model=get_model(),
-        messages=messages,
-        temperature=0.3,
-        response_format={"type": "json_object"},
-    )
-
-    raw = extract_chat_content(response)
-    debug_log("Band/Song Analysis", messages, raw)
-
-    content = strip_code_fences(raw)
-    if not content:
-        raise ValueError("AI returned an empty response. Please try again.")
-
-    try:
-        result = json.loads(content)
-    except json.JSONDecodeError:
-        raise ValueError("AI returned invalid JSON. Please try again.")
+    result = call_gpt_json(messages, temperature=0.3, label="Band/Song Analysis")
 
     # Normalise keys so the UI always gets a predictable shape
     result.setdefault("artist", artist.strip())
