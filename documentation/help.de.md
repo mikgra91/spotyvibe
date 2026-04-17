@@ -94,6 +94,7 @@ Wähle zwischen verschiedenen Hintergrund-Designs über die Design-Umschalter un
 
 ---
 
+<a id="music-profile"></a>
 ## Musikprofil
 
 ### Profil erstellen
@@ -127,6 +128,7 @@ Du kannst ein Profil aus einer bestehenden Spotify-Playlist erstellen:
 
 ---
 
+<a id="playlist-generation"></a>
 ## Playlist generieren
 
 ### Generierungsmodi
@@ -156,6 +158,7 @@ Jeder vorgeschlagene Track zeigt 1–2 Begründungs-Chips:
 
 ---
 
+<a id="refine-playlist"></a>
 ## Playlist verfeinern
 
 Lade eine bestehende Spotify-Playlist und bewerte Tracks ohne zu generieren:
@@ -165,6 +168,7 @@ Lade eine bestehende Spotify-Playlist und bewerte Tracks ohne zu generieren:
 
 ---
 
+<a id="bandsong-analysis"></a>
 ## Band-/Song-Analyse
 
 Gib einen Künstler und optional einen Track ein. Die KI liefert:
@@ -212,6 +216,7 @@ Du siehst also niemals veraltete Diagramme eines vorherigen Profils. Ein neues P
 
 ---
 
+<a id="run-history"></a>
 ## Verlauf
 
 Zeigt vergangene Generierungs-Läufe mit Playlist-Link, Zeitstempel und Track-Liste. Die letzten 5 Läufe werden gespeichert.

@@ -8,10 +8,15 @@ const SUPPORT = (typeof window !== 'undefined')
     && (window.SpeechRecognition || window.webkitSpeechRecognition);
 
 
-const LANG_MAP = { en: 'en-US', de: 'de-DE' };
+const LANG_MAP = { en: 'en-US', de: 'de-DE', jp: 'ja-JP' };
 
 let _current = null;
 let _lastProcessedIdx = 0;
+
+function _dismissListeningToast() {
+    const toast = document.getElementById('toast');
+    if (toast) toast.classList.remove('show');
+}
 
 function _getUiLang() {
     try { return localStorage.getItem('svLang') || 'en'; } catch { return 'en'; }
@@ -38,11 +43,13 @@ export function toggleVoice(targetInputId) {
             button.setAttribute('aria-pressed', 'true');
         }
         if (srStatus) srStatus.textContent = i18n('voice.started', 'Recording started');
+        showToast(i18n('voice.listening', 'We are listening …'), 'info', 600000);
     };
 
     rec.onresult = (e) => _appendTranscriptAtCursor(target, e.results);
 
     rec.onerror = (e) => {
+        _dismissListeningToast();
         if (e.error === 'not-allowed' || e.error === 'permission-denied') {
             showToast(i18n('voice.permission_denied', 'Mic access denied. Grant permission in your browser, then try again.'));
         } else if (e.error === 'network') {
@@ -57,6 +64,7 @@ export function toggleVoice(targetInputId) {
             button.setAttribute('aria-pressed', 'false');
         }
         if (srStatus) srStatus.textContent = i18n('voice.stopped', 'Recording stopped — transcript added');
+        _dismissListeningToast();
         _current = null;
     };
 
@@ -104,6 +112,10 @@ export function init() {
     // Hide on WebView (Android)
     if (/; wv\)/.test(navigator.userAgent)) {
         btn.classList.add('hidden');
+        return;
     }
+
+    // Browser supports Speech API — show the button
+    btn.classList.remove('hidden');
 }
 

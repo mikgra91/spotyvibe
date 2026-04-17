@@ -343,27 +343,48 @@ def help_content():
 def _extract_help_section(full_html, anchor):
     """Extract a single section from rendered help HTML by heading anchor ID.
 
+    Supports two anchor styles:
+    - Heading with id attribute (toc-generated): <h2 id="anchor">...</h2>
+    - Named anchor before heading (translated files): <a id="anchor"></a><h2>...</h2>
+
     Returns everything from the matched heading up to (but not including)
     the next heading of the same or higher level. Trailing ``<hr>`` tags
     are stripped for cleaner display in the section-help popup.
     """
+    # Style 1: heading element with id attribute (toc-generated, e.g. English)
     heading_pat = re.compile(
         rf'<h([2-6])\s[^>]*id="{re.escape(anchor)}"[^>]*>',
         re.IGNORECASE,
     )
     match = heading_pat.search(full_html)
-    if not match:
-        return None
 
-    heading_level = int(match.group(1))
-    start = match.start()
+    if match:
+        heading_level = int(match.group(1))
+        start = match.start()
+        search_from = match.end()
+    else:
+        # Style 2: <a id="anchor"> immediately before a heading (translated files)
+        anchor_tag_pat = re.compile(
+            rf'<a\b[^>]*\bid="{re.escape(anchor)}"[^>]*>.*?</a>',
+            re.IGNORECASE | re.DOTALL,
+        )
+        anchor_match = anchor_tag_pat.search(full_html)
+        if not anchor_match:
+            return None
+        rest = full_html[anchor_match.end():]
+        next_heading = re.search(r'<h([2-6])[\s>]', rest, re.IGNORECASE)
+        if not next_heading:
+            return None
+        heading_level = int(next_heading.group(1))
+        start = anchor_match.start()
+        search_from = anchor_match.end() + next_heading.end()
 
     # Find the next heading at the same or higher level (lower number)
-    after = full_html[match.end():]
     levels = "".join(str(i) for i in range(1, heading_level + 1))
+    after = full_html[search_from:]
     next_match = re.search(rf"<h[{levels}][\s>]", after, re.IGNORECASE)
 
-    end = (match.end() + next_match.start()) if next_match else len(full_html)
+    end = (search_from + next_match.start()) if next_match else len(full_html)
     section = full_html[start:end].strip()
     section = re.sub(r"\s*<hr\s*/?\s*>\s*$", "", section)
     return section
