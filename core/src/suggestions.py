@@ -342,6 +342,39 @@ def _format_audio_filters(audio_filters):
     return "\n".join(lines)
 
 
+# Model-specific validation blocks injected into the unified system prompt.
+# GPT-4.1 uses chain-of-thought reasoning; GPT-5.4 uses structured candidate-pool
+# validation; default uses a simple verification instruction.
+_VALIDATION_BLOCKS = {
+    "gpt-4-1": (
+        "REASONING: Before output, reason through each candidate: "
+        "(a) not in DENY_LIST? (b) satisfies EVERY must_have — if one missing, DISCARD? "
+        "(c) matches ZERO avoid traits — if one matches, DISCARD? "
+        "Only output tracks passing all checks."
+    ),
+    "gpt-5-4": (
+        "VALIDATION: Build candidate pool > {batch_size}. For each candidate verify:\n"
+        "(a) Artist NOT in any DENY_LIST section — else DISCARD.\n"
+        "(b) Track NOT in any DENY_LIST section — else DISCARD.\n"
+        "(c) Satisfies EVERY must_have trait — if even one missing, DISCARD.\n"
+        "(d) Matches ZERO avoid traits — if even one matches, DISCARD.\n"
+        "(e) Per-artist count ≤ 2.\n"
+        "Select {batch_size} maximizing fit + diversity. "
+        "Ensure ≥ {min_new_artists} from new artists."
+    ),
+}
+_DEFAULT_VALIDATION = "VALIDATION: Before output, verify every track against constraints 1–7. Replace failures."
+
+
+def _get_validation_block(model_name):
+    """Return the validation block matching *model_name*, falling back to default."""
+    slug = re.sub(r"[^a-z0-9-]", "-", model_name.lower()).strip("-")
+    for key, block in _VALIDATION_BLOCKS.items():
+        if key in slug:
+            return block
+    return _DEFAULT_VALIDATION
+
+
 def build_messages(profile, accepted_tracks=None, batch_size=None,
                    recently_filtered_tracks=None,
                    new_artist_percentage=30, batch_num=0,
@@ -367,12 +400,10 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
 
     gpt_language = get_gpt_language()
 
-    # Check for a model-specific system prompt (e.g. system_prompt_gpt-4-1.txt).
-    # Falls back to the default system_prompt.txt if not found.
-    model_slug = re.sub(r"[^a-z0-9-]", "-", get_model().lower()).strip("-")
-    model_specific_file = BASE_DIR / "prompts" / f"system_prompt_{model_slug}.txt"
-    active_prompt_file = model_specific_file if model_specific_file.exists() else SYSTEM_PROMPT_FILE
-    system_prompt = load_text_file(active_prompt_file)
+    # Single unified system prompt with model-specific validation block injection.
+    system_prompt = load_text_file(SYSTEM_PROMPT_FILE)
+    validation_block = _get_validation_block(get_model())
+    system_prompt = system_prompt.replace("{validation_block}", validation_block)
     system_prompt = system_prompt.replace("{batch_size}", str(effective_batch_size))
     system_prompt = system_prompt.replace("{new_artist_percentage}", str(new_artist_percentage))
     system_prompt = system_prompt.replace("{min_new_artists}", str(min_new_artists))
