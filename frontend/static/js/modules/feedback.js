@@ -2,6 +2,7 @@ import * as State from './state.js';
 import { showToast, showAlert, esc, attr } from './ui.js';
 import { i18n } from './i18n.js';
 import { buildRationaleHtml } from './rationale.js';
+import { resetDashboard } from './taste_dashboard.js';
 
 /**
  * Build the inner HTML for a track card (shared by discover and review lists).
@@ -154,6 +155,8 @@ export async function submitFeedback(idx) {
         } else {
             showToast(i18n('feedback.liked', '👍 Liked: {track}').replace('{track}', `${artist}${trackLabel}`));
         }
+
+        resetDashboard();
 
         const fbTrack = State.suggestions[idx];
         animateRemove(idx);

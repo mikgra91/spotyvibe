@@ -47,7 +47,7 @@
             <span class="emerging-artists-hint" id="emergingArtistsHint" data-i18n="generate.emerging_only_hint">Only suggest tracks by artists who debuted in the last 6 months.</span>
             <details class="learn-more">
                 <summary data-i18n="common.learn_more">Learn more</summary>
-                <div class="learn-more-body">A strong bias toward discovery. Skips well-known acts entirely. Works best in combination with a high exploration setting.</div>
+                <div class="learn-more-body" data-i18n="generate.emerging_learn_more">A strong bias toward discovery. Skips well-known acts entirely. Works best in combination with a high exploration setting.</div>
             </details>
         </div>
 
@@ -58,13 +58,12 @@
                 <span class="audio-filter-chevron" id="audioFilterToggleBtn" aria-hidden="true">▼</span>
             </div>
             <div class="audio-filter-body hidden" id="audioFiltersBody">
-                <p class="audio-filter-hint">Filters are applied per generation — they constrain GPT to suggest only tracks matching these ranges. They are <strong>not</strong> saved in your profile.
-                    Use <a href="#analysisSection" class="audio-filter-jump" onclick="event.preventDefault(); jumpToAnalysis()">🔍 Band/Song Analysis</a> to find reference values for any artist or track.</p>
+                <p class="audio-filter-hint" data-i18n-html="af.hint_text">Filters are applied per generation — they constrain GPT to suggest only tracks matching these ranges. They are <strong>not</strong> saved in your profile. Use <a href="#analysisSection" class="audio-filter-jump" onclick="event.preventDefault(); jumpToAnalysis()">🔍 Band/Song Analysis</a> to find reference values for any artist or track.</p>
                 <div class="audio-filter-grid-header">
                     <span></span>
-                    <span class="audio-filter-col-label">Min</span>
-                    <span class="audio-filter-col-label">Max</span>
-                    <button type="button" class="audio-filter-clear-btn" onclick="clearAllFilters()" title="Clear all filters">✕ Clear all</button>
+                    <span class="audio-filter-col-label" data-i18n="af.col_min">Min</span>
+                    <span class="audio-filter-col-label" data-i18n="af.col_max">Max</span>
+                    <button type="button" class="audio-filter-clear-btn" onclick="clearAllFilters()" data-i18n="af.clear_all" data-i18n-title="af.clear_all_title" title="Clear all filters">✕ Clear all</button>
                 </div>
                 <div class="audio-filter-grid">
                     <div class="audio-filter-row">

@@ -3,6 +3,7 @@ import { buildTrackCardHtml } from './feedback.js';
 import { showToast, showAlert, showConfirm } from './ui.js';
 import { i18n } from './i18n.js';
 import { refreshDiscoverPlaylistPicker } from './playlist-mode.js';
+import { resetDashboard } from './taste_dashboard.js';
 
 export function toggleReviewBody() {
     const body = document.getElementById('reviewBody');
@@ -168,6 +169,8 @@ export async function submitReviewFeedback(idx) {
         } else {
             showToast(i18n('review.liked', '👍 Liked: {track}').replace('{track}', `${artist}${trackLabel}`));
         }
+
+        resetDashboard();
 
         animateReviewRemove(idx);
     } catch (e) {

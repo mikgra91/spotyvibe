@@ -691,7 +691,7 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
         const data = await resp.json();
 
         if (!resp.ok || data.error) {
-            showAlert('Error: ' + (data.error || 'unknown'));
+            showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', data.error || 'unknown'));
             return;
         }
 
@@ -718,7 +718,7 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
         await checkProfileStatus();
 
     } catch (e) {
-        showAlert('Network error: ' + e.message);
+        showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
     } finally {
         if (textInterval) clearInterval(textInterval);
         document.getElementById('trainSpinner')?.classList.add('hidden');

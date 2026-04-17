@@ -7,7 +7,7 @@ let _obStrings = {};
 
 async function obSwitchLang(lang) {
     localStorage.setItem('svLang', lang);
-    const langMap = { en: 'English', de: 'German' };
+    const langMap = { en: 'English', de: 'German', jp: 'Japanese' };
     const gptLang = langMap[lang];
     const payload = { ui_language: lang };
     if (gptLang) payload.gpt_language = gptLang;

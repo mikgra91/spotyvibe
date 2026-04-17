@@ -299,6 +299,18 @@
     color: var(--text-primary);
     margin: 0;
 }
+.accordion-summary {
+    font-weight: 400;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-left: 8px;
+}
+.accordion-summary::before {
+    content: "— ";
+}
+.accordion-panel.open .accordion-summary {
+    display: none;
+}
 .accordion-header .accordion-chevron {
     font-size: 0.7rem;
     color: var(--text-muted);
@@ -334,6 +346,28 @@
     color: var(--error);
     margin-top: 4px;
     display: none;
+}
+
+/* ── AI-managed section divider ──────────────────────────────────── */
+.ai-section-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 22px 0 15px;
+}
+.ai-section-divider-line {
+    flex: 1;
+    height: 2px;
+    background: var(--border);
+    opacity: 0.5;
+}
+.ai-section-divider-label {
+    font-size: 0.84rem;
+    font-weight: 650;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.10em;
+    white-space: nowrap;
 }
 
 /* --- Train spinner --- (canonical definition in sections.css) */
