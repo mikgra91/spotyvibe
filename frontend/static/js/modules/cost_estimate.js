@@ -2,6 +2,7 @@
  * cost_estimate.js — Token & cost estimator widget (Wave 4 E.2)
  */
 import { i18n } from './i18n.js';
+import { el } from './dom.js';
 
 let _pricingCache = null;
 
@@ -38,15 +39,15 @@ export async function estimate({ model, profileText, tracks }) {
 function _getProfileText() {
     const fields = ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid'];
     return fields.map(id => {
-        const el = document.getElementById(id);
-        return el ? el.value : '';
+        const node = el(id);
+        return node ? node.value : '';
     }).join('\n');
 }
 
 function _getModel() {
-    const freetext = document.getElementById('settings-model-freetext');
+    const freetext = el('settings-model-freetext');
     if (freetext && !freetext.classList.contains('hidden')) return freetext.value.trim();
-    const select = document.getElementById('settings-model');
+    const select = el('settings-model');
     return select ? select.value : '';
 }
 
@@ -70,12 +71,11 @@ async function _refresh() {
     const result = await estimate({ model, profileText, tracks });
 
     // Full card
-    const card = document.getElementById('costEstimateCard');
-    const unavail = document.getElementById('costUnavailable');
+    const card = el('costEstimateCard');
+    const unavail = el('costUnavailable');
 
     if (card) {
         if (result) {
-            const el = (id) => document.getElementById(id);
             if (el('costModelName')) el('costModelName').textContent = result.model;
             if (el('costProfileTokens')) el('costProfileTokens').textContent = i18n('cost.tokens_approx', '~{n} tokens').replace('{n}', result.profileTokens.toLocaleString());
             if (el('costTracks')) el('costTracks').textContent = i18n('cost.tracks_count', '{n} tracks').replace('{n}', result.tracks);
@@ -85,15 +85,14 @@ async function _refresh() {
             if (unavail) unavail.classList.add('hidden');
         } else {
             if (unavail) unavail.classList.remove('hidden');
-            const el = (id) => document.getElementById(id);
             if (el('costModelName')) el('costModelName').textContent = model || '—';
             if (el('costTotal')) el('costTotal').textContent = '—';
         }
     }
 
     // Footnote
-    const footnote = document.getElementById('costFootnote');
-    const footnoteText = document.getElementById('costFootnoteText');
+    const footnote = el('costFootnote');
+    const footnoteText = el('costFootnoteText');
     if (footnote && footnoteText) {
         if (result) {
             footnoteText.textContent = i18n('cost.footnote_tpl', '≈ {cost} · {model} · est.')
@@ -111,7 +110,6 @@ async function _refresh() {
 }
 
 function _refreshPopoverCard(result, model) {
-    const el = (id) => document.getElementById(id);
     const unavail = el('costPopUnavailable');
 
     if (result) {
@@ -131,8 +129,8 @@ function _refreshPopoverCard(result, model) {
 
 export function toggleCostPopover(e) {
     if (e) e.stopPropagation();
-    const popover = document.getElementById('costPopoverCard');
-    const footnote = document.getElementById('costFootnote');
+    const popover = el('costPopoverCard');
+    const footnote = el('costFootnote');
     if (!popover) return;
 
     const isOpen = !popover.classList.contains('hidden');
@@ -141,8 +139,8 @@ export function toggleCostPopover(e) {
 }
 
 function _closeCostPopover() {
-    const popover = document.getElementById('costPopoverCard');
-    const footnote = document.getElementById('costFootnote');
+    const popover = el('costPopoverCard');
+    const footnote = el('costFootnote');
     if (popover) popover.classList.add('hidden');
     if (footnote) footnote.setAttribute('aria-expanded', 'false');
 }
@@ -159,22 +157,22 @@ export function init() {
 
     // Wire listeners for live refresh
     ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('blur', _debouncedRefresh);
+        const node = el(id);
+        if (node) node.addEventListener('blur', _debouncedRefresh);
     });
 
-    const modelSelect = document.getElementById('settings-model');
+    const modelSelect = el('settings-model');
     if (modelSelect) modelSelect.addEventListener('change', _debouncedRefresh);
 
-    const modelFreetext = document.getElementById('settings-model-freetext');
+    const modelFreetext = el('settings-model-freetext');
     if (modelFreetext) modelFreetext.addEventListener('input', _debouncedRefresh);
 
     // Size slider → refresh cost estimate
-    const sizeSlider = document.getElementById('genSize');
+    const sizeSlider = el('genSize');
     if (sizeSlider) sizeSlider.addEventListener('input', _debouncedRefresh);
 
     // Settings modal open → refresh
-    const settingsModal = document.getElementById('settingsModal');
+    const settingsModal = el('settingsModal');
     if (settingsModal) {
         const observer = new MutationObserver(() => {
             if (settingsModal.classList.contains('open')) _refresh();
@@ -192,8 +190,8 @@ export function init() {
 
     // Dismiss popover on click-outside
     document.addEventListener('click', (e) => {
-        const popover = document.getElementById('costPopoverCard');
-        const footnote = document.getElementById('costFootnote');
+        const popover = el('costPopoverCard');
+        const footnote = el('costFootnote');
         if (popover && !popover.classList.contains('hidden')) {
             if (!popover.contains(e.target) && !footnote?.contains(e.target)) {
                 _closeCostPopover();

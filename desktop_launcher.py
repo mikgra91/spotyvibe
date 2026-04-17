@@ -196,9 +196,22 @@ _CHROME_JS = r"""(function() {
     fr.className = 'desktop-frame desktop-frame-r';
     document.body.appendChild(fr);
 
-    /* ---- Push page content below title bar ---------------------------- */
+    /* ---- Push page content below title bar + confine scrollbar -------- */
     document.documentElement.style.setProperty('--titlebar-h', '64px');
-    document.body.style.paddingTop = '64px';
+
+    // Wrap all page content in a fixed container that starts below the title
+    // bar so the scrollbar track is confined to the area beneath it and does
+    // not overlap the title bar.
+    var sw = document.createElement('div');
+    sw.id = 'sv-scroll-wrapper';
+    sw.style.cssText = 'position:fixed;top:64px;left:2px;right:2px;bottom:0;overflow-y:scroll;overflow-x:hidden;';
+    Array.from(document.body.children).forEach(function(el) {
+        if (el.id !== 'desktop-titlebar' && !el.classList.contains('desktop-frame')) {
+            sw.appendChild(el);
+        }
+    });
+    document.body.appendChild(sw);
+    document.body.style.overflow = 'hidden';
 
     /* ---- Button handlers ---------------------------------------------- */
     var maxBtn = document.getElementById('dt-max-btn');

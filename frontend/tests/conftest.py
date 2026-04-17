@@ -2,6 +2,7 @@
 sys.path and ensures Playwright browsers are available."""
 
 import json
+import logging
 import socket
 import subprocess
 import sys
@@ -11,6 +12,17 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
+# Silence werkzeug's per-request INFO logging — test runs otherwise dump
+# hundreds of "127.0.0.1 - - [ts] GET /static/..." lines that drown real signal.
+logging.getLogger("werkzeug").setLevel(logging.WARNING)
+
+# Enable HTTP/1.1 on the Flask dev server so the browser keeps TCP connections
+# alive. Without this, every request closes its socket, and on Windows the
+# resulting TIME_WAIT backlog exhausts ephemeral ports when several test
+# groups run in parallel — surfacing as net::ERR_ADDRESS_IN_USE in Playwright.
+from werkzeug.serving import WSGIRequestHandler
+WSGIRequestHandler.protocol_version = "HTTP/1.1"
 
 # Allow imports like `from config import ...` and `from core.xxx import ...`
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))

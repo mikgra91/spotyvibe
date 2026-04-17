@@ -3,15 +3,21 @@
  */
 import { i18n } from './i18n.js';
 import { showToast } from './ui.js';
+import { el } from './dom.js';
 
 const SUPPORT = (typeof window !== 'undefined')
     && (window.SpeechRecognition || window.webkitSpeechRecognition);
 
 
-const LANG_MAP = { en: 'en-US', de: 'de-DE' };
+const LANG_MAP = { en: 'en-US', de: 'de-DE', jp: 'ja-JP' };
 
 let _current = null;
 let _lastProcessedIdx = 0;
+
+function _dismissListeningToast() {
+    const toast = el('toast');
+    if (toast) toast.classList.remove('show');
+}
 
 function _getUiLang() {
     try { return localStorage.getItem('svLang') || 'en'; } catch { return 'en'; }
@@ -27,9 +33,9 @@ export function toggleVoice(targetInputId) {
     rec.continuous = true;
     rec.interimResults = false;
 
-    const target = document.getElementById(targetInputId);
-    const button = document.getElementById('voiceBtnVibe');
-    const srStatus = document.getElementById('voiceSrStatus');
+    const target = el(targetInputId);
+    const button = el('voiceBtnVibe');
+    const srStatus = el('voiceSrStatus');
 
     rec.onstart = () => {
         _lastProcessedIdx = 0;
@@ -38,11 +44,13 @@ export function toggleVoice(targetInputId) {
             button.setAttribute('aria-pressed', 'true');
         }
         if (srStatus) srStatus.textContent = i18n('voice.started', 'Recording started');
+        showToast(i18n('voice.listening', 'We are listening …'), 'info', 600000);
     };
 
     rec.onresult = (e) => _appendTranscriptAtCursor(target, e.results);
 
     rec.onerror = (e) => {
+        _dismissListeningToast();
         if (e.error === 'not-allowed' || e.error === 'permission-denied') {
             showToast(i18n('voice.permission_denied', 'Mic access denied. Grant permission in your browser, then try again.'));
         } else if (e.error === 'network') {
@@ -57,6 +65,7 @@ export function toggleVoice(targetInputId) {
             button.setAttribute('aria-pressed', 'false');
         }
         if (srStatus) srStatus.textContent = i18n('voice.stopped', 'Recording stopped — transcript added');
+        _dismissListeningToast();
         _current = null;
     };
 
@@ -92,7 +101,7 @@ function _appendTranscriptAtCursor(textarea, results) {
 export function init() {
     window.toggleVoice = toggleVoice;
 
-    const btn = document.getElementById('voiceBtnVibe');
+    const btn = el('voiceBtnVibe');
     if (!btn) return;
 
     // Hide on unsupported browsers
@@ -104,6 +113,10 @@ export function init() {
     // Hide on WebView (Android)
     if (/; wv\)/.test(navigator.userAgent)) {
         btn.classList.add('hidden');
+        return;
     }
+
+    // Browser supports Speech API — show the button
+    btn.classList.remove('hidden');
 }
 

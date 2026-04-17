@@ -1,7 +1,7 @@
 # SpotyVibe Benutzerhandbuch
 
 Willkommen bei **SpotyVibe** — deinem KI-gestützten Musikentdeckungs-Assistenten.
-Diese Anleitung erklärt, wie du die **SpotyVibe-Oberfläche** nutzt, um deine Vorlieben einzurichten, Spotify zu verbinden, Playlists zu generieren und Empfehlungen zu verfeinern.
+Diese Anleitung erklärt, wie du die **SpotyVibe-Oberfläche** nutzt, um deine Vorlieben einzurichten, Spotify zu verbinden, Playlists zu generieren und Empfehlungen im Laufe der Zeit zu verfeinern.
 
 ---
 
@@ -9,230 +9,1061 @@ Diese Anleitung erklärt, wie du die **SpotyVibe-Oberfläche** nutzt, um deine V
 
 - [Datenschutz — Was dein Gerät verlässt](#datenschutz--was-dein-gerät-verlässt)
 - [Erste Schritte](#erste-schritte)
+  - [Übersicht](#übersicht)
+  - [Voraussetzungen](#voraussetzungen)
+  - [Die Hauptansicht verstehen](#die-hauptansicht-verstehen)
+  - [Schnellstart-Anleitung](#schnellstart-anleitung)
 - [Kontoeinrichtung](#kontoeinrichtung)
+  - [Menü öffnen](#menü-öffnen)
+  - [Zugangsdaten eingeben](#zugangsdaten-eingeben)
+  - [Spotify-Konto verbinden](#spotify-konto-verbinden)
 - [Benutzereinstellungen](#benutzereinstellungen)
+  - [Einstellungen](#einstellungen)
+  - [Sprache](#sprache)
+  - [Design](#design)
 - [Musikprofil](#musikprofil)
-- [Playlist generieren](#playlist-generieren)
+  - [Musikprofil erstellen](#musikprofil-erstellen)
+    - [Profil auswählen oder erstellen](#profil-auswählen-oder-erstellen)
+    - [Profilstatus](#profilstatus)
+    - [Beschreibe deinen Vibe](#beschreibe-deinen-vibe)
+    - [Kernbeschreibung](#kernbeschreibung)
+    - [Muss vorhanden sein](#muss-vorhanden-sein)
+    - [Weiche Präferenzen](#weiche-präferenzen)
+    - [Vermeiden](#vermeiden)
+    - [Speichern oder KI-Profil-Update](#speichern-oder-ki-profil-update)
+    - [Was die KI im Hintergrund tut](#was-die-ki-im-hintergrund-tut)
+  - [Profil importieren, exportieren, zurücksetzen und löschen](#profil-importieren-exportieren-zurücksetzen-und-löschen)
+  - [Geschmack im Laufe der Zeit aktualisieren](#geschmack-im-laufe-der-zeit-aktualisieren)
+- [Entdeckung & Analyse](#entdeckung--analyse)
+  - [Band-/Song-Analyse](#band-song-analyse)
+- [Playlist-Generierung](#playlist-generierung)
+  - [Playlist-Modus wählen](#playlist-modus-wählen)
+  - [Schnell- vs. Erweitert-Modus](#schnell--vs-erweitert-modus)
+  - [Erkundungs-Regler](#erkundungs-regler)
+  - [Generierungs-Voreinstellungen](#generierungs-voreinstellungen)
+  - [Audio-Filter verwenden](#audio-filter-verwenden)
+    - [Band-/Song-Analyse zum Setzen von Filtern nutzen](#band-song-analyse-zum-setzen-von-filtern-nutzen)
+  - [Nur aufstrebende Künstler](#nur-aufstrebende-künstler)
+  - [Generierung starten](#generierung-starten)
+  - [Vorzeitig stoppen oder aktuelle Tracks verwenden](#vorzeitig-stoppen-oder-aktuelle-tracks-verwenden)
+- [Track-Bewertung & Feedback](#track-bewertung--feedback)
+  - [Track vorhören](#track-vorhören)
+  - [Spotify-Links öffnen](#spotify-links-öffnen)
+  - [Track liken](#track-liken)
+  - [Track disliken](#track-disliken)
+  - [Track entfernen](#track-entfernen)
 - [Playlist verfeinern](#playlist-verfeinern)
-- [Band-/Song-Analyse](#band-song-analyse)
-- [Verlauf](#verlauf)
-- [Fehlerbehebung](#fehlerbehebung)
+  - [Playlist auswählen und laden](#playlist-auswählen-und-laden)
+  - [Tracks durchgehen](#tracks-durchgehen)
+  - [Track liken (Verfeinern)](#track-liken-verfeinern)
+  - [Track disliken (Verfeinern)](#track-disliken-verfeinern)
+  - [Track verwerfen](#track-verwerfen)
+- [Geschmacks-Dashboard](#geschmacks-dashboard)
+  - [Dashboard öffnen](#dashboard-öffnen)
+  - [Diagramme](#diagramme)
+  - [Stimmungsabschnitte](#stimmungsabschnitte)
+  - [Profil-Isolation](#profil-isolation)
+- [Songliste & Lauf-Verlauf](#songliste--lauf-verlauf)
+  - [Beständige Songliste](#beständige-songliste)
+  - [Lauf-Verlauf](#lauf-verlauf)
+- [Mobile Nutzung](#mobile-nutzung)
+- [Fehlerbehebung & Tipps](#fehlerbehebung--tipps)
+  - [Fehlerbehebung](#fehlerbehebung)
+  - [Abschließende Tipps](#abschließende-tipps)
 
 ---
 
+<a id="datenschutz--was-dein-gerät-verlässt"></a>
 ## Datenschutz — Was dein Gerät verlässt
 
-| Ziel | Was gesendet wird | Warum |
-|------|-------------------|-------|
-| **OpenAI API** | Dein Geschmacksprofil (JSON), Vorschlags-Verlauf, Feedback-Zusammenfassung | Vorschläge generieren, Profil trainieren, Analyse |
-| **Spotify API** | OAuth-Token, Track-Suchen, Playlist-Änderungen | Tracks verifizieren, Playlists verwalten |
-| **Nirgendwo sonst** | Keine Telemetrie, keine Tracking-Pixel, kein externes Analytics | — |
+SpotyVibe speichert deine Schlüssel und dein Geschmacksprofil auf deinem Gerät. Wenn du eine Playlist generierst, wird dein Geschmacksprofil an OpenAI gesendet (um Vorschläge zu erhalten) und die Songtitel werden an Spotify gesendet (um sie zu verifizieren und zu speichern). Mehr wird nicht übertragen.
 
-Deine API-Schlüssel werden im OS-Schlüsselbund gespeichert (Windows Credential Manager / macOS Keychain). Keine Daten werden an SpotyVibe-Server oder Dritte gesendet.
+| Daten | Auf dem Gerät | An OpenAI | An Spotify |
+|-------|---------------|-----------|------------|
+| API-Schlüssel | ✓ | — | — |
+| Geschmacksprofil (Text) | ✓ | ✓ (pro Generierung) | — |
+| Song-Bewertungen | ✓ | ✓ (pro Generierung) | — |
+| Vorgeschlagene Songtitel | ✓ | — | ✓ (Suche / Hinzufügen) |
+| Hörverlauf | — | — | ✓ (einmal gelesen) |
+
+Gilt für die Standard-Einrichtung von SpotyVibe. Eigene LLM-Endpunkte können Daten anders verarbeiten.
 
 ---
 
+<a id="erste-schritte"></a>
 ## Erste Schritte
 
+<a id="übersicht"></a>
 ### Übersicht
 
-SpotyVibe ist in zwei Hauptbereiche unterteilt:
+SpotyVibe hilft dir, Musik basierend auf deinem persönlichen Geschmack zu entdecken.
+Du beschreibst, was dir gefällt, verbindest dein Spotify-Konto und lässt die App auf dich zugeschnittene Playlist-Vorschläge generieren.
 
-- **OpenAI** — Geschmacksprofil-Training und KI-gestützte Band-/Song-Analyse
-- **Spotify** — Musik entdecken (Playlist-Generierung), Playlist verfeinern, Verlauf
+Je mehr Feedback du gibst, desto besser werden die Empfehlungen.
 
+SpotyVibe läuft auf **Windows**, **macOS** und **Linux**. Unter Windows läuft es als native Desktop-App (PyInstaller-Executable). Auf macOS und Linux installierst du das Python-Paket (`pip install spotyvibe-*.whl`) und führst `spotyvibe` aus — der Server startet und öffnet automatisch deinen Browser.
+
+![Hauptbildschirm](/docs/screenshots/01_main_home_screen.png)
+
+---
+
+<a id="voraussetzungen"></a>
 ### Voraussetzungen
 
-1. **OpenAI API-Schlüssel** — von [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
-2. **Spotify-Zugangsdaten** — Client ID und Secret von [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard)
-3. **Redirect URI** — `http://127.0.0.1:5000/callback` muss in deinem Spotify-Dashboard eingetragen sein
+Um SpotyVibe zu nutzen, benötigst du:
+
+- Ein **Spotify Premium**-Konto
+- Deinen **OpenAI API-Schlüssel**
+- Deine **Spotify Client ID**
+- Dein **Spotify Client Secret**
+
+Du gibst diese Daten während der Einrichtung in der App ein.
+
+![Zugangsdaten-Bildschirm](/docs/screenshots/24_onboarding_credentials.png)
 
 ---
 
+<a id="die-hauptansicht-verstehen"></a>
+### Die Hauptansicht verstehen
+
+Wenn du SpotyVibe öffnest, siehst du die Hauptoberfläche mit zwei Anbieterbereichen:
+
+- **OpenAI** — Geschmacksprofil-Editor, KI-Profil-Updates und KI-Band-/Song-Analyse.
+- **Spotify** — Playlist-Generierung, Playlist-Verfeinerung und Lauf-Verlauf.
+
+Status-Anzeigen oben in jedem Bereich zeigen, ob deine Zugangsdaten konfiguriert und verbunden sind.
+
+Jede Hauptkomponente ist **auf-/zuklappbar**. Du kannst auf die Bereichsüberschrift (irgendwo im Titelbereich) oder den Ein-/Ausblenden-Button klicken, um sie auf- oder zuzuklappen. Eine kurze Beschreibung unter jedem Titel erklärt, was die Komponente tut.
+
+Jede Bereichsüberschrift hat auch ein kleines **?**-Hilfe-Symbol. Klicke darauf, um diese Anleitung direkt zum relevanten Abschnitt geöffnet zu bekommen.
+
+Die Hauptansicht ist in aufklappbare Komponenten unterteilt, gruppiert unter zwei Anbieterbereichen:
+
+**OpenAI-Bereich:**
+- **🎯 Musikprofil** — Definiere deinen Musikgeschmack — Genres, Stimmungen, Muss-Kriterien und Ausschlüsse.
+- **🔍 Band-/Song-Analyse** — Erhalte eine KI-gestützte Analyse eines beliebigen Künstlers oder Tracks mit kopierfertigen Profilvorschlägen.
+
+**Spotify-Bereich:**
+- **🎧 Musik entdecken** — Erstelle KI-gestützte Playlists und speichere sie direkt in deinem Spotify-Konto. Enthält ein optionales **Audio-Filter**-Panel, um Vorschläge nach Stimmung einzugrenzen. *(Standardmäßig zugeklappt.)*
+- **🔄 Playlist verfeinern** — Lade eine bestehende Playlist und gib Track-für-Track-Feedback, um dein Geschmacksprofil zu verfeinern. *(Standardmäßig zugeklappt.)*
+- **🕓 Verlauf** — Vergangene Generierungs-Läufe anzeigen.
+
+Der allgemeine Ablauf ist:
+
+1. Menü öffnen und Einrichtung abschließen
+2. Musikprofil erstellen oder verfeinern
+3. Playlist generieren
+4. Songs bewerten und Feedback geben
+5. Wiederholen, um künftige Empfehlungen zu verbessern
+
+Am oberen Seitenrand kannst du außerdem zugreifen auf:
+
+- Das **Menü**
+- Die **Sprachauswahl**
+- Die **Design-Auswahl**
+
+![Header mit Menü-, Sprach- und Design-Steuerung](/docs/screenshots/02_header_controls.png)
+
+---
+
+<a id="schnellstart-anleitung"></a>
+### Schnellstart-Anleitung
+
+Wenn du SpotyVibe zum ersten Mal öffnest, erscheint automatisch eine **Schnellstart-Anleitung** für den aktiven Anbieterbereich. Die Anleitung ist in zwei anbieterspezifische Varianten aufgeteilt:
+
+- **🤖 OpenAI-Schnellstart** — Einrichtung, Profil erstellen, Wiederholen & Verbessern.
+- **🎵 Spotify-Schnellstart** — Einrichtung, Playlist generieren, Bewerten & Feedback, Bestehende Playlists verfeinern, Wiederholen & Verbessern.
+
+Jede Variante zeigt nur die für ihren Anbieter relevanten Schritte und hat ihre eigene „Nicht mehr anzeigen"-Einstellung.
+
+**Die Anleitung verwenden:**
+
+- Die **Inhaltsseite** listet nur die Schritte für den aktiven Anbieter. Klicke auf einen Eintrag, um direkt zu diesem Schritt zu springen.
+- Jeder Schritt hat eine Textbeschreibung, eine **Wichtige Aktionen**-Checkliste und eine **interaktive Demo**, die genau zeigt, was in der App zu klicken ist.
+- Die Demos spielen automatisch ab — nutze **▶/⏸** zum Pausieren oder **‹ / ›** zum manuellen Durchblättern.
+- Verwende die **nummerierten Punkte** oder **Zurück / Weiter**-Buttons am unteren Rand, um zwischen Schritten zu navigieren.
+- Beim letzten Schritt wird **Weiter** zu **Los geht's** und schließt die Anleitung.
+
+**Ausblenden und erneut öffnen:**
+
+- Aktiviere **„Nicht mehr anzeigen"** auf einer beliebigen Seite, damit die Anleitung dieses Anbieters bei zukünftigen Besuchen nicht mehr erscheint.
+- Wenn du zum ersten Mal in einer Sitzung zum anderen Anbieter wechselst, wird dessen Anleitung automatisch angezeigt (sofern nicht ausgeblendet).
+- Um sie jederzeit erneut zu öffnen, klicke auf **☰ → 🚀 Schnellstart** (öffnet die Anleitung für den aktuell aktiven Anbieter).
+
+![Schnellstart-Anleitung Inhaltsseite](/docs/screenshots/26_quickstart_toc.png)
+
+---
+
+<a id="kontoeinrichtung"></a>
 ## Kontoeinrichtung
 
+<a id="menü-öffnen"></a>
 ### Menü öffnen
 
-Klicke auf das **☰ Menü** (Zahnrad-Symbol) oben rechts, um auf Zugangsdaten, Einstellungen, Hilfe und Schnellstart zuzugreifen.
+Klicke auf das **☰ Menü-Symbol** (Hamburger-Menü) oben rechts, um das Menü zu öffnen.
 
+Von hier aus erreichst du:
+
+- **Zugangsdaten**
+- **Einstellungen**
+- **Spotify trennen** (wenn bereits verbunden)
+
+![Menü geöffnet](/docs/screenshots/03_burger_menu_open.png)
+
+---
+
+<a id="zugangsdaten-eingeben"></a>
 ### Zugangsdaten eingeben
 
-1. Öffne ☰ → **🔑 Zugangsdaten**
-2. Gib deinen **OpenAI API-Schlüssel** ein
-3. Gib deine **Spotify Client ID** und **Client Secret** ein
-4. Klicke **Speichern**
+Öffne **Zugangsdaten** und gib ein:
 
-### Spotify verbinden
+- **OpenAI API-Schlüssel**
+- **Spotify Client ID**
+- **Spotify Client Secret**
 
-1. Nachdem die Zugangsdaten gespeichert sind, erscheint ein „Mit Spotify verbinden"-Banner
-2. Klicke darauf, um dich bei Spotify anzumelden und SpotyVibe Zugriff zu gewähren
-3. Der Status wechselt auf „Verbunden ✓"
+Klicke auf **Speichern**, wenn du fertig bist. Deine API-Schlüssel werden sicher im Schlüsselbund deines Betriebssystems gespeichert (z. B. Windows Credential Manager) — sie werden niemals als Klartext gespeichert. App-Einstellungen (Modell, Playlist-Größe usw.) werden in einer separaten Einstellungsdatei gespeichert.
+
+Wenn die Angaben korrekt sind, kannst du mit der Spotify-Verbindung fortfahren.
+
+![Zugangsdaten-Formular](/docs/screenshots/04_credentials_modal.png)
 
 ---
 
+<a id="spotify-konto-verbinden"></a>
+### Spotify-Konto verbinden
+
+Nachdem du deine Zugangsdaten gespeichert hast, fordert SpotyVibe dich auf, Spotify zu verbinden.
+
+Klicke auf **Mit Spotify verbinden** und schließe den Anmeldeprozess ab.
+
+Nach der Verbindung:
+
+- Das Verbindungs-Banner verschwindet
+- Du kannst Playlists generieren
+- SpotyVibe kann Playlists für dich erstellen und verwalten
+
+Falls deine Sitzung später abläuft, verbinde dich einfach erneut.
+
+![Mit Spotify verbinden Banner](/docs/screenshots/27_connect_spotify_banner.png)
+
+---
+
+<a id="benutzereinstellungen"></a>
 ## Benutzereinstellungen
 
+<a id="einstellungen"></a>
 ### Einstellungen
 
-Öffne ☰ → **⚙️ Einstellungen** um zu konfigurieren:
+Öffne **Einstellungen** über das Menü, um SpotyVibe nach deinen Wünschen anzupassen.
 
-- **Anbieter** — Wähle deinen KI-Anbieter (OpenAI, Ollama, LM Studio, Groq, OpenRouter oder Custom)
-- **Verwendetes Modell** — Welches KI-Modell deine Vorschläge generiert
-- **Kostenschätzung** — Ungefähre Kosten pro Generierung
-- **Playlist-Größe** — Wie viele Tracks generiert werden (10–30)
-- **Neue Künstler %** — Mindestanteil neuer Künstler in jeder Generation
-- **GPT-Sprache** — In welcher Sprache die KI antwortet
-- **Debug-Modus** — Protokollierung für Fehlerbehebung (nur Desktop)
+Verfügbare Einstellungen:
 
+- **Verwendetes Modell**
+  Wähle, welches KI-Modell SpotyVibe verwendet.
+
+- **Playlist-Größe**
+  Lege fest, wie viele Tracks SpotyVibe generieren soll.
+
+- **Neue Künstler %**
+  Bestimme, wie stark SpotyVibe Künstler bevorzugt, die du noch nicht gehört hast.
+
+- **ChatGPT-Sprache**
+  Wähle die Sprache für KI-generierte Erklärungen und Profil-Updates.
+
+Klicke nach Änderungen auf **Speichern**.
+
+![Einstellungen-Panel](/docs/screenshots/05_settings_modal.png)
+
+---
+
+<a id="sprache"></a>
 ### Sprache
 
-Die Oberfläche ist in Englisch und Deutsch verfügbar. Wechsle über das Sprachmenü unten auf der Seite.
+Verwende die **Sprachauswahl** oben auf der Seite, um die Oberflächensprache zu wechseln.
 
+Dies ändert Texte wie:
+
+- Buttons
+- Beschriftungen
+- Meldungen
+- Menüs
+
+![Sprachauswahl](/docs/screenshots/06_language_selector.png)
+
+---
+
+<a id="design"></a>
 ### Design
 
-Wähle zwischen verschiedenen Hintergrund-Designs über die Design-Umschalter unter dem Seitentitel.
+SpotyVibe enthält mehrere visuelle Designs.
+
+Verwende den **Design-Umschalter** oben auf der Seite, um dein bevorzugtes Aussehen auszuwählen.
+
+Designs ändern den visuellen Stil der Oberfläche, beeinflussen aber nicht die Playlist-Ergebnisse.
+
+![Design-Umschalter](/docs/screenshots/07_theme_switcher.png)
 
 ---
 
+<a id="musikprofil"></a>
 ## Musikprofil
 
-### Profil erstellen
+<a id="musikprofil-erstellen"></a>
+### Musikprofil erstellen
 
-1. Wähle ein bestehendes Profil oder erstelle ein neues über das Dropdown
-2. Gib deinen Musikgeschmack in die strukturierten Felder ein:
-   - **Beschreibe deinen Vibe** — Freie Beschreibung, was du suchst
-   - **Kernbeschreibung** — Grundlage deines Sounds
-   - **Muss enthalten** — Nicht verhandelbare Anforderungen
-   - **Weiche Präferenzen** — Wünschenswert, aber nicht zwingend
-   - **Vermeiden** — Absolute Ausschlusskriterien
+Bevor SpotyVibe gute Empfehlungen generieren kann, musst du ihm deinen Geschmack beibringen.
 
-### Profil speichern
+Klicke im **OpenAI**-Bereich auf **Profil bearbeiten** oder irgendwo auf die **Musikprofil**-Überschrift, um den Profil-Editor aufzuklappen.
 
-- **Direkt speichern** — Deine Eingaben werden direkt gespeichert
-- **KI-Profil-Update** — Die KI analysiert und strukturiert deine Eingaben
+Der Editor ist in **aufklappbare Akkordeon-Panels** organisiert. Klicke auf eine Panel-Überschrift, um es auf- oder zuzuklappen. Das erste Panel — **Profile** — dient der Verwaltung deiner Profile.
 
-### Profil aus Playlist erstellen
-
-Du kannst ein Profil aus einer bestehenden Spotify-Playlist erstellen:
-1. Öffne das ⋯-Menü → **Aus Playlist erzeugen**
-2. Wähle eine Playlist aus dem Picker
-3. SpotyVibe analysiert die Playlist und erstellt einen Profil-Entwurf
-4. Überprüfe und speichere den Entwurf
-
-### Profil importieren/exportieren
-
-- **⬆ Hochladen** — Profil aus einer JSON-Datei importieren
-- **⬇ Exportieren** — Profil als JSON-Datei herunterladen
-- **↩ Zurücksetzen** — Letzte Änderung rückgängig machen
+![Musikprofil-Editor mit Akkordeon-Panels](/docs/screenshots/08_profile_editor_open.png)
 
 ---
 
-## Playlist generieren
+<a id="profil-auswählen-oder-erstellen"></a>
+#### Profil auswählen oder erstellen
 
-### Generierungsmodi
+Das **👤 Profile**-Akkordeon ist das erste Panel im Editor. Es enthält ein Dropdown und einen Erstellen-Button.
 
-- **Erstellen** — Immer eine neue Playlist anlegen
-- **Anhängen** — Tracks zu einer bestehenden Playlist hinzufügen
-- **Ersetzen** — Bestehende Playlist leeren und neu befüllen
+1. Klicke auf **+ Neues Profil erstellen** unter dem Dropdown.
+2. Gib einen Namen ein — z. B. „Workout", „Chill" oder „Entdeckung" — und drücke **Enter** oder klicke **✓**. Namen können bis zu 40 Zeichen lang sein.
+3. Das neue Profil wird automatisch ausgewählt und ist bereit zur Bearbeitung.
 
-### Audio-Filter
+Du kannst beliebig viele Profile erstellen. Jedes Profil ist vollständig unabhängig — ideal für verschiedene Stimmungen, Aktivitäten oder Familienmitglieder.
 
-Optionale Filter für: Energie, Valence, Tempo, Tanzbarkeit, Akustik.
-Lass sie leer, damit die KI frei wählen kann.
+Um Profile zu wechseln, wähle ein anderes aus dem Dropdown. Die Formularfelder aktualisieren sich automatisch beim Wechsel.
 
+![Profile-Akkordeon mit Dropdown und Erstelleingabe](/docs/screenshots/09_profiles_accordion.png)
+
+---
+
+<a id="profilstatus"></a>
+#### Profilstatus
+
+Unter der Bereichsüberschrift siehst du eine Statuszeile:
+
+- **✓ Zuletzt trainiert: [Datum/Uhrzeit]** — Das Profil wurde mindestens einmal gespeichert oder KI-aktualisiert. Dies zeigt, wann die letzte Speicherung stattfand, nicht wie gut das Profil ist.
+- **⚠ Noch nicht trainiert** — Das Profil wurde noch nie gespeichert. Beschreibe deinen Geschmack und speichere, um loszulegen.
+
+![Profilstatus-Anzeigen](/docs/screenshots/10_profile_status.png)
+
+---
+
+<a id="beschreibe-deinen-vibe"></a>
+#### Beschreibe deinen Vibe
+
+Das **💬 Beschreibe deinen Vibe**-Akkordeon ist der schnellste Weg, SpotyVibe mitzuteilen, was du suchst.
+
+Schreibe in Alltagssprache — wie in einem Gespräch mit einem Freund — welche Art von Musik du möchtest. Zum Beispiel:
+
+- „Ich liebe energetischen Rock mit theatralischem Gesang wie Queen. Überrasche mich mit etwas Neuem, aber halte es energiegeladen und melodisch!"
+- „Mehr Jazz-Einfluss, weniger Elektronik. Denke Snarky Puppy trifft Radiohead."
+- „Mach mein Profil dunkler und härter, aber behalte die Melodien."
+
+**Intelligente Klassifizierung:** Wenn du **KI-Profil-Update** verwendest, speichert SpotyVibe deinen Text nicht einfach — es **klassifiziert automatisch** jeden Teil deiner Nachricht und leitet ihn an den korrekten Profilbereich weiter. Die KI erkennt natürliche Auslösephrasen:
+
+| Was du schreibst | Wohin es kommt |
+|---|---|
+| „muss starken Bass haben", „braucht kräftigen Gesang" | → **Muss vorhanden sein** |
+| „kein Autotune", „keine langsamen Songs", „ohne Synths" | → **Vermeiden** |
+| „wäre schön, Jazz-Einfluss zu haben", „idealerweise etwas Prog-Elemente" | → **Weiche Präferenzen** |
+| Allgemeine Geschmacksbeschreibungen, Genre/Stimmung/Energie | → **Kernbeschreibung** |
+
+Das bedeutet, du kannst alles an einem Ort schreiben und die KI sortieren lassen. Nach Abschluss des Updates wird das Feld **automatisch geleert** — deine Eingabe wurde in die strukturierten Profilbereiche übernommen, sodass die einmalige Anweisung nicht mehr benötigt wird.
+
+Wenn du dieses Feld ausfüllst, wird die **Kernbeschreibung** darunter optional — die KI generiert eine für dich.
+
+![Beschreibe deinen Vibe Feld mit Beispieltext](/docs/screenshots/11_vibe_description.png)
+
+---
+
+<a id="kernbeschreibung"></a>
+#### Kernbeschreibung
+
+Das **🎵 Kernbeschreibung**-Akkordeon ist die Grundlage deines Profils.
+
+Beschreibe die Musik, die du möchtest, in eigenen Worten, z. B.:
+
+- Genre
+- Stimmung
+- Energie
+- Atmosphäre
+- Referenzkünstler
+- Instrumente
+- Gesang
+
+Dieses Feld sollte deinen allgemeinen Geschmack klar beschreiben.
+
+![Kernbeschreibung-Feld](/docs/screenshots/12_core_description.png)
+
+---
+
+<a id="muss-vorhanden-sein"></a>
+#### Muss vorhanden sein
+
+Das **✅ Muss vorhanden sein**-Akkordeon ist für nicht verhandelbare Eigenschaften, die jede Empfehlung **haben muss**. Ein Track, dem eine davon fehlt, wird abgelehnt.
+
+Beispiele:
+
+- starke Melodien
+- emotionaler Gesang
+- energetisches Schlagzeug
+- atmosphärische Gitarrenarbeit
+
+Ein Eintrag pro Zeile.
+
+![Muss vorhanden sein Bereich](/docs/screenshots/13_must_have.png)
+
+---
+
+<a id="weiche-präferenzen"></a>
+#### Weiche Präferenzen
+
+Das **💡 Weiche Präferenzen**-Akkordeon ist für Eigenschaften, die willkommen, aber nicht erforderlich sind — Wünschenswertes, das einen Vorschlag verbessert.
+
+Beispiele:
+
+- leichte Progressive-Elemente
+- warme Produktion
+- gelegentliche Synth-Texturen
+
+Ein Eintrag pro Zeile.
+
+![Weiche Präferenzen Bereich](/docs/screenshots/14_soft_preferences.png)
+
+---
+
+<a id="vermeiden"></a>
+#### Vermeiden
+
+Das **🚫 Vermeiden**-Akkordeon ist für absolute Ausschlusskriterien — Klänge oder Eigenschaften, die du **nicht** möchtest.
+
+Beispiele:
+
+- übermäßig elektronische Produktion
+- langsame Balladen
+- harter Gesang
+- repetitive Refrains
+
+Ein Eintrag pro Zeile.
+
+![Vermeiden Bereich](/docs/screenshots/15_avoid.png)
+
+---
+
+<a id="speichern-oder-ki-profil-update"></a>
+#### Speichern oder KI-Profil-Update
+
+Nach der Bearbeitung deines Profils erscheinen zwei Aktionsbuttons am unteren Rand des Editors:
+
+- **Speichern** (rechte Seite)
+  Speichert dein Profil genau so, wie es geschrieben ist. Keine KI-Verarbeitung, kein API-Aufruf, sofort. Funktioniert auch bei leeren Feldern. Benötigt **keinen** OpenAI API-Schlüssel.
+
+- **KI-Profil-Update** (linke Seite)
+  Sendet deine Eingabe an GPT, das dein Profil verfeinert, organisiert und strukturiert. Die KI klassifiziert automatisch deine Vibe-Beschreibung (siehe oben), extrahiert Referenzkünstler, generiert interne Geschmacksregeln und verbessert die Formulierung jedes Bereichs. Erfordert einen OpenAI API-Schlüssel und verbraucht eine geringe Anzahl an Tokens. Eine gelbe Warnung erscheint, wenn sowohl Kernbeschreibung als auch Vibe-Beschreibung leer sind.
+
+**Wann was verwenden:**
+
+| | Speichern | KI-Profil-Update |
+|---|---|---|
+| Geschwindigkeit | Sofort | Einige Sekunden |
+| API-Schlüssel erforderlich | Nein | Ja (OpenAI) |
+| Token-Kosten | Keine | Gering |
+| Formulierung verbessern | Nein — speichert wie eingegeben | Ja — verbessert Struktur |
+| Vibe-Text klassifizieren | Nein | Ja — leitet in korrekte Bereiche |
+| Ideal für | Schnelle Anpassungen, kleine Änderungen | Ersteinrichtung, größere Änderungen |
+
+Während des KI-Profil-Updates erscheint ein Ladespinner mit rotierenden Statusmeldungen.
+
+![Speichern und KI-Profil-Update Buttons](/docs/screenshots/16_save_buttons.png)
+
+---
+
+<a id="was-die-ki-im-hintergrund-tut"></a>
+#### Was die KI im Hintergrund tut
+
+Wenn du **KI-Profil-Update** ausführst, tut GPT mehr, als nur deinen Text zu speichern. Es füllt auch mehrere interne Felder, die du nie direkt bearbeitest, die aber die Playlist-Generierung erheblich verbessern:
+
+- **Ziel & primäre Referenz** — Eine Einzeilen-Zusammenfassung und dominante Stil-Referenz, abgeleitet aus deiner Kernbeschreibung.
+- **Bestätigte / mittlere / abgelehnte Künstler** — Künstlernamen aus deinen Beschreibungen, kategorisiert danach, wie gut sie zu deinem Geschmack passen.
+- **Geschmacksregeln** — Eine Prioritätsreihenfolge zur Bewertung von Tracks (z. B. „Melodie > Energie > Stil") und eine geordnete Liste absoluter Ausschlusskriterien aus deinem Vermeiden-Bereich.
+
+Diese Felder sind in der Oberfläche unsichtbar, werden aber in jeden Generierungsprompt einbezogen und helfen GPT, genauere Vorschläge zu machen. Du musst sie nicht verwalten — sie aktualisieren sich automatisch bei jedem KI-Profil-Update.
+
+---
+
+<a id="profil-importieren-exportieren-zurücksetzen-und-löschen"></a>
+### Profil importieren, exportieren, zurücksetzen und löschen
+
+Die **Profile**-Akkordeon-Überschrift enthält einen **⋯**-Button (Drei-Punkte-Menü) neben dem Zuklapp-Pfeil. Klicke darauf, um ein Dropdown mit folgenden Aktionen zu öffnen:
+
+- **Profil hochladen**
+  Importiere eine gespeicherte Profil-JSON-Datei in das aktuelle Profil. Ein Bestätigungsdialog erscheint zuerst. Dein vorheriges Profil wird automatisch in einer Verlaufsdatei gesichert, bevor der Import es überschreibt. Unbekannte Felder in der importierten Datei werden stillschweigend entfernt; fehlende Felder werden aus der Standard-Vorlage aufgefüllt.
+
+- **Profil exportieren**
+  Lade dein aktuelles Profil als `spotyvibe_profile.json`-Datei herunter (vollständiges JSON einschließlich aller KI-generierten internen Felder).
+
+- **Profil zurücksetzen**
+  Stelle die vorherige Version deines Profils wieder her (Ein-Schritt-Rückgängig). Dies lädt die automatische Sicherung, die vor dem letzten Speichern, KI-Update oder Import erstellt wurde.
+
+- **Profil löschen**
+  Entferne das aktuelle Profil und seinen Verlauf dauerhaft. Ein Bestätigungsdialog erscheint zuerst. Dies kann nicht rückgängig gemacht werden. Wenn andere Profile existieren, wird automatisch das erste ausgewählt.
+
+**Deaktivierte Einträge:** Wenn kein Profil ausgewählt ist, sind **Exportieren**, **Zurücksetzen** und **Löschen** ausgegraut, da sie ein aktives Profil erfordern. **Hochladen** ist immer verfügbar — es erstellt oder ersetzt das aktive Profil.
+
+Dies ist nützlich, wenn du dein Profil sichern, auf ein anderes Gerät übertragen, ungenutzte Profile aufräumen oder eine kürzliche Änderung rückgängig machen möchtest.
+
+![Import / Export / Zurücksetzen / Löschen Steuerung](/docs/screenshots/17_profile_io_controls.png)
+
+---
+
+<a id="geschmack-im-laufe-der-zeit-aktualisieren"></a>
+### Geschmack im Laufe der Zeit aktualisieren
+
+Dein Geschmack kann sich ändern, und SpotyVibe ist darauf ausgelegt, sich mit dir zu entwickeln.
+
+Um deine Vorlieben zu aktualisieren:
+
+1. Gehe zurück zum **OpenAI**-Bereich
+2. Klicke auf **Profil bearbeiten**
+3. Aktualisiere deine Beschreibung oder Präferenzlisten — oder schreibe einfach, was sich geändert hat, in das **Beschreibe deinen Vibe**-Feld
+4. Speichere oder führe **KI-Profil-Update** aus
+5. Generiere erneut
+
+Je genauer dein Profil deinen aktuellen Geschmack widerspiegelt, desto besser werden deine zukünftigen Playlists. Für kleine Anpassungen nutze das Vibe-Feld — z. B. „mehr akustisch, weniger elektronisch" — und lass die KI es in dein bestehendes Profil einarbeiten.
+
+![Bestehendes Profil bearbeiten](/docs/screenshots/28_editing_existing_profile.png)
+
+---
+
+<a id="entdeckung--analyse"></a>
+## Entdeckung & Analyse
+
+<a id="band-song-analyse"></a>
+### Band-/Song-Analyse
+
+Klicke im **OpenAI**-Bereich auf **Analyse öffnen** oder irgendwo auf die **Band-/Song-Analyse**-Überschrift, um sie aufzuklappen.
+
+Diese Funktion hilft dir, einen Künstler oder Song zu analysieren und das in Profilsprache umzuwandeln.
+
+Anleitung:
+
+1. Gib einen **Künstlernamen** ein
+2. Optional einen **Tracknamen** eingeben
+3. Klicke auf **Analysieren**
+4. Prüfe die Ergebnisse
+5. Kopiere nützliche Vorschläge in dein Musikprofil
+
+Das ist besonders hilfreich, wenn du weißt, was dir gefällt, aber nicht sicher bist, wie du es beschreiben sollst.
+
+![Band-/Song-Analyse Panel](/docs/screenshots/18_analysis_panel.png)
+
+---
+
+<a id="playlist-generierung"></a>
+## Playlist-Generierung
+
+Sobald dein Profil fertig und Spotify verbunden ist, gehe zum **Spotify**-Bereich und klicke auf **Einblenden** bei der **Musik entdecken**-Überschrift (oder klicke irgendwo auf die Überschrift), um sie aufzuklappen.
+
+Hier erstellt SpotyVibe Playlist-Vorschläge basierend auf deinem Geschmack. Der Bereich ist standardmäßig zugeklappt, um die Seite kompakt zu halten.
+
+![Musik entdecken Bereich aufgeklappt](/docs/screenshots/19_discover_section.png)
+
+---
+
+<a id="playlist-modus-wählen"></a>
+### Playlist-Modus wählen
+
+Wähle vor der Generierung, wie SpotyVibe mit der Playlist umgehen soll.
+
+Verfügbare Optionen:
+
+- **Standard**
+  Verwendet die Standard-SpotyVibe-Playlist
+
+- **Neue Playlist erstellen**
+  Erstellt eine brandneue Playlist
+
+- **Anhängen**
+  Fügt Tracks zu einer bestehenden Playlist hinzu
+
+- **Ersetzen**
+  Leert eine bestehende Playlist und füllt sie mit neuen Tracks
+
+Bei einer neuen Playlist kannst du in der Regel einen eigenen Playlist-Namen eingeben.
+
+![Playlist-Modus-Auswahl](/docs/screenshots/20_playlist_mode_selector.png)
+
+---
+
+<a id="schnell--vs-erweitert-modus"></a>
+### Schnell- vs. Erweitert-Modus
+
+Das Generieren-Panel hat zwei Modi, erreichbar über den Pill-Umschalter oben:
+
+- **Schnell** — Zeigt nur Playlist-Größe, den Erkundungs-Regler und den Generieren-Button. Ideal für den täglichen Gebrauch.
+- **Erweitert** — Zeigt alle Steuerelemente: Voreinstellungs-Auswahl, Playlist-Modus, aufstrebende Künstler, Audio-Filter, Neue-Künstler-% und den Erkundungs-Regler.
+
+Deine Modus-Auswahl wird gespeichert und beim Neuladen wiederhergestellt.
+
+---
+
+<a id="erkundungs-regler"></a>
+### Erkundungs-Regler
+
+Der **Erkundung vs. Treue**-Regler ist ein 5-Stufen-Steuerelement, das bestimmt, wie abenteuerlustig deine Vorschläge sein werden:
+
+1. **Vertraut** — Fokus auf Künstler, die du bereits kennst (10 % neu, Temperatur 0,5).
+2. **Meist bekannt** — Ein paar neue Künstler dabei (25 % neu, Temperatur 0,7).
+3. **Ausgewogen** — Etwa zur Hälfte neue Künstler, moderate Vielfalt (50 % neu, Temperatur 0,8).
+4. **Meist neu** — Entdeckungsmodus mit vertrauten Ankern (70 % neu, Temperatur 0,9).
+5. **Abenteuerlustig** — Nur aufstrebende Künstler, hohe Vielfalt (90 % neu, Temperatur 1,0).
+
+Im Erweitert-Modus, wenn du „Neue Künstler %" oder die Checkbox für aufstrebende Künstler manuell auf Werte setzt, die keiner Stufe entsprechen, wechselt der Regler in einen **Eigene Einstellung**-Zustand. Das Zurückbewegen zu einer Stufe übernimmt wieder die Voreinstellungswerte.
+
+---
+
+<a id="generierungs-voreinstellungen"></a>
+### Generierungs-Voreinstellungen
+
+Im Erweitert-Modus ermöglicht ein **Voreinstellung**-Dropdown oben das Speichern und Abrufen kompletter Generierungskonfigurationen:
+
+- **Mitgelieferte Voreinstellungen:** Sichere Wahl, Ausgewogen, Tiefe Entdeckung. Können nicht bearbeitet, aber dupliziert werden.
+- **Eigene Voreinstellungen:** Erscheinen über den mitgelieferten. Speichere über „💾 Aktuelle Einstellungen speichern…".
+- **Voreinstellungen verwalten:** Öffne über ☰ Menü → 🎛 Voreinstellungen verwalten. Umbenennen, Löschen, Umsortieren, Importieren oder Exportieren.
+- Voreinstellungen werden lokal auf deinem Gerät im localStorage des Browsers gespeichert.
+
+---
+
+<a id="audio-filter-verwenden"></a>
+### Audio-Filter verwenden
+
+Klicke im **Musik entdecken**-Bereich auf die **🎚 Audio-Filter (optional)**-Leiste, um das Filter-Panel aufzuklappen. Diese optionalen Filter leiten GPT an, Tracks passend zu deiner gewünschten Stimmung und Atmosphäre vorzuschlagen.
+
+Verfügbare Filter:
+
+- **Energie** — Wie intensiv/energetisch der Track wirkt (0–1)
+- **Valenz** — Wie fröhlich/positiv der Track klingt (0–1)
+- **Tempo** — Schläge pro Minute (BPM)
+- **Tanzbarkeit** — Wie gut sich der Track zum Tanzen eignet (0–1)
+- **Akustik** — Wie akustisch (vs. elektronisch) der Track ist (0–1)
+
+Jeder Filter hat ein **Min**- und **Max**-Eingabefeld. Beim Tippen erscheint rechts ein verständlicher Hinweis (z. B. „↳ Energetisch bis Intensiv"), damit du auf einen Blick siehst, was die Zahlen bedeuten.
+
+**Alle löschen:** Klicke auf **✕ Alle löschen** oben rechts im Filter-Panel, um alle Filter auf einmal zurückzusetzen.
+
+#### Band-/Song-Analyse zum Setzen von Filtern nutzen
+
+Der einfachste Weg, Audio-Filter auszufüllen, ist über die **Band-/Song-Analyse**:
+
+1. Öffne die **Band-/Song-Analyse** und analysiere einen Referenztrack.
+2. In den Ergebnissen hat jede Audio-Feature-Zeile (Energie, Valenz usw.) einen **⇒ Filter**-Button.
+3. Klicke auf **⇒ Filter** bei einem beliebigen Feature — es setzt automatisch einen sinnvollen Min/Max-Bereich (±10 %, oder ±15 BPM für Tempo) im Musik-entdecken-Filter-Panel.
+4. Oder klicke auf **⇒ Alle als Filter verwenden**, um alle Features auf einmal anzuwenden.
+5. Der Entdecken-Bereich und das Filter-Panel öffnen sich automatisch, wenn du einen Filter anwendest.
+
+Dies überbrückt die Lücke zwischen Analyse und Generierung — kein Merken von Zahlen mehr nötig.
+
+![Audio-Filter Sub-Panel in Musik entdecken](/docs/screenshots/21_audio_filters.png)
+
+![Band-/Song-Analyse mit Filter-Buttons](/docs/screenshots/18_analysis_panel.png)
+
+---
+
+<a id="nur-aufstrebende-künstler"></a>
+### Nur aufstrebende Künstler
+
+Zwischen den Playlist-Name/Modus-Steuerungen und dem Audio-Filter-Panel befindet sich eine **„Nur neue / aufstrebende Künstler"**-Checkbox.
+
+Wenn aktiviert:
+
+- Die KI wird angewiesen, **nur Tracks von Künstlern vorzuschlagen, die in den letzten 6 Monaten debütiert haben**.
+- Nach der Spotify-Verifizierung werden Tracks anhand ihres Album-**Veröffentlichungsdatums** gefiltert — alles, was älter als 6 Monate ist, wird entfernt.
+- Um die stärkere Filterung auszugleichen, fordert die KI mehr Kandidaten pro Batch an.
+- Die finale Playlist kann **weniger Tracks** als deine konfigurierte Größe haben. Eine Statusmeldung erklärt das Ergebnis (z. B. „Zeige 14 von 30 geprüften Tracks — nur Tracks von kürzlich aufgetauchten Künstlern sind enthalten.").
+
+Lass die Checkbox deaktiviert für normales Generierungsverhalten.
+
+---
+
+<a id="generierung-starten"></a>
 ### Generierung starten
 
-1. Konfiguriere Modus, Filter und optionalen Playlist-Namen
-2. Klicke **▶ Generieren**
-3. Verfolge den Fortschritt im SSE-Stream
-4. Verwende **▶ X Tracks verwenden** um früh abzubrechen mit aktuellen Ergebnissen
+Klicke auf **Playlist erstellen**, um zu beginnen.
 
-### Erklärbare Empfehlungen
+Ein Ladespinner erscheint unterhalb des Buttons im Musik-entdecken-Bereich. Fortschrittsmeldungen werden unter dem Spinner angezeigt, während SpotyVibe arbeitet:
 
-Jeder vorgeschlagene Track zeigt 1–2 Begründungs-Chips:
-- **passt zu „Genre"** — Stimmt mit deinem Profil überein
-- **ähnlich zu Künstler** — Verwandt mit einem bekannten Künstler
-- **Entdeckung** — Bewusster Vielfalt-Pick
+1. Song-Vorschläge generieren
+2. Auf Spotify prüfen
+3. Playlist erstellen
+4. Ergebnisse im Bereich anzeigen (unterhalb einer Trennlinie)
+5. Link zum Öffnen der Playlist in Spotify bereitstellen
+
+![Generierung läuft mit Inline-Spinner](/docs/screenshots/29_generation_spinner.png)
 
 ---
 
+<a id="vorzeitig-stoppen-oder-aktuelle-tracks-verwenden"></a>
+### Vorzeitig stoppen oder aktuelle Tracks verwenden
+
+Während der Generierung können zwei hilfreiche Optionen erscheinen:
+
+- **Abbrechen**
+  Stoppt die aktuelle Generierung ohne Änderungen anzuwenden
+
+- **X Tracks jetzt verwenden**
+  Stoppt die Generierung und erstellt die Playlist mit den bereits gefundenen Tracks
+
+Das ist nützlich, wenn dir die bisherigen Ergebnisse bereits gefallen und du nicht länger warten möchtest.
+
+![Abbrechen und X Tracks verwenden Buttons](/docs/screenshots/30_cancel_use_tracks.png)
+
+---
+
+<a id="track-bewertung--feedback"></a>
+## Track-Bewertung & Feedback
+
+Nach der Generierung zeigt SpotyVibe die vorgeschlagenen Tracks **innerhalb des Musik-entdecken-Bereichs** an, unterhalb des Generieren-Buttons, getrennt durch eine Trennlinie. Ein Abschluss-Banner und Playlist-Link erscheinen zuerst, gefolgt von den Track-Karten. Track-Karten leuchten beim Hover grün.
+
+Jede Karte kann zeigen:
+
+- Trackname
+- Künstler
+- Albumcover
+- Begründung der Empfehlung
+- Aktionsbuttons
+
+Du kannst jeden Song bewerten und entscheiden, was als Nächstes zu tun ist.
+
+![Track-Karten nach der Generierung](/docs/screenshots/31_track_cards.png)
+
+---
+
+<a id="track-vorhören"></a>
+### Track vorhören
+
+Klicke auf das Albumcover einer Song-Karte, um das Vorschau-Overlay am unteren Bildschirmrand zu öffnen.
+
+Die Vorschau verwendet ein Drei-Zonen-Layout:
+
+1. **Spotify-Player** — Der eingebettete Player (zentriert, breit)
+2. **Aktions-Tabs** — Eine vertikale Spalte mit Registerkarten-Buttons (👍 👎 ✕) rechts vom Player
+3. **Feedback-Formular** — Gleitet ein, um den verbleibenden Platz zu füllen, wenn du 👍 oder 👎 klickst
+
+Erneutes Klicken auf denselben Tab schließt das Feedback-Formular. Der ✕-Button verwirft den Track sofort, ohne ein Formular zu öffnen. Aktive Tabs leuchten grün (Like) oder rot (Dislike).
+
+Verwende die ‹ und › Pfeile, um zwischen Tracks zu navigieren, ohne das Overlay zu schließen.
+
+> **Hinweis:** Der eingebettete Spotify-Player bietet **~30-Sekunden-Vorschauen**. Wiedergabe in voller Länge ist nicht verfügbar, da der Embed in einem isolierten iframe läuft, der aufgrund von Browser-Drittanbieter-Cookie-Beschränkungen nicht auf deine Spotify-Sitzung zugreifen kann. Um den vollständigen Track anzuhören, klicke auf das Spotify-Symbol im Player oder nutze die Spotify-Links auf der Song-Karte.
+
+![Vorschau-Player geöffnet](/docs/screenshots/32_preview_player.png)
+
+---
+
+<a id="spotify-links-öffnen"></a>
+### Spotify-Links öffnen
+
+Jede Song-Karte enthält Schnelllinks zum Öffnen von Inhalten in Spotify, wie z. B.:
+
+- den Track
+- den Künstler
+- das Album
+
+Nutze diese Links, um Musik genauer zu erkunden.
+
+![Spotify-Schnelllinks auf einer Song-Karte](/docs/screenshots/33_spotify_quick_links.png)
+
+---
+
+<a id="track-liken"></a>
+### Track liken
+
+Klicke auf **Gefällt mir**, wenn ein Track deinem Geschmack entspricht.
+
+Du kannst optional einen kurzen Grund hinzufügen, bevor du absendest.
+
+Tracks zu liken hilft SpotyVibe zu lernen, was gut für dich funktioniert.
+
+Beispiele für Gründe:
+
+- perfekte Stimmung
+- toller Gesang
+- starke Melodie
+- genau der Sound, den ich will
+
+![Like-Feedback-Formular](/docs/screenshots/34_like_feedback_form.png)
+
+---
+
+<a id="track-disliken"></a>
+### Track disliken
+
+Klicke auf **Gefällt mir nicht**, wenn ein Track nicht passt.
+
+Du kannst optional einen Grund angeben, warum.
+
+Beispiele:
+
+- zu langsam
+- falsche Atmosphäre
+- zu elektronisch
+- schwacher Refrain
+
+Das hilft SpotyVibe, ähnliche Tracks in zukünftigen Durchläufen zu vermeiden.
+
+![Dislike-Feedback-Formular](/docs/screenshots/35_dislike_feedback_form.png)
+
+---
+
+<a id="track-entfernen"></a>
+### Track entfernen
+
+Klicke auf **Entfernen**, um einen Song aus der Liste zu nehmen, ohne ihn als Like oder Dislike zu erfassen.
+
+Nutze dies für Tracks, bei denen du neutral bist.
+
+![Entfernen-Button auf Song-Karte](/docs/screenshots/36_remove_button.png)
+
+---
+
+<a id="playlist-verfeinern"></a>
 ## Playlist verfeinern
 
-Lade eine bestehende Spotify-Playlist und bewerte Tracks ohne zu generieren:
-- 👍 **Gefällt mir** — Zur Geschmacksdatenbank hinzufügen
-- 👎 **Gefällt mir nicht** — Aus der Playlist entfernen und Feedback speichern
-- ✕ **Entfernen** — Entfernen ohne Feedback
+Der **Playlist verfeinern**-Bereich ermöglicht es dir, eine bestehende Spotify-Playlist zu laden und ihre Tracks einzeln zu bewerten. Du kannst jeden Track liken, disliken oder verwerfen, um dein Geschmacksprofil zu verfeinern und die Playlist gleichzeitig aufzuräumen.
+
+Das ist nützlich, wenn du:
+
+- Eine früher erstellte Playlist durchgehen und nachträgliches Feedback geben möchtest
+- Eine Playlist aufräumen möchtest, indem du Tracks entfernst, die nicht mehr passen
+- SpotyVibe mehr über deinen Geschmack beibringen möchtest, basierend auf echten Hörerfahrungen
+
+Zum Öffnen klicke auf **Einblenden** bei der **🔄 Playlist verfeinern**-Überschrift (oder klicke irgendwo auf die Überschrift) im Spotify-Bereich.
+
+![Playlist verfeinern Bereich aufgeklappt](/docs/screenshots/22_refine_playlist_section.png)
 
 ---
 
-## Band-/Song-Analyse
+<a id="playlist-auswählen-und-laden"></a>
+### Playlist auswählen und laden
 
-Gib einen Künstler und optional einen Track ein. Die KI liefert:
-- Genre-Klassifizierung
-- Stil-Tags
-- Musikalische Merkmale
-- Geschätzte Audio-Features
-- Profilvorschläge
+1. Klappe den **Playlist verfeinern**-Bereich auf — deine Spotify-Playlists werden automatisch in das Dropdown geladen
+2. Wähle eine Playlist aus dem **Dropdown**
+3. Klicke auf **🔄 Playlist laden**
+
+Ein Ladespinner erscheint unter dem Button, während SpotyVibe die Tracks abruft. Nach dem Laden erscheinen die Tracks im Bereich, unterhalb des Buttons, getrennt durch eine Trennlinie. Track-Karten sehen ähnlich aus wie die Vorschlagsliste beim Entdecken.
+
+![Playlist-Dropdown mit geladenen Playlists](/docs/screenshots/37_playlist_dropdown.png)
 
 ---
 
+<a id="tracks-durchgehen"></a>
+### Tracks durchgehen
+
+Jede Track-Karte zeigt:
+
+- Albumcover (zum Vorhören klicken)
+- Künstler und Trackname
+- Spotify-Links (Track, Künstler, Album)
+- Aktionsbuttons: **👍 Gefällt mir**, **👎 Gefällt mir nicht**, **✕ Verwerfen**
+
+Du kannst auch auf das Albumcover klicken, um den Spotify-Vorschau-Player zu öffnen. Beim Vorhören aus der Verfeinern-Liste navigiert die Vor/Zurück-Steuerung innerhalb der Bewertungs-Trackliste.
+
+![Bewertungs-Track-Karten](/docs/screenshots/38_review_track_cards.png)
+
+---
+
+<a id="track-liken-verfeinern"></a>
+### Track liken (Verfeinern)
+
+Klicke auf **👍 Gefällt mir**, um positives Feedback für einen Track zu erfassen.
+
+Ein Feedback-Formular öffnet sich, in dem du optional Künstler, Trackname bearbeiten und einen Grund hinzufügen kannst.
+
+Nach dem Absenden animiert die Karte aus der Bewertungsliste heraus. Der Track **bleibt in der Spotify-Playlist** — nur dein Geschmacksprofil wird aktualisiert.
+
+![Like-Feedback-Formular im Verfeinern-Bereich](/docs/screenshots/39_review_like_form.png)
+
+---
+
+<a id="track-disliken-verfeinern"></a>
+### Track disliken (Verfeinern)
+
+Klicke auf **👎 Gefällt mir nicht**, um negatives Feedback zu erfassen.
+
+Ein Feedback-Formular öffnet sich, in dem du optional Künstler, Trackname bearbeiten und einen Grund hinzufügen kannst.
+
+Nach dem Absenden wird der Track:
+
+1. **Als Dislike erfasst** in deinem Geschmacksprofil
+2. **Aus der Spotify-Playlist entfernt**
+
+Die Karte animiert aus der Bewertungsliste heraus.
+
+![Dislike-Feedback-Formular im Verfeinern-Bereich](/docs/screenshots/40_review_dislike_form.png)
+
+---
+
+<a id="track-verwerfen"></a>
+### Track verwerfen
+
+Klicke auf **✕ (Verwerfen)**, um einen Track aus der Spotify-Playlist zu entfernen, **ohne** Geschmacksprofil-Feedback zu erfassen.
+
+Nutze dies für Tracks, bei denen du neutral bist, die du aber aus der Playlist entfernen möchtest.
+
+Die Karte animiert aus der Bewertungsliste heraus.
+
+![Verwerfen-Button auf Bewertungs-Track-Karte](/docs/screenshots/41_review_dismiss_button.png)
+
+---
+
+<a id="geschmacks-dashboard"></a>
 ## Geschmacks-Dashboard
 
-Unter dem Profil-Editor zeigt der Bereich „Dein Geschmack auf einen Blick" interaktive Diagramme, die deine Hörgewohnheiten visualisieren. Die Daten werden automatisch aus deinem Generierungsverlauf aggregiert.
+Unter dem Musikprofil-Editor zeigt der Bereich **„Dein Geschmack auf einen Blick"** interaktive Diagramme, die deine Hörgewohnheiten visualisieren. Die Daten werden automatisch aus deinem Playlist-Generierungsverlauf aggregiert.
 
+<a id="dashboard-öffnen"></a>
 ### Dashboard öffnen
 
-Klicke auf **Einblenden** (oder auf die Bereichsüberschrift), um das Dashboard aufzuklappen. Wenn noch nicht genug Playlists generiert wurden, wird stattdessen „Noch nicht genug Daten" angezeigt. Ab mindestens **10 einzigartigen Tracks** erscheinen die Diagramme.
+Klicke auf **Einblenden** (oder auf die Bereichsüberschrift), um das Dashboard-Panel aufzuklappen. Wenn du noch nicht genug Playlists generiert hast, siehst du stattdessen einen **„Noch nicht genug Daten"**-Platzhalter. Diagramme erscheinen, sobald du mindestens **10 einzigartige Tracks** über deine Generierungsläufe hast.
 
+<a id="diagramme"></a>
 ### Diagramme
 
-- **Top-Genres** — Donut-Diagramm deiner häufigsten Genres (aus Spotify-Künstlerdaten). Fahre mit der Maus über ein Segment, um Genre und Anzahl zu sehen.
-- **Energie × Valence** — Streudiagramm der Stimmung deiner Tracks. Die horizontale Achse zeigt Valence (traurig → fröhlich), die vertikale Achse zeigt Energie (ruhig → intensiv). Energie und Valence sind KI-Schätzungen — ein Hinweis unter dem Diagramm weist darauf hin.
-- **Jahrzehnte** — Balkendiagramm der Veröffentlichungsjahrzehnte (aus Spotify-Albumdaten).
+Das Dashboard zeigt drei Diagrammtypen:
 
+- **Top-Genres** — Ein Donut-Diagramm deiner häufigsten Genres, abgeleitet aus Spotify-Künstler-Metadaten. Fahre mit der Maus über ein Segment, um Genre und Track-Anzahl zu sehen.
+- **Energie × Valence** — Ein Streudiagramm, das die Stimmung deiner Tracks abbildet. Die horizontale Achse zeigt Valence (traurig → fröhlich) und die vertikale Achse zeigt Energie (ruhig → intensiv). Fahre mit der Maus über einen Punkt, um Künstler und Tracktitel zu sehen. Ein Hinweis erinnert daran, dass Energie- und Valence-Werte KI-Schätzungen sind, keine exakten Messwerte.
+- **Jahrzehnte** — Ein Balkendiagramm der Veröffentlichungsjahrzehnte deiner Tracks, abgeleitet aus Spotify-Albumdaten.
+
+<a id="stimmungsabschnitte"></a>
 ### Stimmungsabschnitte
 
-Wenn du Feedback zu Tracks gegeben hast (Likes/Dislikes), wird das Dashboard in bis zu drei Abschnitte aufgeteilt:
+Wenn du Feedback zu Tracks gegeben hast (Likes/Dislikes), wird das Dashboard in bis zu drei Unterabschnitte aufgeteilt:
 
-- **Alle Tracks** — Hauptansicht mit allen Tracks deiner Läufe.
+- **Alle Tracks** — Die Hauptansicht, die jeden Track aus deinen Läufen zusammenfasst.
 - **Gelikte Tracks** — Diagramme nur für Tracks, die du geliked (👍) hast.
 - **Dislikte Tracks** — Diagramme nur für Tracks, die du disliked (👎) hast.
 
-Die Like-/Dislike-Abschnitte erscheinen nur, wenn genug Daten vorhanden sind.
+Die Like- und Dislike-Abschnitte erscheinen nur, wenn genug Daten vorhanden sind.
 
+<a id="profil-isolation"></a>
 ### Profil-Isolation
 
 Jedes Profil hat seine eigenen, unabhängigen Dashboard-Daten. Wenn du **Profile wechselst** oder ein **neues Profil erstellst**, wird das Dashboard vollständig zurückgesetzt:
 
 - Alle Diagramme werden sofort geleert.
 - Der „Noch nicht genug Daten"-Platzhalter wird angezeigt.
-- Wenn das Dashboard gerade aufgeklappt ist, werden automatisch frische Daten für das neu aktive Profil geladen.
+- Wenn das Dashboard-Panel gerade aufgeklappt ist, werden automatisch frische Daten für das neu aktive Profil geladen.
 
 Du siehst also niemals veraltete Diagramme eines vorherigen Profils. Ein neues Profil beginnt immer mit „Noch nicht genug Daten", bis du unter diesem Profil Playlists generierst.
 
 ---
 
-## Verlauf
+<a id="songliste--lauf-verlauf"></a>
+## Songliste & Lauf-Verlauf
 
-Zeigt vergangene Generierungs-Läufe mit Playlist-Link, Zeitstempel und Track-Liste. Die letzten 5 Läufe werden gespeichert.
+<a id="lauf-verlauf"></a>
+### Lauf-Verlauf
+
+SpotyVibe speichert die **letzten 5** Playlist-Generierungsläufe im **Verlauf**-Bereich, der sich im Spotify-Panel unterhalb von Playlist verfeinern befindet. Klicke auf **Verlauf anzeigen** oder irgendwo auf die Bereichsüberschrift, um ihn aufzuklappen.
+
+Für jeden Lauf siehst du:
+
+- Wann der Lauf stattfand
+- Wie viele Tracks hinzugefügt wurden
+- Einen Link zur Playlist (falls sie noch auf Spotify existiert)
+
+**Klicke auf einen Verlaufseintrag**, um ihn aufzuklappen und die vollständige Liste der Tracks (Künstler — Track) anzuzeigen, die während dieses Laufs hinzugefügt wurden. Klicke erneut, um zuzuklappen.
+
+Ältere Läufe über die letzten 5 hinaus werden automatisch entfernt, um die Liste übersichtlich zu halten.
+
+![Lauf-Verlauf Bereich mit aufgeklapptem Eintrag](/docs/screenshots/23_run_history.png)
 
 ---
 
-## Spracherkennung
+<a id="beständige-songliste"></a>
+### Beständige Songliste
 
-Im „Beschreibe deinen Vibe"-Textfeld erscheint ein 🎤 **Sprechen**-Button (nur Desktop-Browser). Klicke zum Starten, erneut zum Stoppen. Die Transkription wird an der Cursor-Position eingefügt.
+Deine generierte Songliste wird im Musik-entdecken-Bereich gespeichert und beim Neuladen der Seite wiederhergestellt — du verlierst deine Track-Karten nie zwischen Sitzungen.
+
+Das bedeutet:
+
+- Du kannst vorherige Vorschläge erneut durchgehen
+- Du verlierst die Liste nicht beim Zurückkehren zur App
+- Du kannst Songs über einen längeren Zeitraum bewerten
+
+Wenn die Liste zu voll wird, entferne einige Tracks, bevor du neue generierst.
+
+![Songliste mit gespeicherten Tracks](/docs/screenshots/42_history_song_list.png)
 
 ---
 
-## Fehlerbehebung
+<a id="mobile-nutzung"></a>
+## Mobile Nutzung
 
-| Problem | Lösung |
-|---------|--------|
-| „Spotify-Zugangsdaten fehlen" | Öffne ☰ → Zugangsdaten und gib Client ID und Secret ein |
-| „Bitte trainiere zuerst dein Geschmacksprofil" | Beschreibe deinen Musikgeschmack im OpenAI-Bereich |
-| Spotify-Anmeldung schlägt fehl | Überprüfe Client ID/Secret und Redirect URI |
-| „403 Forbidden" bei Generierung | Spotify-Sitzung abgelaufen — erneut verbinden |
-| „OpenAI API-Schlüssel nicht konfiguriert" | Öffne ☰ → Zugangsdaten und gib den API-Schlüssel ein |
-| Die meisten Tracks „auf Spotify nicht gefunden" | Erneut generieren — jeder Durchlauf ergibt andere Ergebnisse |
-| App startet nicht | `pip install -r requirements.txt` ausführen, Python 3.10+ verwenden |
+SpotyVibe funktioniert auch gut auf Smartphones und Tablets.
 
+Auf mobilen Geräten:
+
+- Panels stapeln sich vertikal
+- Buttons sind leicht tippbar
+- Dialoge und Formulare passen sich an kleinere Bildschirme an
+
+Du kannst denselben Hauptablauf nutzen:
+
+1. Einrichtung abschließen
+2. Spotify verbinden
+3. Profil erstellen
+4. Playlists generieren
+5. Songs bewerten und Feedback geben
+
+![Mobile Ansicht des Hauptbildschirms](/docs/screenshots/43_mobile_view.png)
+
+---
+
+<a id="fehlerbehebung--tipps"></a>
+## Fehlerbehebung & Tipps
+
+<a id="fehlerbehebung"></a>
+### Fehlerbehebung
+
+**Ich kann keine Playlist generieren**
+Stelle sicher, dass du:
+
+- alle erforderlichen Zugangsdaten eingegeben hast
+- dein Spotify-Konto verbunden hast
+- dein Musikprofil ausgefüllt hast
+
+**Spotify-Verbindung funktioniert nicht**
+Versuche, Spotify über das Menü zu trennen und erneut zu verbinden.
+
+**Die Empfehlungen passen nicht zu meinem Geschmack**
+Aktualisiere dein Musikprofil mit klareren Beschreibungen und spezifischeren Likes/Dislikes.
+
+**Die App schlägt immer ähnliche Songs vor**
+Nutze detailliertere Profil-Bearbeitungen, erhöhe den Anteil neuer Künstler und gib direktes Feedback zu Tracks, die dir gefallen oder nicht gefallen.
+
+**Zu wenige Tracks werden hinzugefügt**
+Erweitere deine Audio-Filter oder versuche es erneut mit weniger Einschränkungen.
+
+![Beispiel-Warn- oder Fehlermeldung](/docs/screenshots/44_warning_message.png)
+
+---
+
+<a id="abschließende-tipps"></a>
+### Abschließende Tipps
+
+Um die besten Ergebnisse mit SpotyVibe zu erzielen:
+
+- Sei spezifisch in deinem Musikprofil
+- Gib häufig Feedback
+- Aktualisiere dein Profil, wenn sich dein Geschmack ändert
+- Nutze Audio-Filter nur, wenn du engere Kontrolle möchtest
+- Nutze den Lauf-Verlauf, um vergangene Generierungen zu überprüfen
+
+Die App verbessert sich mit jeder Interaktion, daher führt regelmäßiges Feedback zu besseren Entdeckungen.
+
+---
+
+Viel Spaß beim Entdecken deiner nächsten Lieblingsmusik mit **SpotyVibe**.

@@ -7,6 +7,7 @@ import { resetDashboard } from './taste_dashboard.js';
 import { loadHistory } from './history.js';
 import { setGenerating } from './pipeline.js';
 import { renderComponentWarnings } from './warnings.js';
+import { el } from './dom.js';
 
 const TRAINING_TEXTS = {
     en: [
@@ -40,8 +41,8 @@ let _activeProfileId = '';
 /* ── Profile context menu (⋯ dropdown) ───────────────────────────── */
 
 export function toggleProfileMenu() {
-    const trigger = document.getElementById('profileMenuTrigger');
-    const menu = document.getElementById('profileMenuDropdown');
+    const trigger = el('profileMenuTrigger');
+    const menu = el('profileMenuDropdown');
     if (!trigger || !menu) return;
 
     const isOpen = !menu.classList.contains('hidden');
@@ -59,8 +60,8 @@ export function toggleProfileMenu() {
 }
 
 function _closeProfileMenu() {
-    const trigger = document.getElementById('profileMenuTrigger');
-    const menu = document.getElementById('profileMenuDropdown');
+    const trigger = el('profileMenuTrigger');
+    const menu = el('profileMenuDropdown');
     if (!trigger || !menu) return;
     menu.classList.add('hidden');
     trigger.setAttribute('aria-expanded', 'false');
@@ -76,12 +77,12 @@ export function initProfileMenu() {
     });
 
     // Keyboard navigation inside menu
-    const menu = document.getElementById('profileMenuDropdown');
+    const menu = el('profileMenuDropdown');
     if (menu) {
         menu.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 _closeProfileMenu();
-                document.getElementById('profileMenuTrigger')?.focus();
+                el('profileMenuTrigger')?.focus();
             } else if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 const items = [...menu.querySelectorAll('li:not(.disabled)')];
@@ -103,22 +104,22 @@ export function updateProfileMenuState() {
     const hasProfile = Boolean(_activeProfileId);
     const ids = ['profileMenuExport', 'profileMenuReset', 'profileMenuDelete'];
     for (const id of ids) {
-        const el = document.getElementById(id);
-        if (!el) continue;
+        const item = el(id);
+        if (!item) continue;
         if (hasProfile) {
-            el.classList.remove('disabled');
-            el.removeAttribute('aria-disabled');
+            item.classList.remove('disabled');
+            item.removeAttribute('aria-disabled');
         } else {
-            el.classList.add('disabled');
-            el.setAttribute('aria-disabled', 'true');
+            item.classList.add('disabled');
+            item.setAttribute('aria-disabled', 'true');
         }
     }
 }
 
 export function updateSeedCardState() {
-    const seedCard = document.getElementById('profileSeedCard');
-    const seedBtn = document.getElementById('profileSeedBtn');
-    const seedHint = document.getElementById('profileSeedHint');
+    const seedCard = el('profileSeedCard');
+    const seedBtn = el('profileSeedBtn');
+    const seedHint = el('profileSeedHint');
     if (!seedCard) return;
 
     const connected = State.spotifyAuthStatus === 'authenticated';
@@ -144,7 +145,7 @@ export async function loadProfileList() {
 }
 
 function _renderProfileDropdown() {
-    const select = document.getElementById('profileSelect');
+    const select = el('profileSelect');
     if (!select) return;
 
     select.innerHTML = '';
@@ -174,8 +175,8 @@ function _renderProfileDropdown() {
 /* ── Custom dropdown rendering & interaction ─────────────────────── */
 
 function _renderCustomDropdown() {
-    const label = document.getElementById('profileDropdownLabel');
-    const list = document.getElementById('profileDropdownList');
+    const label = el('profileDropdownLabel');
+    const list = el('profileDropdownList');
     if (!label || !list) return;
 
     // Update label to show the active profile
@@ -232,15 +233,15 @@ function _renderCustomDropdown() {
 
 function _selectCustomDropdownItem(profileId) {
     // Update the hidden native select
-    const select = document.getElementById('profileSelect');
+    const select = el('profileSelect');
     if (select) select.value = profileId;
     _closeCustomDropdown();
     switchProfile(profileId);
 }
 
 function _toggleCustomDropdown() {
-    const dropdown = document.getElementById('profileCustomDropdown');
-    const list = document.getElementById('profileDropdownList');
+    const dropdown = el('profileCustomDropdown');
+    const list = el('profileDropdownList');
     if (!dropdown || !list) return;
 
     const isOpen = !list.classList.contains('hidden');
@@ -257,15 +258,15 @@ function _toggleCustomDropdown() {
 }
 
 function _closeCustomDropdown() {
-    const dropdown = document.getElementById('profileCustomDropdown');
-    const list = document.getElementById('profileDropdownList');
+    const dropdown = el('profileCustomDropdown');
+    const list = el('profileDropdownList');
     if (!dropdown || !list) return;
     list.classList.add('hidden');
     dropdown.setAttribute('aria-expanded', 'false');
 }
 
 export function initCustomProfileDropdown() {
-    const dropdown = document.getElementById('profileCustomDropdown');
+    const dropdown = el('profileCustomDropdown');
     if (!dropdown) return;
 
     dropdown.addEventListener('click', (e) => {
@@ -306,12 +307,12 @@ async function _cleanupAfterProfileChange() {
     resetDashboard();
 
     // Clear status messages and playlist link from previous profile's run
-    const statusBox = document.getElementById('statusBox');
+    const statusBox = el('statusBox');
     if (statusBox) { statusBox.textContent = ''; statusBox.classList.add('hidden'); }
     hidePlaylistLink();
 
     // Dismiss playlist seed draft banner (belongs to old profile)
-    const draftBanner = document.getElementById('profileDraftBanner');
+    const draftBanner = el('profileDraftBanner');
     if (draftBanner) draftBanner.classList.add('hidden');
     window._svDraftMeta = null;
 
@@ -347,10 +348,10 @@ export async function switchProfile(profileId) {
 }
 
 export function toggleCreateProfile() {
-    const wrap = document.getElementById('profileCreateWrap');
-    const toggle = document.getElementById('profileCreateToggle');
-    const input = document.getElementById('profileCreateInput');
-    const error = document.getElementById('profileCreateError');
+    const wrap = el('profileCreateWrap');
+    const toggle = el('profileCreateToggle');
+    const input = el('profileCreateInput');
+    const error = el('profileCreateError');
 
     if (wrap.classList.contains('hidden')) {
         wrap.classList.remove('hidden');
@@ -368,8 +369,8 @@ export function toggleCreateProfile() {
 }
 
 export async function createNewProfile() {
-    const input = document.getElementById('profileCreateInput');
-    const error = document.getElementById('profileCreateError');
+    const input = el('profileCreateInput');
+    const error = el('profileCreateError');
     const name = (input.value || '').trim();
 
     if (!name) {
@@ -454,8 +455,8 @@ export async function deleteCurrentProfile() {
 function _clearTrainFields() {
     const ids = ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid'];
     for (const id of ids) {
-        const el = document.getElementById(id);
-        if (el) el.value = '';
+        const field = el(id);
+        if (field) field.value = '';
     }
 }
 
@@ -463,7 +464,7 @@ function _clearTrainFields() {
 // ── Existing profile functions ──────────────────────────────────────
 
 export function toggleAccordion(id) {
-    const panel = document.getElementById(id);
+    const panel = el(id);
     panel.classList.toggle('open');
     const header = panel.querySelector('.accordion-header');
     if (header) header.setAttribute('aria-expanded', panel.classList.contains('open'));
@@ -476,19 +477,19 @@ export async function checkProfileStatus() {
 
         if (data.no_profile) {
             State.setProfileTrained(false);
-            const el = document.getElementById('trainStatus');
-            if (el) el.textContent = i18n('profile.no_profile_hint', 'Create a profile to get started.');
+            const status = el('trainStatus');
+            if (status) status.textContent = i18n('profile.no_profile_hint', 'Create a profile to get started.');
             return;
         }
 
         State.setProfileTrained(data.trained);
-        const el = document.getElementById('trainStatus');
+        const status = el('trainStatus');
         if (data.trained) {
             const d = new Date(data.last_updated);
-            el.textContent = i18n('profile.last_trained', '✓ Last trained: {date}').replace('{date}', d.toLocaleString());
+            status.textContent = i18n('profile.last_trained', '✓ Last trained: {date}').replace('{date}', d.toLocaleString());
         } else {
-            el.textContent = i18n('profile.not_trained_hint', '⚠ Not yet trained — describe your taste below.');
-            document.getElementById('trainBody').classList.remove('hidden');
+            status.textContent = i18n('profile.not_trained_hint', '⚠ Not yet trained — describe your taste below.');
+            el('trainBody').classList.remove('hidden');
             State.setUserProfileEditMode(true);
             updateTrainToggleLabel();
             prefillTrainFields();
@@ -503,28 +504,28 @@ export async function prefillTrainFields() {
         const profile = await resp.json();
         const prefs = profile.preferences || {};
 
-        document.getElementById('trainVibeDesc').value = prefs.vibe_description || '';
-        document.getElementById('trainCoreDesc').value = prefs.core_description || '';
-        document.getElementById('trainMustHave').value = (prefs.must_have || []).join('\n');
-        document.getElementById('trainSoftPrefs').value = (prefs.soft_preferences || []).join('\n');
-        document.getElementById('trainAvoid').value = (prefs.avoid || []).join('\n');
+        el('trainVibeDesc').value = prefs.vibe_description || '';
+        el('trainCoreDesc').value = prefs.core_description || '';
+        el('trainMustHave').value = (prefs.must_have || []).join('\n');
+        el('trainSoftPrefs').value = (prefs.soft_preferences || []).join('\n');
+        el('trainAvoid').value = (prefs.avoid || []).join('\n');
     } catch (e) { /* ignore — fields stay empty */ }
 }
 
 function _hideAiWarning() {
-    const warning = document.getElementById('trainAiWarning');
+    const warning = el('trainAiWarning');
     if (warning) warning.classList.add('hidden');
 }
 
 export function updateTrainToggleLabel() {
-    const body = document.getElementById('trainBody');
-    const btn = document.getElementById('trainToggleBtn');
+    const body = el('trainBody');
+    const btn = el('trainToggleBtn');
     if (!body || !btn) return;
     btn.textContent = body.classList.contains('hidden') ? i18n('btn.show', 'Show') : i18n('btn.hide', 'Hide');
 }
 
 export function toggleTrainBody() {
-    const body = document.getElementById('trainBody');
+    const body = el('trainBody');
     const isOpening = body.classList.contains('hidden');
 
     if (isOpening) {
@@ -542,12 +543,12 @@ export function toggleTrainBody() {
     const expanded = isOpening.toString();
     const header = document.querySelector('#trainSection > .train-header');
     if (header) header.setAttribute('aria-expanded', expanded);
-    const btn = document.getElementById('trainToggleBtn');
+    const btn = el('trainToggleBtn');
     if (btn) btn.setAttribute('aria-expanded', expanded);
 }
 
 export async function startImportProfile() {
-    const input = document.getElementById('profileImportInput');
+    const input = el('profileImportInput');
     if (!input) return;
 
     const ok = await showConfirm(
@@ -628,7 +629,7 @@ async function handleProfileImportFile(file) {
 }
 
 export function bindProfileImportInput() {
-    const input = document.getElementById('profileImportInput');
+    const input = el('profileImportInput');
     if (!input) return;
     input.addEventListener('change', () => {
         const file = input.files && input.files[0];
@@ -642,29 +643,29 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
         return;
     }
 
-    const vibeDesc = document.getElementById('trainVibeDesc').value.trim();
-    const coreDesc = document.getElementById('trainCoreDesc').value.trim();
+    const vibeDesc = el('trainVibeDesc').value.trim();
+    const coreDesc = el('trainCoreDesc').value.trim();
 
     // For AI training, require at least one description
     if (requireOpenAI && !coreDesc && !vibeDesc) {
-        const warning = document.getElementById('trainAiWarning');
+        const warning = el('trainAiWarning');
         if (warning) warning.classList.remove('hidden');
         return;
     }
     _hideAiWarning();
 
-    const mustHave = document.getElementById('trainMustHave').value.trim();
-    const softPrefs = document.getElementById('trainSoftPrefs').value.trim();
-    const avoid = document.getElementById('trainAvoid').value.trim();
+    const mustHave = el('trainMustHave').value.trim();
+    const softPrefs = el('trainSoftPrefs').value.trim();
+    const avoid = el('trainAvoid').value.trim();
 
-    const btn = document.getElementById(btnId);
+    const btn = el(btnId);
     btn.disabled = true;
     btn.textContent = loadingLabel;
 
     let textInterval;
     if (endpoint === '/api/train-profile') {
-        const spinner = document.getElementById('trainSpinner');
-        const spinnerText = document.getElementById('trainSpinnerText');
+        const spinner = el('trainSpinner');
+        const spinnerText = el('trainSpinnerText');
         spinner.classList.remove('hidden');
         const lang = localStorage.getItem('svLang') || 'en';
         const texts = TRAINING_TEXTS[lang] || TRAINING_TEXTS.en;
@@ -691,7 +692,7 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
         const data = await resp.json();
 
         if (!resp.ok || data.error) {
-            showAlert('Error: ' + (data.error || 'unknown'));
+            showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', data.error || 'unknown'));
             return;
         }
 
@@ -699,16 +700,16 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
         await prefillTrainFields();
         // Dispatch input events so completeness meter re-reads updated values
         ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid']
-            .forEach(id => document.getElementById(id)?.dispatchEvent(new Event('input')));
+            .forEach(id => el(id)?.dispatchEvent(new Event('input')));
 
-        const icon = document.getElementById('trainSuccessIcon');
+        const icon = el('trainSuccessIcon');
         icon.className = 'train-success';
         icon.textContent = successMsg;
         icon.classList.remove('hidden');
         setTimeout(() => { icon.classList.add('hidden'); }, 5000);
 
         // Hide draft banner after successful save/train
-        const banner = document.getElementById('profileDraftBanner');
+        const banner = el('profileDraftBanner');
         if (banner) banner.classList.add('hidden');
         window._svDraftMeta = null;
 
@@ -718,10 +719,10 @@ export async function submitProfile(endpoint, btnId, btnLabel, loadingLabel, suc
         await checkProfileStatus();
 
     } catch (e) {
-        showAlert('Network error: ' + e.message);
+        showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
     } finally {
         if (textInterval) clearInterval(textInterval);
-        document.getElementById('trainSpinner')?.classList.add('hidden');
+        el('trainSpinner')?.classList.add('hidden');
         btn.disabled = false;
         btn.textContent = btnLabel;
     }
@@ -767,7 +768,7 @@ export async function resetProfileToHistory() {
         await Promise.all([checkProfileStatus(), prefillTrainFields()]);
         // F.1: Dispatch input events so completeness meter re-reads fresh values
         ['trainVibeDesc', 'trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid']
-            .forEach(id => document.getElementById(id)?.dispatchEvent(new Event('input')));
+            .forEach(id => el(id)?.dispatchEvent(new Event('input')));
     } catch (e) {
         showToast(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message), 'error');
     }

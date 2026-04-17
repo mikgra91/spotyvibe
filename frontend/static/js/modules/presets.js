@@ -8,6 +8,7 @@
 
 import { i18n } from './i18n.js';
 import { showToast } from './ui.js';
+import { el } from './dom.js';
 
 // ── Empty audio filters template ────────────────────────────────────
 
@@ -140,20 +141,20 @@ function _applyPresetToForm(preset) {
     });
 
     // New artist %
-    const napField = document.getElementById('settings-new-artist-pct');
+    const napField = el('settings-new-artist-pct');
     if (napField && s.new_artist_pct != null) napField.value = s.new_artist_pct;
-    const advNap = document.getElementById('genNewArtistPct');
+    const advNap = el('genNewArtistPct');
     if (advNap && s.new_artist_pct != null) advNap.value = s.new_artist_pct;
 
     // Emerging only
-    const emergingCb = document.getElementById('emergingArtistsCheckbox');
+    const emergingCb = el('emergingArtistsCheckbox');
     if (emergingCb && s.emerging_only != null) emergingCb.checked = s.emerging_only;
 
     // Audio filters
     if (s.audio_filters) {
         for (const [key, range] of Object.entries(s.audio_filters)) {
-            const minEl = document.getElementById(`af-${key}-min`);
-            const maxEl = document.getElementById(`af-${key}-max`);
+            const minEl = el(`af-${key}-min`);
+            const maxEl = el(`af-${key}-max`);
             if (minEl) minEl.value = range.min != null ? range.min : '';
             if (maxEl) maxEl.value = range.max != null ? range.max : '';
         }
@@ -178,16 +179,16 @@ function _collectCurrentSettings() {
         }
     } catch (_) { /* ignore */ }
 
-    const napField = document.getElementById('genNewArtistPct') || document.getElementById('settings-new-artist-pct');
+    const napField = el('genNewArtistPct') || el('settings-new-artist-pct');
     const new_artist_pct = napField ? parseInt(napField.value, 10) || 30 : 30;
 
-    const emergingCb = document.getElementById('emergingArtistsCheckbox');
+    const emergingCb = el('emergingArtistsCheckbox');
     const emerging_only = emergingCb ? emergingCb.checked : false;
 
     const audio_filters = {};
     for (const key of ['energy', 'valence', 'tempo', 'danceability', 'acousticness']) {
-        const minEl = document.getElementById(`af-${key}-min`);
-        const maxEl = document.getElementById(`af-${key}-max`);
+        const minEl = el(`af-${key}-min`);
+        const maxEl = el(`af-${key}-max`);
         audio_filters[key] = {
             min: minEl && minEl.value !== '' ? parseFloat(minEl.value) : null,
             max: maxEl && maxEl.value !== '' ? parseFloat(maxEl.value) : null,
@@ -208,7 +209,7 @@ function _collectCurrentSettings() {
 // ── Dropdown rendering ──────────────────────────────────────────────
 
 function _renderDropdown() {
-    const list = document.getElementById('presetDropdownList');
+    const list = el('presetDropdownList');
     if (!list) return;
     list.innerHTML = '';
 
@@ -302,7 +303,7 @@ function _selectPreset(id) {
 // ── Trigger label ───────────────────────────────────────────────────
 
 function _updateTriggerLabel() {
-    const nameEl = document.getElementById('presetDropdownName');
+    const nameEl = el('presetDropdownName');
     if (!nameEl) return;
     const preset = getActivePreset();
     if (!preset) {
@@ -333,16 +334,16 @@ export function togglePresetDropdown() {
 
 function _openDropdown() {
     _renderDropdown();
-    const list = document.getElementById('presetDropdownList');
-    const trigger = document.getElementById('presetDropdownTrigger');
+    const list = el('presetDropdownList');
+    const trigger = el('presetDropdownTrigger');
     if (list) list.classList.remove('hidden');
     if (trigger) trigger.setAttribute('aria-expanded', 'true');
     _dropdownOpen = true;
 }
 
 function _closeDropdown() {
-    const list = document.getElementById('presetDropdownList');
-    const trigger = document.getElementById('presetDropdownTrigger');
+    const list = el('presetDropdownList');
+    const trigger = el('presetDropdownTrigger');
     if (list) list.classList.add('hidden');
     if (trigger) trigger.setAttribute('aria-expanded', 'false');
     _dropdownOpen = false;
@@ -441,14 +442,14 @@ function _exportSingle(id) {
 
 function _openSaveAsDialog() {
     _closeDropdown();
-    const modal = document.getElementById('savePresetModal');
+    const modal = el('savePresetModal');
     if (modal) modal.classList.add('open');
-    const input = document.getElementById('savePresetInput');
+    const input = el('savePresetInput');
     if (input) { input.value = ''; input.focus(); }
 }
 
 export function confirmSaveAsPreset() {
-    const input = document.getElementById('savePresetInput');
+    const input = el('savePresetInput');
     const name = (input ? input.value : '').trim();
     if (!name) return;
 
@@ -466,7 +467,7 @@ export function confirmSaveAsPreset() {
     _updateTriggerLabel();
     _updateActiveIndicator();
 
-    const modal = document.getElementById('savePresetModal');
+    const modal = el('savePresetModal');
     if (modal) modal.classList.remove('open');
     showToast(i18n('preset.using', 'Using preset: {name}').replace('{name}', name));
 }
@@ -485,13 +486,13 @@ export function markCustomUnsaved() {
 function _openManager() {
     _closeDropdown();
     _renderManager();
-    const modal = document.getElementById('presetManagerModal');
+    const modal = el('presetManagerModal');
     if (modal) modal.classList.add('open');
 }
 
 function _renderManager() {
-    const userList = document.getElementById('presetManagerUserList');
-    const builtinList = document.getElementById('presetManagerBuiltinList');
+    const userList = el('presetManagerUserList');
+    const builtinList = el('presetManagerBuiltinList');
     if (!userList || !builtinList) return;
 
     // User rows
@@ -623,7 +624,7 @@ function _getDropTarget(ev, listEl) {
 // ── Import ──────────────────────────────────────────────────────────
 
 export function importPresetFile() {
-    const input = document.getElementById('presetImportInput');
+    const input = el('presetImportInput');
     if (!input) return;
     input.click();
 }
@@ -689,7 +690,7 @@ export function init() {
     window._presetExportSingle = _exportSingle;
 
     // Import file input
-    const importInput = document.getElementById('presetImportInput');
+    const importInput = el('presetImportInput');
     if (importInput) importInput.addEventListener('change', _handleImportFile);
 
     // Close dropdown on outside click
@@ -703,11 +704,11 @@ export function init() {
     });
 
     // Save preset modal — Enter key
-    const saveInput = document.getElementById('savePresetInput');
+    const saveInput = el('savePresetInput');
     if (saveInput) {
         saveInput.addEventListener('keydown', e => {
             if (e.key === 'Enter') { e.preventDefault(); confirmSaveAsPreset(); }
-            if (e.key === 'Escape') { const m = document.getElementById('savePresetModal'); if (m) m.classList.remove('open'); }
+            if (e.key === 'Escape') { const m = el('savePresetModal'); if (m) m.classList.remove('open'); }
         });
     }
 }

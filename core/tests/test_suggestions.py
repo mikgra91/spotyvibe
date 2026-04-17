@@ -84,6 +84,24 @@ class TestNormalizeHistory:
         tracks = result["history"]["suggested_tracks"]
         assert tracks[0] == {"artist": "radiohead", "track": "creep"}
 
+    def test_does_not_mutate_original_profile(self):
+        """normalize_history must not modify the caller's profile dict."""
+        original_artists = ["Artist A", "artist a"]
+        original_tracks = [{"artist": "Radiohead", "track": "Creep"}]
+        profile = {
+            "history": {
+                "suggested_artists": list(original_artists),
+                "suggested_tracks": [dict(t) for t in original_tracks],
+            },
+            "preferences": {"core_description": "rock"},
+        }
+        result = normalize_history(profile)
+        # Original must be unchanged
+        assert profile["history"]["suggested_artists"] == original_artists
+        assert profile["history"]["suggested_tracks"] == original_tracks
+        # preferences must be the exact same object (shallow copy, not deep)
+        assert result["preferences"] is profile["preferences"]
+
 
 class TestFilterDuplicateSuggestions:
     def _make_result(self, playlist):

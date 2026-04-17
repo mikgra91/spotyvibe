@@ -10,6 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/utilities.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/buttons.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/forms.css') }}">
@@ -122,7 +123,7 @@
         <img id="screenshotLightboxImg" src="" alt="" />
     </div>
 </div>
-<script src="{{ url_for('static', filename='js/modules/setup_guide.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/modules/setup_guide.js') }}"></script>
 <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

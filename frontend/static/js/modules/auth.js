@@ -2,6 +2,7 @@ import * as State from './state.js';
 import { renderComponentWarnings } from './warnings.js';
 import { showToast, showAlert } from './ui.js';
 import { i18n } from './i18n.js';
+import { el } from './dom.js';
 
 export async function checkCredentialStatus() {
     try {
@@ -61,7 +62,7 @@ export function connectSpotify() {
 }
 
 export async function toggleSpotifyConnection() {
-    document.getElementById('settingsDropdown').classList.remove('open');
+    el('settingsDropdown').classList.remove('open');
     if (State.spotifyAuthStatus === 'authenticated') {
         try {
             await fetch('/api/spotify/disconnect', { method: 'POST' });

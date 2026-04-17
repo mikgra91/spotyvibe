@@ -2,9 +2,10 @@ import * as State from './state.js';
 import { attr, escHtml } from './ui.js';
 import { i18n } from './i18n.js';
 import { buildRationaleHtml } from './rationale.js';
+import { el } from './dom.js';
 
 export async function toggleHistoryBody() {
-    const body = document.getElementById('historyBody');
+    const body = el('historyBody');
     State.setHistoryBodyOpen(!State.historyBodyOpen);
     body.classList.toggle('hidden', !State.historyBodyOpen);
     const expanded = State.historyBodyOpen.toString();
@@ -13,7 +14,7 @@ export async function toggleHistoryBody() {
     document.querySelectorAll('#historySection .train-header-actions button[aria-controls]').forEach(
         btn => btn.setAttribute('aria-expanded', expanded)
     );
-    const toggleBtn = document.getElementById('historyToggleBtn');
+    const toggleBtn = el('historyToggleBtn');
     if (toggleBtn) toggleBtn.textContent = State.historyBodyOpen ? i18n('btn.hide', 'Hide') : i18n('btn.show', 'Show');
     if (State.historyBodyOpen) await loadHistory();
     // Wave 3: First history view tip
@@ -24,7 +25,7 @@ export async function toggleHistoryBody() {
 }
 
 export async function loadHistory() {
-    const listEl = document.getElementById('historyList');
+    const listEl = el('historyList');
     listEl.innerHTML = `<p style="color:var(--text-muted)">${i18n('msg.loading', 'Loading…')}</p>`;
     try {
         const resp = await fetch('/api/runs');

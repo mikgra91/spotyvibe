@@ -4,8 +4,8 @@
     background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    padding: 14px 16px;
-    margin: 12px 0 18px;
+    padding: var(--sp-4) var(--sp-4);
+    margin: var(--sp-3) 0 18px;
 }
 .completeness-card.hidden { display: none; }
 
@@ -18,46 +18,37 @@
 .completeness-header {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--sp-3);
     cursor: pointer;
     user-select: none;
 }
 
 .completeness-title {
-    font-size: 0.92rem;
+    font-size: var(--fs-md);
     font-weight: 600;
     color: var(--text-primary);
     white-space: nowrap;
 }
 
 .completeness-score {
-    font-size: 0.92rem;
+    font-size: var(--fs-md);
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
-.completeness-header .completeness-bar {
-    flex: 1;
-    min-width: 60px;
-}
+.completeness-header .completeness-bar { flex: 1; min-width: 60px; }
 
 .completeness-chevron {
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     transition: transform 0.2s ease;
     flex-shrink: 0;
 }
-.completeness-chevron.rotated {
-    transform: rotate(180deg);
-}
+.completeness-chevron.rotated { transform: rotate(180deg); }
 
-.completeness-detail {
-    margin-top: 10px;
-}
-.completeness-detail.hidden {
-    display: none;
-}
+.completeness-detail { margin-top: var(--sp-3); }
+.completeness-detail.hidden { display: none; }
 .completeness-score.weak   { color: var(--meter-weak); }
 .completeness-score.ok     { color: var(--meter-ok); }
 .completeness-score.strong { color: var(--meter-strong); }
@@ -69,26 +60,19 @@
     overflow: hidden;
 }
 
-.completeness-bar-fill {
-    height: 100%;
-    transition: width 250ms ease, background 250ms ease;
-}
+.completeness-bar-fill { height: 100%; transition: width 250ms ease, background 250ms ease; }
 .completeness-bar-fill.weak   { background: var(--meter-weak); }
 .completeness-bar-fill.ok     { background: var(--meter-ok); }
 .completeness-bar-fill.strong { background: var(--meter-strong); }
 
-.completeness-ticks {
-    list-style: none;
-    padding: 0;
-    margin: 12px 0 0;
-}
+.completeness-ticks { list-style: none; padding: 0; margin: var(--sp-3) 0 0; }
 
 .completeness-tick {
     display: flex;
-    gap: 10px;
+    gap: var(--sp-3);
     align-items: center;
-    padding: 4px 0;
-    font-size: 0.85rem;
+    padding: var(--sp-1) 0;
+    font-size: var(--fs-md);
 }
 
 .tick-icon {
@@ -98,37 +82,21 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.7rem;
+    font-size: var(--fs-xs);
     flex-shrink: 0;
 }
 
-.completeness-tick.strong .tick-icon {
-    background: rgba(34, 197, 94, 0.12);
-    color: var(--success);
-}
-.completeness-tick.partial .tick-icon {
-    background: rgba(245, 158, 11, 0.12);
-    color: var(--warning);
-}
-.completeness-tick.empty .tick-icon {
-    background: transparent;
-    border: 1px solid var(--text-muted);
-    color: var(--text-muted);
-}
+.completeness-tick.strong .tick-icon { background: rgba(34, 197, 94, 0.12); color: var(--success); }
+.completeness-tick.partial .tick-icon { background: rgba(245, 158, 11, 0.12); color: var(--warning); }
+.completeness-tick.empty .tick-icon { background: transparent; border: 1px solid var(--text-muted); color: var(--text-muted); }
 
-.tick-label {
-    flex: 1;
-    color: var(--text-secondary);
-}
+.tick-label { flex: 1; color: var(--text-secondary); }
 
-.tick-value {
-    font-size: 0.78rem;
-    color: var(--text-muted);
-}
+.tick-value { font-size: var(--fs-sm); color: var(--text-muted); }
 
 .completeness-suggestion {
-    margin-top: 10px;
-    font-size: 0.82rem;
+    margin-top: var(--sp-3);
+    font-size: var(--fs-sm);
     color: var(--text-secondary);
     font-style: italic;
 }

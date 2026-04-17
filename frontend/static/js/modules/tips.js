@@ -2,6 +2,7 @@
  * tips.js — Feature discovery tip toasts (Wave 3 B.1)
  */
 import { i18n } from './i18n.js';
+import { el } from './dom.js';
 
 const STORAGE_KEY = 'sv.tips.seen';
 let sessionTipShown = false;
@@ -13,9 +14,9 @@ const TIP_CATALOGUE = {
         body_i18n: 'tip.first_generation_body',
         link_i18n: 'tip.first_generation_link',
         linkAction: () => {
-            const tab = document.getElementById('tab-openai');
+            const tab = el('tab-openai');
             if (tab) tab.click();
-            const section = document.getElementById('analysisSection');
+            const section = el('analysisSection');
             if (section) {
                 section.scrollIntoView({ behavior: 'smooth' });
                 const header = section.querySelector('.train-header');
@@ -29,9 +30,9 @@ const TIP_CATALOGUE = {
         body_i18n: 'tip.disliked_2_body',
         link_i18n: 'tip.disliked_2_link',
         linkAction: () => {
-            const tab = document.getElementById('tab-spotify');
+            const tab = el('tab-spotify');
             if (tab) tab.click();
-            const section = document.getElementById('reviewSection');
+            const section = el('reviewSection');
             if (section) {
                 section.scrollIntoView({ behavior: 'smooth' });
                 const header = section.querySelector('.train-header');
@@ -45,7 +46,7 @@ const TIP_CATALOGUE = {
         body_i18n: 'tip.first_history_body',
         link_i18n: 'tip.first_history_link',
         linkAction: () => {
-            const trigger = document.getElementById('profileMenuTrigger');
+            const trigger = el('profileMenuTrigger');
             if (trigger) trigger.click();
         },
     },
@@ -62,9 +63,9 @@ const TIP_CATALOGUE = {
         body_i18n: 'tip.five_generations_body',
         link_i18n: 'tip.five_generations_link',
         linkAction: () => {
-            const tab = document.getElementById('tab-spotify');
+            const tab = el('tab-spotify');
             if (tab) tab.click();
-            const section = document.getElementById('generateSection');
+            const section = el('generateSection');
             if (section) section.scrollIntoView({ behavior: 'smooth' });
         },
     },
@@ -89,8 +90,8 @@ function markSeen(id) {
 let _autoDismissTimer = null;
 
 function _dismissTip() {
-    const el = document.getElementById('tipToast');
-    if (el) el.classList.add('hidden');
+    const toast = el('tipToast');
+    if (toast) toast.classList.add('hidden');
     if (_autoDismissTimer) {
         clearTimeout(_autoDismissTimer);
         _autoDismissTimer = null;
@@ -99,15 +100,15 @@ function _dismissTip() {
 
 function _showTip(tip) {
     // Remove existing tip toast if any
-    let el = document.getElementById('tipToast');
-    if (el) el.remove();
+    const existing = el('tipToast');
+    if (existing) existing.remove();
 
-    el = document.createElement('div');
-    el.id = 'tipToast';
-    el.className = 'toast--tip';
-    el.setAttribute('role', 'status');
-    el.setAttribute('aria-live', 'polite');
-    el.innerHTML = `
+    const toast = document.createElement('div');
+    toast.id = 'tipToast';
+    toast.className = 'toast--tip';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    toast.innerHTML = `
         <span class="toast-tip-icon">💡</span>
         <div class="toast-tip-text">
             <div class="toast-tip-title">${i18n(tip.title_i18n, tip.id)}</div>
@@ -116,19 +117,19 @@ function _showTip(tip) {
         </div>
         <button class="toast-tip-close" aria-label="${i18n('tip.dismiss', 'Dismiss')}" id="tipToastClose">✕</button>
     `;
-    document.body.appendChild(el);
+    document.body.appendChild(toast);
 
-    el.querySelector('#tipToastLink').addEventListener('click', () => {
+    toast.querySelector('#tipToastLink').addEventListener('click', () => {
         if (tip.linkAction) tip.linkAction();
         _dismissTip();
     });
-    el.querySelector('#tipToastClose').addEventListener('click', _dismissTip);
+    toast.querySelector('#tipToastClose').addEventListener('click', _dismissTip);
 
     // Pause auto-dismiss on hover
-    el.addEventListener('mouseenter', () => {
+    toast.addEventListener('mouseenter', () => {
         if (_autoDismissTimer) { clearTimeout(_autoDismissTimer); _autoDismissTimer = null; }
     });
-    el.addEventListener('mouseleave', () => {
+    toast.addEventListener('mouseleave', () => {
         _autoDismissTimer = setTimeout(_dismissTip, 12000);
     });
 

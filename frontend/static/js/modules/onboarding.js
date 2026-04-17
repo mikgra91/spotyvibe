@@ -2,12 +2,14 @@
    Spotify connect, import, model picker, summary builder.
    Loaded as a regular <script> (not ES module) in onboarding.html. */
 
+const el = (id) => document.getElementById(id);
+
 /* ── Lightweight i18n for onboarding ─────────────────────────── */
 let _obStrings = {};
 
 async function obSwitchLang(lang) {
     localStorage.setItem('svLang', lang);
-    const langMap = { en: 'English', de: 'German' };
+    const langMap = { en: 'English', de: 'German', jp: 'Japanese' };
     const gptLang = langMap[lang];
     const payload = { ui_language: lang };
     if (gptLang) payload.gpt_language = gptLang;
@@ -51,7 +53,7 @@ async function obApplyLang(lang) {
     });
 
     // Refresh dynamically-set elements that don't use data-i18n
-    const badge = document.getElementById('obProviderBadge');
+    const badge = el('obProviderBadge');
     if (badge && typeof _obSelectedProvider !== 'undefined') {
         const providerLabel = document.querySelector(`#ob-provider-list .ob-custom-select-option[data-value="${_obSelectedProvider}"]`);
         const providerName = providerLabel ? providerLabel.textContent.trim() : _obSelectedProvider;
@@ -103,7 +105,7 @@ const _PROVIDER_BASE_URLS = {
 function obGoPage(idx) {
     if (idx < 0 || idx >= totalPages) return;
     currentPage = idx;
-    document.getElementById('obPages').style.transform = `translateX(-${idx * 100}%)`;
+    el('obPages').style.transform = `translateX(-${idx * 100}%)`;
     _updateIndicators();
     _updateNavButtons();
 
@@ -139,15 +141,15 @@ function _updateNavButtons() {
         if (currentPage === 1) {
             // Step 2: OpenAI key — enabled if local provider, or input has content, or key already set
             const isLocal = (_PROVIDER_META[_obSelectedProvider] || {}).local === true;
-            const hasKey = document.getElementById('ob-openai-key')?.value.trim();
-            const isSet = !document.getElementById('ob-set-openai')?.classList.contains('hidden');
+            const hasKey = el('ob-openai-key')?.value.trim();
+            const isSet = !el('ob-set-openai')?.classList.contains('hidden');
             cta.disabled = !(isLocal || hasKey || isSet);
         } else if (currentPage === 2) {
             // Step 3: Spotify creds — both must have content or be already set
-            const hasId = document.getElementById('ob-spotify-id')?.value.trim();
-            const hasSecret = document.getElementById('ob-spotify-secret')?.value.trim();
-            const idSet = !document.getElementById('ob-set-spotify-id')?.classList.contains('hidden');
-            const secretSet = !document.getElementById('ob-set-spotify-secret')?.classList.contains('hidden');
+            const hasId = el('ob-spotify-id')?.value.trim();
+            const hasSecret = el('ob-spotify-secret')?.value.trim();
+            const idSet = !el('ob-set-spotify-id')?.classList.contains('hidden');
+            const secretSet = !el('ob-set-spotify-secret')?.classList.contains('hidden');
             cta.disabled = !((hasId || idSet) && (hasSecret || secretSet));
         }
     }
@@ -156,7 +158,7 @@ function _updateNavButtons() {
 // Touch/swipe support
 let touchStartX = 0;
 document.addEventListener('DOMContentLoaded', () => {
-    const wrap = document.getElementById('obWrap');
+    const wrap = el('obWrap');
     if (!wrap) return;
     wrap.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
     wrap.addEventListener('touchend', e => {
@@ -186,9 +188,9 @@ document.addEventListener('DOMContentLoaded', () => {
 /* ── B.1: Custom provider dropdown logic ─────────────────────── */
 
 function _initObProviderDropdown() {
-    const dropdown = document.getElementById('ob-provider-dropdown');
-    const trigger = document.getElementById('ob-provider-trigger');
-    const list = document.getElementById('ob-provider-list');
+    const dropdown = el('ob-provider-dropdown');
+    const trigger = el('ob-provider-trigger');
+    const list = el('ob-provider-list');
     if (!dropdown || !trigger || !list) return;
 
     // Toggle open/close
@@ -270,26 +272,26 @@ function _selectObProvider(value, label) {
 
     // Update API key label, hint, placeholder
     const meta = _PROVIDER_META[value] || _PROVIDER_META.openai;
-    const keyLabel = document.getElementById('ob-api-key-label');
+    const keyLabel = el('ob-api-key-label');
     if (keyLabel) keyLabel.textContent = obI18n(meta.label_i18n, 'API Key');
-    const keyHint = document.getElementById('ob-api-key-hint');
+    const keyHint = el('ob-api-key-hint');
     if (keyHint) keyHint.textContent = obI18n(meta.hint_i18n, '');
-    const keyInput = document.getElementById('ob-openai-key');
+    const keyInput = el('ob-openai-key');
     if (keyInput) keyInput.placeholder = meta.placeholder;
 
     // Show/hide local notice
-    const notice = document.getElementById('obLocalNotice');
+    const notice = el('obLocalNotice');
     if (notice) notice.classList.toggle('hidden', !meta.local);
 
     // Hide/show API key input row for local providers
-    const keyRow = document.getElementById('ob-row-openai');
+    const keyRow = el('ob-row-openai');
     if (keyRow) keyRow.classList.toggle('hidden', !!meta.local);
 
     // Toggle provider-specific guide blocks
     const guideIds = ['ob-guide-openai', 'ob-guide-ollama', 'ob-guide-lmstudio', 'ob-guide-groq', 'ob-guide-openrouter'];
     guideIds.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.classList.toggle('hidden', id !== 'ob-guide-' + value);
+        const guide = el(id);
+        if (guide) guide.classList.toggle('hidden', id !== 'ob-guide-' + value);
     });
 
     // Reset models when provider changes
@@ -321,7 +323,7 @@ async function _markComplete() {
 async function obSaveAndNext() {
     if (currentPage === 1) {
         // Step 2: Save provider + API key
-        const key = document.getElementById('ob-openai-key')?.value.trim();
+        const key = el('ob-openai-key')?.value.trim();
         const baseUrl = _PROVIDER_BASE_URLS[_obSelectedProvider] || '';
 
         // Save provider settings
@@ -338,22 +340,22 @@ async function obSaveAndNext() {
 
         if (key) {
             await _saveCredentials({ OPENAI_API_KEY: key });
-            document.getElementById('ob-openai-key').value = '';
+            el('ob-openai-key').value = '';
             obTouched.openai_key = true;
             await prefillCredentials();
         }
         obGoPage(2);
     } else if (currentPage === 2) {
         // Step 3: Save Spotify creds
-        const id = document.getElementById('ob-spotify-id')?.value.trim();
-        const secret = document.getElementById('ob-spotify-secret')?.value.trim();
+        const id = el('ob-spotify-id')?.value.trim();
+        const secret = el('ob-spotify-secret')?.value.trim();
         const payload = {};
         if (id) payload.SPOTIPY_CLIENT_ID = id;
         if (secret) payload.SPOTIPY_CLIENT_SECRET = secret;
         if (Object.keys(payload).length > 0) {
             await _saveCredentials(payload);
-            if (id) document.getElementById('ob-spotify-id').value = '';
-            if (secret) document.getElementById('ob-spotify-secret').value = '';
+            if (id) el('ob-spotify-id').value = '';
+            if (secret) el('ob-spotify-secret').value = '';
             obTouched.spotify_cred = true;
             await prefillCredentials();
         }
@@ -391,8 +393,8 @@ async function _saveCredentials(payload) {
 const _obEditingFields = new Set();
 
 function editObCredential(field) {
-    const setRow = document.getElementById('ob-set-' + field);
-    const inputWrap = document.getElementById('ob-input-wrap-' + field);
+    const setRow = el('ob-set-' + field);
+    const inputWrap = el('ob-input-wrap-' + field);
     if (setRow) setRow.classList.add('hidden');
     if (inputWrap) inputWrap.classList.remove('hidden');
     _obEditingFields.add(field);
@@ -401,7 +403,7 @@ function editObCredential(field) {
         'spotify-id': 'ob-spotify-id',
         'spotify-secret': 'ob-spotify-secret',
     };
-    const inputEl = document.getElementById(inputMap[field]);
+    const inputEl = el(inputMap[field]);
     if (inputEl) setTimeout(() => inputEl.focus(), 50);
     _updateNavButtons();
 }
@@ -423,7 +425,7 @@ function toggleObSpotify() {
 }
 
 function connectObSpotify() {
-    const statusEl = document.getElementById('ob-spotify-status');
+    const statusEl = el('ob-spotify-status');
     if (statusEl) statusEl.textContent = obI18n('ob.opening_spotify', 'Opening Spotify…');
 
     // pywebview desktop: open OAuth in a managed child window
@@ -464,7 +466,7 @@ async function disconnectObSpotify() {
         await fetch('/api/spotify/disconnect', { method: 'POST' });
         _setObSpotifyState(false);
     } catch (e) {
-        const statusEl = document.getElementById('ob-spotify-status');
+        const statusEl = el('ob-spotify-status');
         if (statusEl) {
             statusEl.textContent = obI18n('ob.network_error', '❌ Network error.');
             statusEl.className = 'ob-explain ob-error';
@@ -474,8 +476,8 @@ async function disconnectObSpotify() {
 
 function _setObSpotifyState(connected) {
     _obSpotifyConnected = connected;
-    const btn = document.getElementById('ob-spotify-btn');
-    const statusEl = document.getElementById('ob-spotify-status');
+    const btn = el('ob-spotify-btn');
+    const statusEl = el('ob-spotify-status');
     if (connected) {
         if (btn) btn.textContent = obI18n('ob.disconnect_btn', '🔌 Disconnect from Spotify');
         if (statusEl) {
@@ -498,11 +500,11 @@ function _setObSpotifyState(connected) {
  * both Spotify connection AND AI readiness (key + model).
  */
 function _updateSeedCardStates() {
-    const seedCard = document.getElementById('obSeedPlaylistCard');
+    const seedCard = el('obSeedPlaylistCard');
     if (!seedCard) return;
     const seedAction = seedCard.querySelector('.ob-seed-action');
-    const spotifyHint = document.getElementById('obSeedConnectHint');
-    const aiHint = document.getElementById('obSeedAiHint');
+    const spotifyHint = el('obSeedConnectHint');
+    const aiHint = el('obSeedAiHint');
 
     const canSeed = _obSpotifyConnected && _obAiReady;
 
@@ -545,13 +547,13 @@ async function _checkObSpotifyStatus() {
 let _obProfileImported = false;
 
 function obImportProfile() {
-    const input = document.getElementById('ob-import-input');
+    const input = el('ob-import-input');
     if (!input) return;
     input.value = '';
     input.onchange = async () => {
         const file = input.files[0];
         if (!file) return;
-        const statusEl = document.getElementById('ob-import-status');
+        const statusEl = el('ob-import-status');
         try {
             const text = await file.text();
             const profile = JSON.parse(text);
@@ -586,7 +588,7 @@ function obImportProfile() {
 /* ── How-do-I-get-this accordion ──────────────────────────────── */
 
 function toggleObGuide(btnEl, bodyId) {
-    const body = document.getElementById(bodyId);
+    const body = el(bodyId);
     if (!body) return;
     const expanded = btnEl.getAttribute('aria-expanded') === 'true';
     btnEl.setAttribute('aria-expanded', String(!expanded));
@@ -623,13 +625,13 @@ let _obModelsLoaded = false;
 
 async function obLoadModels() {
     if (_obModelsLoaded) return;
-    const select = document.getElementById('ob-model-select');
+    const select = el('ob-model-select');
     if (!select) return;
 
-    const spinner = document.getElementById('obModelSpinner');
-    const errorEl = document.getElementById('obModelError');
-    const freetextWrap = document.getElementById('obModelFreetext');
-    const badge = document.getElementById('obProviderBadge');
+    const spinner = el('obModelSpinner');
+    const errorEl = el('obModelError');
+    const freetextWrap = el('obModelFreetext');
+    const badge = el('obProviderBadge');
 
     // Update provider badge
     if (badge) {
@@ -717,7 +719,7 @@ async function obLoadModels() {
             }
             if (freetextWrap) freetextWrap.classList.remove('hidden');
             // Pre-fill freetext with current model if available
-            const ftInput = document.getElementById('ob-model-freetext');
+            const ftInput = el('ob-model-freetext');
             if (ftInput && currentModel && !ftInput.value.trim()) {
                 ftInput.value = currentModel;
             }
@@ -802,16 +804,16 @@ async function obBuildSummary() {
     let hasSkipped = false;
 
     rows.forEach(row => {
-        const el = document.getElementById(row.id);
-        if (!el) return;
+        const rowEl = el(row.id);
+        if (!rowEl) return;
 
         const isSet = checks[row.id];
         const touched = obTouched[row.touchKey];
 
-        const statusEl = el.querySelector('.ob-summary-status');
-        const labelEl = el.querySelector('.ob-summary-label');
-        const subEl = el.querySelector('.ob-summary-sub');
-        const editBtn = el.querySelector('.ob-summary-edit');
+        const statusEl = rowEl.querySelector('.ob-summary-status');
+        const labelEl = rowEl.querySelector('.ob-summary-label');
+        const subEl = rowEl.querySelector('.ob-summary-sub');
+        const editBtn = rowEl.querySelector('.ob-summary-edit');
 
         // Determine display state
         let state; // 'done', 'previous', 'skipped'
@@ -855,7 +857,7 @@ async function obBuildSummary() {
     });
 
     // Skipped warning
-    const warning = document.getElementById('ob-skipped-warning');
+    const warning = el('ob-skipped-warning');
     if (warning) {
         warning.classList.toggle('hidden', !hasSkipped);
     }
@@ -880,9 +882,9 @@ async function prefillCredentials() {
 
         for (const [key, ids] of Object.entries(map)) {
             const info = data[key];
-            const setRow = document.getElementById('ob-set-' + ids.field);
-            const inputWrap = document.getElementById('ob-input-wrap-' + ids.field);
-            const inputEl = document.getElementById(ids.input);
+            const setRow = el('ob-set-' + ids.field);
+            const inputWrap = el('ob-input-wrap-' + ids.field);
+            const inputEl = el(ids.input);
             const labelEl = setRow ? setRow.querySelector('.ob-cred-set-label') : null;
 
             if (info && info.is_set) {
@@ -903,13 +905,13 @@ async function prefillCredentials() {
 /* ── Step 5 — Provider & Cost Widget ──────────────────────────── */
 
 function _obGetEffectiveModel() {
-    const freetext = document.getElementById('ob-model-freetext');
-    const freetextWrap = document.getElementById('obModelFreetext');
+    const freetext = el('ob-model-freetext');
+    const freetextWrap = el('obModelFreetext');
     // Prefer freetext if visible and non-empty
     if (freetext && freetextWrap && !freetextWrap.classList.contains('hidden') && freetext.value.trim()) {
         return freetext.value.trim();
     }
-    const select = document.getElementById('ob-model-select');
+    const select = el('ob-model-select');
     const val = select ? select.value : '';
     // Ignore placeholder values
     if (!val || val === '—' || val === 'Loading…') return 'gpt-4o-mini';
@@ -922,7 +924,7 @@ function _obInitCostWidget() {
         window._obEstimateCost(model, 25);
     }
     // Re-estimate on model select change
-    const modelSelect = document.getElementById('ob-model-select');
+    const modelSelect = el('ob-model-select');
     if (modelSelect && !modelSelect._obCostWired) {
         modelSelect.addEventListener('change', () => {
             if (typeof window._obEstimateCost === 'function') {
@@ -932,7 +934,7 @@ function _obInitCostWidget() {
         modelSelect._obCostWired = true;
     }
     // Re-estimate on freetext input change
-    const freetext = document.getElementById('ob-model-freetext');
+    const freetext = el('ob-model-freetext');
     if (freetext && !freetext._obCostWired) {
         freetext.addEventListener('input', () => {
             if (typeof window._obEstimateCost === 'function') {

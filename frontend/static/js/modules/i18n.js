@@ -5,7 +5,7 @@ export async function switchLanguage(lang) {
     await applyLanguage(lang);
 
     // Sync both GPT language and UI language to the server
-    const langMap = { en: 'English', de: 'German' };
+    const langMap = { en: 'English', de: 'German', jp: 'Japanese' };
     const gptLang = langMap[lang];
     const payload = { ui_language: lang };
     if (gptLang) payload.gpt_language = gptLang;
@@ -32,6 +32,10 @@ export async function applyLanguage(lang) {
     document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
         if (_i18nStrings[key] !== undefined) el.textContent = _i18nStrings[key];
+    });
+    document.querySelectorAll('[data-i18n-html]').forEach(el => {
+        const key = el.getAttribute('data-i18n-html');
+        if (_i18nStrings[key] !== undefined) el.innerHTML = _i18nStrings[key];
     });
     document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
         const key = el.getAttribute('data-i18n-placeholder');

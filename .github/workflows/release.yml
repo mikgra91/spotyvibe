@@ -1,12 +1,41 @@
 name: Production Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  pull_request:
+    types: [closed]
+    branches:
+      - main
 
 jobs:
+  check-version:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      is-production: ${{ steps.check.outputs.is-production }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Check if production release
+        id: check
+        run: |
+          VERSION=$(python -c 'exec(open("version.py").read()); print(__version__)')
+          TAG="v$VERSION"
+
+          if [[ "$VERSION" == *beta* || "$VERSION" == *dev* ]]; then
+            echo "Version $VERSION is not a production release. Skipping."
+            echo "is-production=false" >> $GITHUB_OUTPUT
+          elif git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists. Skipping release."
+            echo "is-production=false" >> $GITHUB_OUTPUT
+          else
+            echo "is-production=true" >> $GITHUB_OUTPUT
+          fi
+
   test:
+    needs: check-version
+    if: needs.check-version.outputs.is-production == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -36,7 +65,8 @@ jobs:
           path: test-results/
 
   build-windows:
-    needs: [test]
+    needs: [check-version, test]
+    if: needs.check-version.outputs.is-production == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -69,7 +99,8 @@ jobs:
             dist/spotyvibe_package.zip
 
   build-wheel:
-    needs: [test]
+    needs: [check-version, test]
+    if: needs.check-version.outputs.is-production == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -94,7 +125,8 @@ jobs:
           path: dist/SpotyVibe-macOS-Linux.zip
 
   build-android:
-    needs: [test]
+    needs: [check-version, test]
+    if: needs.check-version.outputs.is-production == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -115,12 +147,17 @@ jobs:
           path: spotyvibe.apk
 
   release:
-    needs: [build-windows, build-wheel, build-android]
+    needs: [check-version, build-windows, build-wheel, build-android]
+    if: needs.check-version.outputs.is-production == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.PAT_TOKEN }}
       - uses: actions/download-artifact@v4
         with:
           name: windows
@@ -131,10 +168,30 @@ jobs:
         with:
           name: android
 
+      - name: Get version and create tag
+        id: create_tag
+        run: |
+          VERSION=$(python -c 'exec(open("version.py").read()); print(__version__)')
+          TAG="v$VERSION"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Check if tag already exists (shouldn't happen, but safety check)
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists. Using existing tag."
+          else
+            git tag -a "$TAG" -m "Production release: $TAG"
+            git push origin "$TAG"
+            echo "Created and pushed tag: $TAG"
+          fi
+
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
       - name: Generate changelog from git log
         id: changelog
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
+          TAG="${{ steps.create_tag.outputs.tag }}"
           PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${TAG}$" | head -1)
           if [ -n "$PREV_TAG" ]; then
             git log "${PREV_TAG}..HEAD" --pretty=format:"- %s" > changes.txt
@@ -146,8 +203,8 @@ jobs:
           fi
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
+          tag_name: ${{ steps.create_tag.outputs.tag }}
+          name: ${{ steps.create_tag.outputs.tag }}
           body_path: changes.txt
           draft: false
           prerelease: false

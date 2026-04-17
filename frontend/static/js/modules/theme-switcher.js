@@ -1,3 +1,4 @@
+import { el } from './dom.js';
 export const THEME_BACKGROUNDS = {
     calm: `<canvas id="calmCanvas"></canvas>`,
     equalizer: `<canvas id="equalizerCanvas"></canvas>`,
@@ -13,7 +14,7 @@ export function switchTheme(theme) {
 
     document.body.className = 'theme-' + theme;
 
-    const bg = document.getElementById('themeBackground');
+    const bg = el('themeBackground');
     bg.innerHTML = THEME_BACKGROUNDS[theme] || '';
 
     const canvas = bg.querySelector('canvas');

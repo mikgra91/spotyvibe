@@ -148,12 +148,10 @@ class TestGetProfileStatus:
 
 class TestTrainProfile:
     @patch("core.src.profile.save_profile")
-    @patch("core.src.profile.debug_log")
-    @patch("core.src.profile.get_model", return_value="gpt-4o")
-    @patch("core.src.profile.chat_completions_create")
+    @patch("core.src.profile.call_gpt_json")
     @patch("core.src.profile.load_profile")
     def test_calls_gpt_and_updates_profile(
-        self, mock_load, mock_create, mock_model, mock_debug, mock_save
+        self, mock_load, mock_gpt, mock_save
     ):
         original_profile = {
             "last_updated": None,
@@ -175,7 +173,7 @@ class TestTrainProfile:
             "feedback": {"liked_tracks": ["REPLACED"], "disliked_tracks": []},
             "taste_rules": {"primary_driver": "energy", "dealbreaker_priority": ["country"]},
         }
-        mock_create.return_value = {"choices": [{"message": {"content": json.dumps(gpt_output)}}]}
+        mock_gpt.return_value = gpt_output
 
         sections = {
             "core_description": "I love rock music",
@@ -201,12 +199,10 @@ class TestTrainProfile:
         mock_save.assert_called_once()
 
     @patch("core.src.profile.save_profile")
-    @patch("core.src.profile.debug_log")
-    @patch("core.src.profile.get_model", return_value="gpt-4o")
-    @patch("core.src.profile.chat_completions_create")
+    @patch("core.src.profile.call_gpt_json")
     @patch("core.src.profile.load_profile")
     def test_raises_on_invalid_json(
-        self, mock_load, mock_create, mock_model, mock_debug, mock_save
+        self, mock_load, mock_gpt, mock_save
     ):
         mock_load.return_value = {
             "last_updated": None,
@@ -217,9 +213,9 @@ class TestTrainProfile:
             "feedback": {"liked_tracks": [], "disliked_tracks": []},
             "taste_rules": {"primary_driver": "", "dealbreaker_priority": []},
         }
-        mock_create.return_value = {"choices": [{"message": {"content": "NOT VALID JSON {{{{"}}]}
+        mock_gpt.side_effect = ValueError("AI returned invalid JSON (Profile Training). Please try again.")
 
-        with pytest.raises(ValueError, match="invalid response"):
+        with pytest.raises(ValueError, match="invalid JSON"):
             train_profile({
                 "core_description": "rock",
                 "must_have": "",
@@ -229,12 +225,10 @@ class TestTrainProfile:
         mock_save.assert_not_called()
 
     @patch("core.src.profile.save_profile")
-    @patch("core.src.profile.debug_log")
-    @patch("core.src.profile.get_model", return_value="gpt-4o")
-    @patch("core.src.profile.chat_completions_create")
+    @patch("core.src.profile.call_gpt_json")
     @patch("core.src.profile.load_profile")
     def test_preserves_schema_when_gpt_drops_keys(
-        self, mock_load, mock_create, mock_model, mock_debug, mock_save
+        self, mock_load, mock_gpt, mock_save
     ):
         original_profile = {
             "last_updated": None,
@@ -251,7 +245,7 @@ class TestTrainProfile:
         gpt_output = {
             "preferences": {"core_description": "heavy rock", "must_have": ["guitar"], "soft_preferences": [], "avoid": []},
         }
-        mock_create.return_value = {"choices": [{"message": {"content": json.dumps(gpt_output)}}]}
+        mock_gpt.return_value = gpt_output
 
         result = train_profile({
             "core_description": "heavy rock",
@@ -593,9 +587,7 @@ class TestDraftProfileFromPlaylist:
             "moods": ["upbeat", "energetic"],
         }
 
-        with patch("core.src.profile.chat_completions_create") as mock_create, \
-             patch("core.src.profile.extract_chat_content", return_value=mock_gpt_json), \
-             patch("core.src.profile.get_model", return_value="gpt-4o-mini"), \
+        with patch("core.src.profile.call_gpt_json") as mock_gpt, \
              patch("core.src.profile.SEED_PROMPT_FILE") as mock_file:
             mock_file.read_text.return_value = (
                 "Playlist: {name}, {count} tracks. "
@@ -603,7 +595,7 @@ class TestDraftProfileFromPlaylist:
                 "Energy: {energy}, Valence: {valence}, Tempo: {tempo}. "
                 "Moods: {moods}"
             )
-            mock_create.return_value = {"choices": [{"message": {"content": mock_gpt_json}}]}
+            mock_gpt.return_value = json.loads(mock_gpt_json)
 
             result = draft_profile_from_playlist(summary)
 
@@ -617,13 +609,13 @@ class TestDraftProfileFromPlaylist:
         assert len(result["must_have"]) <= 3
 
     def test_caps_must_have_at_3(self):
-        mock_gpt_json = json.dumps({
+        mock_gpt_result = {
             "core_description": "Test",
             "must_have": ["a", "b", "c", "d", "e"],
             "soft_preferences": [],
             "avoid": ["should be removed"],
             "vibe_description": ""
-        })
+        }
 
         summary = {
             "name": "Big List",
@@ -637,15 +629,13 @@ class TestDraftProfileFromPlaylist:
             "moods": [],
         }
 
-        with patch("core.src.profile.chat_completions_create") as mock_create, \
-             patch("core.src.profile.extract_chat_content", return_value=mock_gpt_json), \
-             patch("core.src.profile.get_model", return_value="gpt-4o-mini"), \
+        with patch("core.src.profile.call_gpt_json") as mock_gpt, \
              patch("core.src.profile.SEED_PROMPT_FILE") as mock_file:
             mock_file.read_text.return_value = (
                 "{name}{count}{top_artists_list}{top_genres_list}"
                 "{energy}{valence}{tempo}{moods}"
             )
-            mock_create.return_value = {}
+            mock_gpt.return_value = mock_gpt_result
 
             result = draft_profile_from_playlist(summary)
 

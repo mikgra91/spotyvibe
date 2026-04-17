@@ -133,13 +133,16 @@ def _migrate_suggested_tracks(profile):
 def normalize_history(profile):
     """Lowercase, migrate, and deduplicate history so GPT never sees duplicates.
 
-    Works on a deep copy — the original profile dict is never mutated.
+    Returns a shallow copy of the profile with only the history subtree
+    deep-copied — avoids the cost of deep-copying the entire profile
+    (preferences, feedback, artists) which are not mutated here.
 
     suggested_artists stays as a list of lowercase strings.
     suggested_tracks is migrated to {"artist", "track"} dicts (idempotent) and
     then deduplicated by (artist, track) key-pair.
     """
-    profile = copy.deepcopy(profile)
+    profile = dict(profile)  # shallow copy — top-level keys only
+    profile["history"] = copy.deepcopy(profile.get("history", {}))
     # Migrate legacy string entries to dicts before deduplication
     _migrate_suggested_tracks(profile)
 
@@ -182,6 +185,55 @@ def load_text_file(filepath):
     return path.read_text(encoding="utf-8")
 
 
+def _collect_forbidden_artists(profile, normalizer=None):
+    """Collect forbidden artist keys from rejected + disliked artists.
+
+    Args:
+        profile: The user profile dict.
+        normalizer: Function to normalize artist names. Defaults to lower+strip.
+
+    Returns:
+        A set of normalized forbidden artist keys.
+    """
+    if normalizer is None:
+        normalizer = lambda name: name.lower().strip()
+    forbidden = set()
+    for entry in profile.get("artists", {}).get("rejected", []):
+        name = entry.get("name", "") if isinstance(entry, dict) else str(entry)
+        if name:
+            forbidden.add(normalizer(name))
+    for name in profile.get("feedback", {}).get("disliked_artists", []):
+        if name:
+            forbidden.add(normalizer(str(name)))
+    return forbidden
+
+
+def _compute_exhausted_artists(profile, normalizer=None):
+    """Compute exhausted artist keys from history (>= EXHAUSTED_ARTIST_THRESHOLD tracks).
+
+    Args:
+        profile: The user profile dict.
+        normalizer: Function to normalize artist names. Defaults to lower+strip.
+
+    Returns:
+        A set of normalized exhausted artist keys.
+    """
+    if normalizer is None:
+        normalizer = lambda name: name.lower().strip()
+    tracks = profile.get("history", {}).get("suggested_tracks", [])
+    if len(tracks) > GPT_HISTORY_LIMIT:
+        tracks = tracks[-GPT_HISTORY_LIMIT:]
+    artist_counts: dict = defaultdict(int)
+    for entry in tracks:
+        if isinstance(entry, dict):
+            a = normalizer(entry.get("artist", ""))
+        else:
+            a = normalizer(str(entry))
+        if a:
+            artist_counts[a] += 1
+    return {a for a, c in artist_counts.items() if c >= EXHAUSTED_ARTIST_THRESHOLD}
+
+
 def _build_deny_set_json(profile, ephemeral_deny_tracks=None):
     """Build a consolidated JSON deny set for the prompt.
 
@@ -197,23 +249,16 @@ def _build_deny_set_json(profile, ephemeral_deny_tracks=None):
     exclusion fields are stripped from the profile JSON before sending.
     """
     # Forbidden artists (merged from all sources)
-    forbidden_artists = set()
-    for entry in profile.get("artists", {}).get("rejected", []):
-        name = entry.get("name", "") if isinstance(entry, dict) else str(entry)
-        if name:
-            forbidden_artists.add(name.lower().strip())
-    for name in profile.get("feedback", {}).get("disliked_artists", []):
-        if name:
-            forbidden_artists.add(str(name).lower().strip())
+    forbidden_artists = _collect_forbidden_artists(profile)
 
-    # Exhausted artists via longest-match parsing
+    # Exhausted artists via history counts
+    exhausted = sorted(_compute_exhausted_artists(profile))
+
+    # Build track-by-artist grouping for forbidden_tracks
     tracks = profile.get("history", {}).get("suggested_tracks", [])
     if len(tracks) > GPT_HISTORY_LIMIT:
         tracks = tracks[-GPT_HISTORY_LIMIT:]
 
-    # _migrate_suggested_tracks() already ensures all entries are dicts.
-    # The isinstance check is a defensive fallback only.
-    artist_counts: dict = defaultdict(int)
     by_artist: dict = defaultdict(list)
 
     for entry in tracks:
@@ -225,11 +270,9 @@ def _build_deny_set_json(profile, ephemeral_deny_tracks=None):
 
         if a:
             by_artist[a].append(t)
-            artist_counts[a] += 1
         else:
             by_artist["_unmatched"].append(t)
 
-    exhausted = [a for a, c in artist_counts.items() if c >= EXHAUSTED_ARTIST_THRESHOLD]
 
     # Disliked tracks
     disliked_tracks = {}
@@ -299,6 +342,39 @@ def _format_audio_filters(audio_filters):
     return "\n".join(lines)
 
 
+# Model-specific validation blocks injected into the unified system prompt.
+# GPT-4.1 uses chain-of-thought reasoning; GPT-5.4 uses structured candidate-pool
+# validation; default uses a simple verification instruction.
+_VALIDATION_BLOCKS = {
+    "gpt-4-1": (
+        "REASONING: Before output, reason through each candidate: "
+        "(a) not in DENY_LIST? (b) satisfies EVERY must_have — if one missing, DISCARD? "
+        "(c) matches ZERO avoid traits — if one matches, DISCARD? "
+        "Only output tracks passing all checks."
+    ),
+    "gpt-5-4": (
+        "VALIDATION: Build candidate pool > {batch_size}. For each candidate verify:\n"
+        "(a) Artist NOT in any DENY_LIST section — else DISCARD.\n"
+        "(b) Track NOT in any DENY_LIST section — else DISCARD.\n"
+        "(c) Satisfies EVERY must_have trait — if even one missing, DISCARD.\n"
+        "(d) Matches ZERO avoid traits — if even one matches, DISCARD.\n"
+        "(e) Per-artist count ≤ 2.\n"
+        "Select {batch_size} maximizing fit + diversity. "
+        "Ensure ≥ {min_new_artists} from new artists."
+    ),
+}
+_DEFAULT_VALIDATION = "VALIDATION: Before output, verify every track against constraints 1–7. Replace failures."
+
+
+def _get_validation_block(model_name):
+    """Return the validation block matching *model_name*, falling back to default."""
+    slug = re.sub(r"[^a-z0-9-]", "-", model_name.lower()).strip("-")
+    for key, block in _VALIDATION_BLOCKS.items():
+        if key in slug:
+            return block
+    return _DEFAULT_VALIDATION
+
+
 def build_messages(profile, accepted_tracks=None, batch_size=None,
                    recently_filtered_tracks=None,
                    new_artist_percentage=30, batch_num=0,
@@ -324,12 +400,10 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
 
     gpt_language = get_gpt_language()
 
-    # Check for a model-specific system prompt (e.g. system_prompt_gpt-4-1.txt).
-    # Falls back to the default system_prompt.txt if not found.
-    model_slug = re.sub(r"[^a-z0-9-]", "-", get_model().lower()).strip("-")
-    model_specific_file = BASE_DIR / "prompts" / f"system_prompt_{model_slug}.txt"
-    active_prompt_file = model_specific_file if model_specific_file.exists() else SYSTEM_PROMPT_FILE
-    system_prompt = load_text_file(active_prompt_file)
+    # Single unified system prompt with model-specific validation block injection.
+    system_prompt = load_text_file(SYSTEM_PROMPT_FILE)
+    validation_block = _get_validation_block(get_model())
+    system_prompt = system_prompt.replace("{validation_block}", validation_block)
     system_prompt = system_prompt.replace("{batch_size}", str(effective_batch_size))
     system_prompt = system_prompt.replace("{new_artist_percentage}", str(new_artist_percentage))
     system_prompt = system_prompt.replace("{min_new_artists}", str(min_new_artists))
@@ -666,31 +740,10 @@ def filter_duplicate_suggestions(profile, result):
             exclude_keys.add(_normalize_key(f"{artist} {track}"))
 
     # Build forbidden artist keys (rejected + disliked artists)
-    forbidden_artist_keys = set()
-    for entry in profile.get("artists", {}).get("rejected", []):
-        name = entry.get("name", "") if isinstance(entry, dict) else str(entry)
-        if name:
-            forbidden_artist_keys.add(_normalize_key(name))
-    for name in profile.get("feedback", {}).get("disliked_artists", []):
-        if name:
-            forbidden_artist_keys.add(_normalize_key(str(name)))
+    forbidden_artist_keys = _collect_forbidden_artists(profile, normalizer=_normalize_key)
 
-    # Build exhausted artist keys — after migration, all entries are dicts.
-    artist_track_counts: dict = defaultdict(int)
-    for entry in profile.get("history", {}).get("suggested_tracks", []):
-        if isinstance(entry, dict):
-            a_key = _normalize_key(entry.get("artist", ""))
-            if a_key:
-                artist_track_counts[a_key] += 1
-        else:
-            # Defensive fallback for any unmigrated entries
-            a_key = _normalize_key(str(entry))
-            if a_key:
-                artist_track_counts[a_key] += 1
-    exhausted_artist_keys = {
-        a for a, count in artist_track_counts.items()
-        if count >= EXHAUSTED_ARTIST_THRESHOLD
-    }
+    # Build exhausted artist keys
+    exhausted_artist_keys = _compute_exhausted_artists(profile, normalizer=_normalize_key)
 
     seen_in_batch = set()
     artist_counts_in_batch = defaultdict(int)

@@ -1,17 +1,18 @@
 import * as State from './state.js';
 import { buildTrackCardHtml } from './feedback.js';
 import { i18n } from './i18n.js';
+import { el } from './dom.js';
 
 export function renderTracks() {
-    const list = document.getElementById('trackList');
-    const trackArea = document.getElementById('discoverTrackArea');
+    const list = el('trackList');
+    const trackArea = el('discoverTrackArea');
     list.innerHTML = '';
     State.setOpenFormIndex(null);
     State.setOpenFormAction(null);
 
     // Update song list counter
     const maxSize = window._maxSongListSize || 100;
-    const counterEl = document.getElementById('songlistCounter');
+    const counterEl = el('songlistCounter');
     if (counterEl) counterEl.textContent = i18n('songlist.counter', '{count} / {max} songs').replace('{count}', State.suggestions.length).replace('{max}', maxSize);
 
     if (State.suggestions.length === 0) {

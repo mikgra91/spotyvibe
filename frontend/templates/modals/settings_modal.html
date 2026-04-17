@@ -1,3 +1,4 @@
+{% from "macros.html" import learn_more %}
 <!-- Settings modal -->
 <div class="modal-overlay" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle" onclick="if(event.target===this)closeModal('settingsModal')">
     <div class="modal" style="position:relative;">
@@ -17,10 +18,7 @@
                 <option value="openrouter" data-i18n="provider.openrouter">OpenRouter</option>
             </select>
             <p class="inline-hint" data-i18n="provider.hint">Pick where SpotyVibe gets its AI from.</p>
-            <details class="learn-more">
-                <summary data-i18n="common.learn_more">Learn more</summary>
-                <div class="learn-more-body" data-i18n="provider.learn_more">SpotyVibe speaks the OpenAI API protocol. Any OpenAI-compatible provider works — cloud (Groq, OpenRouter) or local (Ollama, LM Studio).</div>
-            </details>
+            {{ learn_more('provider.learn_more', 'SpotyVibe speaks the OpenAI API protocol. Any OpenAI-compatible provider works — cloud (Groq, OpenRouter) or local (Ollama, LM Studio).') }}
         </div>
         <div class="form-row provider-base-url-row hidden" id="providerBaseUrlRow">
             <label for="settings-base-url" data-i18n="provider.base_url_label">Base URL</label>
@@ -48,10 +46,7 @@
             </div>
             <p class="inline-hint" data-i18n="settings.model_hint">Which model produces your suggestions.</p>
             <p class="provider-fetch-error hidden" id="providerFetchError"></p>
-            <details class="learn-more">
-                <summary data-i18n="common.learn_more">Learn more</summary>
-                <div class="learn-more-body" data-i18n="settings.model_learn_more">Higher-tier models cost more per run. For music suggestions the difference is noticeable but not dramatic; gpt-4o-mini is a sensible default.</div>
-            </details>
+            {{ learn_more('settings.model_learn_more', 'Higher-tier models cost more per run. For music suggestions the difference is noticeable but not dramatic; gpt-4o-mini is a sensible default.') }}
             <div class="cred-status" id="status-settings-model"></div>
         </div>
 
@@ -85,10 +80,7 @@
                 </label>
             </div>
             <p class="inline-hint" data-i18n="settings.debug_hint">Log every GPT request and response to a local file.</p>
-            <details class="learn-more">
-                <summary data-i18n="common.learn_more">Learn more</summary>
-                <div class="learn-more-body" data-i18n="settings.debug_learn_more">For developers and bug reports. Never affects behaviour. The log file stays on your device — see the Privacy modal.</div>
-            </details>
+            {{ learn_more('settings.debug_learn_more', 'For developers and bug reports. Never affects behaviour. The log file stays on your device — see the Privacy modal.') }}
             <div class="cred-status" id="status-settings-debug"></div>
         </div>
 

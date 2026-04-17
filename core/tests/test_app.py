@@ -1006,7 +1006,8 @@ class TestOnclickHandlersRegistered:
         self.onclick_fns = set()
         for tmpl in templates_dir.rglob("*.html"):
             # Skip onboarding — it has its own script ecosystem
-            if "onboarding" in tmpl.name:
+            # Skip macros.html — contains Jinja2 macro definitions, not rendered HTML
+            if "onboarding" in tmpl.name or tmpl.name == "macros.html":
                 continue
             text = tmpl.read_text(encoding="utf-8")
             self.onclick_fns.update(re.findall(r'onclick="(\w+)\(', text))

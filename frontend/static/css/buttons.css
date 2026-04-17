@@ -4,7 +4,7 @@
    ============================================= */
 .btn {
     border: none;
-    padding: 10px 22px;
+    padding: var(--sp-3) 22px;
     border-radius: var(--radius-pill);
     cursor: pointer;
     font-size: 14px;
@@ -13,7 +13,7 @@
     transition: all var(--transition);
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: var(--sp-2);
 }
 @media (hover: hover) {
     .btn:hover {
@@ -60,7 +60,7 @@
     color: var(--text-secondary);
     border: 1px solid var(--border);
     margin-left: auto;
-    font-size: 0.82rem;
+    font-size: var(--fs-sm);
 }
 @media (hover: hover) {
     .btn-secondary:hover {
@@ -129,7 +129,7 @@
     background: transparent;
     color: var(--primary);
     border: 1.5px solid var(--primary);
-    padding: 10px 24px;
+    padding: var(--sp-3) 24px;
     font-size: 14px;
     font-weight: 600;
     font-family: inherit;

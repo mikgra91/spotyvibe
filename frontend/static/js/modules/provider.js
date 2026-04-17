@@ -3,6 +3,7 @@
  */
 import { i18n } from './i18n.js';
 import { showToast } from './ui.js';
+import { el } from './dom.js';
 
 export const PROVIDER_PRESETS = {
     openai:     { id: 'openai',     name_i18n: 'provider.openai',     default_base_url: 'https://api.openai.com/v1',       local: false, doc_url: 'https://platform.openai.com/api-keys' },
@@ -15,30 +16,30 @@ export const PROVIDER_PRESETS = {
 let _currentPreset = 'openai';
 
 export function onProviderChange() {
-    const select = document.getElementById('settings-provider');
+    const select = el('settings-provider');
     if (!select) return;
     const preset = select.value;
     _currentPreset = preset;
     const p = PROVIDER_PRESETS[preset] || PROVIDER_PRESETS.openai;
 
     // Base URL row — always hidden (presets have fixed URLs)
-    const urlRow = document.getElementById('providerBaseUrlRow');
+    const urlRow = el('providerBaseUrlRow');
     if (urlRow) urlRow.classList.add('hidden');
 
     // Set default base URL
-    const urlInput = document.getElementById('settings-base-url');
+    const urlInput = el('settings-base-url');
     if (urlInput) urlInput.value = p.default_base_url;
 
     // API key label
-    const keyLabel = document.getElementById('settings-api-key-label');
+    const keyLabel = el('settings-api-key-label');
     if (keyLabel) keyLabel.textContent = i18n(`provider.api_key_label_${preset}`, 'API Key');
 
     // API key hint
-    const keyHint = document.getElementById('settings-api-key-hint');
+    const keyHint = el('settings-api-key-hint');
     if (keyHint) keyHint.textContent = i18n(`provider.api_key_hint_${preset}`, '');
 
     // Update credentials modal label dynamically (Wave 4 E.1)
-    const credLabel = document.getElementById('label-OPENAI_API_KEY');
+    const credLabel = el('label-OPENAI_API_KEY');
     if (credLabel) {
         const providerName = i18n(p.name_i18n, preset);
         credLabel.textContent = p.local
@@ -47,28 +48,28 @@ export function onProviderChange() {
     }
 
     // Local notice
-    const notice = document.getElementById('providerLocalNotice');
+    const notice = el('providerLocalNotice');
     if (notice) notice.classList.toggle('hidden', !p.local);
 
     // Clear fetch error
-    const fetchErr = document.getElementById('providerFetchError');
+    const fetchErr = el('providerFetchError');
     if (fetchErr) { fetchErr.textContent = ''; fetchErr.classList.add('hidden'); }
 }
 
 export async function fetchProviderModels() {
-    const select = document.getElementById('settings-provider');
+    const select = el('settings-provider');
     const preset = select ? select.value : 'openai';
     const p = PROVIDER_PRESETS[preset] || PROVIDER_PRESETS.openai;
 
     const base_url = p.default_base_url;
 
-    const keyInput = document.getElementById('settings-api-key');
+    const keyInput = el('settings-api-key');
     const api_key = keyInput ? keyInput.value.trim() : '';
 
-    const btn = document.getElementById('btnFetchModels');
+    const btn = el('btnFetchModels');
     if (btn) btn.disabled = true;
 
-    const fetchErr = document.getElementById('providerFetchError');
+    const fetchErr = el('providerFetchError');
     if (fetchErr) { fetchErr.textContent = ''; fetchErr.classList.add('hidden'); }
 
     try {
@@ -87,7 +88,7 @@ export async function fetchProviderModels() {
             return;
         }
 
-        const modelSelect = document.getElementById('settings-model');
+        const modelSelect = el('settings-model');
         if (modelSelect && data.models) {
             const currentVal = modelSelect.value;
             modelSelect.innerHTML = '';
@@ -112,8 +113,8 @@ export async function fetchProviderModels() {
 }
 
 export function toggleModelFreeText() {
-    const select = document.getElementById('settings-model');
-    const freetext = document.getElementById('settings-model-freetext');
+    const select = el('settings-model');
+    const freetext = el('settings-model-freetext');
     if (!select || !freetext) return;
     const showFreetext = select.classList.contains('hidden');
     if (showFreetext) {
@@ -144,9 +145,9 @@ export function init() {
     // On page load, read current provider from settings and set UI
     fetch('/api/settings').then(r => r.json()).then(data => {
         _currentPreset = data.provider_preset || 'openai';
-        const select = document.getElementById('settings-provider');
+        const select = el('settings-provider');
         if (select) select.value = _currentPreset;
-        const urlInput = document.getElementById('settings-base-url');
+        const urlInput = el('settings-base-url');
         if (urlInput && data.llm_base_url) urlInput.value = data.llm_base_url;
     }).catch(() => {});
 }

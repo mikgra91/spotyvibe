@@ -1,13 +1,14 @@
 import { showToast, esc, escHtml } from './ui.js';
 import { i18n } from './i18n.js';
+import { el } from './dom.js';
 
 export function toggleAnalysisBody() {
-    const body = document.getElementById('analysisBody');
+    const body = el('analysisBody');
     body.classList.toggle('hidden');
     const expanded = (!body.classList.contains('hidden')).toString();
     const header = document.querySelector('#analysisSection > .train-header');
     if (header) header.setAttribute('aria-expanded', expanded);
-    const btn = document.getElementById('analysisToggleBtn');
+    const btn = el('analysisToggleBtn');
     if (btn) {
         btn.setAttribute('aria-expanded', expanded);
         btn.textContent = expanded === 'true' ? i18n('btn.hide', 'Hide') : i18n('btn.show', 'Show');
@@ -18,8 +19,8 @@ export function toggleAnalysisBody() {
  * Expand Band/Song Analysis (if collapsed) and scroll it into view.
  */
 export function jumpToAnalysis() {
-    const body = document.getElementById('analysisBody');
-    const section = document.getElementById('analysisSection');
+    const body = el('analysisBody');
+    const section = el('analysisSection');
     if (body && body.classList.contains('hidden')) {
         body.classList.remove('hidden');
     }
@@ -28,16 +29,16 @@ export function jumpToAnalysis() {
     }
     // Focus the artist input for immediate use
     setTimeout(() => {
-        const input = document.getElementById('analysisArtist');
+        const input = el('analysisArtist');
         if (input) input.focus();
     }, 400);
 }
 
 export async function runAnalysis() {
-    const artist = document.getElementById('analysisArtist').value.trim();
-    const track = document.getElementById('analysisTrack').value.trim();
-    const resultDiv = document.getElementById('analysisResult');
-    const btn = document.getElementById('analysisSendBtn');
+    const artist = el('analysisArtist').value.trim();
+    const track = el('analysisTrack').value.trim();
+    const resultDiv = el('analysisResult');
+    const btn = el('analysisSendBtn');
 
     if (!artist) {
         resultDiv.innerHTML = `<p style="color:var(--error)">${escHtml(i18n('analysis.artist_required', 'Artist name is required.'))}</p>`;

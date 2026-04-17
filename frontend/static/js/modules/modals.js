@@ -6,6 +6,7 @@ import { renderProviderPills } from './provider-pills.js';
 import { i18n } from './i18n.js';
 import { quickstartReset } from './quickstart-tour.js';
 import { initAllDemos, destroyAllDemos } from './quickstart-demo.js';
+import { el } from './dom.js';
 
 const CRED_KEYS = ['OPENAI_API_KEY', 'SPOTIPY_CLIENT_ID', 'SPOTIPY_CLIENT_SECRET'];
 
@@ -20,11 +21,11 @@ export async function clearCredential(key) {
             body: JSON.stringify({ [key]: '' }),
         });
         if (resp.ok) {
-            const el = document.getElementById('status-' + key);
-            el.textContent = i18n('cred.status_not_set', '✗ Not set');
-            el.className = 'cred-status unset';
-            document.getElementById('clear-' + key).classList.add('hidden');
-            document.getElementById('cred-' + key).value = '';
+            const statusEl = el('status-' + key);
+            statusEl.textContent = i18n('cred.status_not_set', '✗ Not set');
+            statusEl.className = 'cred-status unset';
+            el('clear-' + key).classList.add('hidden');
+            el('cred-' + key).value = '';
 
             await Promise.all([checkCredentialStatus(), checkSpotifyAuth()]);
             renderComponentWarnings();
@@ -37,38 +38,38 @@ export async function clearCredential(key) {
 }
 
 export async function openCredentials() {
-    document.getElementById('settingsDropdown').classList.remove('open');
+    el('settingsDropdown').classList.remove('open');
 
-    CRED_KEYS.forEach(k => { document.getElementById('cred-' + k).value = ''; });
+    CRED_KEYS.forEach(k => { el('cred-' + k).value = ''; });
 
     try {
         const resp = await fetch('/api/settings/credentials');
         const data = await resp.json();
         CRED_KEYS.forEach(k => {
-            const el = document.getElementById('status-' + k);
-            const clearBtn = document.getElementById('clear-' + k);
+            const statusEl = el('status-' + k);
+            const clearBtn = el('clear-' + k);
             const info = data[k];
             if (info && info.is_set) {
-                el.textContent = i18n('cred.status_set', '✓ Set ({masked})').replace('{masked}', info.masked);
-                el.className = 'cred-status set';
+                statusEl.textContent = i18n('cred.status_set', '✓ Set ({masked})').replace('{masked}', info.masked);
+                statusEl.className = 'cred-status set';
                 clearBtn.classList.remove('hidden');
             } else {
-                el.textContent = i18n('cred.status_not_set', '✗ Not set');
-                el.className = 'cred-status unset';
+                statusEl.textContent = i18n('cred.status_not_set', '✗ Not set');
+                statusEl.className = 'cred-status unset';
                 clearBtn.classList.add('hidden');
             }
         });
     } catch (e) { /* ignore */ }
 
-    document.getElementById('credentialsModal').classList.add('open');
+    el('credentialsModal').classList.add('open');
     _lastFocusedElement = _lastFocusedElement || document.activeElement;
-    requestAnimationFrame(() => _focusFirstInModal(document.getElementById('credentialsModal')));
+    requestAnimationFrame(() => _focusFirstInModal(el('credentialsModal')));
 }
 
 export async function saveCredentials() {
     const payload = {};
     CRED_KEYS.forEach(k => {
-        const val = document.getElementById('cred-' + k).value.trim();
+        const val = el('cred-' + k).value.trim();
         if (val) payload[k] = val;
     });
 
@@ -98,23 +99,23 @@ export async function saveCredentials() {
 }
 
 export async function openSettings() {
-    document.getElementById('settingsDropdown').classList.remove('open');
+    el('settingsDropdown').classList.remove('open');
     _lastFocusedElement = document.activeElement;
-    document.getElementById('settingsModal').classList.add('open');
-    document.getElementById('settingsLoading').classList.add('active');
+    el('settingsModal').classList.add('open');
+    el('settingsLoading').classList.add('active');
 
     try {
         const resp = await fetch('/api/settings');
         const data = await resp.json();
 
         State.setDebugControlsAvailable(!!(data.debug_controls_available ?? true) && !(data.is_android ?? false));
-        const debugRow = document.getElementById('debugModeRow');
+        const debugRow = el('debugModeRow');
         if (debugRow) debugRow.classList.toggle('hidden', !State.debugControlsAvailable);
 
         if (State.debugControlsAvailable) {
-            const debugCheckbox = document.getElementById('settings-debug');
+            const debugCheckbox = el('settings-debug');
             debugCheckbox.checked = !!data.debug_mode;
-            const debugStatus = document.getElementById('status-settings-debug');
+            const debugStatus = el('status-settings-debug');
             const debugLogPath = data.debug_log_path || 'debug.log';
             function updateDebugStatus() {
                 const on = debugCheckbox.checked;
@@ -125,14 +126,14 @@ export async function openSettings() {
             debugCheckbox.onchange = updateDebugStatus;
         }
 
-        const modelStatus = document.getElementById('status-settings-model');
+        const modelStatus = el('status-settings-model');
         modelStatus.textContent = i18n('settings.model_status', '✓ Using: {model}').replace('{model}', data.model || 'gpt-5.4-mini');
         modelStatus.className = 'cred-status set';
 
 
     } catch (e) { /* ignore */ }
 
-    const select = document.getElementById('settings-model');
+    const select = el('settings-model');
     select.innerHTML = `<option value="">${i18n('settings.loading_models', 'Loading models…')}</option>`;
 
     try {
@@ -158,19 +159,19 @@ export async function openSettings() {
         select.innerHTML = `<option value="">${i18n('settings.models_load_failed', 'Could not load models')}</option>`;
     }
 
-    document.getElementById('settingsLoading').classList.remove('active');
+    el('settingsLoading').classList.remove('active');
 }
 
 export async function saveSettings() {
     const payload = {};
 
-    const modelSelect = document.getElementById('settings-model');
+    const modelSelect = el('settings-model');
     if (modelSelect.value) {
         payload.model = modelSelect.value;
     }
 
     if (State.debugControlsAvailable) {
-        payload.debug_mode = document.getElementById('settings-debug').checked;
+        payload.debug_mode = el('settings-debug').checked;
     }
 
 
@@ -202,11 +203,11 @@ export async function saveSettings() {
 }
 
 export async function openHelp() {
-    document.getElementById('settingsDropdown').classList.remove('open');
+    el('settingsDropdown').classList.remove('open');
     _lastFocusedElement = document.activeElement;
     _hideJumpBubble();
     _lockBodyScroll();
-    document.getElementById('helpModal').classList.add('open');
+    el('helpModal').classList.add('open');
 
     if (State.helpLoaded) return;
 
@@ -214,14 +215,14 @@ export async function openHelp() {
         const resp = await fetch('/api/help');
         const data = await resp.json();
         if (data.html) {
-            document.getElementById('helpContent').innerHTML = sanitizeHtml(data.html);
+            el('helpContent').innerHTML = sanitizeHtml(data.html);
             State.setHelpLoaded(true);
 
             // Wave 5: Show/hide fallback banner
-            const banner = document.getElementById('helpFallbackBanner');
+            const banner = el('helpFallbackBanner');
             if (banner) banner.classList.toggle('hidden', !data.fallback_used);
 
-            const helpContent = document.getElementById('helpContent');
+            const helpContent = el('helpContent');
             helpContent.addEventListener('click', (e) => {
                 const link = e.target.closest('a[href^="#"]');
                 if (!link) return;
@@ -233,18 +234,18 @@ export async function openHelp() {
                 }
             });
         } else {
-            document.getElementById('helpContent').innerHTML =
+            el('helpContent').innerHTML =
                 '<p style="color:#e74c3c;">' + esc(i18n('help.load_failed', 'Could not load help content.')) + '</p>';
         }
     } catch (e) {
-        document.getElementById('helpContent').innerHTML =
+        el('helpContent').innerHTML =
             '<p style="color:#e74c3c;">' + esc(i18n('help.load_error', 'Failed to load help: {detail}').replace('{detail}', e.message)) + '</p>';
     }
 }
 
 export async function openSectionHelp(anchor) {
-    const overlay = document.getElementById('sectionHelpOverlay');
-    const content = document.getElementById('sectionHelpContent');
+    const overlay = el('sectionHelpOverlay');
+    const content = el('sectionHelpContent');
     content.innerHTML = `<p class="help-loading-text">${i18n('help.loading', 'Loading…')}</p>`;
     _hideJumpBubble();
     _lockBodyScroll();
@@ -266,7 +267,7 @@ export async function openSectionHelp(anchor) {
 }
 
 export function closeSectionHelp() {
-    document.getElementById('sectionHelpOverlay').classList.remove('open');
+    el('sectionHelpOverlay').classList.remove('open');
     _showJumpBubble();
     _unlockBodyScroll();
 }
@@ -314,13 +315,13 @@ function _trapFocus(e) {
 
 function _openModalWithFocus(id) {
     _lastFocusedElement = document.activeElement;
-    const modal = document.getElementById(id);
+    const modal = el(id);
     modal.classList.add('open');
     requestAnimationFrame(() => _focusFirstInModal(modal));
 }
 
 export function closeModal(id) {
-    document.getElementById(id).classList.remove('open');
+    el(id).classList.remove('open');
     if (id === 'helpModal') {
         _showJumpBubble();
         _unlockBodyScroll();
@@ -332,12 +333,12 @@ export function closeModal(id) {
 }
 
 export function dismissHelpBanner() {
-    const banner = document.getElementById('helpFallbackBanner');
+    const banner = el('helpFallbackBanner');
     if (banner) banner.classList.add('hidden');
 }
 
 export function dismissSectionHelpBanner() {
-    const banner = document.getElementById('sectionHelpFallbackBanner');
+    const banner = el('sectionHelpFallbackBanner');
     if (banner) banner.classList.add('hidden');
 }
 
@@ -347,8 +348,8 @@ export function dismissSectionHelpBanner() {
 const LIGHTBOX_THRESHOLD = 300;
 
 function _openScreenshotLightbox(imgEl) {
-    const lb = document.getElementById('screenshotLightbox');
-    const lbImg = document.getElementById('screenshotLightboxImg');
+    const lb = el('screenshotLightbox');
+    const lbImg = el('screenshotLightboxImg');
     if (!lb || !lbImg) return;
     lbImg.src = imgEl.src;
     lbImg.alt = imgEl.alt || 'Screenshot preview';
@@ -356,7 +357,7 @@ function _openScreenshotLightbox(imgEl) {
 }
 
 function _closeScreenshotLightbox() {
-    const lb = document.getElementById('screenshotLightbox');
+    const lb = el('screenshotLightbox');
     if (lb) lb.classList.remove('open');
 }
 
@@ -379,16 +380,16 @@ function _handleHelpImgClick(e) {
 function _initScreenshotLightbox() {
     // Delegate clicks on images inside help-content and section-help
     for (const id of ['helpContent', 'sectionHelpContent']) {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('click', _handleHelpImgClick);
+        const node = el(id);
+        if (node) node.addEventListener('click', _handleHelpImgClick);
     }
 
     // Close lightbox via close button
-    const closeBtn = document.getElementById('screenshotLightboxClose');
+    const closeBtn = el('screenshotLightboxClose');
     if (closeBtn) closeBtn.addEventListener('click', _closeScreenshotLightbox);
 
     // Close lightbox via click on backdrop or the image itself
-    const lb = document.getElementById('screenshotLightbox');
+    const lb = el('screenshotLightbox');
     if (lb) {
         lb.addEventListener('click', (e) => {
             // Close when clicking outside the image or on the image (zoom-out)
@@ -417,8 +418,8 @@ function _lockBodyScroll() {
 function _unlockBodyScroll() {
     // Only unlock if no overlay modals are still open
     const anyOpen = ['helpModal', 'quickstartModal', 'sectionHelpOverlay'].some(id => {
-        const el = document.getElementById(id);
-        return el && el.classList.contains('open');
+        const node = el(id);
+        return node && node.classList.contains('open');
     });
     if (!anyOpen) document.body.classList.remove('modal-scroll-lock');
 }
@@ -439,7 +440,7 @@ let _quickstartProvider = 'openai';
  * @param {boolean} force — true when opened from the menu (always shows, doesn't reset dismiss flag)
  */
 export function openQuickstart(force = false) {
-    document.getElementById('settingsDropdown').classList.remove('open');
+    el('settingsDropdown').classList.remove('open');
     const provider = window.getActiveProvider?.() ?? 'openai';
     _quickstartProvider = provider;
     if (!force && _isQuickstartDismissed(provider)) return;
@@ -453,8 +454,8 @@ export function openQuickstart(force = false) {
     initAllDemos();
     _hideJumpBubble();
     _lockBodyScroll();
-    document.getElementById('quickstartModal').classList.add('open');
-    requestAnimationFrame(() => _focusFirstInModal(document.getElementById('quickstartModal')));
+    el('quickstartModal').classList.add('open');
+    requestAnimationFrame(() => _focusFirstInModal(el('quickstartModal')));
 }
 
 /**
@@ -512,24 +513,24 @@ document.addEventListener('keydown', (e) => {
     }
     if (e.key !== 'Escape') return;
     // Close in priority order: lightbox → section help → quickstart → help modal → other modals
-    const lightbox = document.getElementById('screenshotLightbox');
+    const lightbox = el('screenshotLightbox');
     if (lightbox && lightbox.classList.contains('open')) {
         _closeScreenshotLightbox();
         return;
     }
-    const sectionHelp = document.getElementById('sectionHelpOverlay');
+    const sectionHelp = el('sectionHelpOverlay');
     if (sectionHelp && sectionHelp.classList.contains('open')) {
         closeSectionHelp();
         return;
     }
-    const quickstart = document.getElementById('quickstartModal');
+    const quickstart = el('quickstartModal');
     if (quickstart && quickstart.classList.contains('open')) {
         closeQuickstart();
         return;
     }
     for (const id of ['helpModal', 'credentialsModal', 'settingsModal']) {
-        const el = document.getElementById(id);
-        if (el && el.classList.contains('open')) {
+        const node = el(id);
+        if (node && node.classList.contains('open')) {
             closeModal(id);
             return;
         }

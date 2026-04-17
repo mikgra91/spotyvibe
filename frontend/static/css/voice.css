@@ -1,30 +1,34 @@
 /* ── Voice button ────────────────────────────────────────────────── */
 .vibe-textarea-wrap { position: relative; }
-.vibe-textarea-wrap textarea { padding-right: 110px; }
+.vibe-textarea-wrap textarea { padding-right: 48px; }
 .voice-btn {
   position: absolute; bottom: 10px; right: 10px;
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px;
   background: var(--bg-elevated); border: 1px solid var(--border);
-  border-radius: var(--radius-pill, 999px); padding: 6px 14px;
-  font-size: 0.82rem; font-weight: 600; color: var(--text-secondary);
+  border-radius: var(--radius-pill, 999px); padding: 0;
+  color: var(--text-secondary);
   cursor: pointer; transition: background 120ms, color 120ms, border-color 120ms;
 }
 .voice-btn:hover { background: var(--bg-card); color: var(--text-primary); border-color: rgba(30,215,96,0.35); }
 .voice-btn.hidden { display: none; }
+
+/* Icon visibility: mic by default, stop when recording */
+.voice-icon--stop { display: none; }
+.voice-btn--recording .voice-icon--mic { display: none; }
+.voice-btn--recording .voice-icon--stop { display: block; }
+
+/* Recording state: red accent */
 .voice-btn--recording {
   background: rgba(239,68,68,0.12); color: var(--error); border-color: rgba(239,68,68,0.35);
 }
-.voice-btn--recording .voice-btn-icon {
-  animation: voice-pulse 1.2s ease-in-out infinite;
+.voice-btn--recording:hover {
+  background: rgba(239,68,68,0.2); color: var(--error);
 }
-@keyframes voice-pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.15); opacity: 0.6; }
-}
+
 .voice-btn--processing { opacity: 0.7; cursor: wait; }
 .voice-sr-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 
 @media (prefers-reduced-motion: reduce) {
-  .voice-btn--recording .voice-btn-icon { animation: none; }
+  .voice-btn--recording .voice-icon--mic { animation: none; }
 }
-

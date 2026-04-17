@@ -1,3 +1,4 @@
+import { el } from './dom.js';
 /* setup_guide.js — Owner of detail-overlay open/close, copy-to-clipboard, keyboard (Esc) */
 
 /* i18n helper — delegates to the global i18n if available (loaded by main.js) */
@@ -11,15 +12,15 @@ function _sgI18n(key, fallback) {
  * @param {string} slug - Guide identifier (e.g., 'openai_api_key', 'spotify_developer_app')
  */
 function openSetupGuide(slug) {
-    const overlay = document.getElementById('setupGuideOverlay');
+    const overlay = el('setupGuideOverlay');
     if (!overlay) return;
 
     overlay.classList.add('open');
     document.body.style.overflow = 'hidden';
 
-    const titleEl = document.getElementById('setupGuideTitle');
-    const subtitleEl = document.getElementById('setupGuideSubtitle');
-    const stepsEl = document.getElementById('setupGuideSteps');
+    const titleEl = el('setupGuideTitle');
+    const subtitleEl = el('setupGuideSubtitle');
+    const stepsEl = el('setupGuideSteps');
 
     // Show loading state
     if (titleEl) titleEl.textContent = _sgI18n('guide.loading', 'Loading…');
@@ -104,7 +105,7 @@ function openSetupGuide(slug) {
  * Close the setup guide overlay.
  */
 function closeSetupGuide() {
-    const overlay = document.getElementById('setupGuideOverlay');
+    const overlay = el('setupGuideOverlay');
     if (overlay) {
         overlay.classList.remove('open');
         document.body.style.overflow = '';
@@ -151,11 +152,15 @@ function _linkify(text) {
     return escaped.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 }
 
+// Expose for HTML onclick= attributes (templates reference openSetupGuide)
+window.openSetupGuide = openSetupGuide;
+window.closeSetupGuide = closeSetupGuide;
+
 // Event listeners — close on Esc, close button, done button, outside click
 document.addEventListener('DOMContentLoaded', function () {
-    const overlay = document.getElementById('setupGuideOverlay');
-    const closeBtn = document.getElementById('setupGuideClose');
-    const doneBtn = document.getElementById('setupGuideDone');
+    const overlay = el('setupGuideOverlay');
+    const closeBtn = el('setupGuideClose');
+    const doneBtn = el('setupGuideDone');
 
     if (closeBtn) {
         closeBtn.addEventListener('click', closeSetupGuide);
@@ -176,7 +181,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape') {
-            const overlay = document.getElementById('setupGuideOverlay');
+            const overlay = el('setupGuideOverlay');
             if (overlay && overlay.classList.contains('open')) {
                 e.stopImmediatePropagation();
                 closeSetupGuide();

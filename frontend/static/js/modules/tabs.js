@@ -1,3 +1,4 @@
+import { el } from './dom.js';
 /**
  * Tab-based section navigation.
  *
@@ -91,7 +92,7 @@ function _applyTab(tabName) {
     // Show/hide all tab panels
     const openaiEl = document.querySelector('.provider-openai');
     const spotifyEl = document.querySelector('.provider-spotify');
-    const historyEl = document.getElementById('historyPanel');
+    const historyEl = el('historyPanel');
     if (openaiEl) openaiEl.classList.toggle('hidden', tabName !== 'openai');
     if (spotifyEl) spotifyEl.classList.toggle('hidden', tabName !== 'spotify');
     if (historyEl) historyEl.classList.toggle('hidden', tabName !== 'history');

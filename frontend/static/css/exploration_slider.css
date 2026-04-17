@@ -2,7 +2,7 @@
 
 .exploration-row {
     margin: 14px 0 18px;
-    padding: 12px 14px;
+    padding: var(--sp-3) var(--sp-4);
     background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -12,11 +12,11 @@
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    margin-bottom: 8px;
+    margin-bottom: var(--sp-2);
 }
 
 .exploration-label {
-    font-size: 0.82rem;
+    font-size: var(--fs-sm);
     font-weight: 600;
     color: var(--text-primary);
     text-transform: uppercase;
@@ -24,14 +24,14 @@
 }
 
 .exploration-value {
-    font-size: 0.88rem;
+    font-size: var(--fs-md);
     color: var(--primary);
     font-weight: 600;
 }
 
 .exploration-slider-wrap {
     position: relative;
-    padding: 6px 0 28px;
+    padding: var(--sp-2) 0 28px;
 }
 
 /* ── Track + fill overlay ────────────────────────────────────────── */
@@ -132,7 +132,7 @@
     right: 0;
     display: flex;
     justify-content: space-between;
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -140,13 +140,13 @@
 
 /* ── Gen size row (range slider for Quick/Advanced) ──────────────── */
 .gen-size-row {
-    margin-bottom: 14px;
+    margin-bottom: var(--sp-4);
 }
 .gen-size-row label {
     display: block;
-    font-size: 0.75rem;
+    font-size: var(--fs-xs);
     color: var(--text-muted);
-    margin-bottom: 5px;
+    margin-bottom: var(--sp-1);
     text-transform: uppercase;
     letter-spacing: 0.8px;
     font-weight: 700;
@@ -155,10 +155,10 @@
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    margin-bottom: 6px;
+    margin-bottom: var(--sp-2);
 }
 .gen-size-value {
-    font-size: 0.88rem;
+    font-size: var(--fs-md);
     font-weight: 600;
     color: var(--primary);
     font-variant-numeric: tabular-nums;
