@@ -4,6 +4,7 @@
  * Renders three sentiment sections: neutral (main), liked, disliked.
  */
 import { i18n } from './i18n.js';
+import { el } from './dom.js';
 
 const CHART_COLOURS = [
     'var(--primary)', 'var(--accent-teal, #2dd4bf)', 'var(--accent-cyan, #22d3ee)',
@@ -193,7 +194,7 @@ function _renderSection(sectionEl, slice) {
 async function loadDashboard() {
     if (_loaded) return;
 
-    const neutralSection = document.getElementById('dashboardNeutral');
+    const neutralSection = el('dashboardNeutral');
     const empty = document.querySelector('.dashboard-empty');
     if (!neutralSection) return;
 
@@ -220,19 +221,19 @@ async function loadDashboard() {
         const hasNeutral = _renderSection(neutralSection, neutralSlice);
 
         // Liked / disliked sub-sections
-        const hasLiked = _renderSection(document.getElementById('dashboardLiked'), data.liked);
-        const hasDisliked = _renderSection(document.getElementById('dashboardDisliked'), data.disliked);
+        const hasLiked = _renderSection(el('dashboardLiked'), data.liked);
+        const hasDisliked = _renderSection(el('dashboardDisliked'), data.disliked);
 
         const hasAny = hasNeutral || hasLiked || hasDisliked;
         if (empty) empty.classList.toggle('hidden', hasAny);
         if (!hasNeutral) neutralSection.classList.add('hidden');
 
         // Info footnote
-        const info = document.getElementById('dashboardInfo');
+        const info = el('dashboardInfo');
         if (info) {
             info.classList.toggle('hidden', !hasAny);
             if (hasAny) {
-                const countEl = document.getElementById('dashboardTrackCount');
+                const countEl = el('dashboardTrackCount');
                 if (countEl) {
                     countEl.textContent = i18n('dashboard.tracks_counted', 'Based on {count} tracks from {runs} playlist runs.')
                         .replace('{count}', data.tracks_considered)
@@ -246,7 +247,7 @@ async function loadDashboard() {
         console.warn('Dashboard load failed:', e);
         if (empty) empty.classList.remove('hidden');
         neutralSection.classList.add('hidden');
-        const info = document.getElementById('dashboardInfo');
+        const info = el('dashboardInfo');
         if (info) info.classList.add('hidden');
     }
 }
@@ -259,33 +260,33 @@ export function resetDashboard() {
     _loaded = false;
     // Clear all rendered sections and hide them
     for (const id of ['dashboardNeutral', 'dashboardLiked', 'dashboardDisliked']) {
-        const section = document.getElementById(id);
+        const section = el(id);
         if (section) {
             section.querySelectorAll('.dashboard-card').forEach(c => { c.innerHTML = ''; });
             section.classList.add('hidden');
         }
     }
     // Hide info footnote
-    const info = document.getElementById('dashboardInfo');
+    const info = el('dashboardInfo');
     if (info) info.classList.add('hidden');
     // Show the empty-state placeholder until data arrives
     const empty = document.querySelector('.dashboard-empty');
     if (empty) empty.classList.remove('hidden');
     // Re-fetch if currently expanded
-    const body = document.getElementById('dashboardBody');
+    const body = el('dashboardBody');
     if (body && !body.classList.contains('hidden')) {
         loadDashboard();
     }
 }
 
 export function toggleDashboardBody() {
-    const body = document.getElementById('dashboardBody');
+    const body = el('dashboardBody');
     if (!body) return;
     body.classList.toggle('hidden');
     const expanded = (!body.classList.contains('hidden')).toString();
     const header = document.querySelector('#tasteDashboardSection > .train-header');
     if (header) header.setAttribute('aria-expanded', expanded);
-    const btn = document.getElementById('dashboardToggleBtn');
+    const btn = el('dashboardToggleBtn');
     if (btn) {
         btn.setAttribute('aria-expanded', expanded);
         btn.textContent = expanded === 'true' ? i18n('btn.hide', 'Hide') : i18n('btn.show', 'Show');
@@ -296,7 +297,7 @@ export function toggleDashboardBody() {
 }
 
 export function init() {
-    const section = document.getElementById('tasteDashboardSection');
+    const section = el('tasteDashboardSection');
     if (!section) return;
 
     // Restore open/closed state (collapsed by default)

@@ -1,4 +1,5 @@
 import { i18n } from './i18n.js';
+import { el } from './dom.js';
 
 export let suggestions = [];
 export let openFormIndex = null;
@@ -25,7 +26,7 @@ export function spliceSuggestion(idx) {
     suggestions[idx] = null;
     const maxSize = window._maxSongListSize || 100;
     const count = suggestions.filter(Boolean).length;
-    const counterEl = document.getElementById('songlistCounter');
+    const counterEl = el('songlistCounter');
     if (counterEl) counterEl.textContent = i18n('songlist.counter', '{count} / {max} songs').replace('{count}', count).replace('{max}', maxSize);
 }
 export function setOpenFormIndex(val) { openFormIndex = val; }
@@ -48,7 +49,7 @@ export function setReviewTracks(val) { reviewTracks = val; }
 export function spliceReviewTrack(idx) {
     reviewTracks[idx] = null;
     const count = reviewTracks.filter(Boolean).length;
-    const counterEl = document.getElementById('reviewTrackCounter');
+    const counterEl = el('reviewTrackCounter');
     if (counterEl) counterEl.textContent = i18n('review.track_count', '{count} track(s)').replace('{count}', count);
 }
 export function setCachedPlaylists(val) { cachedPlaylists = val; }

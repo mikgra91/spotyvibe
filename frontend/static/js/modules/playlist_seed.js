@@ -3,6 +3,7 @@
  */
 import { i18n } from './i18n.js';
 import { showToast } from './ui.js';
+import { el } from './dom.js';
 
 let _selectedPlaylistId = null;
 let _currentSource = 'profile';
@@ -13,16 +14,16 @@ let _hasExistingProfile = false;
  * @param {string} source - 'onboarding' or 'profile'
  */
 export async function openPlaylistSeedPicker(source) {
-    const modal = document.getElementById('playlistSeedModal');
+    const modal = el('playlistSeedModal');
     if (!modal) return;
     modal.classList.add('open');
     _selectedPlaylistId = null;
     _currentSource = source || 'profile';
 
-    const list = document.getElementById('playlistSeedList');
+    const list = el('playlistSeedList');
     const loader = document.querySelector('.playlist-seed-loader');
     const loadingIndicator = document.querySelector('.playlist-seed-loading');
-    const confirmBtn = document.getElementById('playlistSeedConfirmBtn');
+    const confirmBtn = el('playlistSeedConfirmBtn');
     const warn = document.querySelector('.playlist-seed-replace-warn');
     const searchRow = document.querySelector('.playlist-seed-search-row');
 
@@ -70,7 +71,7 @@ export async function openPlaylistSeedPicker(source) {
 }
 
 function _renderPlaylistList(playlists, source) {
-    const list = document.getElementById('playlistSeedList');
+    const list = el('playlistSeedList');
     if (!list) return;
 
     list.innerHTML = '';
@@ -104,7 +105,7 @@ function _selectPlaylist(li, playlistId) {
     document.querySelectorAll('.playlist-seed-item.selected').forEach(el => el.classList.remove('selected'));
     li.classList.add('selected');
     _selectedPlaylistId = playlistId;
-    const confirmBtn = document.getElementById('playlistSeedConfirmBtn');
+    const confirmBtn = el('playlistSeedConfirmBtn');
     if (confirmBtn) confirmBtn.disabled = false;
     // Show replace warning if profile is non-empty
     const warn = document.querySelector('.playlist-seed-replace-warn');
@@ -117,9 +118,9 @@ function _selectPlaylist(li, playlistId) {
 export async function confirmPlaylistSeed() {
     if (!_selectedPlaylistId) return;
 
-    const list = document.getElementById('playlistSeedList');
+    const list = el('playlistSeedList');
     const loader = document.querySelector('.playlist-seed-loader');
-    const confirmBtn = document.getElementById('playlistSeedConfirmBtn');
+    const confirmBtn = el('playlistSeedConfirmBtn');
 
     if (list) list.classList.add('hidden');
     if (loader) loader.classList.remove('hidden');
@@ -162,11 +163,11 @@ export async function confirmPlaylistSeed() {
 
 function _applyDraft(draft, meta) {
     // Fill profile editor fields
-    const coreDesc = document.getElementById('trainCoreDesc');
-    const mustHave = document.getElementById('trainMustHave');
-    const softPrefs = document.getElementById('trainSoftPrefs');
-    const avoid = document.getElementById('trainAvoid');
-    const vibeDesc = document.getElementById('trainVibeDesc');
+    const coreDesc = el('trainCoreDesc');
+    const mustHave = el('trainMustHave');
+    const softPrefs = el('trainSoftPrefs');
+    const avoid = el('trainAvoid');
+    const vibeDesc = el('trainVibeDesc');
 
     if (coreDesc) coreDesc.value = draft.core_description || '';
     if (mustHave) mustHave.value = (draft.must_have || []).join('\n');
@@ -180,10 +181,10 @@ function _applyDraft(draft, meta) {
     });
 
     // Show draft banner
-    const banner = document.getElementById('profileDraftBanner');
+    const banner = el('profileDraftBanner');
     if (banner) {
         banner.classList.remove('hidden');
-        const sub = document.getElementById('profileDraftSub');
+        const sub = el('profileDraftSub');
         if (sub) {
             sub.textContent = i18n('profile.draft_sub_tpl', 'Generated from "{name}" — review and save below.')
                 .replace('{name}', meta.playlist_name || '');
@@ -191,9 +192,9 @@ function _applyDraft(draft, meta) {
     }
 
     // Expand the profile editor if collapsed
-    const trainBody = document.getElementById('trainBody');
+    const trainBody = el('trainBody');
     if (trainBody && trainBody.classList.contains('hidden')) {
-        const toggleBtn = document.getElementById('trainToggleBtn');
+        const toggleBtn = el('trainToggleBtn');
         if (toggleBtn) toggleBtn.click();
     }
 
@@ -205,7 +206,7 @@ function _applyDraft(draft, meta) {
  * Discard the current draft and reload the original profile.
  */
 export async function discardProfileDraft() {
-    const banner = document.getElementById('profileDraftBanner');
+    const banner = el('profileDraftBanner');
     if (banner) banner.classList.add('hidden');
     window._svDraftMeta = null;
 
@@ -215,11 +216,11 @@ export async function discardProfileDraft() {
         if (resp.ok) {
             const data = await resp.json();
             const prefs = data.preferences || {};
-            const coreDesc = document.getElementById('trainCoreDesc');
-            const mustHave = document.getElementById('trainMustHave');
-            const softPrefs = document.getElementById('trainSoftPrefs');
-            const avoid = document.getElementById('trainAvoid');
-            const vibeDesc = document.getElementById('trainVibeDesc');
+            const coreDesc = el('trainCoreDesc');
+            const mustHave = el('trainMustHave');
+            const softPrefs = el('trainSoftPrefs');
+            const avoid = el('trainAvoid');
+            const vibeDesc = el('trainVibeDesc');
 
             if (coreDesc) coreDesc.value = prefs.core_description || '';
             if (mustHave) mustHave.value = (prefs.must_have || []).join('\n');
@@ -233,7 +234,7 @@ export async function discardProfileDraft() {
 }
 
 function _closeModal() {
-    const modal = document.getElementById('playlistSeedModal');
+    const modal = el('playlistSeedModal');
     if (modal) modal.classList.remove('open');
 }
 
@@ -264,7 +265,7 @@ export function init() {
     window.discardProfileDraft = discardProfileDraft;
 
     // Search filtering
-    const search = document.getElementById('playlistSeedSearch');
+    const search = el('playlistSeedSearch');
     if (search) {
         search.addEventListener('input', () => {
             const q = search.value.toLowerCase();

@@ -3,6 +3,7 @@ import { showToast, showAlert, esc, attr } from './ui.js';
 import { i18n } from './i18n.js';
 import { buildRationaleHtml } from './rationale.js';
 import { resetDashboard } from './taste_dashboard.js';
+import { el } from './dom.js';
 
 /**
  * Build the inner HTML for a track card (shared by discover and review lists).
@@ -77,7 +78,7 @@ export function toggleFeedback(idx, action) {
         closeFeedback(State.openFormIndex);
     }
 
-    const form = document.getElementById(`form-${idx}`);
+    const form = el(`form-${idx}`);
     const isOpen = form.classList.contains('open');
 
     if (isOpen && State.openFormAction === action) {
@@ -89,7 +90,7 @@ export function toggleFeedback(idx, action) {
     State.setOpenFormIndex(idx);
     State.setOpenFormAction(action);
 
-    const submitBtn = document.getElementById(`submitBtn-${idx}`);
+    const submitBtn = el(`submitBtn-${idx}`);
     if (action === 'like') {
         submitBtn.textContent = i18n('btn.submit_like', '👍 Submit');
         submitBtn.className = 'btn btn-submit-like';
@@ -100,7 +101,7 @@ export function toggleFeedback(idx, action) {
 }
 
 export function closeFeedback(idx) {
-    const form = document.getElementById(`form-${idx}`);
+    const form = el(`form-${idx}`);
     if (form) form.classList.remove('open');
     if (State.openFormIndex === idx) {
         State.setOpenFormIndex(null);
@@ -109,13 +110,13 @@ export function closeFeedback(idx) {
 }
 
 export async function submitFeedback(idx) {
-    const artist = document.getElementById(`artist-${idx}`).value.trim();
-    const track  = document.getElementById(`title-${idx}`).value.trim();
-    const reason = document.getElementById(`reason-${idx}`).value.trim();
+    const artist = el(`artist-${idx}`).value.trim();
+    const track  = el(`title-${idx}`).value.trim();
+    const reason = el(`reason-${idx}`).value.trim();
 
     if (!artist) { showAlert(i18n('feedback.artist_required', 'Artist is required.')); return; }
 
-    const submitBtn = document.getElementById(`submitBtn-${idx}`);
+    const submitBtn = el(`submitBtn-${idx}`);
     submitBtn.disabled = true;
     submitBtn.textContent = '…';
 
@@ -206,7 +207,7 @@ export async function removeTrack(idx) {
 }
 
 export function animateRemove(idx) {
-    const el = document.getElementById(`track-${idx}`);
+    const el = el(`track-${idx}`);
     if (!el) return;
     el.style.opacity = '0';
     el.style.transform = 'translateX(40px)';

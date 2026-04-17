@@ -1,6 +1,7 @@
 import * as State from './state.js';
 import { escHtml } from './ui.js';
 import { i18n } from './i18n.js';
+import { el } from './dom.js';
 
 // Provider summary pill rendering
 export function renderProviderPills() {
@@ -10,7 +11,7 @@ export function renderProviderPills() {
 }
 
 function renderOpenaiPills() {
-    const el = document.getElementById('openaiStatusPills');
+    const el = el('openaiStatusPills');
     if (!el) return;
     const pills = [];
     // Only show model pill — clickable to open settings
@@ -22,7 +23,7 @@ function renderOpenaiPills() {
 }
 
 function renderSpotifyPills() {
-    const el = document.getElementById('spotifyStatusPills');
+    const el = el('spotifyStatusPills');
     if (!el) return;
     const pills = [];
     const authStatus = State.spotifyAuthStatus;

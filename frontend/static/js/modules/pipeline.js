@@ -9,12 +9,13 @@ import { loadHistory } from './history.js';
 import { populateReviewPlaylistPicker } from './review.js';
 import { resetDashboard } from './taste_dashboard.js';
 import { i18n } from './i18n.js';
+import { el } from './dom.js';
 
 let _runPlaylistMode = null;  // playlist mode at time of generation (for auto-switch)
 
 export function toggleGenerateBody() {
-    const body = document.getElementById('generateBody');
-    const btn = document.getElementById('generateToggleBtn');
+    const body = el('generateBody');
+    const btn = el('generateToggleBtn');
     const isHidden = body.classList.toggle('hidden');
     if (btn) {
         btn.textContent = isHidden ? i18n('btn.show', 'Show') : i18n('btn.hide', 'Hide');
@@ -38,10 +39,10 @@ export function generateUUID() {
 
 export function setGenerating(generating) {
     State.setIsGenerating(generating);
-    const runBtn    = document.getElementById('runBtn');
-    const cancelBtn = document.getElementById('cancelBtn');
-    const useBtn    = document.getElementById('useTracksBtn');
-    const loadArea  = document.getElementById('generateLoadingArea');
+    const runBtn    = el('runBtn');
+    const cancelBtn = el('cancelBtn');
+    const useBtn    = el('useTracksBtn');
+    const loadArea  = el('generateLoadingArea');
 
     runBtn.disabled  = generating;
     runBtn.textContent = generating ? i18n('msg.generating', '⏳ Generating…') : '▶ ' + i18n('btn.generate', 'Generate & Create Playlist');
@@ -53,7 +54,7 @@ export function setGenerating(generating) {
     if (loadArea) {
         loadArea.classList.toggle('hidden', !generating);
         if (!generating) {
-            const msg = document.getElementById('generateLoadingMsg');
+            const msg = el('generateLoadingMsg');
             if (msg) msg.textContent = '';
         }
     }
@@ -61,7 +62,7 @@ export function setGenerating(generating) {
 
 export function updateUseTracksButton(count) {
     State.setPartialTrackCount(count);
-    const useBtn = document.getElementById('useTracksBtn');
+    const useBtn = el('useTracksBtn');
     if (State.isGenerating && count > 0) {
         useBtn.textContent = '▶ ' + i18n('generate.use_tracks_now', 'Use {count} tracks now').replace('{count}', count);
         useBtn.classList.remove('hidden');
@@ -93,7 +94,7 @@ export async function runPipeline() {
     // Duplicate playlist name check (only for "create" mode)
     const preMode = getPlaylistMode();
     if (preMode === 'create') {
-        const nameInput = document.getElementById('playlistNameInput');
+        const nameInput = el('playlistNameInput');
         const desiredName = (nameInput?.value || '').trim();
         if (desiredName) {
             const playlists = await ensurePlaylistsLoaded();
@@ -120,7 +121,7 @@ export async function runPipeline() {
     _runPlaylistMode = playlistPayload.playlist_mode || 'default';
     const audioFilters = getAudioFilters();
     if (audioFilters) playlistPayload.audio_filters = audioFilters;
-    const emergingOnly = document.getElementById('emergingArtistsCheckbox')?.checked || false;
+    const emergingOnly = el('emergingArtistsCheckbox')?.checked || false;
     if (emergingOnly) playlistPayload.emerging_only = true;
 
     // Wave 2: temperature from exploration slider
@@ -246,7 +247,7 @@ document.addEventListener('visibilitychange', () => {
     // If we were generating but the connection was lost, try to resume
     if (State.currentRunId && !State.isGenerating) {
         // Check if a disconnect banner is showing (status contains "Connection lost")
-        const statusEl = document.getElementById('status');
+        const statusEl = el('status');
         if (statusEl && statusEl.textContent.includes('Connection lost')) {
             resumeRun(State.currentRunId);
         }
@@ -274,7 +275,7 @@ export async function cancelGeneration() {
 export async function useCurrentTracks() {
     if (!State.isGenerating || !State.currentRunId || State.partialTrackCount === 0) return;
 
-    const useBtn = document.getElementById('useTracksBtn');
+    const useBtn = el('useTracksBtn');
     useBtn.disabled = true;
     useBtn.textContent = i18n('pipeline.finalising', '⏳ Finalising…');
 

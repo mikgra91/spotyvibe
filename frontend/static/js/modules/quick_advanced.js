@@ -7,6 +7,7 @@
  */
 
 import { i18n } from './i18n.js';
+import { el } from './dom.js';
 
 const STORAGE_KEY = 'sv.gen_mode';
 let _currentMode = 'quick';
@@ -90,7 +91,7 @@ export function init() {
     }
 
     // Also clamp the settings modal playlist-size on blur
-    const settingsSize = document.getElementById('settings-playlist-size');
+    const settingsSize = el('settings-playlist-size');
     if (settingsSize) {
         settingsSize.addEventListener('blur', () => {
             let val = parseInt(settingsSize.value, 10);

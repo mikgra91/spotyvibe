@@ -2,6 +2,7 @@
  * tips.js — Feature discovery tip toasts (Wave 3 B.1)
  */
 import { i18n } from './i18n.js';
+import { el } from './dom.js';
 
 const STORAGE_KEY = 'sv.tips.seen';
 let sessionTipShown = false;
@@ -13,9 +14,9 @@ const TIP_CATALOGUE = {
         body_i18n: 'tip.first_generation_body',
         link_i18n: 'tip.first_generation_link',
         linkAction: () => {
-            const tab = document.getElementById('tab-openai');
+            const tab = el('tab-openai');
             if (tab) tab.click();
-            const section = document.getElementById('analysisSection');
+            const section = el('analysisSection');
             if (section) {
                 section.scrollIntoView({ behavior: 'smooth' });
                 const header = section.querySelector('.train-header');
@@ -29,9 +30,9 @@ const TIP_CATALOGUE = {
         body_i18n: 'tip.disliked_2_body',
         link_i18n: 'tip.disliked_2_link',
         linkAction: () => {
-            const tab = document.getElementById('tab-spotify');
+            const tab = el('tab-spotify');
             if (tab) tab.click();
-            const section = document.getElementById('reviewSection');
+            const section = el('reviewSection');
             if (section) {
                 section.scrollIntoView({ behavior: 'smooth' });
                 const header = section.querySelector('.train-header');
@@ -45,7 +46,7 @@ const TIP_CATALOGUE = {
         body_i18n: 'tip.first_history_body',
         link_i18n: 'tip.first_history_link',
         linkAction: () => {
-            const trigger = document.getElementById('profileMenuTrigger');
+            const trigger = el('profileMenuTrigger');
             if (trigger) trigger.click();
         },
     },
@@ -62,9 +63,9 @@ const TIP_CATALOGUE = {
         body_i18n: 'tip.five_generations_body',
         link_i18n: 'tip.five_generations_link',
         linkAction: () => {
-            const tab = document.getElementById('tab-spotify');
+            const tab = el('tab-spotify');
             if (tab) tab.click();
-            const section = document.getElementById('generateSection');
+            const section = el('generateSection');
             if (section) section.scrollIntoView({ behavior: 'smooth' });
         },
     },
@@ -89,7 +90,7 @@ function markSeen(id) {
 let _autoDismissTimer = null;
 
 function _dismissTip() {
-    const el = document.getElementById('tipToast');
+    const el = el('tipToast');
     if (el) el.classList.add('hidden');
     if (_autoDismissTimer) {
         clearTimeout(_autoDismissTimer);
@@ -99,7 +100,7 @@ function _dismissTip() {
 
 function _showTip(tip) {
     // Remove existing tip toast if any
-    let el = document.getElementById('tipToast');
+    let el = el('tipToast');
     if (el) el.remove();
 
     el = document.createElement('div');

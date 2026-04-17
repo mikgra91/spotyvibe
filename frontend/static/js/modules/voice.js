@@ -3,6 +3,7 @@
  */
 import { i18n } from './i18n.js';
 import { showToast } from './ui.js';
+import { el } from './dom.js';
 
 const SUPPORT = (typeof window !== 'undefined')
     && (window.SpeechRecognition || window.webkitSpeechRecognition);
@@ -14,7 +15,7 @@ let _current = null;
 let _lastProcessedIdx = 0;
 
 function _dismissListeningToast() {
-    const toast = document.getElementById('toast');
+    const toast = el('toast');
     if (toast) toast.classList.remove('show');
 }
 
@@ -32,9 +33,9 @@ export function toggleVoice(targetInputId) {
     rec.continuous = true;
     rec.interimResults = false;
 
-    const target = document.getElementById(targetInputId);
-    const button = document.getElementById('voiceBtnVibe');
-    const srStatus = document.getElementById('voiceSrStatus');
+    const target = el(targetInputId);
+    const button = el('voiceBtnVibe');
+    const srStatus = el('voiceSrStatus');
 
     rec.onstart = () => {
         _lastProcessedIdx = 0;
@@ -100,7 +101,7 @@ function _appendTranscriptAtCursor(textarea, results) {
 export function init() {
     window.toggleVoice = toggleVoice;
 
-    const btn = document.getElementById('voiceBtnVibe');
+    const btn = el('voiceBtnVibe');
     if (!btn) return;
 
     // Hide on unsupported browsers

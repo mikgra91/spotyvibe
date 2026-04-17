@@ -1,12 +1,13 @@
 import * as State from './state.js';
 import { i18n } from './i18n.js';
 import { renderProviderPills } from './provider-pills.js';
+import { el } from './dom.js';
 
 export function renderComponentWarnings() {
     renderProviderPills();
-    const trainWarn = document.getElementById('trainWarn');
-    const trainBtn = document.getElementById('trainSendBtn');
-    const trainToggle = document.getElementById('trainToggleBtn');
+    const trainWarn = el('trainWarn');
+    const trainBtn = el('trainSendBtn');
+    const trainToggle = el('trainToggleBtn');
 
     if (!State.openaiKeySet) {
         trainWarn.className = 'component-warn';
@@ -25,8 +26,8 @@ export function renderComponentWarnings() {
         trainToggle.disabled = false;
     }
 
-    const runWarn = document.getElementById('runWarn');
-    const runBtn = document.getElementById('runBtn');
+    const runWarn = el('runWarn');
+    const runBtn = el('runBtn');
 
     function _warnLink(text, handler) {
         const a = document.createElement('a');
@@ -65,7 +66,7 @@ export function renderComponentWarnings() {
         runBtn.disabled = false;
     }
 
-    const spotifyBtn = document.getElementById('spotifyToggleBtn');
+    const spotifyBtn = el('spotifyToggleBtn');
     if (State.spotifyAuthStatus === 'authenticated') {
         spotifyBtn.textContent = '🔌 ' + i18n('nav.disconnect_spotify', 'Disconnect Spotify');
     } else {

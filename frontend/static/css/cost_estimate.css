@@ -1,32 +1,32 @@
 /* ── Cost estimate card + footnote ───────────────────────────────── */
 .cost-estimate-card {
   background: var(--bg-elevated); border: 1px solid var(--border);
-  border-radius: var(--radius-md); padding: 14px 16px; margin: 12px 0;
+  border-radius: var(--radius-md); padding: var(--sp-4) var(--sp-4); margin: var(--sp-3) 0;
 }
-.cost-estimate-header { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
-.cost-estimate-title { font-size: 0.92rem; font-weight: 700; color: var(--text-primary); margin: 0; }
+.cost-estimate-header { display: flex; gap: var(--sp-3); align-items: center; margin-bottom: var(--sp-3); }
+.cost-estimate-title { font-size: var(--fs-md); font-weight: 700; color: var(--text-primary); margin: 0; }
 .cost-estimate-list {
-  display: grid; grid-template-columns: auto 1fr; gap: 4px 12px;
-  font-size: 0.84rem; margin: 0;
+  display: grid; grid-template-columns: auto 1fr; gap: var(--sp-1) 12px;
+  font-size: var(--fs-sm); margin: 0;
 }
 .cost-estimate-list dt { color: var(--text-muted); }
 .cost-estimate-list dd { color: var(--text-secondary); text-align: right; font-variant-numeric: tabular-nums; margin: 0; }
-.cost-total-label { color: var(--text-primary); font-weight: 600; padding-top: 6px; border-top: 1px solid var(--border); margin-top: 4px; }
-.cost-total-value { color: var(--primary); font-weight: 700; padding-top: 6px; border-top: 1px solid var(--border); margin-top: 4px; }
-.cost-estimate-disclaimer { font-size: 0.76rem; color: var(--text-muted); font-style: italic; margin: 10px 0 0; line-height: 1.4; }
-.cost-estimate-unavailable { font-size: 0.82rem; color: var(--warning, #f59e0b); margin: 10px 0 0; }
+.cost-total-label { color: var(--text-primary); font-weight: 600; padding-top: 6px; border-top: 1px solid var(--border); margin-top: var(--sp-1); }
+.cost-total-value { color: var(--primary); font-weight: 700; padding-top: 6px; border-top: 1px solid var(--border); margin-top: var(--sp-1); }
+.cost-estimate-disclaimer { font-size: var(--fs-xs); color: var(--text-muted); font-style: italic; margin: var(--sp-3) 0 0; line-height: 1.4; }
+.cost-estimate-unavailable { font-size: var(--fs-sm); color: var(--warning, #f59e0b); margin: var(--sp-3) 0 0; }
 .cost-estimate-unavailable.hidden { display: none; }
 
 /* Footnote under Generate button */
 .cost-footnote {
-  display: flex; gap: 6px; align-items: center; font-size: 0.78rem;
+  display: flex; gap: var(--sp-2); align-items: center; font-size: var(--fs-sm);
   color: var(--text-muted); margin: 0; justify-content: center;
   text-align: center; cursor: pointer;
 }
 .cost-footnote.hidden { display: none; }
 .cost-footnote-expand {
   background: none; border: none; color: var(--primary);
-  font-size: 0.78rem; cursor: pointer; padding: 0;
+  font-size: var(--fs-sm); cursor: pointer; padding: 0;
 }
 .cost-footnote-expand:hover { text-decoration: underline; }
 
@@ -34,7 +34,7 @@
 .cost-popover {
   position: relative;
   z-index: 50;
-  margin-top: 8px;
+  margin-top: var(--sp-2);
   animation: dropdownFadeIn 0.15s ease-out;
 }
 @media (prefers-reduced-motion: reduce) {

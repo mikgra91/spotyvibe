@@ -7,7 +7,7 @@
 .track-item {
     border-radius: var(--radius-lg);
     padding: 20px 24px;
-    margin-bottom: 10px;
+    margin-bottom: var(--sp-3);
     transition: all var(--transition);
     box-shadow: var(--shadow-card);
 }
@@ -19,11 +19,7 @@
     }
 }
 
-.track-header {
-    display: flex;
-    align-items: flex-start;
-    gap: 14px;
-}
+.track-header { display: flex; align-items: flex-start; gap: var(--sp-4); }
 
 .track-cover-wrap {
     position: relative;
@@ -90,47 +86,42 @@
 .track-name { font-size: 1rem; font-weight: 600; }
 .track-reason {
     color: var(--text-muted);
-    font-size: 0.85rem;
-    margin-top: 4px;
+    font-size: var(--fs-md);
+    margin-top: var(--sp-1);
     line-height: 1.4;
 }
 
 .track-no-preview {
     display: inline-block;
-    font-size: 0.75rem;
+    font-size: var(--fs-xs);
     color: var(--error);
-    margin-top: 4px;
+    margin-top: var(--sp-1);
 }
 
-.track-actions {
-    display: flex;
-    gap: 6px;
-    flex-shrink: 0;
-}
+.track-actions { display: flex; gap: var(--sp-2); flex-shrink: 0; }
 
 /* =============================================
    Feedback form
    ============================================= */
 .feedback-form {
-    margin-top: 14px;
+    margin-top: var(--sp-4);
     padding-top: 14px;
     border-top: 1px solid var(--border);
     display: none;
 }
 .feedback-form.open { display: block; }
 
-
 /* ── Richer track cards ─────────────────────────────────────────────── */
 
 .track-links {
     margin-left: 8px;
     display: inline-flex;
-    gap: 4px;
+    gap: var(--sp-1);
     vertical-align: middle;
 }
 
 .track-link {
-    font-size: 0.9rem;
+    font-size: var(--fs-md);
     text-decoration: none;
     opacity: 0.6;
     transition: opacity var(--transition);
@@ -139,24 +130,12 @@
     .track-link:hover { opacity: 1; }
 }
 
-
 /* ---- Song list counter ---- */
-.songlist-counter-row {
-    min-height: 1.4em;
-    padding: 4px 0 2px;
-}
-.songlist-counter {
-    font-size: 0.78rem;
-    color: var(--text-muted);
-}
-
+.songlist-counter-row { min-height: 1.4em; padding: var(--sp-1) 0 2px; }
+.songlist-counter { font-size: var(--fs-sm); color: var(--text-muted); }
 
 /* ── Review section (Refine Playlist) ─────────────────────────────── */
-.review-section .btn-run {
-    margin-top: 10px;
-}
+.review-section .btn-run { margin-top: var(--sp-3); }
 
-.help-loading-text {
-    color: var(--text-muted);
-}
+.help-loading-text { color: var(--text-muted); }
 

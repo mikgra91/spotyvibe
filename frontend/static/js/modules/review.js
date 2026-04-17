@@ -4,10 +4,11 @@ import { showToast, showAlert, showConfirm } from './ui.js';
 import { i18n } from './i18n.js';
 import { refreshDiscoverPlaylistPicker } from './playlist-mode.js';
 import { resetDashboard } from './taste_dashboard.js';
+import { el } from './dom.js';
 
 export function toggleReviewBody() {
-    const body = document.getElementById('reviewBody');
-    const btn = document.getElementById('reviewToggleBtn');
+    const body = el('reviewBody');
+    const btn = el('reviewToggleBtn');
     const isHidden = body.classList.toggle('hidden');
     const expanded = (!isHidden).toString();
     if (btn) {
@@ -28,16 +29,16 @@ export function toggleReviewBody() {
  * Load tracks from a selected playlist and render them in the review list.
  */
 export async function loadPlaylistTracks() {
-    const picker = document.getElementById('reviewPlaylistPicker');
+    const picker = el('reviewPlaylistPicker');
     if (!picker || !picker.value) {
         showToast(i18n('review.select_playlist_first', 'Please select a playlist first.'));
         return;
     }
     const playlistId = picker.value;
-    const listEl = document.getElementById('reviewTrackList');
-    const counterEl = document.getElementById('reviewTrackCounter');
-    const loadArea = document.getElementById('reviewLoadingArea');
-    const loadBtn = document.getElementById('reviewLoadBtn');
+    const listEl = el('reviewTrackList');
+    const counterEl = el('reviewTrackCounter');
+    const loadArea = el('reviewLoadingArea');
+    const loadBtn = el('reviewLoadBtn');
 
     // Show inline loading spinner
     if (loadArea) loadArea.classList.remove('hidden');
@@ -64,8 +65,8 @@ export async function loadPlaylistTracks() {
 }
 
 export function renderReviewTracks() {
-    const list = document.getElementById('reviewTrackList');
-    const trackArea = document.getElementById('reviewTrackArea');
+    const list = el('reviewTrackList');
+    const trackArea = el('reviewTrackArea');
     list.innerHTML = '';
     const tracks = State.reviewTracks;
 
@@ -90,7 +91,7 @@ export function renderReviewTracks() {
 /* ── Review-specific feedback functions ── */
 
 export function toggleReviewFeedback(idx, action) {
-    const form = document.getElementById(`review-form-${idx}`);
+    const form = el(`review-form-${idx}`);
     if (!form) return;
     const isOpen = form.classList.contains('open');
 
@@ -107,7 +108,7 @@ export function toggleReviewFeedback(idx, action) {
     form.classList.add('open');
     form.dataset.action = action;
 
-    const submitBtn = document.getElementById(`review-submitBtn-${idx}`);
+    const submitBtn = el(`review-submitBtn-${idx}`);
     if (action === 'like') {
         submitBtn.textContent = i18n('btn.submit_like', '👍 Submit');
         submitBtn.className = 'btn btn-submit-like';
@@ -118,20 +119,20 @@ export function toggleReviewFeedback(idx, action) {
 }
 
 export function closeReviewFeedback(idx) {
-    const form = document.getElementById(`review-form-${idx}`);
+    const form = el(`review-form-${idx}`);
     if (form) form.classList.remove('open');
 }
 
 export async function submitReviewFeedback(idx) {
-    const artist = document.getElementById(`review-artist-${idx}`).value.trim();
-    const track  = document.getElementById(`review-title-${idx}`).value.trim();
-    const reason = document.getElementById(`review-reason-${idx}`).value.trim();
-    const form = document.getElementById(`review-form-${idx}`);
+    const artist = el(`review-artist-${idx}`).value.trim();
+    const track  = el(`review-title-${idx}`).value.trim();
+    const reason = el(`review-reason-${idx}`).value.trim();
+    const form = el(`review-form-${idx}`);
     const action = form ? form.dataset.action : 'like';
 
     if (!artist) { showAlert(i18n('feedback.artist_required', 'Artist is required.')); return; }
 
-    const submitBtn = document.getElementById(`review-submitBtn-${idx}`);
+    const submitBtn = el(`review-submitBtn-${idx}`);
     submitBtn.disabled = true;
     submitBtn.textContent = '…';
 
@@ -206,7 +207,7 @@ export async function dismissReviewTrack(idx) {
 }
 
 function animateReviewRemove(idx) {
-    const el = document.getElementById(`review-track-${idx}`);
+    const el = el(`review-track-${idx}`);
     if (!el) return;
     el.style.opacity = '0';
     el.style.transform = 'translateX(40px)';
@@ -222,7 +223,7 @@ function animateReviewRemove(idx) {
  * Shares data with the Discover section picker via State.cachedPlaylists.
  */
 export async function populateReviewPlaylistPicker() {
-    const picker = document.getElementById('reviewPlaylistPicker');
+    const picker = el('reviewPlaylistPicker');
     if (!picker) return;
 
     let playlists = State.cachedPlaylists;
@@ -250,7 +251,7 @@ export async function refreshReviewPlaylistPicker() {
 }
 
 export async function deleteSelectedPlaylist(pickerId) {
-    const picker = document.getElementById(pickerId);
+    const picker = el(pickerId);
     if (!picker || !picker.value) {
         showToast(i18n('review.select_playlist_first', 'Please select a playlist first.'), 'error');
         return;

@@ -10,6 +10,7 @@
  */
 
 import { i18n } from './i18n.js';
+import { el } from './dom.js';
 
 // ── Mood/genre word set (case-insensitive substring match) ──────────
 const MOOD_GENRE_WORDS = [
@@ -73,7 +74,7 @@ function compute() {
     for (const dim of DIMENSIONS) {
         let text = '';
         if (dim.field) {
-            const el = document.getElementById(dim.field);
+            const el = el(dim.field);
             text = el ? el.value : '';
         }
         const result = dim.scorer(text);
@@ -111,13 +112,13 @@ function _colorClass(score) {
 }
 
 function _render({ score, dims }) {
-    const card = document.getElementById('profileCompletenessCard');
+    const card = el('profileCompletenessCard');
     if (!card) return;
 
-    const scoreEl = document.getElementById('completenessScore');
-    const fill = document.getElementById('completenessBarFill');
-    const tickList = document.getElementById('completenessTicks');
-    const suggestion = document.getElementById('completenessSuggestion');
+    const scoreEl = el('completenessScore');
+    const fill = el('completenessBarFill');
+    const tickList = el('completenessTicks');
+    const suggestion = el('completenessSuggestion');
 
     const cls = _colorClass(score);
 
@@ -180,9 +181,9 @@ function _scheduleUpdate() {
 const DETAIL_STORAGE_KEY = 'sv.completeness_expanded';
 
 export function toggleCompletenessDetail() {
-    const detail = document.getElementById('completenessDetail');
+    const detail = el('completenessDetail');
     const header = document.querySelector('.completeness-header');
-    const chevron = document.getElementById('completenessChevron');
+    const chevron = el('completenessChevron');
     if (!detail) return;
 
     const isExpanding = detail.classList.contains('hidden');
@@ -198,9 +199,9 @@ export function toggleCompletenessDetail() {
 function _restoreDetailState() {
     try {
         const expanded = localStorage.getItem(DETAIL_STORAGE_KEY) === '1';
-        const detail = document.getElementById('completenessDetail');
+        const detail = el('completenessDetail');
         const header = document.querySelector('.completeness-header');
-        const chevron = document.getElementById('completenessChevron');
+        const chevron = el('completenessChevron');
         if (expanded && detail) {
             detail.classList.remove('hidden');
             if (header) header.setAttribute('aria-expanded', 'true');
@@ -212,7 +213,7 @@ function _restoreDetailState() {
 export function init() {
     const fields = ['trainCoreDesc', 'trainMustHave', 'trainSoftPrefs', 'trainAvoid'];
     for (const id of fields) {
-        const el = document.getElementById(id);
+        const el = el(id);
         if (el) {
             el.addEventListener('input', _scheduleUpdate);
             el.addEventListener('change', _scheduleUpdate);
@@ -226,7 +227,7 @@ export function init() {
     });
 
     // Initial render (but only if the profile editor is open)
-    const body = document.getElementById('trainBody');
+    const body = el('trainBody');
     if (body && !body.classList.contains('hidden')) {
         _update();
     }

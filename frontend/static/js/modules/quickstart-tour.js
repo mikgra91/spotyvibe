@@ -10,6 +10,7 @@
  */
 import { i18n } from './i18n.js';
 import { qsDemoReset, qsDemoAutoPlay } from './quickstart-demo.js';
+import { el } from './dom.js';
 
 let _currentProvider = 'openai';
 let _visiblePageIndices = [0, 1, 2, 6]; // default: openai
@@ -82,7 +83,7 @@ function _renderPage() {
     const realIdx = _currentRealPageIdx();
 
     // Update modal title for provider-specific branding
-    const titleEl = document.getElementById('quickstartModalTitle');
+    const titleEl = el('quickstartModalTitle');
     if (titleEl) {
         if (realIdx === 0) {
             // TOC page: show provider-specific title
@@ -112,13 +113,13 @@ function _renderPage() {
     }
 
     // Pagination always visible
-    const pag = document.getElementById('qsPagination');
+    const pag = el('qsPagination');
     if (pag) pag.classList.remove('qs-pag-hidden');
-    const dismissRow = document.getElementById('qsDismissRow');
+    const dismissRow = el('qsDismissRow');
     if (dismissRow) dismissRow.classList.remove('qs-pag-hidden');
 
     // Back/left button
-    const prevBtn = document.getElementById('qsPagPrev');
+    const prevBtn = el('qsPagPrev');
     if (prevBtn) {
         prevBtn.classList.remove('qs-pag-invisible');
         const label = prevBtn.querySelector('[data-i18n="quickstart.prev"]');
@@ -139,7 +140,7 @@ function _renderPage() {
     }
 
     // Next/right button
-    const nextBtn = document.getElementById('qsPagNext');
+    const nextBtn = el('qsPagNext');
     if (nextBtn) {
         const label = nextBtn.querySelector('[data-i18n="quickstart.next"]');
         const arrow = nextBtn.querySelector('[aria-hidden="true"]');
@@ -168,7 +169,7 @@ function _renderToc() {
 }
 
 function _renderDots() {
-    const container = document.getElementById('qsPagDots');
+    const container = el('qsPagDots');
     if (!container) return;
 
     let html = '';

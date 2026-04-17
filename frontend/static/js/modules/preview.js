@@ -1,6 +1,7 @@
 import * as State from './state.js';
 import { showAlert } from './ui.js';
 import { i18n } from './i18n.js';
+import { el } from './dom.js';
 
 let currentPreviewIndex = -1;
 let currentPreviewSource = 'discover'; // 'discover' or 'review'
@@ -18,7 +19,7 @@ function embedUrl(trackId, autoplay = false) {
  * treats it as a new navigation — required for autoplay to work.
  */
 function replaceIframe(src) {
-    const old = document.getElementById('spotifyPreviewIframe');
+    const old = el('spotifyPreviewIframe');
     if (!old) return;
     const fresh = document.createElement('iframe');
     fresh.id = 'spotifyPreviewIframe';
@@ -38,9 +39,9 @@ function getSourceTracks() {
 }
 
 function updateNavState() {
-    const prevBtn = document.getElementById('previewPrev');
-    const nextBtn = document.getElementById('previewNext');
-    const counter = document.getElementById('previewCounter');
+    const prevBtn = el('previewPrev');
+    const nextBtn = el('previewNext');
+    const counter = el('previewCounter');
     const tracks = getPreviewableTracks();
     const pos = tracks.findIndex(t => t._origIdx === currentPreviewIndex);
 
@@ -69,14 +70,14 @@ function loadTrackByIndex(idx) {
 
     replaceIframe(embedUrl(track.track_id, true));
 
-    const titleEl = document.getElementById('spotifyPreviewTitle');
+    const titleEl = el('spotifyPreviewTitle');
     if (titleEl) titleEl.textContent = `${track.artist} — ${track.track}`;
 
     updateNavState();
 }
 
 export function openPreviewOverlay(trackId, title, source = 'discover') {
-    const overlay = document.getElementById('spotifyPreviewOverlay');
+    const overlay = el('spotifyPreviewOverlay');
     if (!overlay || !trackId) return;
 
     currentPreviewSource = source;
@@ -87,7 +88,7 @@ export function openPreviewOverlay(trackId, title, source = 'discover') {
 
     // Fresh iframe for autoplay to work reliably
     replaceIframe(embedUrl(trackId, true));
-    const titleEl = document.getElementById('spotifyPreviewTitle');
+    const titleEl = el('spotifyPreviewTitle');
     if (titleEl && title) titleEl.textContent = title;
     overlay.classList.add('visible');
     updateNavState();
@@ -95,10 +96,10 @@ export function openPreviewOverlay(trackId, title, source = 'discover') {
 }
 
 export function closePreviewOverlay() {
-    const overlay = document.getElementById('spotifyPreviewOverlay');
+    const overlay = el('spotifyPreviewOverlay');
     if (!overlay) return;
     overlay.classList.remove('visible');
-    const iframe = document.getElementById('spotifyPreviewIframe');
+    const iframe = el('spotifyPreviewIframe');
     if (iframe) iframe.src = '';
     currentPreviewIndex = -1;
     // Reset feedback state
@@ -122,7 +123,7 @@ export function nextPreview() {
 let currentFeedbackAction = null;  // track which tab is open: 'like', 'dislike', or null
 
 function updatePreviewFeedbackState() {
-    const actions = document.getElementById('previewInlineActions');
+    const actions = el('previewInlineActions');
     if (actions) actions.style.display = currentPreviewIndex >= 0 ? 'flex' : 'none';
 }
 
@@ -132,8 +133,8 @@ function getCurrentPreviewTrack() {
 }
 
 function clearActiveTab() {
-    document.getElementById('previewTabLike')?.classList.remove('active');
-    document.getElementById('previewTabDislike')?.classList.remove('active');
+    el('previewTabLike')?.classList.remove('active');
+    el('previewTabDislike')?.classList.remove('active');
 }
 
 export function previewLike() {
@@ -148,7 +149,7 @@ function togglePreviewFeedbackForm(action) {
     const track = getCurrentPreviewTrack();
     if (!track) return;
 
-    const panel = document.getElementById('previewFeedbackPanel');
+    const panel = el('previewFeedbackPanel');
     if (!panel) return;
 
     // Toggle: if same action tab clicked again, close the form
@@ -163,17 +164,17 @@ function togglePreviewFeedbackForm(action) {
     // Update active tab
     clearActiveTab();
     const tabId = action === 'like' ? 'previewTabLike' : 'previewTabDislike';
-    document.getElementById(tabId)?.classList.add('active');
+    el(tabId)?.classList.add('active');
 
     // Action-specific colouring on the panel
     panel.classList.remove('action-like', 'action-dislike');
     panel.classList.add('visible', `action-${action}`);
     panel.dataset.action = action;
 
-    const artistInput = document.getElementById('previewFbArtist');
-    const trackInput = document.getElementById('previewFbTrack');
-    const reasonInput = document.getElementById('previewFbReason');
-    const submitBtn = document.getElementById('previewFbSubmit');
+    const artistInput = el('previewFbArtist');
+    const trackInput = el('previewFbTrack');
+    const reasonInput = el('previewFbReason');
+    const submitBtn = el('previewFbSubmit');
 
     if (artistInput) artistInput.value = track.artist || '';
     if (trackInput) trackInput.value = track.track || '';
@@ -189,7 +190,7 @@ function togglePreviewFeedbackForm(action) {
 }
 
 export function closePreviewFeedback() {
-    const panel = document.getElementById('previewFeedbackPanel');
+    const panel = el('previewFeedbackPanel');
     if (panel) {
         panel.classList.remove('visible', 'action-like', 'action-dislike');
     }
@@ -198,15 +199,15 @@ export function closePreviewFeedback() {
 }
 
 export async function submitPreviewFeedback() {
-    const panel = document.getElementById('previewFeedbackPanel');
+    const panel = el('previewFeedbackPanel');
     const action = panel ? panel.dataset.action : 'like';
-    const artist = document.getElementById('previewFbArtist').value.trim();
-    const track = document.getElementById('previewFbTrack').value.trim();
-    const reason = document.getElementById('previewFbReason').value.trim();
+    const artist = el('previewFbArtist').value.trim();
+    const track = el('previewFbTrack').value.trim();
+    const reason = el('previewFbReason').value.trim();
 
     if (!artist) { showAlert(i18n('feedback.artist_required', 'Artist is required.')); return; }
 
-    const submitBtn = document.getElementById('previewFbSubmit');
+    const submitBtn = el('previewFbSubmit');
     submitBtn.disabled = true;
     submitBtn.textContent = '…';
 
@@ -280,11 +281,11 @@ function removeCurrentAndAdvance() {
 
     // Remove the card from the track list UI
     if (source === 'review') {
-        const el = document.getElementById(`review-track-${idx}`);
+        const el = el(`review-track-${idx}`);
         if (el) { el.style.opacity = '0'; el.style.transform = 'translateX(40px)'; setTimeout(() => el.remove(), 300); }
         State.spliceReviewTrack(idx);
     } else {
-        const el = document.getElementById(`track-${idx}`);
+        const el = el(`track-${idx}`);
         if (el) { el.style.opacity = '0'; el.style.transform = 'translateX(40px)'; setTimeout(() => el.remove(), 300); }
         State.spliceSuggestion(idx);
     }

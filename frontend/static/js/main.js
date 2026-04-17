@@ -35,6 +35,7 @@ import * as PlaylistSeed from './modules/playlist_seed.js';
 import * as Provider from './modules/provider.js';
 import * as CostEstimate from './modules/cost_estimate.js';
 import * as Voice from './modules/voice.js';
+import { el } from './modules/dom.js';
 
 // Expose globals for HTML onclick= attributes
 window.checkCredentialStatus = checkCredentialStatus;
@@ -155,7 +156,7 @@ window.togglePresetDropdown = Presets.togglePresetDropdown;
 window.confirmSaveAsPreset = Presets.confirmSaveAsPreset;
 window.importPresetFile = Presets.importPresetFile;
 window._explorationModule = Exploration;
-window.openModal = function(id) { const el = document.getElementById(id); if (el) el.classList.add('open'); };
+window.openModal = function(id) { const el = el(id); if (el) el.classList.add('open'); };
 
 // Wave 2+: functions referenced via onclick= in templates
 window.toggleCompletenessDetail = Completeness.toggleCompletenessDetail;
@@ -181,14 +182,14 @@ window.addEventListener('message', async (e) => {
 document.addEventListener('click', (e) => {
     const wrapper = document.querySelector('.header-controls');
     if (wrapper && !wrapper.contains(e.target)) {
-        document.getElementById('settingsDropdown').classList.remove('open');
+        el('settingsDropdown').classList.remove('open');
     }
 });
 
 // DOMContentLoaded init
 document.addEventListener('DOMContentLoaded', async () => {
     // Overlay click-to-close
-    const overlay = document.getElementById('spotifyPreviewOverlay');
+    const overlay = el('spotifyPreviewOverlay');
     if (overlay) {
         overlay.addEventListener('click', function(e) {
             if (e.target === this) closePreviewOverlay();
@@ -205,7 +206,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Show refresh button when running inside pywebview desktop wrapper
     if (window.pywebview) {
-        const rb = document.getElementById('refreshBtn');
+        const rb = el('refreshBtn');
         if (rb) rb.classList.remove('hidden');
     }
 

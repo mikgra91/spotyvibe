@@ -1,55 +1,56 @@
 import { i18n } from './i18n.js';
+import { el } from './dom.js';
 
 export function showStatus(msg, type) {
-    const box = document.getElementById('statusBox');
+    const box = el('statusBox');
     box.className = `status ${type}`;
     box.textContent = msg;
     // During generation, only the inline loading area shows progress;
     // the statusBox is hidden to avoid duplication.  Show it for
     // terminal states (success, error) so the final message persists.
-    const loadArea = document.getElementById('generateLoadingArea');
+    const loadArea = el('generateLoadingArea');
     const isGenerating = loadArea && !loadArea.classList.contains('hidden');
     if (isGenerating && type === 'info') {
         box.classList.add('hidden');
     } else {
         box.classList.remove('hidden');
         // Ensure track area is visible so the status box can be seen
-        const trackArea = document.getElementById('discoverTrackArea');
+        const trackArea = el('discoverTrackArea');
         if (trackArea) trackArea.classList.remove('hidden');
     }
     // Mirror into inline loading message area if visible
-    const loadMsg = document.getElementById('generateLoadingMsg');
+    const loadMsg = el('generateLoadingMsg');
     if (loadMsg) loadMsg.textContent = msg;
 }
 
 export function showStatusHtml(html, type) {
-    const box = document.getElementById('statusBox');
+    const box = el('statusBox');
     box.className = `status ${type}`;
     box.innerHTML = html;
-    const loadArea = document.getElementById('generateLoadingArea');
+    const loadArea = el('generateLoadingArea');
     const isGenerating = loadArea && !loadArea.classList.contains('hidden');
     if (isGenerating && type === 'info') {
         box.classList.add('hidden');
     } else {
         box.classList.remove('hidden');
-        const trackArea = document.getElementById('discoverTrackArea');
+        const trackArea = el('discoverTrackArea');
         if (trackArea) trackArea.classList.remove('hidden');
     }
-    const loadMsg = document.getElementById('generateLoadingMsg');
+    const loadMsg = el('generateLoadingMsg');
     if (loadMsg) loadMsg.innerHTML = html;
 }
 
 export function showPlaylistLink(url) {
-    const box = document.getElementById('playlistLinkBox');
+    const box = el('playlistLinkBox');
     box.innerHTML = `🎶 <strong>${i18n('generate.title', 'Playlist')}:</strong> <a href="${attr(url)}" target="_blank" rel="noopener">${esc(url)}</a>`;
     box.classList.remove('hidden');
     // Ensure track area is visible
-    const trackArea = document.getElementById('discoverTrackArea');
+    const trackArea = el('discoverTrackArea');
     if (trackArea) trackArea.classList.remove('hidden');
 }
 
 export function hidePlaylistLink() {
-    document.getElementById('playlistLinkBox').classList.add('hidden');
+    el('playlistLinkBox').classList.add('hidden');
 }
 
 export function esc(s) {
@@ -89,7 +90,7 @@ export function escHtml(str) {
 }
 
 export function toggleSettingsMenu() {
-    const dd = document.getElementById('settingsDropdown');
+    const dd = el('settingsDropdown');
     dd.classList.toggle('open');
     const btn = document.querySelector('.burger-btn');
     if (btn) btn.setAttribute('aria-expanded', dd.classList.contains('open'));
@@ -103,23 +104,23 @@ export function toggleSettingsMenu() {
 /** Close any open popovers except the one identified by `exceptId` */
 function _closeAllPopovers(exceptId) {
     // Profile custom dropdown
-    const profileList = document.getElementById('profileDropdownList');
-    const profileDropdown = document.getElementById('profileCustomDropdown');
+    const profileList = el('profileDropdownList');
+    const profileDropdown = el('profileCustomDropdown');
     if (profileList && !profileList.classList.contains('hidden') && exceptId !== 'profileCustomDropdown') {
         profileList.classList.add('hidden');
         if (profileDropdown) profileDropdown.setAttribute('aria-expanded', 'false');
     }
 
     // Profile context menu (⋯)
-    const profileMenu = document.getElementById('profileMenuDropdown');
-    const profileMenuTrigger = document.getElementById('profileMenuTrigger');
+    const profileMenu = el('profileMenuDropdown');
+    const profileMenuTrigger = el('profileMenuTrigger');
     if (profileMenu && !profileMenu.classList.contains('hidden') && exceptId !== 'profileMenuDropdown') {
         profileMenu.classList.add('hidden');
         if (profileMenuTrigger) profileMenuTrigger.setAttribute('aria-expanded', 'false');
     }
 
     // Settings/burger dropdown
-    const settingsDD = document.getElementById('settingsDropdown');
+    const settingsDD = el('settingsDropdown');
     if (settingsDD && settingsDD.classList.contains('open') && exceptId !== 'settingsDropdown') {
         settingsDD.classList.remove('open');
         const btn = document.querySelector('.burger-btn');
@@ -131,7 +132,7 @@ export { _closeAllPopovers as closeAllPopovers };
 
 let toastTimer = null;
 export function showToast(message, type = 'success', duration = 3000) {
-    const toast = document.getElementById('toast');
+    const toast = el('toast');
     if (toastTimer) clearTimeout(toastTimer);
     toast.textContent = message;
     toast.className = `toast toast-${type} show`;
@@ -149,7 +150,7 @@ export function showToast(message, type = 'success', duration = 3000) {
 export function showConfirm(message) {
     return new Promise((resolve) => {
         // Remove any existing confirm overlay
-        const existing = document.getElementById('customConfirmOverlay');
+        const existing = el('customConfirmOverlay');
         if (existing) existing.remove();
 
         const overlay = document.createElement('div');

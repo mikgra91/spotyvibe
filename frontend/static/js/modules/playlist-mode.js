@@ -1,5 +1,6 @@
 import * as State from './state.js';
 import { i18n } from './i18n.js';
+import { el } from './dom.js';
 
 export function getPlaylistMode() {
     const checked = document.querySelector('input[name="playlist_mode"]:checked');
@@ -10,7 +11,7 @@ export function getPlaylistMode() {
  * Fetch playlists (or use shared cache) and render them into #playlistPicker.
  */
 async function loadDiscoverPicker() {
-    const sel = document.getElementById('playlistPicker');
+    const sel = el('playlistPicker');
     if (!sel) return;
 
     let playlists = State.cachedPlaylists;
@@ -47,8 +48,8 @@ async function loadDiscoverPicker() {
 
 export async function onPlaylistModeChange() {
     const mode = getPlaylistMode();
-    const nameRow = document.getElementById('playlistNameRow');
-    const pickerRow = document.getElementById('playlistPickerRow');
+    const nameRow = el('playlistNameRow');
+    const pickerRow = el('playlistPickerRow');
     nameRow.classList.toggle('hidden', mode !== 'create');
     pickerRow.classList.toggle('hidden', mode !== 'append' && mode !== 'replace');
 
@@ -64,7 +65,7 @@ export async function onPlaylistModeChange() {
  */
 export async function refreshDiscoverPlaylistPicker() {
     State.invalidateCachedPlaylists();
-    const pickerRow = document.getElementById('playlistPickerRow');
+    const pickerRow = el('playlistPickerRow');
     if (pickerRow && pickerRow.dataset.loaded) {
         await loadDiscoverPicker();
     }
@@ -74,10 +75,10 @@ export function getPlaylistModePayload() {
     const mode = getPlaylistMode();
     const payload = { playlist_mode: mode };
     if (mode === 'create') {
-        const name = (document.getElementById('playlistNameInput')?.value || '').trim();
+        const name = (el('playlistNameInput')?.value || '').trim();
         if (name) payload.playlist_name = name;
     } else if (mode === 'append' || mode === 'replace') {
-        const id = document.getElementById('playlistPicker')?.value;
+        const id = el('playlistPicker')?.value;
         if (id) payload.playlist_id = id;
     }
     return payload;
@@ -111,8 +112,8 @@ export async function switchToAppendMode(playlistId) {
     appendRadio.checked = true;
 
     // Toggle row visibility
-    const nameRow = document.getElementById('playlistNameRow');
-    const pickerRow = document.getElementById('playlistPickerRow');
+    const nameRow = el('playlistNameRow');
+    const pickerRow = el('playlistPickerRow');
     if (nameRow) nameRow.classList.add('hidden');
     if (pickerRow) {
         pickerRow.classList.remove('hidden');
@@ -121,7 +122,7 @@ export async function switchToAppendMode(playlistId) {
 
     // Refresh picker and select the target playlist
     await refreshDiscoverPlaylistPicker();
-    const sel = document.getElementById('playlistPicker');
+    const sel = el('playlistPicker');
     if (sel && playlistId) {
         sel.value = playlistId;
     }

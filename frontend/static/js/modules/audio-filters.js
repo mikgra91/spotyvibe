@@ -1,5 +1,6 @@
 import { showToast } from './ui.js';
 import { i18n } from './i18n.js';
+import { el } from './dom.js';
 
 /* ── Human-readable hint descriptions ──────────────────────────────── */
 const HINT_RANGES = {
@@ -57,9 +58,9 @@ function describeValue(feature, val) {
 }
 
 export function updateFilterHint(feature) {
-    const minEl = document.getElementById(`af-${feature}-min`);
-    const maxEl = document.getElementById(`af-${feature}-max`);
-    const hintEl = document.getElementById(`af-${feature}-hint`);
+    const minEl = el(`af-${feature}-min`);
+    const maxEl = el(`af-${feature}-max`);
+    const hintEl = el(`af-${feature}-hint`);
     if (!hintEl) return;
 
     const lo = minEl && minEl.value !== '' ? parseFloat(minEl.value) : null;
@@ -86,8 +87,8 @@ export function updateAllFilterHints() {
 }
 
 export function toggleAudioFilters() {
-    const body = document.getElementById('audioFiltersBody');
-    const chevron = document.getElementById('audioFilterToggleBtn');
+    const body = el('audioFiltersBody');
+    const chevron = el('audioFilterToggleBtn');
     const isHidden = body.classList.contains('hidden');
     body.classList.toggle('hidden', !isHidden);
     if (chevron) chevron.textContent = isHidden ? '▲' : '▼';
@@ -108,8 +109,8 @@ export function getAudioFilters() {
     const percentFeatures = new Set(['energy', 'valence', 'danceability', 'acousticness']);
     const features = ['energy','valence','tempo','danceability','acousticness'];
     features.forEach(f => {
-        const minEl = document.getElementById(`af-${f}-min`);
-        const maxEl = document.getElementById(`af-${f}-max`);
+        const minEl = el(`af-${f}-min`);
+        const maxEl = el(`af-${f}-max`);
         let lo = minEl && minEl.value !== '' ? parseFloat(minEl.value) : null;
         let hi = maxEl && maxEl.value !== '' ? parseFloat(maxEl.value) : null;
         if (percentFeatures.has(f)) {
@@ -128,9 +129,9 @@ export function getAudioFilters() {
 export function clearAllFilters() {
     const features = ['energy','valence','tempo','danceability','acousticness'];
     features.forEach(f => {
-        const minEl = document.getElementById(`af-${f}-min`);
-        const maxEl = document.getElementById(`af-${f}-max`);
-        const hintEl = document.getElementById(`af-${f}-hint`);
+        const minEl = el(`af-${f}-min`);
+        const maxEl = el(`af-${f}-max`);
+        const hintEl = el(`af-${f}-hint`);
         if (minEl) minEl.value = '';
         if (maxEl) maxEl.value = '';
         if (hintEl) hintEl.textContent = '';
@@ -167,21 +168,21 @@ export function applyAnalysisFilter(feature, value) {
     const loRounded = roundTo(lo, step);
     const hiRounded = roundTo(hi, step);
 
-    const minEl = document.getElementById(`af-${feature}-min`);
-    const maxEl = document.getElementById(`af-${feature}-max`);
+    const minEl = el(`af-${feature}-min`);
+    const maxEl = el(`af-${feature}-max`);
     if (minEl) minEl.value = loRounded;
     if (maxEl) maxEl.value = hiRounded;
 
     updateFilterHint(feature);
 
     // Ensure the filter panel is visible
-    const body = document.getElementById('audioFiltersBody');
+    const body = el('audioFiltersBody');
     if (body && body.classList.contains('hidden')) toggleAudioFilters();
 
     // Ensure Discover section is open
-    const genBody = document.getElementById('generateBody');
+    const genBody = el('generateBody');
     if (genBody && genBody.classList.contains('hidden')) {
-        const genBtn = document.getElementById('generateToggleBtn');
+        const genBtn = el('generateToggleBtn');
         if (genBtn) genBtn.click();
     }
 
@@ -211,8 +212,8 @@ export function applyAllAnalysisFilters(audioFeatures) {
             const roundTo = (v, s) => Math.round(v / s) * s;
             const loR = roundTo(lo, step);
             const hiR = roundTo(hi, step);
-            const minEl = document.getElementById(`af-${f}-min`);
-            const maxEl = document.getElementById(`af-${f}-max`);
+            const minEl = el(`af-${f}-min`);
+            const maxEl = el(`af-${f}-max`);
             if (minEl) minEl.value = loR;
             if (maxEl) maxEl.value = hiR;
             updateFilterHint(f);
@@ -221,11 +222,11 @@ export function applyAllAnalysisFilters(audioFeatures) {
     }
 
     // Ensure panels are open
-    const body = document.getElementById('audioFiltersBody');
+    const body = el('audioFiltersBody');
     if (body && body.classList.contains('hidden')) toggleAudioFilters();
-    const genBody = document.getElementById('generateBody');
+    const genBody = el('generateBody');
     if (genBody && genBody.classList.contains('hidden')) {
-        const genBtn = document.getElementById('generateToggleBtn');
+        const genBtn = el('generateToggleBtn');
         if (genBtn) genBtn.click();
     }
 

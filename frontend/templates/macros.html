@@ -23,3 +23,23 @@
 </details>
 {% endmacro %}
 
+{# ── Onboarding step indicator (7 pills) ────────────────────────── #}
+{# current_step: 0-based index of the current step #}
+{% macro ob_pills(current_step, total=7) %}
+<div class="ob-step-indicator">
+    {%- for i in range(total) -%}
+    <div class="ob-pill{% if i < current_step %} ob-pill--complete{% elif i == current_step %} ob-pill--current{% else %} ob-pill--future{% endif %}"></div>
+    {%- endfor -%}
+</div>
+{% endmacro %}
+
+{# ── Onboarding nav (back / skip / next buttons) ────────────────── #}
+{# back_page: page index for back button (none = no back), next_page: for next, skip_page: for skip #}
+{# next_fn: override onclick for next button (e.g. 'obSaveAndNext()') #}
+{% macro ob_nav(back_page=none, skip_page=none, next_page=none, next_fn=none, next_label='ob.next', next_default='Next →', skip_label='ob.skip_for_now', skip_default='Skip for now') %}
+<div class="ob-nav">
+    {% if back_page is not none %}<button class="ob-btn-skip" onclick="obGoPage({{ back_page }})" data-i18n="ob.back">← Back</button>{% endif %}
+    {% if skip_page is not none %}<button class="ob-btn-skip ob-btn-skip--inline ob-cta-skip-inline" onclick="obGoPage({{ skip_page }})" data-i18n="{{ skip_label }}">{{ skip_default }}</button>{% endif %}
+    {% if next_page is not none or next_fn %}<button class="ob-cta ob-cta-next" onclick="{{ next_fn or ('obGoPage(' ~ next_page ~ ')') }}" data-i18n="{{ next_label }}">{{ next_default }}</button>{% endif %}
+</div>
+{% endmacro %}

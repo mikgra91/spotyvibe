@@ -9,6 +9,7 @@
  */
 
 import { i18n } from './i18n.js';
+import { el } from './dom.js';
 
 // ── Notch definitions ───────────────────────────────────────────────
 
@@ -84,14 +85,14 @@ function _applyNotchToFields(notch) {
     if (!def) return;
 
     // New artist %
-    const napField = document.getElementById('settings-new-artist-pct');
+    const napField = el('settings-new-artist-pct');
     if (napField) napField.value = def.new_artist_pct;
 
-    const advNap = document.getElementById('genNewArtistPct');
+    const advNap = el('genNewArtistPct');
     if (advNap) advNap.value = def.new_artist_pct;
 
     // Emerging only
-    const emergingCb = document.getElementById('emergingArtistsCheckbox');
+    const emergingCb = el('emergingArtistsCheckbox');
     if (emergingCb) emergingCb.checked = def.emerging_only;
 
     // Temperature (in-memory)
@@ -101,9 +102,9 @@ function _applyNotchToFields(notch) {
 // ── Custom detection ────────────────────────────────────────────────
 
 function _detectCustom() {
-    const napField = document.getElementById('settings-new-artist-pct') ||
-                     document.getElementById('genNewArtistPct');
-    const emergingCb = document.getElementById('emergingArtistsCheckbox');
+    const napField = el('settings-new-artist-pct') ||
+                     el('genNewArtistPct');
+    const emergingCb = el('emergingArtistsCheckbox');
 
     const curNap = napField ? parseInt(napField.value, 10) : null;
     const curEmerging = emergingCb ? emergingCb.checked : false;
@@ -188,17 +189,17 @@ export function init() {
     }
 
     // Listen to underlying field changes for custom detection
-    const napField = document.getElementById('settings-new-artist-pct');
+    const napField = el('settings-new-artist-pct');
     if (napField) {
         napField.addEventListener('input', onUnderlyingFieldChange);
         napField.addEventListener('change', onUnderlyingFieldChange);
     }
-    const advNap = document.getElementById('genNewArtistPct');
+    const advNap = el('genNewArtistPct');
     if (advNap && advNap !== napField) {
         advNap.addEventListener('input', onUnderlyingFieldChange);
         advNap.addEventListener('change', onUnderlyingFieldChange);
     }
-    const emergingCb = document.getElementById('emergingArtistsCheckbox');
+    const emergingCb = el('emergingArtistsCheckbox');
     if (emergingCb) {
         emergingCb.addEventListener('change', onUnderlyingFieldChange);
     }
