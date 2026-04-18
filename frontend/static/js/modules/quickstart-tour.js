@@ -1,9 +1,10 @@
 /**
  * Quickstart guide — pagination controller (provider-aware).
  *
- * Pages: 0 = Table of Contents (TOC), 1–6 = individual step pages.
- * Each step page carries a data-qs-provider attribute ("both", "openai", "spotify").
- * When opened, only the pages relevant to the active provider are shown.
+ * Pages: 0 = Table of Contents (TOC), 1=Setup (both), 2=Profile (openai),
+ * 3=Generate (spotify), 4=Review (spotify). Each step page carries a
+ * data-qs-provider attribute ("both", "openai", "spotify"). When opened,
+ * only the pages relevant to the active provider are shown.
  *
  * Navigation uses _visiblePageIndices — a filtered array of DOM page indices
  * that match the current provider. _posInVisible is the cursor into that array.
@@ -13,8 +14,8 @@ import { qsDemoReset, qsDemoAutoPlay } from './quickstart-demo.js';
 import { el } from './dom.js';
 
 let _currentProvider = 'openai';
-let _visiblePageIndices = [0, 1, 2, 6]; // default: openai
-let _posInVisible = 0;                   // index into _visiblePageIndices
+let _visiblePageIndices = [0, 1, 2]; // default: openai
+let _posInVisible = 0;                // index into _visiblePageIndices
 
 /* ── Public API ── */
 

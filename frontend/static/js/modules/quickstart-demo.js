@@ -249,9 +249,9 @@ function _step3Frames() {
                         <div class="qd-accordion-header"><h4><span class="qd-icon">🎧</span> ${secDiscover}</h4></div>
                         <div class="qd-accordion-body" style="gap:4px">
                             <div class="qd-track-list">
-                                <div class="qd-track qd-pop"><div class="qd-cover"></div><div class="qd-track-info"><span>Bohemian Rhapsody</span><small>Queen</small></div><div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">✕</span></div></div>
-                                <div class="qd-track qd-pop" style="animation-delay:.15s"><div class="qd-cover"></div><div class="qd-track-info"><span>Don't Stop Me Now</span><small>Queen</small></div><div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">✕</span></div></div>
-                                <div class="qd-track qd-pop" style="animation-delay:.3s"><div class="qd-cover"></div><div class="qd-track-info"><span>Thunder</span><small>Imagine Dragons</small></div><div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">✕</span></div></div>
+                                <div class="qd-track qd-pop"><div class="qd-cover"></div><div class="qd-track-info"><span>Bohemian Rhapsody</span><small>Queen</small></div><div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">🗑</span></div></div>
+                                <div class="qd-track qd-pop" style="animation-delay:.15s"><div class="qd-cover"></div><div class="qd-track-info"><span>Don't Stop Me Now</span><small>Queen</small></div><div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">🗑</span></div></div>
+                                <div class="qd-track qd-pop" style="animation-delay:.3s"><div class="qd-cover"></div><div class="qd-track-info"><span>Thunder</span><small>Imagine Dragons</small></div><div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">🗑</span></div></div>
                             </div>
                         </div>
                     </div>
@@ -273,19 +273,19 @@ function _step4Frames() {
                         <div class="qd-cover qd-cover-clickable"></div>
                         <div class="qd-track-info"><span>Bohemian Rhapsody</span><small>Queen</small></div>
                         <div class="qd-spotify-links"><span>🎵</span><span>🎤</span><span>💿</span></div>
-                        <div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">✕</span></div>
+                        <div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">🗑</span></div>
                     </div>
                     <div class="qd-track">
                         <div class="qd-cover"></div>
                         <div class="qd-track-info"><span>Don't Stop Me Now</span><small>Queen</small></div>
                         <div class="qd-spotify-links"><span>🎵</span><span>🎤</span><span>💿</span></div>
-                        <div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">✕</span></div>
+                        <div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">🗑</span></div>
                     </div>
                     <div class="qd-track" style="opacity:0.6">
                         <div class="qd-cover"></div>
                         <div class="qd-track-info"><span>Thunder</span><small>Imagine Dragons</small></div>
                         <div class="qd-spotify-links"><span>🎵</span><span>🎤</span><span>💿</span></div>
-                        <div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">✕</span></div>
+                        <div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">🗑</span></div>
                     </div>
                 </div>
                 <div class="qd-cursor" style="top:18px;left:24px"></div>
@@ -301,7 +301,7 @@ function _step4Frames() {
                         <span class="qd-nav-arrow">›</span>
                     </div>
                     <div style="text-align:center;font-size:0.55rem;color:var(--text-muted)">1 / 10</div>
-                    <div class="qd-preview-actions"><span class="qd-action-tab">👍</span><span class="qd-action-tab">👎</span><span class="qd-action-tab">✕</span></div>
+                    <div class="qd-preview-actions"><span class="qd-action-tab">👍</span><span class="qd-action-tab">👎</span><span class="qd-action-tab">🗑</span></div>
                 </div>
             </div>`
         },
@@ -312,7 +312,7 @@ function _step4Frames() {
                     <div class="qd-preview-bar">
                         <div class="qd-embed"><div class="qd-embed-inner">♫ Bohemian Rhapsody<small>Queen</small></div></div>
                     </div>
-                    <div class="qd-preview-actions"><span class="qd-action-tab qd-tab-active-like qd-pulse">👍</span><span class="qd-action-tab">👎</span><span class="qd-action-tab">✕</span></div>
+                    <div class="qd-preview-actions"><span class="qd-action-tab qd-tab-active-like qd-pulse">👍</span><span class="qd-action-tab">👎</span><span class="qd-action-tab">🗑</span></div>
                     <div class="qd-feedback-form qd-fade-in">
                         <div style="display:flex;flex-direction:column;gap:3px;flex:1">
                             <span class="qd-label">${i18n('quickstart.demo_ui_label_reason', 'Reason (optional)')}</span>
@@ -336,7 +336,7 @@ function _step4Frames() {
                     <div class="qd-track">
                         <div class="qd-cover"></div>
                         <div class="qd-track-info"><span>Don't Stop Me Now</span><small>Queen</small></div>
-                        <div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">✕</span></div>
+                        <div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">🗑</span></div>
                     </div>
                 </div>
                 <div class="qd-result-msg qd-fade-in">${i18n('quickstart.demo_ui_msg_feedback_saved', '✅ Feedback saved — profile updated!')}</div>
@@ -345,209 +345,7 @@ function _step4Frames() {
     ];
 }
 
-function _step5Frames() {
-    const secRefine = i18n('quickstart.demo_ui_sec_refine', 'Refine Playlist');
-    const badgeLiked = i18n('quickstart.demo_ui_badge_liked', '👍 Liked');
-    const exampleMix = i18n('quickstart.demo_ui_example_workout_mix', 'My Workout Mix');
-    return [
-        {
-            caption: i18n('quickstart.demo5_f1', 'Expand "Refine Playlist" and select a playlist'),
-            html: `<div class="qd-scene">
-                <div class="qd-provider qd-provider-spotify">
-                    <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔄</span> ${secRefine}</h4><span class="qd-accordion-toggle">${i18n('quickstart.demo_ui_accordion_hide', 'Hide')}</span></div>
-                        <div class="qd-accordion-body">
-                            <div class="qd-field" style="flex-direction:row;gap:6px;align-items:center">
-                                <div class="qd-select qd-pulse" style="flex:1">${exampleMix} ▾</div>
-                                <span style="font-size:0.7rem;color:var(--text-muted)">↻</span>
-                            </div>
-                            <button class="qd-btn qd-btn-primary" style="width:100%">${i18n('quickstart.demo_ui_btn_load_playlist', '🔄 Load Playlist')}</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="qd-cursor" style="top:62px;left:50%"></div>
-            </div>`
-        },
-        {
-            caption: i18n('quickstart.demo5_f2', 'Click "Load Playlist" to see all tracks'),
-            html: `<div class="qd-scene">
-                <div class="qd-provider qd-provider-spotify">
-                    <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔄</span> ${secRefine}</h4></div>
-                        <div class="qd-accordion-body" style="gap:4px">
-                            <div class="qd-track-list">
-                                <div class="qd-track"><div class="qd-cover"></div><div class="qd-track-info"><span>Bohemian Rhapsody</span><small>Queen</small></div><div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">✕</span></div></div>
-                                <div class="qd-track"><div class="qd-cover"></div><div class="qd-track-info"><span>Stairway to Heaven</span><small>Led Zeppelin</small></div><div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">✕</span></div></div>
-                                <div class="qd-track"><div class="qd-cover"></div><div class="qd-track-info"><span>Low-fi beat #47</span><small>Unknown</small></div><div class="qd-track-actions"><span class="qd-action-btn">👍</span><span class="qd-action-btn">👎</span><span class="qd-action-btn">✕</span></div></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>`
-        },
-        {
-            caption: i18n('quickstart.demo5_f3', 'Like, dislike, or dismiss tracks one by one'),
-            html: `<div class="qd-scene">
-                <div class="qd-track-list">
-                    <div class="qd-track qd-liked">
-                        <div class="qd-cover"></div>
-                        <div class="qd-track-info"><span>Bohemian Rhapsody</span><small>Queen</small></div>
-                        <span class="qd-track-badge">${badgeLiked}</span>
-                    </div>
-                    <div class="qd-track qd-liked">
-                        <div class="qd-cover"></div>
-                        <div class="qd-track-info"><span>Stairway to Heaven</span><small>Led Zeppelin</small></div>
-                        <span class="qd-track-badge">${badgeLiked}</span>
-                    </div>
-                    <div class="qd-track qd-disliked qd-pulse">
-                        <div class="qd-cover"></div>
-                        <div class="qd-track-info"><span class="qd-strikethrough">Low-fi beat #47</span><small>Unknown</small></div>
-                        <span class="qd-track-badge qd-badge-red">${i18n('quickstart.demo_ui_badge_removed', '👎 Removed')}</span>
-                    </div>
-                </div>
-                <div class="qd-cursor" style="top:95px;right:16px"></div>
-            </div>`
-        },
-        {
-            caption: i18n('quickstart.demo5_f4', 'Playlist cleaned up — taste profile refined ✓'),
-            html: `<div class="qd-scene">
-                <div class="qd-track-list">
-                    <div class="qd-track qd-liked">
-                        <div class="qd-cover"></div>
-                        <div class="qd-track-info"><span>Bohemian Rhapsody</span><small>Queen</small></div>
-                        <span class="qd-track-badge">👍</span>
-                    </div>
-                    <div class="qd-track qd-liked">
-                        <div class="qd-cover"></div>
-                        <div class="qd-track-info"><span>Stairway to Heaven</span><small>Led Zeppelin</small></div>
-                        <span class="qd-track-badge">👍</span>
-                    </div>
-                </div>
-                <div class="qd-result-msg qd-fade-in">${i18n('quickstart.demo_ui_msg_playlist_refined', '✅ Playlist refined — 1 track removed!')}</div>
-            </div>`
-        }
-    ];
-}
-
-function _step6Frames() {
-    const runLabel = i18n('quickstart.demo_ui_run_label', 'Run');
-    return [
-        {
-            caption: i18n('quickstart.demo6_f1', 'Generate again — each run gets better'),
-            html: `<div class="qd-scene">
-                <div class="qd-provider qd-provider-spotify">
-                    <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🎧</span> ${i18n('quickstart.demo_ui_sec_discover', 'Discover Music')}</h4></div>
-                        <div class="qd-accordion-body">
-                            <button class="qd-btn qd-btn-primary qd-btn-wide qd-pulse">${i18n('quickstart.demo_ui_btn_generate', '▶ Generate & Create Playlist')}</button>
-                            <div class="qd-status-line qd-fade-in">${i18n('quickstart.demo_ui_status_run_improved', 'Run #3 — profile improved from 12 feedbacks')}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>`
-        },
-        {
-            caption: i18n('quickstart.demo6_f2', 'Use Band/Song Analysis to discover new artists'),
-            html: `<div class="qd-scene">
-                <div class="qd-provider qd-provider-openai">
-                    <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔍</span> ${i18n('quickstart.demo_ui_sec_analysis', 'Band/Song Analysis')}</h4></div>
-                        <div class="qd-accordion-body">
-                            <div class="qd-field" style="flex-direction:row;gap:6px;align-items:center">
-                                <span class="qd-input" style="flex:1;font-family:inherit">Queen</span>
-                                <button class="qd-btn qd-btn-primary qd-pulse">${i18n('quickstart.demo_ui_btn_analyse', 'Analyse')}</button>
-                            </div>
-                            <div class="qd-analysis-result qd-fade-in">
-                                <span class="qd-tag">${i18n('quickstart.demo_ui_tag_rock', 'Rock')}</span><span class="qd-tag">${i18n('quickstart.demo_ui_tag_theatrical', 'Theatrical')}</span><span class="qd-tag">${i18n('quickstart.demo_ui_tag_high_energy', 'High Energy')}</span><span class="qd-tag">${i18n('quickstart.demo_ui_tag_melodic', 'Melodic')}</span>
-                                <div style="margin-top:4px;width:100%"><button class="qd-btn qd-btn-sm qd-btn-outline">${i18n('quickstart.demo_ui_btn_use_all_filters', '⇒ Use All as Filters')}</button></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>`
-        },
-        {
-            caption: i18n('quickstart.demo6_f3', 'Your profile grows stronger with every interaction ✓'),
-            html: `<div class="qd-scene qd-scene-center">
-                <div class="qd-profile-growth">
-                    <div class="qd-growth-bar" style="--pct:30%">${runLabel} 1</div>
-                    <div class="qd-growth-bar" style="--pct:55%">${runLabel} 2</div>
-                    <div class="qd-growth-bar" style="--pct:80%">${runLabel} 3</div>
-                    <div class="qd-growth-bar qd-growth-current" style="--pct:95%">${runLabel} 4</div>
-                </div>
-                <div class="qd-result-msg">${i18n('quickstart.demo_ui_msg_profile_improves', '🎯 Profile accuracy improves each run!')}</div>
-            </div>`
-        }
-    ];
-}
-
-function _step7Frames() {
-    const secAnalysis = i18n('quickstart.demo_ui_sec_analysis', 'Band/Song Analysis');
-    const tags = `<span class="qd-tag">${i18n('quickstart.demo_ui_tag_alt_rock', 'Alt-Rock')}</span><span class="qd-tag">${i18n('quickstart.demo_ui_tag_experimental', 'Experimental')}</span><span class="qd-tag">${i18n('quickstart.demo_ui_tag_melancholic', 'Melancholic')}</span><span class="qd-tag">${i18n('quickstart.demo_ui_tag_atmospheric', 'Atmospheric')}</span>`;
-    const btnCopy = i18n('quickstart.demo_ui_btn_copy_profile', '📋 Copy to Profile');
-    return [
-        {
-            caption: i18n('quickstart.demo7_f1', 'Open Band/Song Analysis and enter an artist'),
-            html: `<div class="qd-scene">
-                <div class="qd-provider qd-provider-openai">
-                    <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔍</span> ${secAnalysis}</h4></div>
-                        <div class="qd-accordion-body">
-                            <div class="qd-field" style="flex-direction:row;gap:6px;align-items:center">
-                                <span class="qd-input qd-typing" style="flex:1;font-family:inherit">Radiohead</span>
-                                <span class="qd-input" style="flex:1;font-family:inherit;opacity:0.4">${i18n('quickstart.demo_ui_placeholder_track', 'Track (optional)')}</span>
-                            </div>
-                            <button class="qd-btn qd-btn-primary qd-pulse" style="margin-top:6px">${i18n('quickstart.demo_ui_btn_analyse', 'Analyse')}</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="qd-cursor" style="bottom:30px;right:60px"></div>
-            </div>`
-        },
-        {
-            caption: i18n('quickstart.demo7_f2', 'AI generates a detailed breakdown with tags'),
-            html: `<div class="qd-scene">
-                <div class="qd-provider qd-provider-openai">
-                    <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔍</span> ${secAnalysis}</h4></div>
-                        <div class="qd-accordion-body">
-                            <div class="qd-analysis-result qd-fade-in">
-                                ${tags}
-                            </div>
-                            <div class="qd-suggestion-box qd-fade-in" style="margin-top:6px">
-                                <div style="font-size:0.7rem;font-weight:600;margin-bottom:3px">${i18n('quickstart.demo_ui_profile_suggestions', 'Profile Suggestions')}</div>
-                                <div style="font-size:0.65rem;opacity:0.8">${i18n('quickstart.demo_ui_example_core', 'Core: atmospheric alt-rock with emotional depth…')}</div>
-                                <button class="qd-btn qd-btn-sm qd-btn-outline qd-pulse" style="margin-top:4px">${btnCopy}</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>`
-        },
-        {
-            caption: i18n('quickstart.demo7_f3', 'Copy suggestions to profile or auto-fill audio filters ✓'),
-            html: `<div class="qd-scene">
-                <div class="qd-provider qd-provider-openai">
-                    <div class="qd-accordion qd-open">
-                        <div class="qd-accordion-header"><h4><span class="qd-icon">🔍</span> ${secAnalysis}</h4></div>
-                        <div class="qd-accordion-body">
-                            <div class="qd-analysis-result">
-                                ${tags}
-                            </div>
-                            <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
-                                <button class="qd-btn qd-btn-sm qd-btn-outline">${btnCopy}</button>
-                                <button class="qd-btn qd-btn-sm qd-btn-outline qd-pulse">${i18n('quickstart.demo_ui_btn_use_filters', '🎛️ Use as Filters')}</button>
-                            </div>
-                            <div class="qd-result-msg qd-fade-in" style="margin-top:6px">${i18n('quickstart.demo_ui_msg_suggestions_copied', '✅ Suggestions copied — profile updated!')}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>`
-        }
-    ];
-}
-
-const DEMOS = [null, _step1Frames, _step2Frames, _step3Frames, _step4Frames, _step5Frames, _step6Frames, _step7Frames];
+const DEMOS = [null, _step1Frames, _step2Frames, _step3Frames, _step4Frames];
 
 /* ── State management ── */
 const _state = new Map();

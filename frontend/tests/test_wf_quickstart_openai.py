@@ -44,10 +44,9 @@ class TestQuickstartOpenAIWorkflow:
             '.qs-toc-entry[data-qs-provider="both"], '
             '.qs-toc-entry[data-qs-provider="openai"]'
         )
-        assert visible_entries.count() == 3
+        assert visible_entries.count() == 2
         expect(toc.locator('[aria-label="Go to Setup"]')).to_be_visible()
         expect(toc.locator('[aria-label="Go to Build Your Profile"]')).to_be_visible()
-        expect(toc.locator('[aria-label="Go to Band/Song Analysis"]')).to_be_visible()
 
     def test_toc_does_not_show_spotify_entries(self, page: Page, base_url):
         self._open_quickstart_openai(page, base_url)
@@ -67,15 +66,6 @@ class TestQuickstartOpenAIWorkflow:
         step_page = page.locator('[data-qs-page="2"]')
         expect(step_page).to_be_visible()
         expect(step_page.locator(".qs-page-title")).to_contain_text("Build Your Profile")
-        expect(step_page.locator(".qs-demo-player")).to_be_visible()
-
-    def test_analysis_step_content(self, page: Page, base_url):
-        self._open_quickstart_openai(page, base_url)
-        page.locator('.qs-toc-entry[aria-label="Go to Band/Song Analysis"]').click()
-        page.wait_for_timeout(150)
-        step_page = page.locator('[data-qs-page="7"]')
-        expect(step_page).to_be_visible()
-        expect(step_page.locator(".qs-page-title")).to_contain_text("Band/Song Analysis")
         expect(step_page.locator(".qs-demo-player")).to_be_visible()
 
     def test_pagination_navigates_steps(self, page: Page, base_url):

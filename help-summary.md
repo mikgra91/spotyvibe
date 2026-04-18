@@ -286,7 +286,7 @@ reference manual, not task-oriented.
 ### Recommended adoption order
 1. ✅ **A + B2 together** (1 commit) — remove auto-open, drop redundant
    prose, keep demos. Smallest risk, biggest impact. **(done 2026-04-18)**
-2. **C** — trim tour to 3 steps per provider.
+2. ✅ **C** — trim tour to 3 steps per provider. **(done 2026-04-18)**
 3. **D** — smart checklist. Needs a bit of backend state wiring but
    is the replacement for the tour's "guidance" role.
 4. **F** — empty-state tips as tour shrinks.
