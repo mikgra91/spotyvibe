@@ -72,11 +72,11 @@ class TestGenerateCreateNewPlaylist:
                           body=json.dumps({"status": "ok"})),
         )[1])
         self._run_generation(page)
-        page.locator("#track-0 .btn-like").click()
-        page.locator("#submitBtn-0").click()
+        page.locator("#track-0 .btn-feedback").click()
+        page.locator("#submitBtn-0-like").click()
         page.wait_for_timeout(150)
-        page.locator("#track-3 .btn-like").click()
-        page.locator("#submitBtn-3").click()
+        page.locator("#track-3 .btn-feedback").click()
+        page.locator("#submitBtn-3-like").click()
         page.wait_for_timeout(150)
         likes = [c for c in feedback_calls if c["action"] == "like"]
         assert len(likes) == 2
@@ -92,8 +92,8 @@ class TestGenerateCreateNewPlaylist:
                           body=json.dumps({"status": "ok", "removal": {"removed": True}})),
         )[1])
         self._run_generation(page)
-        page.locator("#track-2 .btn-dislike").click()
-        page.locator("#submitBtn-2").click()
+        page.locator("#track-2 .btn-feedback").click()
+        page.locator("#submitBtn-2-dislike").click()
         page.wait_for_timeout(150)
         dislikes = [c for c in feedback_calls if c["action"] == "dislike"]
         assert len(dislikes) == 1

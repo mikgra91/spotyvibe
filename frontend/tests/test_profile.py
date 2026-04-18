@@ -273,8 +273,8 @@ class TestToastNotifications:
         expect(page.locator("#runBtn")).to_be_visible()
         page.locator("#runBtn").click()
         page.locator(".track-item").first.wait_for(timeout=2500)
-        page.locator("#track-0 .btn-like").click()
-        page.locator("#submitBtn-0").click()
+        page.locator("#track-0 .btn-feedback").click()
+        page.locator("#submitBtn-0-like").click()
         toast = page.locator("#toast")
         expect(toast).to_contain_text("Liked", timeout=1500)
 

@@ -757,7 +757,7 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(300)
         _inject_discover_tracks(page)
         page.wait_for_timeout(300)
-        page.evaluate("toggleFeedback(0, 'like')")
+        page.evaluate("toggleFeedback(0)")
         page.wait_for_timeout(200)
         _shot_element(page, "34_like_feedback_form", "#track-0")
 
@@ -770,7 +770,7 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(300)
         _inject_discover_tracks(page)
         page.wait_for_timeout(300)
-        page.evaluate("toggleFeedback(1, 'dislike')")
+        page.evaluate("toggleFeedback(1)")
         page.wait_for_timeout(200)
         _shot_element(page, "35_dislike_feedback_form", "#track-1")
 
@@ -825,7 +825,7 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(300)
         _inject_review_tracks(page)
         page.wait_for_timeout(300)
-        page.evaluate("toggleReviewFeedback(0, 'like')")
+        page.evaluate("toggleReviewFeedback(0)")
         page.wait_for_timeout(200)
         _shot_element(page, "39_review_like_form", "#review-track-0")
 
@@ -838,7 +838,7 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(300)
         _inject_review_tracks(page)
         page.wait_for_timeout(300)
-        page.evaluate("toggleReviewFeedback(1, 'dislike')")
+        page.evaluate("toggleReviewFeedback(1)")
         page.wait_for_timeout(200)
         _shot_element(page, "40_review_dislike_form", "#review-track-1")
 

@@ -193,38 +193,32 @@ class TestFeedbackButtons:
         page.locator(".track-item").first.wait_for(timeout=2500)
         assert page.locator(".track-item").count() == 2
 
-    def test_like_button_opens_feedback_form(self, page: Page, base_url):
+    def test_feedback_button_opens_form(self, page: Page, base_url):
         self._setup_with_tracks(page, base_url)
-        page.locator("#track-0 .btn-like").click()
+        page.locator("#track-0 .btn-feedback").click()
         form = page.locator("#form-0")
         expect(form).to_have_class(re.compile(r"open"))
-        expect(page.locator("#submitBtn-0")).to_contain_text("Submit")
-
-    def test_dislike_button_opens_feedback_form(self, page: Page, base_url):
-        self._setup_with_tracks(page, base_url)
-        page.locator("#track-0 .btn-dislike").click()
-        form = page.locator("#form-0")
-        expect(form).to_have_class(re.compile(r"open"))
-        expect(page.locator("#submitBtn-0")).to_contain_text("Submit")
+        expect(page.locator("#submitBtn-0-like")).to_be_visible()
+        expect(page.locator("#submitBtn-0-dislike")).to_be_visible()
 
     def test_feedback_form_prefills_artist_and_track(self, page: Page, base_url):
         self._setup_with_tracks(page, base_url)
-        page.locator("#track-0 .btn-like").click()
+        page.locator("#track-0 .btn-feedback").click()
         expect(page.locator("#artist-0")).to_have_value("Feedback Artist")
         expect(page.locator("#title-0")).to_have_value("Test Track")
 
     def test_feedback_form_closes_on_cancel(self, page: Page, base_url):
         self._setup_with_tracks(page, base_url)
-        page.locator("#track-0 .btn-like").click()
+        page.locator("#track-0 .btn-feedback").click()
         expect(page.locator("#form-0")).to_have_class(re.compile(r"open"))
         page.locator("#form-0 .btn-cancel").click()
         expect(page.locator("#form-0")).not_to_have_class(re.compile(r"open"))
 
     def test_only_one_form_open_at_a_time(self, page: Page, base_url):
         self._setup_with_tracks(page, base_url)
-        page.locator("#track-0 .btn-like").click()
+        page.locator("#track-0 .btn-feedback").click()
         expect(page.locator("#form-0")).to_have_class(re.compile(r"open"))
-        page.locator("#track-1 .btn-dislike").click()
+        page.locator("#track-1 .btn-feedback").click()
         expect(page.locator("#form-1")).to_have_class(re.compile(r"open"))
         expect(page.locator("#form-0")).not_to_have_class(re.compile(r"open"))
 
@@ -242,8 +236,8 @@ class TestFeedbackButtons:
             )
 
         page.route("**/api/feedback", handle_feedback)
-        page.locator("#track-0 .btn-like").click()
-        page.locator("#submitBtn-0").click()
+        page.locator("#track-0 .btn-feedback").click()
+        page.locator("#submitBtn-0-like").click()
         page.wait_for_timeout(250)
         assert len(feedback_requests) == 1
         assert feedback_requests[0]["action"] == "like"
@@ -263,8 +257,8 @@ class TestFeedbackButtons:
             )
 
         page.route("**/api/feedback", handle_feedback)
-        page.locator("#track-0 .btn-dislike").click()
-        page.locator("#submitBtn-0").click()
+        page.locator("#track-0 .btn-feedback").click()
+        page.locator("#submitBtn-0-dislike").click()
         page.wait_for_timeout(250)
         assert len(feedback_requests) == 1
         assert feedback_requests[0]["action"] == "dislike"
@@ -593,8 +587,7 @@ class TestRefinePlaylist:
     def test_review_track_has_feedback_buttons(self, page: Page, base_url):
         self._setup_review_with_tracks(page, base_url)
         first = page.locator("#reviewTrackList .track-item").first
-        expect(first.locator(".btn-like")).to_be_visible()
-        expect(first.locator(".btn-dislike")).to_be_visible()
+        expect(first.locator(".btn-feedback")).to_be_visible()
         expect(first.locator(".btn-remove")).to_be_visible()
 
 
