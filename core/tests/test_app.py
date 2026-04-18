@@ -1206,3 +1206,46 @@ class TestProfileEndpointIntegration:
         assert len(data["profiles"]) == 1
         assert data["profiles"][0]["name"] == "Good"
 
+
+class TestSessionAndTokenEndpoints:
+    """Endpoints used by the Web Playback SDK (§8a)."""
+
+    @patch("app.get_spotify_session_info")
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    def test_session_returns_premium_flag(self, _mock_auth, mock_info, client):
+        mock_info.return_value = {"is_premium": True, "product": "premium"}
+        resp = client.get("/api/session")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["is_premium"] is True
+        assert data["product"] == "premium"
+        assert data["authenticated"] is True
+
+    @patch("app.get_spotify_session_info")
+    @patch("app.get_spotify_auth_status", return_value="not_authenticated")
+    def test_session_unauthenticated(self, _mock_auth, mock_info, client):
+        mock_info.return_value = {"is_premium": False, "product": None}
+        resp = client.get("/api/session")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["is_premium"] is False
+        assert data["authenticated"] is False
+
+    @patch("app.get_spotify_access_token", return_value="tok_abc")
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    def test_token_endpoint_returns_access_token(self, _mock_auth, _mock_tok, client):
+        resp = client.get("/api/spotify/token")
+        assert resp.status_code == 200
+        assert resp.get_json() == {"access_token": "tok_abc"}
+
+    @patch("app.get_spotify_auth_status", return_value="not_authenticated")
+    def test_token_endpoint_401_when_unauthenticated(self, _mock_auth, client):
+        resp = client.get("/api/spotify/token")
+        assert resp.status_code == 401
+
+    @patch("app.get_spotify_access_token", return_value=None)
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    def test_token_endpoint_401_when_no_token(self, _mock_auth, _mock_tok, client):
+        resp = client.get("/api/spotify/token")
+        assert resp.status_code == 401
+

@@ -115,7 +115,7 @@ def get_spotify_oauth():
         client_id=os.getenv("SPOTIPY_CLIENT_ID"),
         client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
         redirect_uri=REDIRECT_URI,
-        scope="playlist-modify-private playlist-read-private user-read-private",
+        scope="playlist-modify-private playlist-read-private user-read-private streaming",
         cache_handler=cache_handler,
         open_browser=False,
     )
@@ -167,6 +167,45 @@ def get_spotify_auth_status():
         logger.warning("Spotify auth check failed: %s", e)
         _auth_status_cache["status"] = None
         return "not_authenticated"
+
+
+def get_spotify_access_token():
+    """Return a valid access token, refreshing via spotipy if expired.
+
+    Used by the frontend Web Playback SDK via /api/spotify/token. The
+    token is never embedded in HTML; the SDK fetches it on demand.
+    Returns None if the user isn't authenticated.
+    """
+    try:
+        oauth = get_spotify_oauth()
+        token_info = oauth.validate_token(oauth.cache_handler.get_cached_token())
+        if not token_info:
+            return None
+        return token_info.get("access_token")
+    except Exception as e:
+        logger.warning("Spotify token fetch failed: %s", e)
+        return None
+
+
+def get_spotify_session_info():
+    """Return session info the frontend needs to pick a playback path.
+
+    Keys: ``is_premium`` (bool), ``product`` (raw Spotify product string
+    — "premium" / "free" / "open" / None). Safe to call unauthenticated;
+    fields are None in that case.
+    """
+    info = {"is_premium": False, "product": None}
+    try:
+        if get_spotify_auth_status() != "authenticated":
+            return info
+        sp = get_spotify_client()
+        me = sp.current_user()
+        product = me.get("product") if isinstance(me, dict) else None
+        info["product"] = product
+        info["is_premium"] = (product == "premium")
+    except Exception as e:
+        logger.warning("Spotify session info failed: %s", e)
+    return info
 
 
 def disconnect_spotify():

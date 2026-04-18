@@ -101,7 +101,7 @@ from core.src.playlist import (
     get_spotify_auth_status, get_spotify_auth_url, handle_spotify_callback,
     disconnect_spotify, get_user_playlists, get_playlist_tracks,
     filter_emerging_artists, fetch_user_playlists, fetch_playlist_items_for_seed,
-    get_spotify_client,
+    get_spotify_client, get_spotify_access_token, get_spotify_session_info,
 )
 from core.src.taste import aggregate_taste
 
@@ -1532,6 +1532,33 @@ def delete_playlist_endpoint(playlist_id):
 def spotify_status():
     """Return the current Spotify auth state."""
     return jsonify({"status": get_spotify_auth_status()})
+
+
+@app.route("/api/session")
+def api_session():
+    """Return per-session info the frontend needs to pick a playback path.
+
+    Includes ``is_premium`` so preview.js can branch between the Web
+    Playback SDK and the iframe fallback.
+    """
+    info = get_spotify_session_info()
+    info["authenticated"] = get_spotify_auth_status() == "authenticated"
+    return jsonify(info)
+
+
+@app.route("/api/spotify/token")
+def api_spotify_token():
+    """Return a fresh Spotify access token for the Web Playback SDK.
+
+    The SDK invokes this via its ``getOAuthToken`` callback. Tokens are
+    never embedded in HTML; they're fetched on demand.
+    """
+    if get_spotify_auth_status() != "authenticated":
+        return jsonify({"error": "not_authenticated"}), 401
+    token = get_spotify_access_token()
+    if not token:
+        return jsonify({"error": "no_token"}), 401
+    return jsonify({"access_token": token})
 
 
 @app.route("/api/spotify/auth")

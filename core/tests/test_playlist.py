@@ -567,3 +567,67 @@ class TestFilterEmergingArtists:
         survivors, rejected = filter_emerging_artists(tracks, cutoff_months=6)
         assert len(survivors) == 2   # recent + missing date
         assert len(rejected) == 1   # 2010 track
+
+
+class TestStreamingScope:
+    """Web Playback SDK requires the ``streaming`` scope (§8a)."""
+
+    def test_oauth_includes_streaming_scope(self):
+        with patch("core.src.playlist.SpotifyOAuth") as mock_oauth:
+            from core.src.playlist import get_spotify_oauth
+            get_spotify_oauth()
+            kwargs = mock_oauth.call_args.kwargs
+            assert "streaming" in kwargs["scope"].split()
+            # Existing scopes must still be present.
+            assert "playlist-modify-private" in kwargs["scope"]
+            assert "playlist-read-private" in kwargs["scope"]
+            assert "user-read-private" in kwargs["scope"]
+
+
+class TestGetSpotifySessionInfo:
+    @patch("core.src.playlist.get_spotify_client")
+    @patch("core.src.playlist.get_spotify_auth_status", return_value="authenticated")
+    def test_premium_user(self, _mock_status, mock_client):
+        sp = MagicMock()
+        sp.current_user.return_value = {"product": "premium"}
+        mock_client.return_value = sp
+        from core.src.playlist import get_spotify_session_info
+        info = get_spotify_session_info()
+        assert info == {"is_premium": True, "product": "premium"}
+
+    @patch("core.src.playlist.get_spotify_client")
+    @patch("core.src.playlist.get_spotify_auth_status", return_value="authenticated")
+    def test_free_user(self, _mock_status, mock_client):
+        sp = MagicMock()
+        sp.current_user.return_value = {"product": "free"}
+        mock_client.return_value = sp
+        from core.src.playlist import get_spotify_session_info
+        info = get_spotify_session_info()
+        assert info["is_premium"] is False
+        assert info["product"] == "free"
+
+    @patch("core.src.playlist.get_spotify_auth_status", return_value="not_authenticated")
+    def test_unauthenticated_returns_defaults(self, _mock_status):
+        from core.src.playlist import get_spotify_session_info
+        info = get_spotify_session_info()
+        assert info == {"is_premium": False, "product": None}
+
+
+class TestGetSpotifyAccessToken:
+    @patch("core.src.playlist.get_spotify_oauth")
+    def test_returns_token_when_cached(self, mock_oauth):
+        oauth = MagicMock()
+        oauth.cache_handler.get_cached_token.return_value = {"access_token": "tok_xyz"}
+        oauth.validate_token.return_value = {"access_token": "tok_xyz"}
+        mock_oauth.return_value = oauth
+        from core.src.playlist import get_spotify_access_token
+        assert get_spotify_access_token() == "tok_xyz"
+
+    @patch("core.src.playlist.get_spotify_oauth")
+    def test_returns_none_when_no_token(self, mock_oauth):
+        oauth = MagicMock()
+        oauth.cache_handler.get_cached_token.return_value = None
+        oauth.validate_token.return_value = None
+        mock_oauth.return_value = oauth
+        from core.src.playlist import get_spotify_access_token
+        assert get_spotify_access_token() is None
