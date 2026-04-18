@@ -49,7 +49,7 @@ export function buildTrackCardHtml(track, idx, source = 'discover') {
             <div class="track-actions">
                 <button class="btn btn-like"    onclick="${feedbackFn}(${idx},'like')">👍 ${esc(i18n('feedback.like', 'Like'))}</button>
                 <button class="btn btn-dislike" onclick="${feedbackFn}(${idx},'dislike')">👎 ${esc(i18n('feedback.dislike', 'Dislike'))}</button>
-                <button class="btn btn-remove"  onclick="${removeFn}(${idx})">✕</button>
+                <button class="btn btn-remove"  onclick="${removeFn}(${idx})" aria-label="${attr(i18n('feedback.delete_from_playlist', 'Delete from playlist'))}" title="${attr(i18n('feedback.delete_from_playlist', 'Delete from playlist'))}">🗑</button>
             </div>
         </div>
         <div class="feedback-form" id="${formId}">

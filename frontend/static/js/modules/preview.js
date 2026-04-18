@@ -6,6 +6,17 @@ import { el } from './dom.js';
 let currentPreviewIndex = -1;
 let currentPreviewSource = 'discover'; // 'discover' or 'review'
 
+const AUTOPLAY_KEY = 'spv_preview_autoplay';
+
+export function isAutoplayEnabled() {
+    const v = localStorage.getItem(AUTOPLAY_KEY);
+    return v === null ? true : v === '1';
+}
+
+function setAutoplayEnabled(enabled) {
+    localStorage.setItem(AUTOPLAY_KEY, enabled ? '1' : '0');
+}
+
 function embedUrl(trackId, autoplay = false) {
     // Cache-bust so the embed re-evaluates the user's Spotify login state
     // (without this, a stale anonymous session persists until a hard reload)
@@ -68,7 +79,7 @@ function loadTrackByIndex(idx) {
     if (!track || !track.track_id) return;
     currentPreviewIndex = idx;
 
-    replaceIframe(embedUrl(track.track_id, true));
+    replaceIframe(embedUrl(track.track_id, isAutoplayEnabled()));
 
     const titleEl = el('spotifyPreviewTitle');
     if (titleEl) titleEl.textContent = `${track.artist} — ${track.track}`;
@@ -87,7 +98,8 @@ export function openPreviewOverlay(trackId, title, source = 'discover') {
     currentPreviewIndex = tracks.findIndex(t => t && t.track_id === trackId);
 
     // Fresh iframe for autoplay to work reliably
-    replaceIframe(embedUrl(trackId, true));
+    replaceIframe(embedUrl(trackId, isAutoplayEnabled()));
+    syncAutoplayCheckbox();
     const titleEl = el('spotifyPreviewTitle');
     if (titleEl && title) titleEl.textContent = title;
     overlay.classList.add('visible');
@@ -334,4 +346,13 @@ function initSwipeListeners(overlay) {
             else        prevPreview();   // swipe right → previous
         }
     }, { passive: true });
+}
+
+function syncAutoplayCheckbox() {
+    const cb = el('previewAutoplayToggle');
+    if (cb) cb.checked = isAutoplayEnabled();
+}
+
+export function togglePreviewAutoplay(ev) {
+    setAutoplayEnabled(!!ev?.target?.checked);
 }

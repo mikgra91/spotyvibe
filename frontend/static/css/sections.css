@@ -1,5 +1,12 @@
 /* sections.css — Train profile, profile menus, analysis, audio filters, providers, metadata */
 
+/* Vibe CTA — centered primary action inside the "Describe Your Vibe" accordion */
+.vibe-cta-wrap {
+    display: flex;
+    justify-content: center;
+    margin-top: var(--sp-4);
+}
+
 /* =============================================
    Train taste profile
    ============================================= */

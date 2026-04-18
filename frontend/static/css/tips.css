@@ -5,7 +5,7 @@
   box-shadow: var(--shadow-elevated, 0 4px 12px rgba(0,0,0,0.3));
   padding: var(--sp-3) var(--sp-4); max-width: 360px;
   display: flex; gap: var(--sp-3); align-items: flex-start;
-  position: fixed; top: 14px; right: 14px; z-index: 500;
+  position: fixed; top: calc(var(--titlebar-h, 0px) + 14px); right: 14px; z-index: 500;
   animation: tipSlideIn 300ms ease-out;
 }
 .toast--tip.hidden { display: none; }

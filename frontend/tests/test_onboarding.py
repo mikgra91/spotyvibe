@@ -72,6 +72,28 @@ class TestOnboardingFlow:
         en_btn = page.locator(".ob-lang-toggle .lang-toggle-btn[data-lang='en']")
         expect(en_btn).to_have_class(re.compile(r"active"))
 
+    def test_language_toggle_not_hidden_by_desktop_titlebar(self, page: Page, base_url):
+        """Regression guard: in the packaged Windows app, the custom titlebar
+        (64px, injected by desktop_launcher.py) must not overlap the onboarding
+        language selector. The selector must respect --titlebar-h and sit
+        below the titlebar. Simulates the titlebar by setting the CSS variable
+        that the desktop launcher sets at runtime."""
+        TITLEBAR_H = 64
+        navigate_onboarding_to_page(page, base_url, 0)
+        page.evaluate(
+            "h => document.documentElement.style.setProperty('--titlebar-h', h + 'px')",
+            TITLEBAR_H,
+        )
+        toggle = page.locator(".ob-lang-toggle")
+        expect(toggle).to_be_visible()
+        box = toggle.bounding_box()
+        assert box is not None, "lang toggle has no bounding box"
+        assert box["y"] >= TITLEBAR_H, (
+            f"Language selector top ({box['y']}px) overlaps the {TITLEBAR_H}px "
+            f"desktop titlebar. It must use calc(var(--titlebar-h, 0px) + N) "
+            f"for its top offset."
+        )
+
     def test_language_switch_to_german(self, page: Page, base_url):
         page.route("**/api/settings", lambda route: route.fulfill(
             status=200,

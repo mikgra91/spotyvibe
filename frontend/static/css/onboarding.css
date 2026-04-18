@@ -41,7 +41,7 @@
 
 .ob-lang-toggle {
     position: fixed;
-    top: 16px;
+    top: calc(var(--titlebar-h, 0px) + 16px);
     right: 24px;
     z-index: 50;
 }
@@ -820,7 +820,7 @@
 }
 
 @media (max-width: 640px) {
-    .ob-lang-toggle { top: 12px; right: 16px; }
+    .ob-lang-toggle { top: calc(var(--titlebar-h, 0px) + 12px); right: 16px; }
 
     .ob-seed-grid { grid-template-columns: 1fr; }
 

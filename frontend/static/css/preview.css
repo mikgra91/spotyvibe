@@ -95,6 +95,19 @@
     margin-top: var(--sp-2);
 }
 
+.spotify-preview-autoplay {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    margin-top: var(--sp-2);
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+}
+.spotify-preview-autoplay input { accent-color: var(--primary); cursor: pointer; }
+
 /* ── Action tabs — rounded icon strip ── */
 .preview-tab-actions {
     display: flex;

@@ -24,6 +24,10 @@
                 <button class="spotify-preview-nav spotify-preview-next" id="previewNext" onclick="nextPreview()" data-i18n-title="preview.next" title="Next track" aria-label="Next track">›</button>
             </div>
             <div class="spotify-preview-counter" id="previewCounter"></div>
+            <label class="spotify-preview-autoplay">
+                <input type="checkbox" id="previewAutoplayToggle" onchange="togglePreviewAutoplay(event)" checked>
+                <span data-i18n="preview.autoplay">Autoplay next track</span>
+            </label>
         </div>
 
         <!-- Action tabs (file-cabinet register style) -->
@@ -35,7 +39,7 @@
                 <span class="preview-tab-icon" aria-hidden="true">👎</span>
             </button>
             <button class="preview-tab preview-tab-dismiss" onclick="previewDismiss()" data-i18n-title="preview.remove" title="Remove from playlist" aria-label="Remove from playlist">
-                <span class="preview-tab-icon" aria-hidden="true">✕</span>
+                <span class="preview-tab-icon" aria-hidden="true">🗑</span>
             </button>
         </div>
 

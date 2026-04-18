@@ -72,6 +72,10 @@
     --sp-1: 4px;   --sp-2: 8px;   --sp-3: 12px;  --sp-4: 16px;
     --sp-5: 20px;  --sp-6: 24px;  --sp-8: 32px;  --sp-10: 40px;
 
+    /* Safe top offset — accounts for the desktop app titlebar (set to 64px
+       by desktop_launcher.py; unset in browser so it falls back to 0). */
+    --safe-top: calc(var(--titlebar-h, 0px) + 12px);
+
     /* --- Font-size scale — multiplied by --ui-scale (user preference, §9 Phase 2).
        Spacing tokens are intentionally NOT scaled (WCAG 1.4.4 text-only). --- */
     --ui-scale: 1;
