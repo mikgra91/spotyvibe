@@ -719,15 +719,15 @@ Klicke auf das Albumcover einer Song-Karte, um das Vorschau-Overlay am unteren B
 
 Die Vorschau verwendet ein Drei-Zonen-Layout:
 
-1. **Spotify-Player** — Der eingebettete Player (zentriert, breit)
-2. **Aktions-Tabs** — Eine vertikale Spalte mit Registerkarten-Buttons (👍 👎 ✕) rechts vom Player
-3. **Feedback-Formular** — Gleitet ein, um den verbleibenden Platz zu füllen, wenn du 👍 oder 👎 klickst
+1. **Player** — Der Track-Player (zentriert, breit). Mit Spotify Premium auf unterstützten Plattformen verwendet SpotyVibe das Spotify Web Playback SDK für die Wiedergabe in voller Länge und zeigt 👍 / 👎 Schnellbewertungs-Buttons direkt neben den Wiedergabesteuerungen. Andernfalls liefert der eingebettete Spotify-iframe ~30-Sekunden-Vorschauen.
+2. **Aktions-Buttons** — Ein **Feedback**-Button (öffnet das Begründungs-Panel) und ein **Löschen**-Button (entfernt den Track aus der Spotify-Playlist, ohne Feedback zu erfassen), rechts vom Player.
+3. **Feedback-Panel** — Gleitet ein, wenn du **Feedback** klickst. Das Panel zeigt die Track-Details plus ein optionales Begründungsfeld und unten zwei Submit-Buttons: **👍 Gefällt mir** (grün) und **👎 Gefällt mir nicht** (rot). Wähle deine Bewertung beim Absenden, nicht beim Öffnen des Panels.
 
-Erneutes Klicken auf denselben Tab schließt das Feedback-Formular. Der ✕-Button verwirft den Track sofort, ohne ein Formular zu öffnen. Aktive Tabs leuchten grün (Like) oder rot (Dislike).
+Die schnellen 👍 / 👎 im Player senden sofort ohne Begründung ab — praktisch während der Song läuft. „Gefällt mir nicht" entfernt den Track zusätzlich aus der Spotify-Playlist und springt zur nächsten Vorschau.
 
 Verwende die ‹ und › Pfeile, um zwischen Tracks zu navigieren, ohne das Overlay zu schließen.
 
-> **Hinweis:** Der eingebettete Spotify-Player bietet **~30-Sekunden-Vorschauen**. Wiedergabe in voller Länge ist nicht verfügbar, da der Embed in einem isolierten iframe läuft, der aufgrund von Browser-Drittanbieter-Cookie-Beschränkungen nicht auf deine Spotify-Sitzung zugreifen kann. Um den vollständigen Track anzuhören, klicke auf das Spotify-Symbol im Player oder nutze die Spotify-Links auf der Song-Karte.
+> **Erste Track-Vorschau?** Die 👍 / 👎 im Player pulsieren kurz und ein Hinweis erklärt die schnelle Bewertung. Der Hinweis erscheint nur beim ersten Öffnen pro Gerät.
 
 ![Vorschau-Player geöffnet](/docs/screenshots/32_preview_player.png)
 
@@ -837,7 +837,7 @@ Jede Track-Karte zeigt:
 - Albumcover (zum Vorhören klicken)
 - Künstler und Trackname
 - Spotify-Links (Track, Künstler, Album)
-- Aktionsbuttons: **👍 Gefällt mir**, **👎 Gefällt mir nicht**, **✕ Verwerfen**
+- Aktionsbuttons: **💬 Feedback** (öffnet das Begründungs-Panel) und **🗑 Löschen** (entfernt den Track aus der Spotify-Playlist, ohne Feedback zu erfassen)
 
 Du kannst auch auf das Albumcover klicken, um den Spotify-Vorschau-Player zu öffnen. Beim Vorhören aus der Verfeinern-Liste navigiert die Vor/Zurück-Steuerung innerhalb der Bewertungs-Trackliste.
 
@@ -848,9 +848,7 @@ Du kannst auch auf das Albumcover klicken, um den Spotify-Vorschau-Player zu öf
 <a id="track-liken-verfeinern"></a>
 ### Track liken (Verfeinern)
 
-Klicke auf **👍 Gefällt mir**, um positives Feedback für einen Track zu erfassen.
-
-Ein Feedback-Formular öffnet sich, in dem du optional Künstler, Trackname bearbeiten und einen Grund hinzufügen kannst.
+Klicke auf **💬 Feedback** auf der Track-Karte und dann unten im Panel auf **👍 Gefällt mir**. Du kannst optional Künstler, Trackname bearbeiten und einen Grund hinzufügen, bevor du absendest.
 
 Nach dem Absenden animiert die Karte aus der Bewertungsliste heraus. Der Track **bleibt in der Spotify-Playlist** — nur dein Geschmacksprofil wird aktualisiert.
 
@@ -861,9 +859,7 @@ Nach dem Absenden animiert die Karte aus der Bewertungsliste heraus. Der Track *
 <a id="track-disliken-verfeinern"></a>
 ### Track disliken (Verfeinern)
 
-Klicke auf **👎 Gefällt mir nicht**, um negatives Feedback zu erfassen.
-
-Ein Feedback-Formular öffnet sich, in dem du optional Künstler, Trackname bearbeiten und einen Grund hinzufügen kannst.
+Klicke auf **💬 Feedback** auf der Track-Karte und dann unten im Panel auf **👎 Gefällt mir nicht**. Du kannst optional Künstler, Trackname bearbeiten und einen Grund hinzufügen, bevor du absendest.
 
 Nach dem Absenden wird der Track:
 
@@ -877,9 +873,9 @@ Die Karte animiert aus der Bewertungsliste heraus.
 ---
 
 <a id="track-verwerfen"></a>
-### Track verwerfen
+### Track löschen
 
-Klicke auf **✕ (Verwerfen)**, um einen Track aus der Spotify-Playlist zu entfernen, **ohne** Geschmacksprofil-Feedback zu erfassen.
+Klicke auf **🗑 Löschen**, um einen Track aus der Spotify-Playlist zu entfernen, **ohne** Geschmacksprofil-Feedback zu erfassen.
 
 Nutze dies für Tracks, bei denen du neutral bist, die du aber aus der Playlist entfernen möchtest.
 

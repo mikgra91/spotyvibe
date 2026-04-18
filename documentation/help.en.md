@@ -716,15 +716,15 @@ Click the album art on a song card to open the preview overlay at the bottom of 
 
 The preview uses a three-zone layout:
 
-1. **Spotify player** — the embedded player (centered, wide)
-2. **Action tabs** — a vertical column of file-cabinet register-tab buttons (👍 👎 ✕) to the right of the player
-3. **Feedback form** — slides in to fill the remaining space when you click 👍 or 👎
+1. **Player** — the track player (centered, wide). On Spotify Premium and supported runtimes, SpotyVibe uses the Spotify Web Playback SDK for full-length playback and surfaces 👍 / 👎 quick buttons directly next to the transport controls. Otherwise, the embedded Spotify iframe provides ~30-second previews.
+2. **Action buttons** — a **Feedback** button (opens the reason panel) and a **Delete** button (removes the track from the Spotify playlist without recording feedback), to the right of the player.
+3. **Feedback panel** — slides in when you click **Feedback**. The panel shows the track details plus an optional reason field, and two submit buttons at the bottom: **👍 Like** (green) and **👎 Dislike** (red). Pick your polarity when you submit, not when you open the panel.
 
-Clicking the same tab again closes the feedback form. The ✕ button dismisses the track immediately without opening a form. Active tabs glow green (like) or red (dislike).
+The quick 👍 / 👎 in the player submit immediately with no reason — useful while the song is playing. Dislike additionally removes the track from the Spotify playlist and advances to the next preview.
 
 Use the ‹ and › arrows to navigate between tracks without closing the overlay.
 
-> **Note:** The embedded Spotify player provides **~30-second previews**. Full-length playback is not available because the embed runs in an isolated iframe that cannot access your Spotify session due to browser third-party cookie restrictions. To listen to the full track, click the Spotify icon inside the player or use the Spotify links on the song card.
+> **First time previewing a track?** The player's 👍 / 👎 pulse briefly and a tip explains the quick-rating workflow. The hint only shows on the first open per device.
 
 ![Preview player open](/docs/screenshots/32_preview_player.png)
 
@@ -834,7 +834,7 @@ Each track card shows:
 - Album artwork (click to preview)
 - Artist and track name
 - Spotify links (track, artist, album)
-- Action buttons: **👍 Like**, **👎 Dislike**, **✕ Dismiss**
+- Action buttons: **💬 Feedback** (opens the reason panel) and **🗑 Delete** (removes from the Spotify playlist without recording feedback)
 
 You can also click the album art to open the Spotify preview player. When previewing from the Refine list, the prev/next navigation operates within the review track list.
 
@@ -845,9 +845,7 @@ You can also click the album art to open the Spotify preview player. When previe
 <a id="like-a-track-refine"></a>
 ### Like a Track (Refine)
 
-Click **👍 Like** to record positive feedback for a track.
-
-A feedback form opens where you can optionally edit the artist, track name, and add a reason.
+Click **💬 Feedback** on the track card and then click **👍 Like** at the bottom of the panel. You can optionally edit the artist, track name, and add a reason before submitting.
 
 After submitting, the track animates out of the review list. The track **stays in the Spotify playlist** — only your taste profile is updated.
 
@@ -858,9 +856,7 @@ After submitting, the track animates out of the review list. The track **stays i
 <a id="dislike-a-track-refine"></a>
 ### Dislike a Track (Refine)
 
-Click **👎 Dislike** to record negative feedback.
-
-A feedback form opens where you can optionally edit the artist, track name, and add a reason.
+Click **💬 Feedback** on the track card and then click **👎 Dislike** at the bottom of the panel. You can optionally edit the artist, track name, and add a reason before submitting.
 
 After submitting, the track is:
 
@@ -874,9 +870,9 @@ The card animates out of the review list.
 ---
 
 <a id="dismiss-a-track"></a>
-### Dismiss a Track
+### Delete a Track
 
-Click **✕ (Dismiss)** to remove a track from the Spotify playlist **without** recording any taste profile feedback.
+Click **🗑 Delete** to remove a track from the Spotify playlist **without** recording any taste profile feedback.
 
 Use this for tracks you feel neutral about but want to remove from the playlist.
 

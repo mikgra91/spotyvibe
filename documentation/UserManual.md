@@ -438,7 +438,7 @@ Each history entry is **expandable** — click it to reveal the full list of tra
 After a generation completes, the suggested tracks appear **inside the Discover Music section**, below the Generate button, separated by a divider. A completion banner and playlist link are shown first, followed by a song counter (e.g. *10 / 100 songs*) and the track cards themselves. Each track shows the **artist**, **track name**, and a short **reason** explaining why the AI picked it. Track cards glow green on hover. Cards include:
 
 - **Album artwork** — the album cover is shown on each track card.
-- **Preview** — clicking the album art opens a bottom-sheet preview overlay with the embedded Spotify player. The overlay uses a three-zone layout: the **Spotify player** (centered), a vertical column of **file-cabinet register-tab action buttons** (👍 👎 ✕) to its right, and a **sliding feedback form** that expands to fill the remaining space when you click like or dislike. Clicking the same tab again closes the form. Active tabs glow green (like) or red (dislike). The ✕ dismiss button removes the track immediately without a form. **Note:** The embedded player provides ~30-second previews only — full-length playback is not possible because the iframe cannot access your Spotify session (browser third-party cookie restrictions). Use the Spotify icon inside the player to open the full track.
+- **Preview** — clicking the album art opens a bottom-sheet preview overlay. The overlay uses a three-zone layout: the **player** (centered — Spotify Web Playback SDK for Premium on supported runtimes, with 👍 / 👎 quick-rating buttons that submit immediately; otherwise the embedded Spotify iframe with ~30-second previews), a column of **Feedback / Delete action buttons** to its right (Feedback opens the reason panel; Delete removes the track from the playlist without recording feedback), and a **sliding feedback panel** with two submit buttons at the bottom — **👍 Like** (green) and **👎 Dislike** (red). On the first preview per device, the player's quick buttons pulse and a tip explains the rate-while-listening workflow.
 - **Quick links** — icon links open the track (🎵), artist (🎤), and album (💿) pages on Spotify so you can explore further.
 
 ### Persistent Song List
@@ -450,28 +450,22 @@ The song list is **saved automatically** after each generation and restored when
 
 > **Tip:** The persistent list acts as a running record of everything SpotyVibe has generated for you, so the AI can continue building on it across multiple sessions without repeating suggestions.
 
-You have three options for each track:
+You have two options for each track:
 
-### 👍 Like
+### 💬 Feedback
 
-Click the **👍 Like** button to open the feedback form. The artist and track are pre-filled. You can optionally add a **reason** (e.g., *"perfect energy and melody"*). Click **Submit** to save.
+Click the **💬 Feedback** button to open the reason panel. The artist and track are pre-filled; you can optionally add a **reason** (e.g., *"perfect energy and melody"*). Pick your polarity at the bottom of the panel:
 
-- The track is recorded as a positive signal.
-- The artist is added to your confirmed favourites.
-- Future suggestions will lean towards similar music.
-
-### 👎 Dislike
-
-Click the **👎 Dislike** button. The feedback form opens with the same fields. Add a reason if you want (e.g., *"too slow"*, *"boring melody"*). Click **Submit** to save.
-
-- The track is recorded as a negative signal and removed from your Spotify playlist.
-- The AI will avoid suggesting similar tracks in the future.
+- **👍 Like** (green) — records a positive signal. The artist is added to your confirmed favourites and future suggestions lean towards similar music. The track stays in the Spotify playlist.
+- **👎 Dislike** (red) — records a negative signal *and* removes the track from your Spotify playlist. The AI will avoid suggesting similar tracks in the future.
 
 > **Tip:** Clear the *Track* field and only leave the artist name to dislike an **entire artist**. The artist will be fully excluded from future suggestions.
 
-### ✕ Remove
+While previewing, the SDK player also exposes quick 👍 / 👎 buttons next to the transport controls. These submit immediately without a reason — useful while the song is playing.
 
-Click the **✕** button to dismiss a track from the list and remove it from the Spotify playlist — without recording any feedback. Use this for tracks you're neutral about but don't want in the playlist.
+### 🗑 Delete
+
+Click the **🗑 Delete** button to remove a track from the Spotify playlist — without recording any feedback. Use this for tracks you're neutral about but don't want in the playlist.
 
 ---
 
@@ -498,13 +492,12 @@ The **Refine Playlist** section lets you load an existing Spotify playlist and r
 
 ### Reviewing Tracks
 
-Each track card shows album artwork, artist/track name, Spotify links, and three action buttons:
+Each track card shows album artwork, artist/track name, Spotify links, and two action buttons:
 
-- **👍 Like** — opens a feedback form. After submitting, the track stays in the Spotify playlist and the like is recorded in your taste profile.
-- **👎 Dislike** — opens a feedback form. After submitting, the track is removed from the Spotify playlist and the dislike is recorded.
-- **✕ Dismiss** — removes the track from the Spotify playlist without recording any taste profile feedback. Use this for tracks you feel neutral about.
+- **💬 Feedback** — opens the reason panel. Pick **👍 Like** (track stays in playlist, recorded in your taste profile) or **👎 Dislike** (track is removed from the playlist and recorded as a negative signal) at the bottom of the panel.
+- **🗑 Delete** — removes the track from the Spotify playlist without recording any taste profile feedback. Use this for tracks you feel neutral about.
 
-Clicking the album art opens the preview player (same three-zone layout as Discover Music). Track cards animate out after feedback is submitted.
+Clicking the album art opens the preview player (same three-zone layout as Discover Music — Spotify Web Playback SDK with quick 👍 / 👎 on Premium, iframe fallback otherwise). Track cards animate out after feedback is submitted.
 
 ---
 
