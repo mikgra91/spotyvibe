@@ -381,7 +381,7 @@ property (`--ui-scale`) on `:root` multiplied into `--fs-*` and
 
 ### Decision — recommended plan
 
-**Phase 1 — fix the 13" report (no new UI surface):**
+**Phase 1 — fix the 13" report (no new UI surface):** ✅ DONE
 1. Introduce a viewport-aware `--ob-scale` token defined as
    `clamp(0.82, calc(100vh / 880), 1)` on `.ob-wrap`. Multiplies into
    the onboarding-only size tokens below. Equals `1` on ≥ 880 px, floors

@@ -8,6 +8,14 @@
     height: calc(100vh - var(--titlebar-h, 0px));
     display: flex;
     flex-direction: column;
+
+    /* Viewport-aware scale — 1 on ≥880px tall, floors at 0.82 on short screens */
+    --ob-scale: clamp(0.82, calc(100vh / 880), 1);
+    --ob-icon-fs: calc(2.8rem * var(--ob-scale));
+    --ob-title-fs: calc(1.75rem * var(--ob-scale));
+    --ob-card-pad-y: calc(24px * var(--ob-scale));
+    --ob-gap: calc(var(--sp-3) * var(--ob-scale));
+    --ob-seed-min-h: calc(180px * var(--ob-scale));
 }
 
 .ob-pages {
@@ -66,7 +74,7 @@
 .ob-card {
     max-width: var(--ob-card-max-width, 480px);
     width: 100%;
-    padding: var(--ob-card-padding, 24px 24px);
+    padding: var(--ob-card-pad-y, 24px) 24px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -87,10 +95,10 @@
 
 /* ============ Typography ============ */
 
-.ob-icon { font-size: 2.8rem; margin-top: var(--sp-2); }
+.ob-icon { font-size: var(--ob-icon-fs, 2.8rem); margin-top: var(--sp-2); }
 
 .ob-title {
-    font-size: 1.75rem;
+    font-size: var(--ob-title-fs, 1.75rem);
     font-weight: 800;
     color: var(--text-primary);
     margin-top: var(--sp-2);
@@ -462,7 +470,7 @@
     padding: var(--sp-4);
     display: flex;
     flex-direction: column;
-    min-height: 180px;
+    min-height: var(--ob-seed-min-h, 180px);
     text-align: left;
 }
 
@@ -798,6 +806,18 @@
 .ob-explain { font-size: var(--fs-sm); color: var(--text-muted); margin-bottom: 20px; }
 
 /* ============ Responsive ============ */
+
+/* Short viewports — 13" laptops, packaged desktop chrome, split-screen.
+   Pair with the --ob-scale clamp above for items that don't scale via calc(). */
+@media (max-height: 680px) {
+    .ob-page { justify-content: flex-start; padding-top: 12px; }
+
+    .ob-seed-grid { grid-template-columns: repeat(2, 1fr); }
+
+    .ob-feature { margin-bottom: var(--sp-2); }
+
+    .ob-subtitle { margin-bottom: var(--sp-2); }
+}
 
 @media (max-width: 640px) {
     .ob-lang-toggle { top: 12px; right: 16px; }
