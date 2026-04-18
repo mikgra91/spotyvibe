@@ -747,5 +747,13 @@
   "priv.search_add": "検索 / 追加",
   "priv.read_once": "一度だけ読み取り",
   "priv.footnote": "これは SpotyVibe のデフォルト構成に適用されます。カスタム LLM エンドポイントを使用している場合、データの送信先が異なる可能性があります。",
-  "priv.close": "閉じる"
+  "priv.close": "閉じる",
+  "getting_started.title": "はじめに",
+  "getting_started.dismiss_aria": "はじめにを閉じる",
+  "getting_started.jump": "移動",
+  "getting_started.item_keys": "APIキーを保存",
+  "getting_started.item_spotify": "Spotifyに接続",
+  "getting_started.item_profile": "音楽プロファイルを作成",
+  "getting_started.item_playlist": "最初のプレイリストを生成",
+  "getting_started.item_feedback": "3曲以上にいいね/よくないねを付ける"
 }

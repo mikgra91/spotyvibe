@@ -255,6 +255,43 @@ def onboarding_complete():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/onboarding/progress")
+def onboarding_progress():
+    """Return getting-started checklist progress derived from app state.
+
+    Drives the frontend smart checklist (replaces the auto-tour). Each flag
+    auto-checks based on real state, so completed steps never re-prompt.
+    """
+    creds = get_credentials()
+    keys_saved = all(creds.get(k, {}).get("is_set") for k in
+                     ("OPENAI_API_KEY", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET"))
+    spotify_connected = get_spotify_auth_status() == "authenticated"
+    profile_created = bool(get_active_profile_id())
+    feedback_count = 0
+    playlist_generated = False
+    if profile_created:
+        try:
+            playlist_generated = bool(load_runs())
+        except Exception:
+            pass
+        try:
+            prof = load_profile()
+            fb = prof.get("feedback", {}) or {}
+            feedback_count = len(fb.get("liked_tracks", []) or []) + len(fb.get("disliked_tracks", []) or [])
+        except Exception:
+            pass
+    feedback_target = 3
+    return jsonify({
+        "keys_saved": keys_saved,
+        "spotify_connected": spotify_connected,
+        "profile_created": profile_created,
+        "playlist_generated": playlist_generated,
+        "feedback_count": feedback_count,
+        "feedback_target": feedback_target,
+        "feedback_done": feedback_count >= feedback_target,
+    })
+
+
 @app.route("/docs/screenshots/<path:filename>")
 def docs_screenshot(filename):
     """Serve documentation screenshot images."""

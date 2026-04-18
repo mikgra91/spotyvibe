@@ -728,6 +728,52 @@ class TestOnboardingEndpoints:
         assert resp.status_code == 200
         mock_set.assert_called_once_with(True)
 
+    @patch("app.load_profile")
+    @patch("app.load_runs", return_value=[])
+    @patch("app.get_active_profile_id", return_value=None)
+    @patch("app.get_spotify_auth_status", return_value="not_authenticated")
+    @patch("app.get_credentials", return_value={
+        "OPENAI_API_KEY":     {"is_set": False, "masked": ""},
+        "SPOTIPY_CLIENT_ID":  {"is_set": False, "masked": ""},
+        "SPOTIPY_CLIENT_SECRET": {"is_set": False, "masked": ""},
+    })
+    def test_progress_initial_state(self, mock_creds, mock_sp, mock_pid, mock_runs, mock_prof, client):
+        resp = client.get("/api/onboarding/progress")
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["keys_saved"] is False
+        assert body["spotify_connected"] is False
+        assert body["profile_created"] is False
+        assert body["playlist_generated"] is False
+        assert body["feedback_count"] == 0
+        assert body["feedback_done"] is False
+        assert body["feedback_target"] == 3
+        # load_profile should not be touched when no profile is active
+        mock_prof.assert_not_called()
+
+    @patch("app.load_profile", return_value={"feedback": {
+        "liked_tracks": [{"a": 1}, {"a": 2}],
+        "disliked_tracks": [{"a": 3}],
+    }})
+    @patch("app.load_runs", return_value=[{"run_id": "r1"}])
+    @patch("app.get_active_profile_id", return_value="profile-uuid")
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    @patch("app.get_credentials", return_value={
+        "OPENAI_API_KEY":     {"is_set": True, "masked": "***k"},
+        "SPOTIPY_CLIENT_ID":  {"is_set": True, "masked": "***1"},
+        "SPOTIPY_CLIENT_SECRET": {"is_set": True, "masked": "***2"},
+    })
+    def test_progress_fully_set_up(self, mock_creds, mock_sp, mock_pid, mock_runs, mock_prof, client):
+        resp = client.get("/api/onboarding/progress")
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["keys_saved"] is True
+        assert body["spotify_connected"] is True
+        assert body["profile_created"] is True
+        assert body["playlist_generated"] is True
+        assert body["feedback_count"] == 3
+        assert body["feedback_done"] is True
+
 
 class TestPlaylistsEndpoint:
     @patch("app.get_user_playlists")

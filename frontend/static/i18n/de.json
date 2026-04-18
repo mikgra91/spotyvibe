@@ -747,5 +747,13 @@
   "profile.new_profile_desc": "Leer, selbst bearbeiten",
   "profile.from_playlist_title": "Aus Playlist",
   "profile.from_playlist_desc": "Entwurf aus einer Spotify-Playlist erstellen",
-  "profile.from_playlist_hint": "Zuerst Spotify verbinden"
+  "profile.from_playlist_hint": "Zuerst Spotify verbinden",
+  "getting_started.title": "Erste Schritte",
+  "getting_started.dismiss_aria": "Erste Schritte ausblenden",
+  "getting_started.jump": "Hin",
+  "getting_started.item_keys": "API-Schlüssel speichern",
+  "getting_started.item_spotify": "Mit Spotify verbinden",
+  "getting_started.item_profile": "Musikprofil erstellen",
+  "getting_started.item_playlist": "Erste Playlist generieren",
+  "getting_started.item_feedback": "Mindestens 3 Tracks liken oder disliken"
 }

@@ -747,5 +747,13 @@
   "profile.new_profile_desc": "Blank, edit it yourself",
   "profile.from_playlist_title": "From playlist",
   "profile.from_playlist_desc": "Draft from a Spotify playlist you like",
-  "profile.from_playlist_hint": "Connect Spotify first"
+  "profile.from_playlist_hint": "Connect Spotify first",
+  "getting_started.title": "Getting started",
+  "getting_started.dismiss_aria": "Dismiss getting started",
+  "getting_started.jump": "Jump",
+  "getting_started.item_keys": "Save your API keys",
+  "getting_started.item_spotify": "Connect to Spotify",
+  "getting_started.item_profile": "Create a music profile",
+  "getting_started.item_playlist": "Generate your first playlist",
+  "getting_started.item_feedback": "Like or dislike at least 3 tracks"
 }

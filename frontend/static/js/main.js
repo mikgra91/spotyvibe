@@ -35,6 +35,7 @@ import * as PlaylistSeed from './modules/playlist_seed.js';
 import * as Provider from './modules/provider.js';
 import * as CostEstimate from './modules/cost_estimate.js';
 import * as Voice from './modules/voice.js';
+import { initGettingStarted, refreshGettingStarted } from './modules/getting-started.js';
 import { el } from './modules/dom.js';
 
 // Expose globals for HTML onclick= attributes
@@ -255,5 +256,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     Provider.init();
     CostEstimate.init();
     Voice.init();
+
+    // Wave 5: Getting Started checklist (replaces auto-tour)
+    initGettingStarted();
 
 });
