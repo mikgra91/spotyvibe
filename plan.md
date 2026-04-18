@@ -418,7 +418,7 @@ drops from ~820 px intrinsic height to ~690 px on a 620 px viewport,
 still needs a few scroll pixels but no longer "constant scrolling."
 Other steps fit without scroll.
 
-**Phase 2 — global UI scale preference (separate commit, opt-in):**
+**Phase 2 — global UI scale preference (separate commit, opt-in):** ✅ DONE
 5. Add a single setting in the Settings modal: radio group
    **Compact / Normal / Large** (0.9 / 1.0 / 1.1). Do *not* ship as
    a slider — three discrete presets are easier to label, test, and

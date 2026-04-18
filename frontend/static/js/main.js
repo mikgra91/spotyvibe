@@ -36,6 +36,7 @@ import * as Provider from './modules/provider.js';
 import * as CostEstimate from './modules/cost_estimate.js';
 import * as Voice from './modules/voice.js';
 import { initGettingStarted, refreshGettingStarted } from './modules/getting-started.js';
+import { initUiScale, setUiScale } from './modules/ui-scale.js';
 import { el } from './modules/dom.js';
 
 // Expose globals for HTML onclick= attributes
@@ -130,6 +131,7 @@ window.saveCredentials = saveCredentials;
 window.clearCredential = clearCredential;
 window.saveSettings = saveSettings;
 window.openSettings = openSettings;
+window.setUiScale = setUiScale;
 window.openHelp = openHelp;
 window.openSectionHelp = openSectionHelp;
 window.closeSectionHelp = closeSectionHelp;
@@ -205,6 +207,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (saved && THEME_BACKGROUNDS[saved]) _pendingTheme = saved;
     } catch(e) {}
     switchTheme(_pendingTheme || 'calm');
+
+    // Restore saved UI text-size preference (§9 Phase 2)
+    initUiScale();
 
     // Show refresh button when running inside pywebview desktop wrapper
     if (window.pywebview) {

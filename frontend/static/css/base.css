@@ -72,14 +72,16 @@
     --sp-1: 4px;   --sp-2: 8px;   --sp-3: 12px;  --sp-4: 16px;
     --sp-5: 20px;  --sp-6: 24px;  --sp-8: 32px;  --sp-10: 40px;
 
-    /* --- Font-size scale --- */
-    --fs-2xs: 0.68rem;  /* badges, fine print */
-    --fs-xs:  0.75rem;  /* hints, labels */
-    --fs-sm:  0.82rem;  /* secondary text, small UI */
-    --fs-md:  0.9rem;   /* body, default */
-    --fs-lg:  1.05rem;  /* subtitles, emphasis */
-    --fs-xl:  1.3rem;   /* section headings */
-    --fs-2xl: 1.5rem;   /* page headings */
+    /* --- Font-size scale — multiplied by --ui-scale (user preference, §9 Phase 2).
+       Spacing tokens are intentionally NOT scaled (WCAG 1.4.4 text-only). --- */
+    --ui-scale: 1;
+    --fs-2xs: calc(0.68rem * var(--ui-scale));  /* badges, fine print */
+    --fs-xs:  calc(0.75rem * var(--ui-scale));  /* hints, labels */
+    --fs-sm:  calc(0.82rem * var(--ui-scale));  /* secondary text, small UI */
+    --fs-md:  calc(0.9rem  * var(--ui-scale));  /* body, default */
+    --fs-lg:  calc(1.05rem * var(--ui-scale));  /* subtitles, emphasis */
+    --fs-xl:  calc(1.3rem  * var(--ui-scale));  /* section headings */
+    --fs-2xl: calc(1.5rem  * var(--ui-scale));  /* page headings */
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }

@@ -69,6 +69,26 @@
         </div>
 
 
+        <!-- UI scale preference -->
+        <div class="form-row">
+            <label data-i18n="settings.ui_scale.label">Text size</label>
+            <div class="ui-scale-row" role="radiogroup" aria-label="UI scale">
+                <label class="ui-scale-option">
+                    <input type="radio" name="ui_scale" value="0.9" onchange="setUiScale(this.value)">
+                    <span data-i18n="settings.ui_scale.compact">Compact</span>
+                </label>
+                <label class="ui-scale-option">
+                    <input type="radio" name="ui_scale" value="1" onchange="setUiScale(this.value)" checked>
+                    <span data-i18n="settings.ui_scale.normal">Normal</span>
+                </label>
+                <label class="ui-scale-option">
+                    <input type="radio" name="ui_scale" value="1.1" onchange="setUiScale(this.value)">
+                    <span data-i18n="settings.ui_scale.large">Large</span>
+                </label>
+            </div>
+            <p class="inline-hint" data-i18n="settings.ui_scale.hint">Scales text only — stored on this device.</p>
+        </div>
+
         <!-- Debug mode (desktop-only) -->
         <div class="form-row {% if not debug_controls_available %}hidden{% endif %}" id="debugModeRow">
             <label>Debug Mode <span class="optional-badge" data-i18n="common.optional">(optional)</span></label>
