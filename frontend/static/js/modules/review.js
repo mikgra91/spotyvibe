@@ -23,6 +23,10 @@ export function toggleReviewBody() {
         body.dataset.loaded = '1';
         populateReviewPlaylistPicker();
     }
+    if (!isHidden && !localStorage.getItem('sv.refine_opened') && window.Tips) {
+        localStorage.setItem('sv.refine_opened', '1');
+        window.Tips.maybeTrigger('first_refine_open');
+    }
 }
 
 /**

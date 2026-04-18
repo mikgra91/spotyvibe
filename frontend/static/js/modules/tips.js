@@ -57,6 +57,26 @@ const TIP_CATALOGUE = {
         link_i18n: 'tip.first_filter_link',
         linkAction: () => { /* no sub-action */ },
     },
+    first_refine_open: {
+        id: 'first_refine_open',
+        title_i18n: 'tip.first_refine',
+        body_i18n: 'tip.first_refine_body',
+        link_i18n: 'tip.first_refine_link',
+        linkAction: () => {
+            const picker = el('reviewPlaylistPicker');
+            if (picker) picker.focus();
+        },
+    },
+    first_analysis_open: {
+        id: 'first_analysis_open',
+        title_i18n: 'tip.first_analysis',
+        body_i18n: 'tip.first_analysis_body',
+        link_i18n: 'tip.first_analysis_link',
+        linkAction: () => {
+            const input = el('analysisArtist');
+            if (input) input.focus();
+        },
+    },
     five_generations: {
         id: 'five_generations',
         title_i18n: 'tip.five_generations',

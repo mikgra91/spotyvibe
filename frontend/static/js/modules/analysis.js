@@ -13,6 +13,10 @@ export function toggleAnalysisBody() {
         btn.setAttribute('aria-expanded', expanded);
         btn.textContent = expanded === 'true' ? i18n('btn.hide', 'Hide') : i18n('btn.show', 'Show');
     }
+    if (expanded === 'true' && !localStorage.getItem('sv.analysis_opened') && window.Tips) {
+        localStorage.setItem('sv.analysis_opened', '1');
+        window.Tips.maybeTrigger('first_analysis_open');
+    }
 }
 
 /**

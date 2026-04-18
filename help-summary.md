@@ -256,7 +256,7 @@ reference manual, not task-oriented.
   intros, overlap between Review and Refine sections) and can be
   merged.
 
-### F. Empty-state coaching for advanced panels
+### F. Empty-state coaching for advanced panels ✅ done 2026-04-18
 - The first time a user expands **Refine Playlist**, **Band/Song
   Analysis**, or **Audio Filters**, show a one-line inline hint with
   an example ("Try: enter an artist you like; we'll suggest profile
