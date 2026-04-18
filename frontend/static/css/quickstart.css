@@ -184,45 +184,6 @@
 }
 .quickstart-modal .qs-page-title { margin: 0; font-size: var(--fs-xl); color: var(--primary); }
 .qs-page-header .quickstart-tagline { margin: 0.1rem 0 0; font-size: var(--fs-sm); }
-.qs-page-content > p:first-child {
-    font-size: var(--fs-sm);
-    color: var(--text-secondary);
-    line-height: 1.5;
-    margin: 0 0 0.8rem;
-}
-
-/* Key actions card */
-.qs-key-actions {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: var(--radius-md);
-    padding: 0.7rem 1rem;
-    margin-bottom: 0.7rem;
-}
-.qs-key-actions h4 {
-    margin: 0 0 0.4rem;
-    font-size: var(--fs-xs);
-    font-weight: 700;
-    color: var(--text-primary);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    opacity: 0.7;
-}
-.qs-key-actions ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-2);
-}
-.qs-key-actions li {
-    font-size: var(--fs-xs);
-    color: var(--text-secondary);
-    line-height: 1.4;
-    padding-left: 0.2rem;
-}
-
 .quickstart-modal .qs-tagline-repeat { color: var(--accent-violet); }
 
 /* ── Pagination bar ── */

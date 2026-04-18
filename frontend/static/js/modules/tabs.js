@@ -24,8 +24,6 @@ const _LEGACY_TAB_MAP = {
 };
 
 let _activeTab = 'openai';
-// Tracks which providers have been seen this session (for quickstart auto-show)
-const _seenProviders = new Set();
 
 export function initTabs() {
     // Restore last-active tab from localStorage (with legacy migration)
@@ -52,9 +50,6 @@ export function initTabs() {
 
     // Apply initial tab state
     _applyTab(_activeTab);
-    // Mark the initial provider as already seen — main.js handles the first auto-show
-    const initProvider = TABS[_activeTab]?.provider;
-    if (initProvider) _seenProviders.add(initProvider);
 }
 
 export function switchTab(tabName) {
@@ -63,12 +58,6 @@ export function switchTab(tabName) {
     _applyTab(tabName);
     try { localStorage.setItem(STORAGE_KEY, tabName); } catch(e) {}
 
-    // Auto-show provider quickstart the first time this provider is visited this session
-    const provider = TABS[tabName].provider;
-    if (provider && !_seenProviders.has(provider)) {
-        _seenProviders.add(provider);
-        window.maybeShowQuickstart?.(provider);
-    }
 }
 
 export function getActiveTab() {

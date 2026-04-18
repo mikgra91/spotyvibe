@@ -7,7 +7,7 @@ import { toggleGenerateBody, runPipeline, setGenerating, updateUseTracksButton, 
 import { toggleAudioFilters, getAudioFilters, clearAllFilters, updateFilterHint, applyAnalysisFilter, applyAllAnalysisFilters, updateAllFilterHints } from './modules/audio-filters.js';
 import { getPlaylistMode, onPlaylistModeChange, getPlaylistModePayload, refreshDiscoverPlaylistPicker } from './modules/playlist-mode.js';
 import { renderTracks } from './modules/tracklist.js';
-import { openPreviewOverlay, closePreviewOverlay, prevPreview, nextPreview, previewLike, previewDislike, previewDismiss, submitPreviewFeedback, closePreviewFeedback } from './modules/preview.js';
+import { openPreviewOverlay, closePreviewOverlay, prevPreview, nextPreview, previewLike, previewDislike, previewDismiss, submitPreviewFeedback, closePreviewFeedback, togglePreviewAutoplay } from './modules/preview.js';
 import { toggleFeedback, closeFeedback, submitFeedback, removeTrack, animateRemove } from './modules/feedback.js';
 import { toggleReviewBody, loadPlaylistTracks, renderReviewTracks, toggleReviewFeedback, closeReviewFeedback, submitReviewFeedback, dismissReviewTrack, populateReviewPlaylistPicker, refreshReviewPlaylistPicker, deleteSelectedPlaylist } from './modules/review.js';
 import { showStatus, showStatusHtml, showPlaylistLink, hidePlaylistLink, esc, attr, sanitizeHtml, escHtml, toggleSettingsMenu, showToast } from './modules/ui.js';
@@ -99,6 +99,7 @@ window.previewDislike = previewDislike;
 window.previewDismiss = previewDismiss;
 window.submitPreviewFeedback = submitPreviewFeedback;
 window.closePreviewFeedback = closePreviewFeedback;
+window.togglePreviewAutoplay = togglePreviewAutoplay;
 window.toggleFeedback = toggleFeedback;
 window.closeFeedback = closeFeedback;
 window.submitFeedback = submitFeedback;
@@ -255,6 +256,4 @@ document.addEventListener('DOMContentLoaded', async () => {
     CostEstimate.init();
     Voice.init();
 
-    // Quickstart guide (auto-show on first visit for the active provider)
-    maybeShowQuickstart(getActiveProvider());
 });

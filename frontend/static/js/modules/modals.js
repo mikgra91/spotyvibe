@@ -480,14 +480,11 @@ export function closeQuickstart() {
 }
 
 /**
- * Auto-show quickstart on page load (or first provider visit) if the user hasn't dismissed it.
- * @param {string} provider — "openai" or "spotify"
+ * Quickstart no longer auto-opens. Users invoke it from the menu (☰ → Quick Start).
+ * Kept as an exported no-op for backward compatibility with callers and tests.
  */
-export function maybeShowQuickstart(provider = 'openai') {
-    if (!_isQuickstartDismissed(provider)) {
-        // Defer so that the rest of init completes first
-        setTimeout(() => openQuickstart(false), 0);
-    }
+export function maybeShowQuickstart(_provider = 'openai') {
+    // intentionally empty — see help-summary.md §6A
 }
 
 function _isQuickstartDismissed(provider) {

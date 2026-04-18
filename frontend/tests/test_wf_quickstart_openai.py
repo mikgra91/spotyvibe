@@ -54,15 +54,6 @@ class TestQuickstartOpenAIWorkflow:
         toc = page.locator(".qs-toc")
         expect(toc.locator('[aria-label="Go to Setup"]')).to_be_visible()
 
-    def test_setup_step_has_key_actions(self, page: Page, base_url):
-        self._open_quickstart_openai(page, base_url)
-        page.locator('.qs-toc-entry[aria-label="Go to Setup"]').click()
-        page.wait_for_timeout(150)
-        step_page = page.locator('[data-qs-page="1"]')
-        expect(step_page).to_be_visible()
-        expect(step_page.locator(".qs-key-actions")).to_be_visible()
-        expect(step_page.locator(".qs-key-actions li")).to_have_count(4)
-
     def test_setup_step_has_demo_player(self, page: Page, base_url):
         self._open_quickstart_openai(page, base_url)
         page.locator('.qs-toc-entry[aria-label="Go to Setup"]').click()
@@ -76,7 +67,6 @@ class TestQuickstartOpenAIWorkflow:
         step_page = page.locator('[data-qs-page="2"]')
         expect(step_page).to_be_visible()
         expect(step_page.locator(".qs-page-title")).to_contain_text("Build Your Profile")
-        expect(step_page.locator(".qs-key-actions li")).to_have_count(4)
         expect(step_page.locator(".qs-demo-player")).to_be_visible()
 
     def test_analysis_step_content(self, page: Page, base_url):
@@ -86,7 +76,6 @@ class TestQuickstartOpenAIWorkflow:
         step_page = page.locator('[data-qs-page="7"]')
         expect(step_page).to_be_visible()
         expect(step_page.locator(".qs-page-title")).to_contain_text("Band/Song Analysis")
-        expect(step_page.locator(".qs-key-actions li")).to_have_count(4)
         expect(step_page.locator(".qs-demo-player")).to_be_visible()
 
     def test_pagination_navigates_steps(self, page: Page, base_url):
@@ -101,7 +90,8 @@ class TestQuickstartOpenAIWorkflow:
         page.wait_for_timeout(150)
         expect(page.locator('[data-qs-page="1"]')).to_be_visible()
 
-    def test_auto_trigger_when_not_dismissed(self, page: Page, base_url):
+    def test_quickstart_does_not_auto_open_on_load(self, page: Page, base_url):
+        # Quickstart is now launcher-only; loading the page should not pop the modal.
         page.goto(base_url)
         page.wait_for_load_state("domcontentloaded")
         page.evaluate("""(() => {
@@ -109,7 +99,6 @@ class TestQuickstartOpenAIWorkflow:
             localStorage.removeItem('spotyvibe-quickstart-openai-dismissed');
             localStorage.removeItem('spotyvibe-quickstart-spotify-dismissed');
         })()""")
-        page.evaluate("maybeShowQuickstart('openai')")
-        page.wait_for_timeout(250)
-        expect(page.locator("#quickstartModal")).to_be_visible()
+        page.wait_for_timeout(300)
+        expect(page.locator("#quickstartModal")).to_be_hidden()
 
