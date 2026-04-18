@@ -5,67 +5,43 @@
 
 ---
 
-## 目次
+## トピックを選ぶ
 
-- [プライバシー — デバイス外に送信される情報](#privacy--what-leaves-your-device)
-- [はじめに](#getting-started)
-  - [概要](#overview)
-  - [始める前に](#before-you-start)
-  - [メイン画面を理解する](#understanding-the-main-screen)
-  - [クイックスタートガイド](#quick-start-guide)
-- [アカウント設定](#account-setup)
-  - [メニューを開く](#open-the-menu)
-  - [認証情報を入力する](#enter-your-credentials)
-  - [Spotify アカウントを接続する](#connect-your-spotify-account)
-- [ユーザー設定](#user-preferences)
-  - [設定](#settings)
-  - [言語](#language)
-  - [テーマ](#theme)
-- [音楽プロフィール](#music-profile)
-  - [音楽プロフィールを作成する](#create-your-music-profile)
-    - [プロフィールを選択または作成する](#select-or-create-a-profile)
-    - [プロフィールの状態](#profile-status)
-    - [あなたの vibe を説明する](#describe-your-vibe)
-    - [コア説明](#core-description)
-    - [必須条件](#must-have)
-    - [希望条件](#soft-preferences)
-    - [避けたい要素](#avoid)
-    - [保存 または AI Profile Update](#save-or-ai-profile-update)
-    - [AI が裏側で行っていること](#what-the-ai-does-behind-the-scenes)
-  - [プロフィールのインポート、エクスポート、リセット、削除](#import-export-reset-and-delete-your-profile)
-  - [時間とともに好みを更新する](#updating-your-taste-over-time)
-- [発見と分析](#discovery--analysis)
-  - [Band/Song Analysis](#bandsong-analysis)
-- [プレイリスト生成](#playlist-generation)
-  - [プレイリストモードを選ぶ](#choose-a-playlist-mode)
-  - [音声特徴フィルターを使う](#use-audio-filters)
-  - [新規 / 新進アーティストのみ](#emerging-artists-only)
-  - [生成を開始する](#start-generation)
-  - [途中で停止する / 現在の曲を使う](#stop-early-or-use-current-tracks)
-- [曲のレビューとフィードバック](#track-review--feedback)
-  - [曲をプレビューする](#preview-a-track)
-  - [Spotify リンクを開く](#open-spotify-links)
-  - [曲を Like する](#like-a-track)
-  - [曲を Dislike する](#dislike-a-track)
-  - [曲を削除する](#remove-a-track)
-- [プレイリストを洗練する](#refine-playlist)
-  - [プレイリストを選択して読み込む](#select-and-load-a-playlist)
-  - [曲をレビューする](#review-tracks)
-  - [曲を Like する（Refine）](#like-a-track-refine)
-  - [曲を Dislike する（Refine）](#dislike-a-track-refine)
-  - [曲を Dismiss する](#dismiss-a-track)
-- [Taste Dashboard](#taste-dashboard)
-  - [ダッシュボードを開く](#opening-the-dashboard)
-  - [チャート](#charts)
-  - [感情別セクション](#sentiment-sections)
-  - [プロフィールごとの分離](#profile-isolation)
-- [曲リストと実行履歴](#song-list--run-history)
-  - [永続化される曲リスト](#persistent-song-list)
-  - [実行履歴](#run-history)
-- [モバイル利用](#mobile-usage)
-- [トラブルシューティングとヒント](#troubleshooting--tips)
-  - [トラブルシューティング](#troubleshooting)
-  - [最後のヒント](#final-tips)
+<div class="help-tiles">
+  <a class="help-tile" href="#account-setup">
+    <span class="help-tile-title">1. キーを設定する</span>
+    <span class="help-tile-desc">OpenAI と Spotify の認証情報を保存し、Spotify と接続します。</span>
+  </a>
+  <a class="help-tile" href="#music-profile">
+    <span class="help-tile-title">2. 音楽プロフィールを作る</span>
+    <span class="help-tile-desc">あなたの好みを説明し、AI が好きそうな曲を提案できるようにします。</span>
+  </a>
+  <a class="help-tile" href="#playlist-generation">
+    <span class="help-tile-title">3. プレイリストを生成する</span>
+    <span class="help-tile-desc">モードを選び、フィルターを調整し、新しいプレイリストを作ります。</span>
+  </a>
+  <a class="help-tile" href="#refine-playlist">
+    <span class="help-tile-title">4. 洗練とレビュー</span>
+    <span class="help-tile-desc">Like・Dislike・Dismiss でプロフィールを磨きます。</span>
+  </a>
+  <a class="help-tile" href="#troubleshooting--tips">
+    <span class="help-tile-title">5. トラブルシューティング</span>
+    <span class="help-tile-desc">よくある問題と最後のヒント。</span>
+  </a>
+</div>
+
+**リファレンス**
+
+<ul class="help-reference-list">
+  <li><a href="#privacy--what-leaves-your-device">プライバシー</a></li>
+  <li><a href="#getting-started">はじめに</a></li>
+  <li><a href="#user-preferences">ユーザー設定</a></li>
+  <li><a href="#discovery--analysis">Band/Song Analysis</a></li>
+  <li><a href="#track-review--feedback">曲のレビューとフィードバック</a></li>
+  <li><a href="#taste-dashboard">Taste Dashboard</a></li>
+  <li><a href="#song-list--run-history">曲リストと実行履歴</a></li>
+  <li><a href="#mobile-usage">モバイル利用</a></li>
+</ul>
 
 ---
 

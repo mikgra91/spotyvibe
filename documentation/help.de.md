@@ -5,71 +5,43 @@ Diese Anleitung erklärt, wie du die **SpotyVibe-Oberfläche** nutzt, um deine V
 
 ---
 
-## Inhaltsverzeichnis
+## Wähle ein Thema
 
-- [Datenschutz — Was dein Gerät verlässt](#datenschutz--was-dein-gerät-verlässt)
-- [Erste Schritte](#erste-schritte)
-  - [Übersicht](#übersicht)
-  - [Voraussetzungen](#voraussetzungen)
-  - [Die Hauptansicht verstehen](#die-hauptansicht-verstehen)
-  - [Schnellstart-Anleitung](#schnellstart-anleitung)
-- [Kontoeinrichtung](#kontoeinrichtung)
-  - [Menü öffnen](#menü-öffnen)
-  - [Zugangsdaten eingeben](#zugangsdaten-eingeben)
-  - [Spotify-Konto verbinden](#spotify-konto-verbinden)
-- [Benutzereinstellungen](#benutzereinstellungen)
-  - [Einstellungen](#einstellungen)
-  - [Sprache](#sprache)
-  - [Design](#design)
-- [Musikprofil](#musikprofil)
-  - [Musikprofil erstellen](#musikprofil-erstellen)
-    - [Profil auswählen oder erstellen](#profil-auswählen-oder-erstellen)
-    - [Profilstatus](#profilstatus)
-    - [Beschreibe deinen Vibe](#beschreibe-deinen-vibe)
-    - [Kernbeschreibung](#kernbeschreibung)
-    - [Muss vorhanden sein](#muss-vorhanden-sein)
-    - [Weiche Präferenzen](#weiche-präferenzen)
-    - [Vermeiden](#vermeiden)
-    - [Speichern oder KI-Profil-Update](#speichern-oder-ki-profil-update)
-    - [Was die KI im Hintergrund tut](#was-die-ki-im-hintergrund-tut)
-  - [Profil importieren, exportieren, zurücksetzen und löschen](#profil-importieren-exportieren-zurücksetzen-und-löschen)
-  - [Geschmack im Laufe der Zeit aktualisieren](#geschmack-im-laufe-der-zeit-aktualisieren)
-- [Entdeckung & Analyse](#entdeckung--analyse)
-  - [Band-/Song-Analyse](#band-song-analyse)
-- [Playlist-Generierung](#playlist-generierung)
-  - [Playlist-Modus wählen](#playlist-modus-wählen)
-  - [Schnell- vs. Erweitert-Modus](#schnell--vs-erweitert-modus)
-  - [Erkundungs-Regler](#erkundungs-regler)
-  - [Generierungs-Voreinstellungen](#generierungs-voreinstellungen)
-  - [Audio-Filter verwenden](#audio-filter-verwenden)
-    - [Band-/Song-Analyse zum Setzen von Filtern nutzen](#band-song-analyse-zum-setzen-von-filtern-nutzen)
-  - [Nur aufstrebende Künstler](#nur-aufstrebende-künstler)
-  - [Generierung starten](#generierung-starten)
-  - [Vorzeitig stoppen oder aktuelle Tracks verwenden](#vorzeitig-stoppen-oder-aktuelle-tracks-verwenden)
-- [Track-Bewertung & Feedback](#track-bewertung--feedback)
-  - [Track vorhören](#track-vorhören)
-  - [Spotify-Links öffnen](#spotify-links-öffnen)
-  - [Track liken](#track-liken)
-  - [Track disliken](#track-disliken)
-  - [Track entfernen](#track-entfernen)
-- [Playlist verfeinern](#playlist-verfeinern)
-  - [Playlist auswählen und laden](#playlist-auswählen-und-laden)
-  - [Tracks durchgehen](#tracks-durchgehen)
-  - [Track liken (Verfeinern)](#track-liken-verfeinern)
-  - [Track disliken (Verfeinern)](#track-disliken-verfeinern)
-  - [Track verwerfen](#track-verwerfen)
-- [Geschmacks-Dashboard](#geschmacks-dashboard)
-  - [Dashboard öffnen](#dashboard-öffnen)
-  - [Diagramme](#diagramme)
-  - [Stimmungsabschnitte](#stimmungsabschnitte)
-  - [Profil-Isolation](#profil-isolation)
-- [Songliste & Lauf-Verlauf](#songliste--lauf-verlauf)
-  - [Beständige Songliste](#beständige-songliste)
-  - [Lauf-Verlauf](#lauf-verlauf)
-- [Mobile Nutzung](#mobile-nutzung)
-- [Fehlerbehebung & Tipps](#fehlerbehebung--tipps)
-  - [Fehlerbehebung](#fehlerbehebung)
-  - [Abschließende Tipps](#abschließende-tipps)
+<div class="help-tiles">
+  <a class="help-tile" href="#kontoeinrichtung">
+    <span class="help-tile-title">1. Zugangsdaten einrichten</span>
+    <span class="help-tile-desc">OpenAI- und Spotify-Schlüssel speichern und Spotify verbinden.</span>
+  </a>
+  <a class="help-tile" href="#musikprofil">
+    <span class="help-tile-title">2. Musikprofil erstellen</span>
+    <span class="help-tile-desc">Beschreibe deinen Geschmack, damit die KI passende Tracks vorschlägt.</span>
+  </a>
+  <a class="help-tile" href="#playlist-generierung">
+    <span class="help-tile-title">3. Playlists generieren</span>
+    <span class="help-tile-desc">Modus wählen, Filter feinjustieren und eine neue Playlist erstellen.</span>
+  </a>
+  <a class="help-tile" href="#playlist-verfeinern">
+    <span class="help-tile-title">4. Verfeinern und bewerten</span>
+    <span class="help-tile-desc">Tracks liken, disliken oder verwerfen, um dein Profil zu schärfen.</span>
+  </a>
+  <a class="help-tile" href="#fehlerbehebung--tipps">
+    <span class="help-tile-title">5. Fehlerbehebung</span>
+    <span class="help-tile-desc">Häufige Probleme und abschließende Tipps.</span>
+  </a>
+</div>
+
+**Nachschlagen**
+
+<ul class="help-reference-list">
+  <li><a href="#datenschutz--was-dein-gerät-verlässt">Datenschutz</a></li>
+  <li><a href="#erste-schritte">Erste Schritte</a></li>
+  <li><a href="#benutzereinstellungen">Benutzereinstellungen</a></li>
+  <li><a href="#entdeckung--analyse">Band-/Song-Analyse</a></li>
+  <li><a href="#track-bewertung--feedback">Track-Bewertung &amp; Feedback</a></li>
+  <li><a href="#geschmacks-dashboard">Geschmacks-Dashboard</a></li>
+  <li><a href="#songliste--lauf-verlauf">Songliste &amp; Lauf-Verlauf</a></li>
+  <li><a href="#mobile-nutzung">Mobile Nutzung</a></li>
+</ul>
 
 ---
 

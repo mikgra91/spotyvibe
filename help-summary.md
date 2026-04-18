@@ -236,7 +236,7 @@ A small collapsible card in the main UI (not a modal) showing progress:
 - Replaces the role of the modal tour; keeps the demo player available
   via the launcher (A) for users who want the full walkthrough.
 
-### E. Restructure `help.en.md` (and siblings)
+### E. Restructure `help.en.md` (and siblings) ✅ done 2026-04-18
 Current: 1062 lines, 13 top-level sections, 45+ sub-headings — a
 reference manual, not task-oriented.
 

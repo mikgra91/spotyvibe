@@ -5,67 +5,43 @@ This guide explains how to use the **SpotyVibe interface** to set up your prefer
 
 ---
 
-## Table of Contents
+## Pick a topic
 
-- [Privacy — What Leaves Your Device](#privacy--what-leaves-your-device)
-- [Getting Started](#getting-started)
-  - [Overview](#overview)
-  - [Before You Start](#before-you-start)
-  - [Understanding the Main Screen](#understanding-the-main-screen)
-  - [Quick Start Guide](#quick-start-guide)
-- [Account Setup](#account-setup)
-  - [Open the Menu](#open-the-menu)
-  - [Enter Your Credentials](#enter-your-credentials)
-  - [Connect Your Spotify Account](#connect-your-spotify-account)
-- [User Preferences](#user-preferences)
-  - [Settings](#settings)
-  - [Language](#language)
-  - [Theme](#theme)
-- [Music Profile](#music-profile)
-  - [Create Your Music Profile](#create-your-music-profile)
-    - [Select or Create a Profile](#select-or-create-a-profile)
-    - [Profile Status](#profile-status)
-    - [Describe Your Vibe](#describe-your-vibe)
-    - [Core Description](#core-description)
-    - [Must Have](#must-have)
-    - [Soft Preferences](#soft-preferences)
-    - [Avoid](#avoid)
-    - [Save or AI Profile Update](#save-or-ai-profile-update)
-    - [What the AI Does Behind the Scenes](#what-the-ai-does-behind-the-scenes)
-  - [Import, Export, Reset, and Delete Your Profile](#import-export-reset-and-delete-your-profile)
-  - [Updating Your Taste Over Time](#updating-your-taste-over-time)
-- [Discovery & Analysis](#discovery--analysis)
-  - [Band/Song Analysis](#bandsong-analysis)
-- [Playlist Generation](#playlist-generation)
-  - [Choose a Playlist Mode](#choose-a-playlist-mode)
-  - [Use Audio Filters](#use-audio-filters)
-  - [Emerging Artists Only](#emerging-artists-only)
-  - [Start Generation](#start-generation)
-  - [Stop Early or Use Current Tracks](#stop-early-or-use-current-tracks)
-- [Track Review & Feedback](#track-review--feedback)
-  - [Preview a Track](#preview-a-track)
-  - [Open Spotify Links](#open-spotify-links)
-  - [Like a Track](#like-a-track)
-  - [Dislike a Track](#dislike-a-track)
-  - [Remove a Track](#remove-a-track)
-- [Refine Playlist](#refine-playlist)
-  - [Select and Load a Playlist](#select-and-load-a-playlist)
-  - [Review Tracks](#review-tracks)
-  - [Like a Track (Refine)](#like-a-track-refine)
-  - [Dislike a Track (Refine)](#dislike-a-track-refine)
-  - [Dismiss a Track](#dismiss-a-track)
-- [Taste Dashboard](#taste-dashboard)
-  - [Opening the Dashboard](#opening-the-dashboard)
-  - [Charts](#charts)
-  - [Sentiment Sections](#sentiment-sections)
-  - [Profile Isolation](#profile-isolation)
-- [Song List & Run History](#song-list--run-history)
-  - [Persistent Song List](#persistent-song-list)
-  - [Run History](#run-history)
-- [Mobile Usage](#mobile-usage)
-- [Troubleshooting & Tips](#troubleshooting--tips)
-  - [Troubleshooting](#troubleshooting)
-  - [Final Tips](#final-tips)
+<div class="help-tiles">
+  <a class="help-tile" href="#account-setup">
+    <span class="help-tile-title">1. Set up your keys</span>
+    <span class="help-tile-desc">Save your OpenAI and Spotify credentials and connect Spotify.</span>
+  </a>
+  <a class="help-tile" href="#music-profile">
+    <span class="help-tile-title">2. Build a music profile</span>
+    <span class="help-tile-desc">Describe your taste so the AI can suggest tracks you'll love.</span>
+  </a>
+  <a class="help-tile" href="#playlist-generation">
+    <span class="help-tile-title">3. Generate playlists</span>
+    <span class="help-tile-desc">Pick a mode, tweak filters, and create a new playlist.</span>
+  </a>
+  <a class="help-tile" href="#refine-playlist">
+    <span class="help-tile-title">4. Refine and review</span>
+    <span class="help-tile-desc">Like, dislike, and dismiss tracks to sharpen your profile.</span>
+  </a>
+  <a class="help-tile" href="#troubleshooting--tips">
+    <span class="help-tile-title">5. Troubleshooting</span>
+    <span class="help-tile-desc">Common issues and final tips.</span>
+  </a>
+</div>
+
+**Reference**
+
+<ul class="help-reference-list">
+  <li><a href="#privacy--what-leaves-your-device">Privacy</a></li>
+  <li><a href="#getting-started">Getting Started</a></li>
+  <li><a href="#user-preferences">User Preferences</a></li>
+  <li><a href="#discovery--analysis">Band/Song Analysis</a></li>
+  <li><a href="#track-review--feedback">Track Review &amp; Feedback</a></li>
+  <li><a href="#taste-dashboard">Taste Dashboard</a></li>
+  <li><a href="#song-list--run-history">Song List &amp; Run History</a></li>
+  <li><a href="#mobile-usage">Mobile Usage</a></li>
+</ul>
 
 ---
 

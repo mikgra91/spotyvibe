@@ -6,6 +6,7 @@
     display: none;
     position: fixed;
     inset: 0;
+    padding-top: var(--titlebar-h, 0px);
     background: rgba(0,0,0,.78);
     z-index: 200;
     justify-content: center;
@@ -115,6 +116,37 @@ body.modal-scroll-lock { overflow: hidden !important; }
 
 /* ── Markdown rendering inside help-content ── */
 .help-content { font-size: var(--fs-md); line-height: 1.6; }
+
+/* ── Help landing tiles (5 task-oriented entry points, see help-summary.md §6E) ── */
+.help-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.8rem;
+    margin: 1rem 0 1.4rem;
+}
+.help-tile {
+    display: block;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md, 8px);
+    background: rgba(76, 168, 255, 0.04);
+    color: var(--text-primary);
+    text-decoration: none;
+    transition: background var(--transition), border-color var(--transition);
+}
+.help-tile:hover {
+    background: rgba(76, 168, 255, 0.10);
+    border-color: var(--accent-cyan);
+}
+.help-tile-title {
+    display: block;
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: 0.25rem;
+}
+.help-tile-desc { display: block; font-size: var(--fs-sm); color: var(--text-secondary); }
+.help-reference-list { columns: 2; column-gap: 1.4rem; margin: 0.4rem 0 0 1.2rem; }
+@media (max-width: 600px) { .help-reference-list { columns: 1; } }
 .help-content h2 {
     color: var(--primary);
     font-size: var(--fs-xl);
