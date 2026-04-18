@@ -140,6 +140,25 @@ export function getPlayer() { return _player; }
 export function getDeviceId() { return _deviceId; }
 
 /**
+ * Resolve once the ``ready`` event has set a device id, or reject after
+ * ``timeoutMs``. Safe to call after ready — resolves immediately.
+ */
+export function ensureReady(timeoutMs = 8000) {
+    if (_deviceId) return Promise.resolve(_deviceId);
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            off();
+            reject(new Error('ready_timeout'));
+        }, timeoutMs);
+        const off = on('ready', ({ deviceId }) => {
+            clearTimeout(timer);
+            off();
+            resolve(deviceId);
+        });
+    });
+}
+
+/**
  * Disconnect and dispose of the player (e.g. when closing the overlay
  * or falling back to the iframe). Safe to call multiple times.
  */

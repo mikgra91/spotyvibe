@@ -7,7 +7,39 @@
             <div class="spotify-preview-title" id="spotifyPreviewTitle">
                 {% if preview_track %}{{ preview_track.artist|e }} — {{ preview_track.title|e }}{% endif %}
             </div>
-            <div class="spotify-preview-slider">
+            <!-- Web Playback SDK custom panel (Premium, supported runtimes).
+                 Hidden by default; preview.js shows it on successful SDK
+                 connect and hides the iframe slider. -->
+            <div class="sdk-player" id="sdkPlayer" hidden>
+                <div class="sdk-player-row">
+                    <img class="sdk-player-art" id="sdkPlayerArt" alt="" width="96" height="96">
+                    <div class="sdk-player-meta">
+                        <div class="sdk-player-title" id="sdkPlayerTitle"></div>
+                        <div class="sdk-player-artist" id="sdkPlayerArtist"></div>
+                    </div>
+                </div>
+                <div class="sdk-player-transport">
+                    <button class="spotify-preview-nav" id="sdkPrev" onclick="prevPreview()" data-i18n-title="preview.previous" title="Previous track" aria-label="Previous track">‹</button>
+                    <button class="sdk-player-play" id="sdkPlayToggle" onclick="sdkTogglePlay()" data-i18n-title="preview.play" title="Play/Pause" aria-label="Play or pause">▶</button>
+                    <button class="spotify-preview-nav" id="sdkNext" onclick="nextPreview()" data-i18n-title="preview.next" title="Next track" aria-label="Next track">›</button>
+                </div>
+                <div class="sdk-player-scrubber">
+                    <span class="sdk-player-time" id="sdkPlayerTimeCur">0:00</span>
+                    <input type="range" id="sdkPlayerSeek" min="0" max="100" value="0" step="1" aria-label="Seek">
+                    <span class="sdk-player-time" id="sdkPlayerTimeDur">0:00</span>
+                </div>
+                <div class="sdk-player-quick" role="group" aria-label="Quick feedback">
+                    <button class="sdk-quick sdk-quick-like" onclick="previewLike()" data-i18n-title="feedback.like" title="Like" aria-label="Like this track">
+                        <span aria-hidden="true">👍</span>
+                    </button>
+                    <button class="sdk-quick sdk-quick-dislike" onclick="previewDislike()" data-i18n-title="feedback.dislike" title="Dislike" aria-label="Dislike this track">
+                        <span aria-hidden="true">👎</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Iframe fallback (non-Premium, unsupported runtimes, or SDK error). -->
+            <div class="spotify-preview-slider" id="spotifyPreviewSlider">
                 <button class="spotify-preview-nav spotify-preview-prev" id="previewPrev" onclick="prevPreview()" data-i18n-title="preview.previous" title="Previous track" aria-label="Previous track">‹</button>
                 <iframe id="spotifyPreviewIframe"
                     title="Spotify track player"

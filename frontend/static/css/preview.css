@@ -108,6 +108,112 @@
 }
 .spotify-preview-autoplay input { accent-color: var(--primary); cursor: pointer; }
 
+/* ── Web Playback SDK custom player panel (§8a) ───────────────────── */
+.sdk-player { display: flex; flex-direction: column; gap: var(--sp-2); }
+
+.sdk-player-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-width: 0;
+}
+.sdk-player-art {
+    width: 96px;
+    height: 96px;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.04);
+    object-fit: cover;
+}
+.sdk-player-meta { min-width: 0; flex: 1; }
+.sdk-player-title {
+    font-size: var(--fs-md);
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sdk-player-artist {
+    font-size: var(--fs-sm);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sdk-player-transport {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-3);
+}
+.sdk-player-play {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: none;
+    background: var(--primary, #1DB954);
+    color: #000;
+    font-size: var(--fs-xl);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+}
+@media (hover: hover) {
+    .sdk-player-play:hover { transform: scale(1.05); }
+}
+
+.sdk-player-scrubber {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+.sdk-player-scrubber input[type="range"] {
+    flex: 1;
+    min-width: 0;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+.sdk-player-time {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    min-width: 34px;
+    text-align: center;
+}
+
+.sdk-player-quick {
+    display: flex;
+    justify-content: center;
+    gap: var(--sp-3);
+    margin-top: var(--sp-1);
+}
+.sdk-quick {
+    width: 56px;
+    height: 40px;
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: var(--fs-xl);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+    transition: transform 0.1s, background 0.15s;
+}
+.sdk-quick-like    { background: rgba(29, 185, 84, 0.22); color: #fff; }
+.sdk-quick-dislike { background: rgba(231, 76, 60, 0.22); color: #fff; }
+@media (hover: hover) {
+    .sdk-quick-like:hover    { background: rgba(29, 185, 84, 0.42); }
+    .sdk-quick-dislike:hover { background: rgba(231, 76, 60, 0.42); }
+}
+.sdk-quick:active { transform: scale(0.94); }
+
 /* ── Action tabs — rounded icon strip ── */
 .preview-tab-actions {
     display: flex;
