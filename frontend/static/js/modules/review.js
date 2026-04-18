@@ -94,7 +94,7 @@ export function renderReviewTracks() {
 
 /* ── Review-specific feedback functions ── */
 
-export function toggleReviewFeedback(idx, action) {
+export function toggleReviewFeedback(idx) {
     const form = el(`review-form-${idx}`);
     if (!form) return;
     const isOpen = form.classList.contains('open');
@@ -104,22 +104,13 @@ export function toggleReviewFeedback(idx, action) {
         if (f.id !== `review-form-${idx}`) f.classList.remove('open');
     });
 
-    if (isOpen && form.dataset.action === action) {
+    if (isOpen) {
         form.classList.remove('open');
         return;
     }
 
     form.classList.add('open');
-    form.dataset.action = action;
-
-    const submitBtn = el(`review-submitBtn-${idx}`);
-    if (action === 'like') {
-        submitBtn.textContent = i18n('btn.submit_like', '👍 Submit');
-        submitBtn.className = 'btn btn-submit-like';
-    } else {
-        submitBtn.textContent = i18n('btn.submit_dislike', '👎 Submit');
-        submitBtn.className = 'btn btn-submit-dislike';
-    }
+    delete form.dataset.action;
 }
 
 export function closeReviewFeedback(idx) {
@@ -127,18 +118,18 @@ export function closeReviewFeedback(idx) {
     if (form) form.classList.remove('open');
 }
 
-export async function submitReviewFeedback(idx) {
+export async function submitReviewFeedback(idx, action) {
+    action = action || 'like';
     const artist = el(`review-artist-${idx}`).value.trim();
     const track  = el(`review-title-${idx}`).value.trim();
     const reason = el(`review-reason-${idx}`).value.trim();
-    const form = el(`review-form-${idx}`);
-    const action = form ? form.dataset.action : 'like';
 
     if (!artist) { showAlert(i18n('feedback.artist_required', 'Artist is required.')); return; }
 
-    const submitBtn = el(`review-submitBtn-${idx}`);
-    submitBtn.disabled = true;
-    submitBtn.textContent = '…';
+    const submitBtnLike = el(`review-submitBtn-${idx}-like`);
+    const submitBtnDislike = el(`review-submitBtn-${idx}-dislike`);
+    if (submitBtnLike) submitBtnLike.disabled = true;
+    if (submitBtnDislike) submitBtnDislike.disabled = true;
 
     try {
         const resp = await fetch('/api/feedback', {
@@ -181,7 +172,8 @@ export async function submitReviewFeedback(idx) {
     } catch (e) {
         showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
     } finally {
-        submitBtn.disabled = false;
+        if (submitBtnLike) submitBtnLike.disabled = false;
+        if (submitBtnDislike) submitBtnDislike.disabled = false;
     }
 }
 

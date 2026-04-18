@@ -297,9 +297,8 @@
                             {% endif %}
                         </div>
                         <div class="track-actions">
-                            <button class="btn btn-like"    onclick="toggleFeedback({{ idx }},'like')" aria-label="Like {{ track.artist|e }} — {{ track.title|e }}"><span aria-hidden="true">👍</span> Like</button>
-                            <button class="btn btn-dislike" onclick="toggleFeedback({{ idx }},'dislike')" aria-label="Dislike {{ track.artist|e }} — {{ track.title|e }}"><span aria-hidden="true">👎</span> Dislike</button>
-                            <button class="btn btn-remove"  onclick="removeTrack({{ idx }})" aria-label="Remove {{ track.artist|e }} — {{ track.title|e }}">✕</button>
+                            <button class="btn btn-feedback" onclick="toggleFeedback({{ idx }})" aria-label="Feedback on {{ track.artist|e }} — {{ track.title|e }}"><span aria-hidden="true">💬</span> Feedback</button>
+                            <button class="btn btn-remove"  onclick="removeTrack({{ idx }})" aria-label="Delete {{ track.artist|e }} — {{ track.title|e }}">🗑</button>
                         </div>
                     </div>
                     <div class="feedback-form" id="form-{{ idx }}">
@@ -316,8 +315,9 @@
                             <label for="reason-{{ idx }}">Reason (optional)</label>
                             <input id="reason-{{ idx }}" type="text" placeholder="e.g. perfect energy, boring melody…">
                         </div>
-                        <div class="form-actions">
-                            <button class="btn" id="submitBtn-{{ idx }}" onclick="submitFeedback({{ idx }})">Submit</button>
+                        <div class="form-actions form-actions-dual">
+                            <button class="btn btn-submit-like" id="submitBtn-{{ idx }}-like" onclick="submitFeedback({{ idx }},'like')">👍 Like</button>
+                            <button class="btn btn-submit-dislike" id="submitBtn-{{ idx }}-dislike" onclick="submitFeedback({{ idx }},'dislike')">👎 Dislike</button>
                             <button class="btn btn-cancel" onclick="closeFeedback({{ idx }})">Cancel</button>
                         </div>
                     </div>

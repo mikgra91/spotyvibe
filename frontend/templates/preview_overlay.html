@@ -29,10 +29,10 @@
                     <span class="sdk-player-time" id="sdkPlayerTimeDur">0:00</span>
                 </div>
                 <div class="sdk-player-quick" role="group" aria-label="Quick feedback">
-                    <button class="sdk-quick sdk-quick-like" onclick="previewLike()" data-i18n-title="feedback.like" title="Like" aria-label="Like this track">
+                    <button class="sdk-quick sdk-quick-like" id="sdkQuickLike" onclick="quickLike()" data-i18n-title="feedback.like" title="Like" aria-label="Like this track">
                         <span aria-hidden="true">👍</span>
                     </button>
-                    <button class="sdk-quick sdk-quick-dislike" onclick="previewDislike()" data-i18n-title="feedback.dislike" title="Dislike" aria-label="Dislike this track">
+                    <button class="sdk-quick sdk-quick-dislike" id="sdkQuickDislike" onclick="quickDislike()" data-i18n-title="feedback.dislike" title="Dislike" aria-label="Dislike this track">
                         <span aria-hidden="true">👎</span>
                     </button>
                 </div>
@@ -62,16 +62,15 @@
             </label>
         </div>
 
-        <!-- Action tabs (file-cabinet register style) -->
+        <!-- Action tabs: Feedback (opens reason panel) + Delete -->
         <div class="preview-tab-actions" id="previewInlineActions" role="group" aria-label="Track actions">
-            <button class="preview-tab preview-tab-like" id="previewTabLike" onclick="previewLike()" data-i18n-title="feedback.like" title="Like" aria-label="Like this track">
-                <span class="preview-tab-icon" aria-hidden="true">👍</span>
+            <button class="preview-tab preview-tab-feedback" id="previewTabFeedback" onclick="openPreviewFeedbackPanel()" data-i18n-title="feedback.open_panel" title="Feedback" aria-label="Give feedback on this track">
+                <span class="preview-tab-icon" aria-hidden="true">💬</span>
+                <span class="preview-tab-label" data-i18n="feedback.open_panel">Feedback</span>
             </button>
-            <button class="preview-tab preview-tab-dislike" id="previewTabDislike" onclick="previewDislike()" data-i18n-title="feedback.dislike" title="Dislike" aria-label="Dislike this track">
-                <span class="preview-tab-icon" aria-hidden="true">👎</span>
-            </button>
-            <button class="preview-tab preview-tab-dismiss" onclick="previewDismiss()" data-i18n-title="preview.remove" title="Remove from playlist" aria-label="Remove from playlist">
+            <button class="preview-tab preview-tab-dismiss" onclick="previewDismiss()" data-i18n-title="preview.remove" title="Delete from playlist" aria-label="Delete from playlist">
                 <span class="preview-tab-icon" aria-hidden="true">🗑</span>
+                <span class="preview-tab-label" data-i18n="feedback.delete">Delete</span>
             </button>
         </div>
 
@@ -91,8 +90,9 @@
                     <label for="previewFbReason" data-i18n="feedback.reason_label">Reason (optional)</label>
                     <input id="previewFbReason" type="text" data-i18n-placeholder="feedback.reason_placeholder" placeholder="e.g. perfect energy, boring melody…">
                 </div>
-                <div class="form-actions">
-                    <button class="btn" id="previewFbSubmit" onclick="submitPreviewFeedback()" data-i18n="btn.submit">Submit</button>
+                <div class="form-actions form-actions-dual">
+                    <button class="btn btn-submit-like" id="previewFbSubmitLike" onclick="submitPreviewFeedback('like')" data-i18n="feedback.submit_like">👍 Like</button>
+                    <button class="btn btn-submit-dislike" id="previewFbSubmitDislike" onclick="submitPreviewFeedback('dislike')" data-i18n="feedback.submit_dislike">👎 Dislike</button>
                     <button class="btn btn-cancel" onclick="closePreviewFeedback()" data-i18n="btn.cancel">Cancel</button>
                 </div>
             </div>

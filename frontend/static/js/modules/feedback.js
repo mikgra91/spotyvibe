@@ -47,8 +47,7 @@ export function buildTrackCardHtml(track, idx, source = 'discover') {
                 ${noPreviewHtml}
             </div>
             <div class="track-actions">
-                <button class="btn btn-like"    onclick="${feedbackFn}(${idx},'like')">👍 ${esc(i18n('feedback.like', 'Like'))}</button>
-                <button class="btn btn-dislike" onclick="${feedbackFn}(${idx},'dislike')">👎 ${esc(i18n('feedback.dislike', 'Dislike'))}</button>
+                <button class="btn btn-feedback" onclick="${feedbackFn}(${idx})">💬 ${esc(i18n('feedback.open_panel', 'Feedback'))}</button>
                 <button class="btn btn-remove"  onclick="${removeFn}(${idx})" aria-label="${attr(i18n('feedback.delete_from_playlist', 'Delete from playlist'))}" title="${attr(i18n('feedback.delete_from_playlist', 'Delete from playlist'))}">🗑</button>
             </div>
         </div>
@@ -66,38 +65,31 @@ export function buildTrackCardHtml(track, idx, source = 'discover') {
                 <label for="${reasonId}">${esc(i18n('feedback.reason_label', 'Reason (optional)'))}</label>
                 <input id="${reasonId}" type="text" placeholder="${attr(i18n('feedback.reason_placeholder', 'e.g. perfect energy, boring melody…'))}">
             </div>
-            <div class="form-actions">
-                <button class="btn" id="${submitBtnId}" onclick="${submitFn}(${idx})">${esc(i18n('btn.submit', 'Submit'))}</button>
+            <div class="form-actions form-actions-dual">
+                <button class="btn btn-submit-like" id="${submitBtnId}-like" onclick="${submitFn}(${idx},'like')">👍 ${esc(i18n('feedback.submit_like', 'Like'))}</button>
+                <button class="btn btn-submit-dislike" id="${submitBtnId}-dislike" onclick="${submitFn}(${idx},'dislike')">👎 ${esc(i18n('feedback.submit_dislike', 'Dislike'))}</button>
                 <button class="btn btn-cancel" onclick="${closeFn}(${idx})">${esc(i18n('btn.cancel', 'Cancel'))}</button>
             </div>
         </div>`;
 }
 
-export function toggleFeedback(idx, action) {
+export function toggleFeedback(idx) {
     if (State.openFormIndex !== null && State.openFormIndex !== idx) {
         closeFeedback(State.openFormIndex);
     }
 
     const form = el(`form-${idx}`);
+    if (!form) return;
     const isOpen = form.classList.contains('open');
 
-    if (isOpen && State.openFormAction === action) {
+    if (isOpen) {
         closeFeedback(idx);
         return;
     }
 
     form.classList.add('open');
     State.setOpenFormIndex(idx);
-    State.setOpenFormAction(action);
-
-    const submitBtn = el(`submitBtn-${idx}`);
-    if (action === 'like') {
-        submitBtn.textContent = i18n('btn.submit_like', '👍 Submit');
-        submitBtn.className = 'btn btn-submit-like';
-    } else {
-        submitBtn.textContent = i18n('btn.submit_dislike', '👎 Submit');
-        submitBtn.className = 'btn btn-submit-dislike';
-    }
+    State.setOpenFormAction(null);
 }
 
 export function closeFeedback(idx) {
@@ -109,23 +101,25 @@ export function closeFeedback(idx) {
     }
 }
 
-export async function submitFeedback(idx) {
+export async function submitFeedback(idx, action) {
+    action = action || State.openFormAction || 'like';
     const artist = el(`artist-${idx}`).value.trim();
     const track  = el(`title-${idx}`).value.trim();
     const reason = el(`reason-${idx}`).value.trim();
 
     if (!artist) { showAlert(i18n('feedback.artist_required', 'Artist is required.')); return; }
 
-    const submitBtn = el(`submitBtn-${idx}`);
-    submitBtn.disabled = true;
-    submitBtn.textContent = '…';
+    const submitBtnLike = el(`submitBtn-${idx}-like`);
+    const submitBtnDislike = el(`submitBtn-${idx}-dislike`);
+    if (submitBtnLike) submitBtnLike.disabled = true;
+    if (submitBtnDislike) submitBtnDislike.disabled = true;
 
     try {
         const resp = await fetch('/api/feedback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                action: State.openFormAction,
+                action,
                 artist,
                 track:  track  || null,
                 reason: reason || null,
@@ -141,7 +135,7 @@ export async function submitFeedback(idx) {
         const data = await resp.json();
         const trackLabel = track ? ` — ${track}` : '';
 
-        if (State.openFormAction === 'dislike') {
+        if (action === 'dislike') {
             const removed = data.removal && data.removal.removed;
             const msg = removed
                 ? i18n('feedback.disliked_removed_playlist', '👎 Disliked & removed from playlist: {track}').replace('{track}', `${artist}${trackLabel}`)
@@ -172,7 +166,8 @@ export async function submitFeedback(idx) {
     } catch (e) {
         showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
     } finally {
-        submitBtn.disabled = false;
+        if (submitBtnLike) submitBtnLike.disabled = false;
+        if (submitBtnDislike) submitBtnDislike.disabled = false;
     }
 }
 

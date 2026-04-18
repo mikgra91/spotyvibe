@@ -40,6 +40,14 @@
     background: var(--error);
     color: var(--text-primary);
 }
+.btn-feedback {
+    background: rgba(29, 185, 84, 0.18);
+    color: var(--text-primary);
+    border: 1px solid rgba(29, 185, 84, 0.45);
+}
+@media (hover: hover) {
+    .btn-feedback:hover { background: rgba(29, 185, 84, 0.30); }
+}
 .btn-remove,
 .btn-cancel {
     background: rgba(27,33,42,0.8);

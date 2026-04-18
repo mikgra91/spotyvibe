@@ -77,6 +77,13 @@ const TIP_CATALOGUE = {
             if (input) input.focus();
         },
     },
+    first_preview_open: {
+        id: 'first_preview_open',
+        title_i18n: 'preview.rate_hint',
+        body_i18n: 'preview.rate_hint_body',
+        link_i18n: 'tip.first_filter_link',
+        linkAction: () => { /* no sub-action — just dismiss */ },
+    },
     five_generations: {
         id: 'five_generations',
         title_i18n: 'tip.five_generations',

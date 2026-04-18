@@ -133,6 +133,8 @@ export function openPreviewOverlay(trackId, title, source = 'discover') {
             updateSdkMeta(track);
             sdkPlayCurrentTrack(track).catch(() => fallbackToIframe(trackId));
         }
+        // Regardless of SDK path, nudge the user on first preview open.
+        setTimeout(maybeShowRateHint, 400);
     }).catch(() => { /* already in iframe mode */ });
 }
 
@@ -300,7 +302,7 @@ export function nextPreview() {
 
 /* ── Inline Preview Feedback ── */
 
-let currentFeedbackAction = null;  // track which tab is open: 'like', 'dislike', or null
+const RATE_HINT_KEY = 'spv_preview_rate_hint_seen';
 
 function updatePreviewFeedbackState() {
     const actions = el('previewInlineActions');
@@ -312,61 +314,25 @@ function getCurrentPreviewTrack() {
     return currentPreviewIndex >= 0 ? tracks[currentPreviewIndex] : null;
 }
 
-function clearActiveTab() {
-    el('previewTabLike')?.classList.remove('active');
-    el('previewTabDislike')?.classList.remove('active');
-}
-
-export function previewLike() {
-    togglePreviewFeedbackForm('like');
-}
-
-export function previewDislike() {
-    togglePreviewFeedbackForm('dislike');
-}
-
-function togglePreviewFeedbackForm(action) {
+/**
+ * Open the reason panel with no pre-selected polarity. User picks
+ * Like or Dislike via the dual submit buttons at the bottom. (§6)
+ */
+export function openPreviewFeedbackPanel() {
     const track = getCurrentPreviewTrack();
     if (!track) return;
-
     const panel = el('previewFeedbackPanel');
     if (!panel) return;
 
-    // Toggle: if same action tab clicked again, close the form
-    if (currentFeedbackAction === action && panel.classList.contains('visible')) {
-        closePreviewFeedback();
-        return;
-    }
-
-    // Open (or switch) the feedback form
-    currentFeedbackAction = action;
-
-    // Update active tab
-    clearActiveTab();
-    const tabId = action === 'like' ? 'previewTabLike' : 'previewTabDislike';
-    el(tabId)?.classList.add('active');
-
-    // Action-specific colouring on the panel
     panel.classList.remove('action-like', 'action-dislike');
-    panel.classList.add('visible', `action-${action}`);
-    panel.dataset.action = action;
+    panel.classList.add('visible');
 
     const artistInput = el('previewFbArtist');
     const trackInput = el('previewFbTrack');
     const reasonInput = el('previewFbReason');
-    const submitBtn = el('previewFbSubmit');
-
     if (artistInput) artistInput.value = track.artist || '';
     if (trackInput) trackInput.value = track.track || '';
     if (reasonInput) reasonInput.value = '';
-
-    if (action === 'like') {
-        submitBtn.textContent = i18n('btn.submit_like', '👍 Submit');
-        submitBtn.className = 'btn btn-submit-like';
-    } else {
-        submitBtn.textContent = i18n('btn.submit_dislike', '👎 Submit');
-        submitBtn.className = 'btn btn-submit-dislike';
-    }
 }
 
 export function closePreviewFeedback() {
@@ -374,23 +340,50 @@ export function closePreviewFeedback() {
     if (panel) {
         panel.classList.remove('visible', 'action-like', 'action-dislike');
     }
-    clearActiveTab();
-    currentFeedbackAction = null;
 }
 
-export async function submitPreviewFeedback() {
-    const panel = el('previewFeedbackPanel');
-    const action = panel ? panel.dataset.action : 'like';
+/**
+ * Quick submit-on-click from the SDK player's 👍/👎 buttons. No form,
+ * empty reason. Dislike also strips the track from the Spotify playlist
+ * and advances.
+ */
+export function quickLike() {
+    return _submitQuickFeedback('like');
+}
+
+export function quickDislike() {
+    return _submitQuickFeedback('dislike');
+}
+
+async function _submitQuickFeedback(action) {
+    const track = getCurrentPreviewTrack();
+    if (!track) return;
+    await _postFeedbackAndReact(action, track.artist, track.track, null);
+}
+
+/**
+ * Submit the reason-panel feedback with explicit polarity (Like or
+ * Dislike button on the panel). Reads the form's artist/track/reason.
+ */
+export async function submitPreviewFeedback(action) {
     const artist = el('previewFbArtist').value.trim();
     const track = el('previewFbTrack').value.trim();
     const reason = el('previewFbReason').value.trim();
 
     if (!artist) { showAlert(i18n('feedback.artist_required', 'Artist is required.')); return; }
 
-    const submitBtn = el('previewFbSubmit');
-    submitBtn.disabled = true;
-    submitBtn.textContent = '…';
+    const btnId = action === 'like' ? 'previewFbSubmitLike' : 'previewFbSubmitDislike';
+    const submitBtn = el(btnId);
+    if (submitBtn) { submitBtn.disabled = true; }
 
+    try {
+        await _postFeedbackAndReact(action, artist, track || null, reason || null);
+    } finally {
+        if (submitBtn) submitBtn.disabled = false;
+    }
+}
+
+async function _postFeedbackAndReact(action, artist, track, reason) {
     try {
         const resp = await fetch('/api/feedback', {
             method: 'POST',
@@ -398,7 +391,7 @@ export async function submitPreviewFeedback() {
             body: JSON.stringify({ action, artist, track: track || null, reason: reason || null }),
         });
         if (!resp.ok) {
-            const data = await resp.json();
+            const data = await resp.json().catch(() => ({}));
             showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', data.error || 'unknown'));
             return;
         }
@@ -407,7 +400,6 @@ export async function submitPreviewFeedback() {
         const { showToast } = await import('./ui.js');
 
         if (action === 'dislike') {
-            // Also remove from Spotify playlist
             const currentTrack = getCurrentPreviewTrack();
             if (currentTrack) {
                 await fetch('/api/remove', {
@@ -416,17 +408,33 @@ export async function submitPreviewFeedback() {
                     body: JSON.stringify({ artist: currentTrack.artist, track: currentTrack.track }),
                 }).catch(() => {});
             }
-            showToast(i18n('review.disliked_removed', '👎 Disliked & removed: {track}').replace('{track}', `${artist}${trackLabel}`));
+            showToast(i18n('feedback.quick_disliked_toast', '👎 Disliked & removed: {track}').replace('{track}', `${artist}${trackLabel}`));
         } else {
-            showToast(i18n('review.liked', '👍 Liked: {track}').replace('{track}', `${artist}${trackLabel}`));
+            showToast(i18n('feedback.quick_liked_toast', '👍 Liked: {track}').replace('{track}', `${artist}${trackLabel}`));
         }
 
-        // Remove track from source list and advance preview
         removeCurrentAndAdvance();
     } catch (e) {
         showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
-    } finally {
-        submitBtn.disabled = false;
+    }
+}
+
+/** First preview per session: pulse the player quick buttons + tip. */
+function maybeShowRateHint() {
+    try {
+        if (localStorage.getItem(RATE_HINT_KEY) === '1') return;
+        localStorage.setItem(RATE_HINT_KEY, '1');
+    } catch (_) { /* ignore storage errors */ }
+
+    const like = el('sdkQuickLike');
+    const dislike = el('sdkQuickDislike');
+    [like, dislike].forEach((btn) => {
+        if (!btn) return;
+        btn.classList.add('pulse');
+        setTimeout(() => btn.classList.remove('pulse'), 4000);
+    });
+    if (window.Tips && typeof window.Tips.showTipById === 'function') {
+        window.Tips.showTipById('first_preview_open');
     }
 }
 
