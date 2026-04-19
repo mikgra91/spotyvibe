@@ -243,10 +243,11 @@
             "label label"
             "min   max"
             "hint  hint"
-            "desc  desc";
+            "desc  desc"
+            "lm    lm";
     }
     .audio-filter-row .audio-filter-hint-text { justify-self: start; }
-    .audio-filter-row .learn-more { justify-self: end; }
+    .audio-filter-row .learn-more { justify-self: start; }
 
     /* Song analysis — stack inputs vertically on narrow screens */
     .analysis-input-row { flex-direction: column; }

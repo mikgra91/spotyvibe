@@ -69,6 +69,7 @@ export async function toggleSpotifyConnection() {
             showToast(i18n('msg.spotify_disconnected', 'Spotify disconnected.'), 'info');
             await checkSpotifyAuth();
             renderComponentWarnings();
+            if (typeof window.refreshGettingStarted === 'function') window.refreshGettingStarted();
         } catch (e) {
             showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
         }

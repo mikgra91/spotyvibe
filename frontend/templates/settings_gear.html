@@ -20,9 +20,7 @@
             <button role="menuitem" onclick="openCredentials()"><span aria-hidden="true">🔑</span> <span data-i18n="nav.credentials">Credentials</span></button>
             <button role="menuitem" onclick="openSettings()"><span aria-hidden="true">⚙️</span> <span data-i18n="nav.settings">Settings</span></button>
             <button role="menuitem" onclick="openModal('presetManagerModal'); toggleSettingsMenu();"><span aria-hidden="true">🎛</span> <span data-i18n="nav.manage_presets">Manage presets</span></button>
-            <button role="menuitem" id="spotifyToggleBtn" onclick="toggleSpotifyConnection()">
-                {{ '🔌 Disconnect Spotify' if spotify_connected else '🔌 Connect Spotify' }}
-            </button>
+            <button role="menuitem" id="spotifyToggleBtn" onclick="toggleSpotifyConnection()"><span aria-hidden="true">🔌</span> <span id="spotifyToggleLabel" data-i18n="{{ 'nav.disconnect_spotify' if spotify_connected else 'nav.connect_spotify' }}">{{ 'Disconnect Spotify' if spotify_connected else 'Connect Spotify' }}</span></button>
             <div class="settings-dropdown-sep" role="presentation"></div>
             <div class="settings-dropdown-header" role="presentation" data-i18n="nav.group_help">HELP & GUIDANCE</div>
             <button role="menuitem" onclick="openHelp()"><span aria-hidden="true">❓</span> <span data-i18n="nav.help">Help</span></button>

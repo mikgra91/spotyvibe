@@ -5,7 +5,7 @@ import { toggleHistoryBody, loadHistory } from './modules/history.js';
 import { toggleAnalysisBody, runAnalysis, renderAnalysisResult, copySuggestion, jumpToAnalysis } from './modules/analysis.js';
 import { toggleGenerateBody, runPipeline, setGenerating, updateUseTracksButton, generateUUID, handleStreamEvent, showSseDisconnectBanner, resumeRun, cancelGeneration, useCurrentTracks, canGenerate } from './modules/pipeline.js';
 import { toggleAudioFilters, getAudioFilters, clearAllFilters, updateFilterHint, applyAnalysisFilter, applyAllAnalysisFilters, updateAllFilterHints } from './modules/audio-filters.js';
-import { getPlaylistMode, onPlaylistModeChange, getPlaylistModePayload, refreshDiscoverPlaylistPicker } from './modules/playlist-mode.js';
+import { getPlaylistMode, onPlaylistModeChange, getPlaylistModePayload, refreshDiscoverPlaylistPicker, initPlaylistMode } from './modules/playlist-mode.js';
 import { renderTracks } from './modules/tracklist.js';
 import { openPreviewOverlay, closePreviewOverlay, prevPreview, nextPreview, quickLike, quickDislike, previewDismiss, submitPreviewFeedback, closePreviewFeedback, openPreviewFeedbackPanel, togglePreviewAutoplay, sdkTogglePlay } from './modules/preview.js';
 import { toggleFeedback, closeFeedback, submitFeedback, removeTrack, animateRemove } from './modules/feedback.js';
@@ -181,6 +181,7 @@ window.addEventListener('message', async (e) => {
         await checkSpotifyAuth();
         renderComponentWarnings();
         updateSeedCardState();
+        if (typeof window.refreshGettingStarted === 'function') window.refreshGettingStarted();
     }
 });
 
@@ -238,6 +239,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Playlist mode
     onPlaylistModeChange();
+    initPlaylistMode();
 
     // Tab navigation — wire click handlers before awaiting i18n so tests
     // (and fast users) don't click a tab before listeners are attached.

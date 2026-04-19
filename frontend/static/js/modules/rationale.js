@@ -38,12 +38,13 @@ function renderChip(chip) {
 }
 
 function _buildChips(rationale) {
+    // No rationale data → no chip. Previously rendered a generic "profile match"
+    // fallback, which was misleading for tracks loaded from Spotify in the
+    // Refine Playlist list (no per-track reasoning is available there).
     if (!rationale || !Array.isArray(rationale) || rationale.length === 0) {
-        rationale = [{ type: 'fallback' }];
+        return '';
     }
-    const html = rationale.slice(0, 2).map(renderChip).filter(Boolean).join('');
-    // If all chips resolved to empty, show a fallback chip
-    return html || renderChip({ type: 'fallback' });
+    return rationale.slice(0, 2).map(renderChip).filter(Boolean).join('');
 }
 
 /**

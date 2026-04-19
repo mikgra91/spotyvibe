@@ -66,11 +66,15 @@ export function renderComponentWarnings() {
         runBtn.disabled = false;
     }
 
-    const spotifyBtn = el('spotifyToggleBtn');
-    if (State.spotifyAuthStatus === 'authenticated') {
-        spotifyBtn.textContent = '🔌 ' + i18n('nav.disconnect_spotify', 'Disconnect Spotify');
-    } else {
-        spotifyBtn.textContent = '🔌 ' + i18n('nav.connect_spotify', 'Connect Spotify');
+    const spotifyLabel = el('spotifyToggleLabel');
+    if (spotifyLabel) {
+        if (State.spotifyAuthStatus === 'authenticated') {
+            spotifyLabel.setAttribute('data-i18n', 'nav.disconnect_spotify');
+            spotifyLabel.textContent = i18n('nav.disconnect_spotify', 'Disconnect Spotify');
+        } else {
+            spotifyLabel.setAttribute('data-i18n', 'nav.connect_spotify');
+            spotifyLabel.textContent = i18n('nav.connect_spotify', 'Connect Spotify');
+        }
     }
 }
 

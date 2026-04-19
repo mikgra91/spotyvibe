@@ -832,7 +832,8 @@
     grid-template-columns: 160px 1fr 1fr minmax(100px, auto);
     grid-template-areas:
         "label min  max  hint"
-        "desc  desc desc desc";
+        "desc  desc desc desc"
+        "lm    lm   lm   lm";
     gap: var(--sp-1) var(--sp-2);
     align-items: center;
     padding: var(--sp-2) 0;
@@ -845,7 +846,7 @@
 .audio-filter-row > input[id$="-max"] { grid-area: max; }
 .audio-filter-row .audio-filter-hint-text { grid-area: hint; justify-self: end; }
 .audio-filter-row .inline-hint { grid-area: desc; margin: 0; }
-.audio-filter-row .learn-more { grid-area: desc; justify-self: end; }
+.audio-filter-row .learn-more { grid-area: lm; justify-self: start; }
 
 .audio-filter-row label {
     font-size: var(--fs-sm);

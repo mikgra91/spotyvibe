@@ -59,10 +59,30 @@
     --btn-cta-text: #041108;
     --error-hover: #DC2626;
     --ob-card-max-width: 480px;
+
+    /* Modal width scale — keep modal widths in sync across components. */
+    --modal-width-md: 500px;
+    --modal-width-lg: 750px;
+
+    /* Preview overlay sizing — player panel, album art, transport, navbar. */
+    --preview-panel-min-w: 560px;
+    --preview-panel-max-w: 920px;
+    --preview-art-size: 140px;
+    --preview-transport-gap: var(--sp-10);
+    --preview-navbar-item-w: 88px;
+    --preview-navbar-item-h: 72px;
+    --preview-navbar-bg: rgba(0, 0, 0, 0.35);
+    --preview-navbar-border: rgba(255, 255, 255, 0.06);
     --ob-card-padding: 32px 24px;
     --ob-step-gap: 16px;
     --slider-track-h: 4px;
     --slider-thumb-size: 18px;
+
+    /* Form-control sizing tokens — shared by playlist name/picker,
+       modal selects, and other large inputs so visual dimensions stay in sync. */
+    --ctrl-h: 50px;
+    --ctrl-px: 17px;
+
     --meter-bar-h: 8px;
     --meter-ok: var(--warning);
     --meter-strong: var(--success);

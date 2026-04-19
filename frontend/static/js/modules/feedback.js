@@ -115,6 +115,7 @@ export async function submitFeedback(idx, action) {
     if (submitBtnDislike) submitBtnDislike.disabled = true;
 
     try {
+        const srcTrack = State.suggestions[idx];
         const resp = await fetch('/api/feedback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -123,6 +124,8 @@ export async function submitFeedback(idx, action) {
                 artist,
                 track:  track  || null,
                 reason: reason || null,
+                playlist_id: State.lastGeneratedPlaylistId || null,
+                track_id: (srcTrack && srcTrack.track_id) || null,
             }),
         });
 
@@ -153,6 +156,10 @@ export async function submitFeedback(idx, action) {
 
         resetDashboard();
 
+        if (typeof window.refreshGettingStarted === 'function') {
+            window.refreshGettingStarted();
+        }
+
         const fbTrack = State.suggestions[idx];
         animateRemove(idx);
 
@@ -179,7 +186,12 @@ export async function removeTrack(idx) {
         const resp = await fetch('/api/remove', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ artist: track.artist, track: track.track }),
+            body: JSON.stringify({
+                artist: track.artist,
+                track: track.track,
+                playlist_id: State.lastGeneratedPlaylistId || null,
+                track_id: track.track_id || null,
+            }),
         });
         const data = await resp.json();
         const msg = data.removed

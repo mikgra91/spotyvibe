@@ -35,7 +35,8 @@
                 </button>
                 <ul class="preset-dropdown-list hidden" id="presetDropdownList" role="listbox"></ul>
             </div>
-            <button class="preset-save-btn" onclick="window._presetSaveAs()" data-i18n="preset.save_current">💾 Save current as preset…</button>
+            <button class="preset-save-btn preset-update-btn hidden" id="presetUpdateBtn" onclick="window._presetUpdateCurrent()" data-i18n="preset.update_current">💾 Save preset</button>
+            <button class="preset-save-btn" onclick="window._presetSaveAs()" data-i18n="preset.save_as_new">+ New</button>
         </div>
 
         <!-- Emerging artists filter -->
@@ -138,7 +139,7 @@
                 <label for="genSize" data-i18n="gen.size_label">Playlist size</label>
                 <span class="gen-size-value">20 <span data-i18n="gen.size_suffix">tracks</span></span>
             </div>
-            <input type="range" id="genSize" class="gen-size-slider" min="10" max="30" step="5" value="{{ settings.playlist_size if settings.playlist_size else 20 }}">
+            <input type="range" id="genSize" class="gen-size-slider" min="5" max="30" step="5" value="{{ settings.playlist_size if settings.playlist_size else 10 }}">
             <p class="inline-hint" data-i18n="settings.playlist_size_hint">How many tracks to generate (max 30).</p>
             {{ learn_more('settings.playlist_size_learn_more', 'Max capped at 30 — beyond that GPT starts repeating itself across 10-track fetch blocks, and review fatigue sets in. If you want a longer session, run twice with different presets.') }}
         </div>

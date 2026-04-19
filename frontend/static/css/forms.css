@@ -103,9 +103,9 @@
     padding-right: 40px;
 }
 .playlist-picker-select {
-    flex: 1; min-width: 0; height: 50px;
+    flex: 1; min-width: 0; height: var(--ctrl-h);
     border-radius: var(--radius-sm);
-    padding: 0 40px 0 17px;
+    padding: 0 40px 0 var(--ctrl-px);
     background: var(--bg-input);
     color: var(--text-primary);
     border: 1px solid var(--border);
@@ -149,8 +149,25 @@
     .playlist-delete-btn:hover { color: var(--error); border-color: var(--error); }
 }
 
-/* .playlist-name-input extends .input-base — delta only */
-.playlist-name-input { height: 50px; padding: 0 17px; font-size: var(--fs-md); }
+/* .playlist-name-input matches .playlist-picker-select dimensions so the two
+   fields look identical when swapping between Create / Append modes. */
+.playlist-name-input {
+    flex: 1 1 auto; min-width: 0;
+    height: var(--ctrl-h);
+    padding: 0 var(--ctrl-px);
+    font-size: var(--fs-md);
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: inherit;
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+.playlist-name-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--focus-glow);
+}
 
 /* ── Emerging artists ─────────────────────────────────────────────── */
 .emerging-artists-row {

@@ -1,4 +1,6 @@
 import { el } from './dom.js';
+import { loadHistory } from './history.js';
+import * as State from './state.js';
 /**
  * Tab-based section navigation.
  *
@@ -85,6 +87,14 @@ function _applyTab(tabName) {
     if (openaiEl) openaiEl.classList.toggle('hidden', tabName !== 'openai');
     if (spotifyEl) spotifyEl.classList.toggle('hidden', tabName !== 'spotify');
     if (historyEl) historyEl.classList.toggle('hidden', tabName !== 'history');
+
+    // Auto-load run history the first time the tab is shown. Without this,
+    // the server-rendered "No runs yet." stays on screen until the user
+    // manually toggles the Show button inside the section.
+    if (tabName === 'history') {
+        State.setHistoryBodyOpen(true);
+        loadHistory();
+    }
 }
 
 function _handleKeydown(e) {

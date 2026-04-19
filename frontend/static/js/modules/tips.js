@@ -84,6 +84,23 @@ const TIP_CATALOGUE = {
         link_i18n: 'tip.first_filter_link',
         linkAction: () => { /* no sub-action — just dismiss */ },
     },
+    sdk_brave_widevine: {
+        id: 'sdk_brave_widevine',
+        title_i18n: 'tip.sdk_brave_widevine',
+        body_i18n: 'tip.sdk_brave_widevine_body',
+        link_i18n: 'tip.sdk_brave_widevine_link',
+        linkAction: () => {
+            // brave://… cannot be opened by JS; copy to clipboard so user can paste.
+            try { navigator.clipboard?.writeText('brave://settings/extensions'); } catch { /* ignore */ }
+        },
+    },
+    sdk_no_drm: {
+        id: 'sdk_no_drm',
+        title_i18n: 'tip.sdk_no_drm',
+        body_i18n: 'tip.sdk_no_drm_body',
+        link_i18n: 'tip.sdk_no_drm_link',
+        linkAction: () => { /* informational only */ },
+    },
     five_generations: {
         id: 'five_generations',
         title_i18n: 'tip.five_generations',

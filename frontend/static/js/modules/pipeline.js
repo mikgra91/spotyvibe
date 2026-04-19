@@ -2,7 +2,7 @@ import * as State from './state.js';
 import { showStatus, showStatusHtml, hidePlaylistLink, showPlaylistLink, showConfirm } from './ui.js';
 import { checkCredentialStatus, checkSpotifyAuth } from './auth.js';
 import { renderComponentWarnings } from './warnings.js';
-import { getPlaylistModePayload, getPlaylistMode, refreshDiscoverPlaylistPicker, ensurePlaylistsLoaded, switchToAppendMode } from './playlist-mode.js';
+import { getPlaylistModePayload, getPlaylistMode, refreshDiscoverPlaylistPicker, ensurePlaylistsLoaded, switchToAppendMode, rememberLastPlaylistId } from './playlist-mode.js';
 import { getAudioFilters } from './audio-filters.js';
 import { renderTracks } from './tracklist.js';
 import { loadHistory } from './history.js';
@@ -312,6 +312,10 @@ export function handleStreamEvent(event) {
             const _batchCount = State.suggestions.length;
             if (State.historyBodyOpen) loadHistory();
             if (event.playlist_url) showPlaylistLink(event.playlist_url);
+            if (event.playlist_id) {
+                State.setLastGeneratedPlaylistId(event.playlist_id);
+                rememberLastPlaylistId(event.playlist_id);
+            }
             const parts = [
                 event.was_cancelled
                     ? i18n('pipeline.stopped_early', '⛔ Generation stopped early. Playlist created with {count} track(s).').replace('{count}', _batchCount)
