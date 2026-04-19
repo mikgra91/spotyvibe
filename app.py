@@ -96,6 +96,8 @@ from core.src.feedback import like_track, dislike_track
 from core.src.analysis import analyze_band_song
 from core.src.history import save_run, load_runs, update_track_sentiment
 from core.src.utils import get_openai_models, clear_debug_log, sanitize_text, safe_text, app_log
+from core.src.eval_log import log_batch_outcome
+from core.src.rag import score_artists as _rag_score_artists
 from core.src.openai_http import OpenAIConfigError, OpenAIError
 from core.src.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist, delete_playlist,
@@ -740,6 +742,44 @@ def run_pipeline():
                 found, not_found = search_tracks(result["playlist"])
                 all_not_found.extend(not_found)
 
+                # ── Eval log: one JSONL row per suggested track ────────
+                # Lets us measure hallucination rate / candidate-pool hit
+                # rate offline (see rag-implementation.md §"Hallucination
+                # measurement"). Gated on debug mode inside the helper.
+                try:
+                    from core.src.suggestions import get_rag_corpus
+                    from config import (
+                        EVAL_LOG_FILE, RAG_META_PATH, RAG_POOL_SIZE,
+                        RAG_POPULARITY_PENALTY, get_rag_enabled,
+                        get_active_profile_id,
+                    )
+                    _rag_corpus = get_rag_corpus()
+                    _pool_names: list[str] | None = None
+                    if _rag_corpus is not None:
+                        _pool = _rag_score_artists(
+                            _rag_corpus, profile,
+                            pool_size=RAG_POOL_SIZE,
+                            popularity_penalty=RAG_POPULARITY_PENALTY,
+                        )
+                        _pool_names = [a.name for a in _pool]
+                    _found_keys = [f"{t['artist']} - {t['track']}" for t in found]
+                    log_batch_outcome(
+                        run_id=run_id,
+                        batch_num=batch_num,
+                        model=get_model(),
+                        rag_enabled=get_rag_enabled(),
+                        rag_corpus_meta_path=RAG_META_PATH,
+                        candidate_pool_names=_pool_names,
+                        profile_id=get_active_profile_id(),
+                        profile=profile,
+                        suggested_playlist=result["playlist"],
+                        found_keys=_found_keys,
+                        eval_log_path=EVAL_LOG_FILE,
+                        debug_mode=get_debug_mode(),
+                    )
+                except Exception as _exc:  # pragma: no cover — never break a run
+                    logger.warning("eval_log_outcome skipped: %s", _exc)
+
                 # When emerging_only is active, discard tracks whose release_date
                 # predates the 6-month cutoff window.
                 if emerging_only and found:
@@ -1116,7 +1156,7 @@ def write_settings():
             payload["LLM_BASE_URL"] = url
 
     if "rag_enabled" in data:
-        payload["RAG_ENABLED"] = "true" if data["rag_enabled"] else ""
+        payload["RAG_ENABLED"] = "true" if data["rag_enabled"] else "false"
 
     save_settings(payload)
     app_log(f"Settings changed: {list(payload.keys())}")

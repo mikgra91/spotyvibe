@@ -51,6 +51,7 @@ from spotipy.exceptions import SpotifyException
 # access + refresh tokens, and caches them locally.
 from spotipy.oauth2 import SpotifyOAuth, CacheFileHandler
 from config import CACHE_FILE
+from .utils import app_log
 
 logger = logging.getLogger(__name__)
 
@@ -493,11 +494,13 @@ def search_tracks(tracks, on_progress=None):
                         found.append(result_data)
                     else:
                         logger.warning("Not found on Spotify: %s", result_data)
+                        app_log(f"Spotify search miss (possible LLM hallucination): {result_data}")
                         not_found.append(result_data)
                 except Exception as e:
                     t = futures[future]
                     label = f"{t['artist']} - {t['track']}"
                     logger.error("Spotify search error for %s: %s", label, e)
+                    app_log(f"Spotify search error for {label}: {e}")
                     not_found.append(label)
                 completed += 1
                 if on_progress:

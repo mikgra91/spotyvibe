@@ -123,7 +123,7 @@ RAG_MANIFEST_URL = os.environ.get(
 )
 RAG_POOL_SIZE = 20
 RAG_POPULARITY_PENALTY = 0.4
-DEFAULT_RAG_ENABLED = False
+DEFAULT_RAG_ENABLED = True
 
 
 def get_rag_enabled() -> bool:
@@ -143,7 +143,7 @@ def get_rag_enabled() -> bool:
 
 def set_rag_enabled(enabled: bool) -> None:
     """Persist the user-facing RAG toggle."""
-    _persist_setting("RAG_ENABLED", "true" if enabled else "")
+    _persist_setting("RAG_ENABLED", "true" if enabled else "false")
 
 
 def _get_app_dir() -> Path:
@@ -174,6 +174,7 @@ PROFILE_FILE = _APP_DIR / "personalized_music_profile.json"
 PROFILE_HISTORY_FILE = _APP_DIR / "personalized_music_profile.history.json"
 DEBUG_LOG_FILE = _APP_DIR / "debug.log"       # Backend application log
 PROMPT_LOG_FILE = _APP_DIR / "prompt.log"      # GPT request/response log (was debug.log)
+EVAL_LOG_FILE = _APP_DIR / "eval.jsonl"        # One JSONL row per suggested track for offline analysis
 
 # Secret keys — stored in .credentials
 CREDENTIAL_KEYS = ["OPENAI_API_KEY", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET"]
