@@ -15,15 +15,15 @@
 .spotify-preview-overlay.visible { opacity: 1; pointer-events: auto; }
 
 /* Horizontal layout: [player] [tabs] [form] */
-.preview-layout { display: flex; align-items: flex-start;      /* top-align all items flush */ margin-bottom: 0; }
+.preview-layout { display: flex; align-items: stretch; margin-bottom: 0; }
 
 .spotify-preview-panel {
     position: relative;
     background: var(--bg-deep);
     border-radius: 16px 0 0 0;
     padding: 20px 24px;
-    min-width: 400px;
-    max-width: 620px;
+    min-width: var(--preview-panel-min-w);
+    max-width: var(--preview-panel-max-w);
     flex-shrink: 0;
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.6);
 }
@@ -56,8 +56,31 @@
     text-overflow: ellipsis;
 }
 
+/* Loader shown while we resolve SDK vs iframe playback path. */
+.preview-loader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-3);
+    min-height: 190px;
+    color: var(--text-secondary);
+}
+.preview-loader[hidden] { display: none; }
+.preview-loader-text { font-size: var(--fs-sm); }
+.preview-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid rgba(255, 255, 255, 0.12);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: preview-spin 0.9s linear infinite;
+}
+@keyframes preview-spin { to { transform: rotate(360deg); } }
+
 /* Slider layout: arrows flanking the iframe */
 .spotify-preview-slider { display: flex; align-items: center; gap: var(--sp-2); }
+.spotify-preview-slider[hidden] { display: none; }
 
 .spotify-preview-slider iframe {
     flex: 1;
@@ -109,23 +132,25 @@
 .spotify-preview-autoplay input { accent-color: var(--primary); cursor: pointer; }
 
 /* ── Web Playback SDK custom player panel (§8a) ───────────────────── */
-.sdk-player { display: flex; flex-direction: column; gap: var(--sp-2); }
+.sdk-player { display: flex; flex-direction: column; gap: var(--sp-3); }
+.sdk-player[hidden] { display: none; }
 
-.sdk-player-row {
+.sdk-player-art-wrap {
     display: flex;
-    align-items: center;
-    gap: var(--sp-2);
-    min-width: 0;
+    justify-content: center;
+    margin: var(--sp-1) 0 var(--sp-2);
 }
+.sdk-player-art-wrap[hidden] { display: none; }
 .sdk-player-art {
-    width: 96px;
-    height: 96px;
+    width: var(--preview-art-size);
+    height: var(--preview-art-size);
     flex-shrink: 0;
     border-radius: var(--radius-sm);
     background: rgba(255, 255, 255, 0.04);
     object-fit: cover;
 }
 .sdk-player-meta { min-width: 0; flex: 1; }
+.sdk-player-meta-centered { text-align: center; flex: none; }
 .sdk-player-title {
     font-size: var(--fs-md);
     font-weight: 600;
@@ -146,7 +171,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: var(--sp-3);
+    gap: var(--preview-transport-gap);
 }
 .sdk-player-play {
     width: 48px;
@@ -228,24 +253,25 @@
     50%      { box-shadow: 0 0 0 8px rgba(231, 76, 60, 0.35); }
 }
 
-/* ── Action tabs — rounded icon strip ── */
+/* ── Action navbar — darker strip right of the preview panel ── */
 .preview-tab-actions {
     display: flex;
     flex-direction: column;
-    gap: var(--sp-2);
+    gap: 0;
     flex-shrink: 0;
-    background: var(--bg-deep);          /* same colour as the preview panel */
-    border-radius: 0 14px 14px 0;
-    padding: 12px 8px;
+    background: var(--preview-navbar-bg);
+    border-left: 1px solid var(--preview-navbar-border);
+    padding: 0;
 }
 
 .preview-tab {
     position: relative;
-    min-width: 44px;
-    height: 44px;
-    padding: 0 10px;
+    min-width: var(--preview-navbar-item-w);
+    height: var(--preview-navbar-item-h);
+    padding: 0 var(--sp-4);
     border: none;
-    background: transparent;      /* sits on the container bg */
+    border-bottom: 1px solid var(--preview-navbar-border);
+    background: transparent;
     color: #fff;
     font-size: var(--fs-sm);
     cursor: pointer;
@@ -255,15 +281,15 @@
     justify-content: center;
     gap: 2px;
     transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
-    border-radius: 12px;
+    border-radius: 0;
 }
+.preview-tab:last-child { border-bottom: none; }
 .preview-tab-label { font-size: var(--fs-xs); line-height: 1; }
-.preview-tab-feedback { background: rgba(255, 255, 255, 0.08); }
 @media (hover: hover) {
-    .preview-tab-feedback:hover { background: rgba(29, 185, 84, 0.22); }
+    .preview-tab-feedback:hover { background: rgba(29, 185, 84, 0.14); }
 }
 @media (hover: hover) {
-    .preview-tab:hover { background: rgba(255, 255, 255, 0.12); }
+    .preview-tab:hover { background: rgba(255, 255, 255, 0.06); }
 }
 
 /* Active tab state */

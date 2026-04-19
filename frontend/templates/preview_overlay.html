@@ -7,16 +7,18 @@
             <div class="spotify-preview-title" id="spotifyPreviewTitle">
                 {% if preview_track %}{{ preview_track.artist|e }} — {{ preview_track.title|e }}{% endif %}
             </div>
+            <!-- Loading state shown while we decide between the SDK and iframe
+                 playback paths. Hidden once one of the players takes over. -->
+            <div class="preview-loader" id="previewLoader">
+                <div class="preview-spinner" aria-hidden="true"></div>
+                <div class="preview-loader-text" data-i18n="preview.loading">Loading player…</div>
+            </div>
             <!-- Web Playback SDK custom panel (Premium, supported runtimes).
                  Hidden by default; preview.js shows it on successful SDK
                  connect and hides the iframe slider. -->
             <div class="sdk-player" id="sdkPlayer" hidden>
-                <div class="sdk-player-row">
-                    <img class="sdk-player-art" id="sdkPlayerArt" alt="" width="96" height="96">
-                    <div class="sdk-player-meta">
-                        <div class="sdk-player-title" id="sdkPlayerTitle"></div>
-                        <div class="sdk-player-artist" id="sdkPlayerArtist"></div>
-                    </div>
+                <div class="sdk-player-art-wrap" id="sdkPlayerArtWrap" hidden>
+                    <img class="sdk-player-art" id="sdkPlayerArt" alt="" width="140" height="140">
                 </div>
                 <div class="sdk-player-transport">
                     <button class="spotify-preview-nav" id="sdkPrev" onclick="prevPreview()" data-i18n-title="preview.previous" title="Previous track" aria-label="Previous track">‹</button>
@@ -39,7 +41,7 @@
             </div>
 
             <!-- Iframe fallback (non-Premium, unsupported runtimes, or SDK error). -->
-            <div class="spotify-preview-slider" id="spotifyPreviewSlider">
+            <div class="spotify-preview-slider" id="spotifyPreviewSlider" hidden>
                 <button class="spotify-preview-nav spotify-preview-prev" id="previewPrev" onclick="prevPreview()" data-i18n-title="preview.previous" title="Previous track" aria-label="Previous track">‹</button>
                 <iframe id="spotifyPreviewIframe"
                     title="Spotify track player"

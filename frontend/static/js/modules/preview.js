@@ -21,6 +21,38 @@ let _sdkLastPositionMs = 0;
 let _sdkLastDurationMs = 0;
 let _sdkScrubberDragging = false;
 
+/* ── SDK failure tracking (Brave/Widevine diagnostic) ───────────────
+ * Count repeated SDK-init failures across sessions; once we cross a
+ * threshold we trigger a one-time Tips notification pointing the user
+ * at the real cause (Widevine disabled — common on Brave).
+ */
+const SDK_FAIL_COUNT_KEY = 'sv.sdk_fail_count';
+const SDK_FAIL_THRESHOLD = 5;
+
+function _getSdkFailureCount() {
+    try { return parseInt(localStorage.getItem(SDK_FAIL_COUNT_KEY) || '0', 10) || 0; }
+    catch { return 0; }
+}
+
+function _resetSdkFailureCount() {
+    try { localStorage.removeItem(SDK_FAIL_COUNT_KEY); } catch { /* ignore */ }
+}
+
+async function _isBrave() {
+    try {
+        return !!(navigator.brave && await navigator.brave.isBrave());
+    } catch { return false; }
+}
+
+async function _recordSdkFailureAndMaybeTip() {
+    const count = _getSdkFailureCount() + 1;
+    try { localStorage.setItem(SDK_FAIL_COUNT_KEY, String(count)); } catch { /* ignore */ }
+    if (count < SDK_FAIL_THRESHOLD) return;
+    if (!window.Tips) return;
+    const tipId = (await _isBrave()) ? 'sdk_brave_widevine' : 'sdk_no_drm';
+    window.Tips.maybeTrigger(tipId);
+}
+
 export function isAutoplayEnabled() {
     const v = localStorage.getItem(AUTOPLAY_KEY);
     return v === null ? true : v === '1';
@@ -121,21 +153,27 @@ export function openPreviewOverlay(trackId, title, source = 'discover') {
     updateNavState();
     initSwipeListeners(overlay);
 
-    // Default immediately to iframe so the user sees something while we
-    // decide whether the SDK path is available.
-    showIframePanel();
-    replaceIframe(embedUrl(trackId, isAutoplayEnabled()));
+    // Show the loader; keep both the SDK panel and iframe fallback hidden
+    // until we know which playback path is available. This avoids flashing
+    // the embedded player only to swap it out for the SDK moments later.
+    showLoader();
 
-    // Attempt SDK upgrade in the background; swap in on success.
     maybeInitSdk().then((ok) => {
+        console.info('[SDK] maybeInitSdk() →', ok, 'track present?', !!track);
         if (ok && track) {
             showSdkPanel();
             updateSdkMeta(track);
-            sdkPlayCurrentTrack(track).catch(() => fallbackToIframe(trackId));
+            sdkPlayCurrentTrack(track).catch(() => {
+                console.warn('[SDK] falling back to iframe after playTrack failure');
+                fallbackToIframe(trackId);
+            });
+        } else {
+            fallbackToIframe(trackId);
         }
-        // Regardless of SDK path, nudge the user on first preview open.
         setTimeout(maybeShowRateHint, 400);
-    }).catch(() => { /* already in iframe mode */ });
+    }).catch(() => {
+        fallbackToIframe(trackId);
+    });
 }
 
 export function closePreviewOverlay() {
@@ -171,16 +209,27 @@ function maybeInitSdk() {
     if (_sdkInitPromise) return _sdkInitPromise;
     _sdkInitPromise = (async () => {
         const info = await fetchSessionInfo();
-        if (!info.is_premium) return false;
+        console.info('[SDK] session info:', info);
+        if (!info.is_premium) {
+            console.warn('[SDK] skipping init — not Premium');
+            return false;
+        }
         try {
+            console.info('[SDK] connect() starting…');
             await Sdk.connect({ name: 'SpotyVibe' });
+            console.info('[SDK] connect() resolved');
             wireSdkEvents();
+            console.info('[SDK] ensureReady() starting…');
             await Sdk.ensureReady();
+            console.info('[SDK] ensureReady() resolved — SDK ready');
             _playbackMode = 'sdk';
+            _resetSdkFailureCount();
             return true;
         } catch (e) {
+            console.error('[SDK] init failed:', e);
             const { showToast } = await import('./ui.js');
             showToast(i18n('preview.sdk_unavailable', 'Full-track playback unavailable on this device — preview only'));
+            _recordSdkFailureAndMaybeTip();
             return false;
         }
     })();
@@ -189,8 +238,9 @@ function maybeInitSdk() {
 
 function wireSdkEvents() {
     Sdk.on('state_changed', onSdkStateChanged);
-    ['initialization_error', 'authentication_error', 'account_error'].forEach((evt) => {
-        Sdk.on(evt, () => {
+    ['initialization_error', 'authentication_error', 'account_error', 'playback_error'].forEach((evt) => {
+        Sdk.on(evt, (payload) => {
+            console.error(`[SDK] ${evt}:`, payload);
             const track = getCurrentPreviewTrack();
             fallbackToIframe(track?.track_id);
         });
@@ -248,35 +298,43 @@ function formatMs(ms) {
 
 async function sdkPlayCurrentTrack(track) {
     if (!track || !track.track_id) return;
-    await Sdk.playTrack(track.track_id);
+    console.info('[SDK] playTrack() starting for', track.track_id, track.artist, '—', track.track);
+    try {
+        await Sdk.playTrack(track.track_id);
+        console.info('[SDK] playTrack() resolved');
+    } catch (e) {
+        console.error('[SDK] playTrack() failed:', e);
+        throw e;
+    }
 }
 
 function updateSdkMeta(track) {
     if (!track) return;
     const art = el('sdkPlayerArt');
-    const title = el('sdkPlayerTitle');
-    const artist = el('sdkPlayerArtist');
-    if (title) title.textContent = track.track || '';
-    if (artist) artist.textContent = track.artist || '';
-    if (art) {
-        const url = track.album_art || track.image_url || '';
-        art.src = url;
-        art.style.visibility = url ? 'visible' : 'hidden';
-    }
+    const wrap = el('sdkPlayerArtWrap');
+    const url = track.cover_url || track.album_art || track.image_url || '';
+    if (art && url) art.src = url;
+    if (wrap) wrap.toggleAttribute('hidden', !url);
+}
+
+function showLoader() {
+    el('previewLoader')?.removeAttribute('hidden');
+    el('sdkPlayer')?.setAttribute('hidden', '');
+    el('spotifyPreviewSlider')?.setAttribute('hidden', '');
 }
 
 function showSdkPanel() {
     _playbackMode = 'sdk';
+    el('previewLoader')?.setAttribute('hidden', '');
     el('sdkPlayer')?.removeAttribute('hidden');
-    const slider = el('spotifyPreviewSlider');
-    if (slider) slider.style.display = 'none';
+    el('spotifyPreviewSlider')?.setAttribute('hidden', '');
 }
 
 function showIframePanel() {
     _playbackMode = 'iframe';
+    el('previewLoader')?.setAttribute('hidden', '');
     el('sdkPlayer')?.setAttribute('hidden', '');
-    const slider = el('spotifyPreviewSlider');
-    if (slider) slider.style.display = '';
+    el('spotifyPreviewSlider')?.removeAttribute('hidden');
 }
 
 function fallbackToIframe(trackId) {
@@ -323,6 +381,11 @@ export function openPreviewFeedbackPanel() {
     if (!track) return;
     const panel = el('previewFeedbackPanel');
     if (!panel) return;
+
+    if (panel.classList.contains('visible')) {
+        closePreviewFeedback();
+        return;
+    }
 
     panel.classList.remove('action-like', 'action-dislike');
     panel.classList.add('visible');
@@ -383,34 +446,54 @@ export async function submitPreviewFeedback(action) {
     }
 }
 
+/** Resolve the Spotify playlist_id the currently-previewed track belongs to. */
+function _getContextPlaylistId() {
+    if (currentPreviewSource === 'review') {
+        const picker = el('reviewPlaylistPicker');
+        return picker && picker.value ? picker.value : null;
+    }
+    return State.lastGeneratedPlaylistId || null;
+}
+
 async function _postFeedbackAndReact(action, artist, track, reason) {
     try {
+        const currentTrack = getCurrentPreviewTrack();
+        const playlist_id = _getContextPlaylistId();
+        const track_id    = currentTrack && currentTrack.track_id ? currentTrack.track_id : null;
+
         const resp = await fetch('/api/feedback', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action, artist, track: track || null, reason: reason || null }),
+            body: JSON.stringify({ action, artist, track: track || null, reason: reason || null, playlist_id, track_id }),
         });
         if (!resp.ok) {
             const data = await resp.json().catch(() => ({}));
             showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', data.error || 'unknown'));
             return;
         }
+        const body = await resp.json().catch(() => ({}));
 
         const trackLabel = track ? ` — ${track}` : '';
         const { showToast } = await import('./ui.js');
 
         if (action === 'dislike') {
-            const currentTrack = getCurrentPreviewTrack();
-            if (currentTrack) {
-                await fetch('/api/remove', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ artist: currentTrack.artist, track: currentTrack.track }),
-                }).catch(() => {});
+            const removal = body && body.removal;
+            if (removal && removal.removed) {
+                showToast(i18n('feedback.quick_disliked_toast', '👎 Disliked & removed: {track}').replace('{track}', `${artist}${trackLabel}`));
+            } else {
+                const reasonText = (removal && removal.reason) || i18n('feedback.remove_unknown_reason', 'unknown');
+                console.warn('[feedback] dislike recorded but playlist removal failed:', removal);
+                showToast(i18n('feedback.quick_disliked_not_removed_toast', '👎 Disliked: {track} (not removed from playlist: {reason})')
+                    .replace('{track}', `${artist}${trackLabel}`)
+                    .replace('{reason}', reasonText));
             }
-            showToast(i18n('feedback.quick_disliked_toast', '👎 Disliked & removed: {track}').replace('{track}', `${artist}${trackLabel}`));
         } else {
             showToast(i18n('feedback.quick_liked_toast', '👍 Liked: {track}').replace('{track}', `${artist}${trackLabel}`));
+        }
+
+        // Refresh the Getting-started checklist so the "3 tracks" item ticks.
+        if (typeof window.refreshGettingStarted === 'function') {
+            window.refreshGettingStarted();
         }
 
         removeCurrentAndAdvance();
@@ -443,15 +526,27 @@ export async function previewDismiss() {
     if (!track) return;
 
     try {
-        await fetch('/api/remove', {
+        const resp = await fetch('/api/remove', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ artist: track.artist, track: track.track }),
+            body: JSON.stringify({
+                artist: track.artist,
+                track: track.track,
+                playlist_id: _getContextPlaylistId(),
+                track_id: track.track_id || null,
+            }),
         });
+        const body = await resp.json().catch(() => ({}));
         const { showToast } = await import('./ui.js');
-        showToast(i18n('feedback.removed_from_playlist', 'Removed from playlist: {track}').replace('{track}', `${track.artist} — ${track.track}`));
+        if (body && body.removed) {
+            showToast(i18n('feedback.removed_from_playlist', 'Removed from playlist: {track}').replace('{track}', `${track.artist} — ${track.track}`));
+        } else {
+            const reasonText = (body && body.reason) || i18n('feedback.remove_unknown_reason', 'unknown');
+            console.warn('[dismiss] playlist removal failed:', body);
+            showToast(i18n('feedback.remove_failed', 'Could not remove from playlist: {reason}').replace('{reason}', reasonText));
+        }
     } catch (e) {
-        /* still remove from UI */
+        console.warn('[dismiss] network error removing track:', e);
     }
 
     removeCurrentAndAdvance();
