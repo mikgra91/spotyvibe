@@ -64,6 +64,19 @@ PLAYLIST_NAME = "SpotyVibe Playlist"
 REDIRECT_URI = "spotyvibe://callback" if IS_ANDROID else "http://127.0.0.1:5000/callback"
 
 
+def _pick_album_cover(images: list) -> str | None:
+    """Pick a mid-sized album cover URL.
+
+    Spotify returns images sorted largest-first (e.g. 640/300/64). We pick
+    the middle one so it stays crisp at ~140px (preview player) while
+    avoiding the huge 640px asset. Falls back to the only/smallest entry
+    when fewer sizes are available.
+    """
+    if not images:
+        return None
+    return images[len(images) // 2].get("url")
+
+
 def _sanitize_spotify_search_value(value):
     """Sanitize values used inside Spotify search quotes.
 
@@ -271,34 +284,43 @@ def get_existing_track_uris(sp, playlist_id):
     return existing
 
 
-def remove_from_playlist(artist, track):
-    """Remove a single track from the SpotyVibe Playlist.
+def remove_from_playlist(artist, track, playlist_id=None, track_id=None):
+    """Remove a single track from a Spotify playlist.
 
-    Searches Spotify for the artist + track combination, then removes all
-    occurrences of its URI from the playlist.
+    When ``playlist_id`` is given it is used directly (supports custom names,
+    preset-renamed playlists, and the Refine flow). Otherwise falls back to
+    looking up the default SpotyVibe Playlist by name.
+
+    When ``track_id`` is given the URI is built from it directly. Otherwise
+    falls back to a text search over ``artist + track``.
 
     Returns a dict:  {"removed": True/False, "reason": "..." (on failure)}
     """
     sp = get_spotify_client()
 
-    playlist = find_existing_playlist(sp)
-    if not playlist:
-        return {"removed": False, "reason": "Playlist not found"}
+    if playlist_id:
+        pid = playlist_id
+    else:
+        playlist = find_existing_playlist(sp)
+        if not playlist:
+            return {"removed": False, "reason": "Playlist not found"}
+        pid = playlist["id"]
 
-    query = _build_track_artist_query(artist, track)
-    res = sp.search(q=query, type="track", limit=1)
+    if track_id:
+        uri = f"spotify:track:{track_id}"
+    else:
+        query = _build_track_artist_query(artist, track)
+        res = sp.search(q=query, type="track", limit=1)
+        if not res or not res["tracks"]["items"]:
+            return {"removed": False, "reason": "Track not found on Spotify"}
+        uri = res["tracks"]["items"][0]["uri"]
 
-    if not res or not res["tracks"]["items"]:
-        return {"removed": False, "reason": "Track not found on Spotify"}
-
-    uri = res["tracks"]["items"][0]["uri"]
-
-    existing_uris = get_existing_track_uris(sp, playlist["id"])
+    existing_uris = get_existing_track_uris(sp, pid)
     if uri not in existing_uris:
         return {"removed": False, "reason": "Track not in playlist"}
 
-    sp.playlist_remove_all_occurrences_of_items(playlist["id"], [uri])
-    logger.info("Removed from playlist: %s - %s", artist, track)
+    sp.playlist_remove_all_occurrences_of_items(pid, [uri])
+    logger.info("Removed from playlist %s: %s - %s", pid, artist, track)
 
     return {"removed": True}
 
@@ -437,9 +459,8 @@ def search_tracks(tracks, on_progress=None):
             item = res["tracks"]["items"][0]
             uri = item["uri"]
             track_id = uri.split(":")[-1] if uri else None
-            # Extract the smallest album cover (typically 64×64)
             images = item.get("album", {}).get("images", [])
-            cover_url = images[-1]["url"] if images else None
+            cover_url = _pick_album_cover(images)
             preview_url = item.get("preview_url")
             spotify_url = item.get("external_urls", {}).get("spotify")
             album_url = item.get("album", {}).get("external_urls", {}).get("spotify")
@@ -601,7 +622,7 @@ def get_playlist_tracks(playlist_id):
             artists = t.get("artists", [])
             artist_name = artists[0]["name"] if artists else "Unknown"
             images = t.get("album", {}).get("images", [])
-            cover_url = images[-1]["url"] if images else None
+            cover_url = _pick_album_cover(images)
             tracks.append({
                 "artist": artist_name,
                 "track": t.get("name", ""),

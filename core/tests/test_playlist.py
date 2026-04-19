@@ -230,6 +230,40 @@ class TestRemoveFromPlaylist:
         assert result["removed"] is False
         assert "not in playlist" in str(result["reason"]).lower()
 
+    @patch("core.src.playlist.get_existing_track_uris")
+    @patch("core.src.playlist.find_existing_playlist")
+    @patch("core.src.playlist.get_spotify_client")
+    def test_uses_explicit_playlist_id_and_track_id(self, mock_client_fn, mock_find, mock_uris):
+        """Explicit playlist_id + track_id skip the name lookup and search."""
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        mock_uris.return_value = {"spotify:track:abc"}
+
+        result = remove_from_playlist(
+            "artist", "song", playlist_id="custom_pl", track_id="abc"
+        )
+        assert result["removed"] is True
+        mock_find.assert_not_called()
+        sp.search.assert_not_called()
+        sp.playlist_remove_all_occurrences_of_items.assert_called_once_with(
+            "custom_pl", ["spotify:track:abc"]
+        )
+
+    @patch("core.src.playlist.get_existing_track_uris")
+    @patch("core.src.playlist.find_existing_playlist")
+    @patch("core.src.playlist.get_spotify_client")
+    def test_explicit_playlist_id_with_track_id_not_in_playlist(self, mock_client_fn, mock_find, mock_uris):
+        sp = MagicMock()
+        mock_client_fn.return_value = sp
+        mock_uris.return_value = {"spotify:track:other"}
+
+        result = remove_from_playlist(
+            "artist", "song", playlist_id="custom_pl", track_id="abc"
+        )
+        assert result["removed"] is False
+        assert "not in playlist" in str(result["reason"]).lower()
+        mock_find.assert_not_called()
+
 
 class TestSearchTracks:
     def _mock_oauth_and_spotify(self, sp_mock):

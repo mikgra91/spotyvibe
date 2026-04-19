@@ -58,9 +58,9 @@ class TestGetPlaylistSize:
         assert config.get_playlist_size() == 25
 
     @patch.dict(os.environ, {"PLAYLIST_SIZE": "3"})
-    def test_clamps_to_batch_size(self):
-        # Must be at least BATCH_SIZE
-        assert config.get_playlist_size() == config.BATCH_SIZE
+    def test_clamps_to_minimum(self):
+        # Hard minimum of 5 tracks
+        assert config.get_playlist_size() == 5
 
     @patch.dict(os.environ, {"PLAYLIST_SIZE": ""})
     def test_falls_back_to_default(self):

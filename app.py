@@ -506,12 +506,12 @@ def run_pipeline():
             client_temperature = max(0.0, min(2.0, client_temperature))
         except (TypeError, ValueError):
             client_temperature = None
-    # Wave 2: client-specified playlist size (clamped to 10–30)
+    # Wave 2: client-specified playlist size (clamped to 5–30)
     client_playlist_size = body.get("playlist_size")
     if client_playlist_size is not None:
         try:
             client_playlist_size = int(client_playlist_size)
-            client_playlist_size = max(10, min(30, client_playlist_size))
+            client_playlist_size = max(5, min(30, client_playlist_size))
         except (TypeError, ValueError):
             client_playlist_size = None
     cancel_event = threading.Event()
@@ -871,6 +871,8 @@ def submit_feedback():
     artist = safe_text(data, "artist")
     track  = safe_text(data, "track") or None
     reason = safe_text(data, "reason") or None
+    playlist_id = safe_text(data, "playlist_id") or None
+    track_id    = safe_text(data, "track_id") or None
 
     if not artist:
         return jsonify({"error": "Artist is required."}), 400
@@ -897,7 +899,11 @@ def submit_feedback():
                 update_track_sentiment(artist, track, "disliked")
             # Also remove the track from the Spotify playlist
             if track:
-                removal = remove_from_playlist(artist, track)
+                removal = remove_from_playlist(
+                    artist, track,
+                    playlist_id=playlist_id,
+                    track_id=track_id,
+                )
             else:
                 removal = {"removed": False, "reason": "No track specified"}
 
@@ -916,12 +922,18 @@ def remove_track():
     data   = request.get_json(force=True)
     artist = safe_text(data, "artist")
     track  = safe_text(data, "track")
+    playlist_id = safe_text(data, "playlist_id") or None
+    track_id    = safe_text(data, "track_id") or None
 
     if not artist or not track:
         return jsonify({"error": "Artist and track are required."}), 400
 
     try:
-        result = remove_from_playlist(artist, track)
+        result = remove_from_playlist(
+            artist, track,
+            playlist_id=playlist_id,
+            track_id=track_id,
+        )
         return jsonify(result)
 
     except Exception as e:

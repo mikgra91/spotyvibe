@@ -341,7 +341,7 @@ def get_playlist_size():
     raw = os.getenv("PLAYLIST_SIZE", "")
     try:
         val = int(raw)
-        return max(val, BATCH_SIZE)  # at least one batch
+        return max(val, 5)  # hard minimum of 5 tracks
     except (ValueError, TypeError):
         return DEFAULT_PLAYLIST_SIZE
 
