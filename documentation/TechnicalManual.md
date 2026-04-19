@@ -250,9 +250,34 @@ All artifacts attach to each [GitHub Release](../../releases). CI workflow: `.gi
 - `spotyvibe.cli:main()` reserves port 5000 (Spotify's redirect URI is hard-coded), delays 1.5 s, then opens the default browser and runs Flask.
 - One `.whl` tagged `py3-none-any` serves both platforms.
 
+### RAG candidate-pool feature
+
+The suggestion pipeline can inject a pre-ranked pool of ~20 artists retrieved from a local MusicBrainz-derived corpus into the LLM prompt. This converts the model's job from *recall* (naming fitting artists from parametric memory — where small local models hallucinate and `gpt-*-mini` defaults to popular names) into *ranking* (picking from a supplied shortlist). The full design rationale lives in [guides/rag-implementation.md](guides/rag-implementation.md); this section is the operational summary.
+
+**Module layout** ([core/src/rag/](../core/src/rag/)):
+
+| File | Role |
+|---|---|
+| `corpus.py` | `RagCorpus` dataclass — loads `artists.jsonl.gz` into in-memory rows + inverted tag index + TF-IDF idf vector. ~80 MB resident for 100K artists. |
+| `retrieval.py` | `score_artists(profile, deny_list)` — TF-IDF over artist-tag postings with a bigram/hyphen compound boost (×3) and a popularity re-rank penalty. Returns top `RAG_POOL_SIZE` rows. |
+| `prompt.py` | Formats retrieved rows as the `CANDIDATE_POOL` prompt block appended to the suggestions user-message. |
+| `distribution.py` | Manifest fetch, update check, streaming sha256-verified download. Pure stdlib `urllib`. |
+
+**Runtime wiring** — [app.py](../app.py) loads the corpus once at startup when `RAG_ENABLED` is true *and* the file exists (missing corpus is a silent no-op); [core/src/suggestions.py](../core/src/suggestions.py) appends the candidate-pool block to the user prompt per batch, with the user's confirmed anchors + the batch deny-list feeding the retriever's filter. Toggling the setting in the UI hot-swaps the corpus handle without a restart.
+
+**Configuration** ([config.py](../config.py)):
+
+| Constant | Default | Purpose |
+|---|---|---|
+| `RAG_ENABLED` | persisted in `settings.conf`; `DEFAULT_RAG_ENABLED = True` when unset and corpus present | Master toggle; UI-exposed in Settings → Candidate pool (RAG). Disabling persists explicit `false` so the new default doesn't silently re-enable. |
+| `RAG_CORPUS_PATH` | `data/rag_corpus/artists.jsonl.gz` | Corpus location. |
+| `RAG_POOL_SIZE` | `20` | Candidates injected per batch. |
+| `RAG_POPULARITY_PENALTY` | `0.4` | Anti-popularity-bias re-rank coefficient (0 = pure TF-IDF, 1 = strong obscurity bias). |
+| `RAG_MANIFEST_URL` | GitHub release URL | Override via env var for staging. |
+
 ### RAG corpus (separate release channel)
 
-The MusicBrainz-derived candidate-pool corpus (`artists.jsonl.gz`, ~7 MB) is **not** bundled with the app artifacts above. It ships on its own rolling GitHub Release tagged `rag-corpus-latest`, independent of the versioned app releases, so the corpus can be refreshed without cutting a new app build.
+The corpus (`artists.jsonl.gz`, ~7 MB) is **not** bundled with the app artifacts above. It ships on its own rolling GitHub Release tagged `rag-corpus-latest`, independent of the versioned app releases, so the corpus can be refreshed without cutting a new app build.
 
 **Release contents** — the `rag-corpus-latest` tag always holds exactly two assets:
 
@@ -285,6 +310,26 @@ python build-tools/publish_rag_corpus.py --dry-run             # print manifest,
 4. `RAG_MANIFEST_URL` is overridable via env var for testing against a staging URL.
 
 **Cadence** — there is no scheduled refresh. Rebuild and republish when MusicBrainz's monthly dumps warrant it, or when tag/alias curation changes meaningfully alter retrieval quality.
+
+### Maintaining the RAG feature
+
+Day-to-day upkeep of the RAG pipeline breaks into four buckets:
+
+1. **Corpus refresh** — roughly quarterly, or when users report stale / missing artists:
+   - `python build-tools/refresh_rag_corpus.py` (fetches the latest MusicBrainz dump, extracts, rebuilds). Intermediate downloads cache under `build-tools/.rag-cache/`; pass `--cleanup` to wipe after success.
+   - `python build-tools/publish_rag_corpus.py` to upload + rewrite the `rag-corpus-latest` release. All existing clients pick up the update on their next startup via the manifest check.
+2. **Tag alias map** ([data/rag_corpus/tag_aliases.json](../data/rag_corpus/tag_aliases.json)) — the curated keyword→tag lookup that feeds query expansion. Extend additively when you see a profile term (e.g. a new subgenre, a non-English mood word) failing to match MusicBrainz tags. No rebuild required; the map is read by the retriever at startup.
+3. **Retrieval tuning** — placeholder knobs that should be revisited after real-user A/B data accumulates:
+   - `RAG_POPULARITY_PENALTY` (too obscure → lower; too mainstream → raise).
+   - `RAG_POOL_SIZE` (persistent hallucinations → try 40; feels too directive → try 10).
+   - `_COMPOUND_BOOST` in `retrieval.py` (bigram boost factor).
+4. **Tests** — [core/tests/test_rag_corpus.py](../core/tests/test_rag_corpus.py), `test_rag_retrieval.py`, `test_rag_prompt.py`, `test_rag_distribution.py`. Fixtures use tiny hand-crafted gzipped JSONL; no real corpus is checked in. Run as part of `pytest core/tests/`.
+
+**Known limitations to track:**
+
+- Option A popularity proxy (release count + tag total) over-rates long-dead classical composers. Acceptable because tag matching dominates selection — flag for re-evaluation only if users complain.
+- Alias map is English-centric; German/Japanese profile vocabulary degrades to unigram matching until aliases are added.
+- No embedding fallback; profiles naming vibes with no MusicBrainz tag coverage silently produce weaker pools. The `score_artists()` interface is the seam for a future embedding-based v2.
 
 ---
 

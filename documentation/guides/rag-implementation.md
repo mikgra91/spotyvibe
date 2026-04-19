@@ -350,7 +350,7 @@ The publisher script uses `gh release upload --clobber` to replace both assets i
 ~~2. **Update-available notification**~~ — done (2026-04-19). Manifest + startup check + Settings banner + sha256-verified download.
 3. ~~**Option B popularity enrichment**~~ — **dropped (2026-04-19).** 100K-artist Spotify crawl deemed too expensive to maintain; sticking with Option A (release-count + tag-total proxy). Known bias: 300-year-old composers rank at pop=1.0. Acceptable trade-off since suggestions are guided by tag matches, not popularity alone.
 4. **A/B measurement (§8 step 5)** — run 10 playlists with / without RAG on the same profile, measure hallucination rate + median popularity. No code change; needs an afternoon of manual testing.
-5. **Default-on** — once §11.4 shows improvement, flip `DEFAULT_RAG_ENABLED` in [config.py](../../config.py) to `True` (keep the opt-out toggle).
+~~5. **Default-on**~~ — done (2026-04-19). `DEFAULT_RAG_ENABLED = True` in [config.py](../../config.py); the opt-out toggle in Settings is preserved and now persists explicit `false` so disabling round-trips correctly through the new default.
 6. **Multilingual tag matching** — the alias map is English-centric. Extending to German/Japanese genre vocab is additive (just append to `tag_aliases.json`).
 7. **v2 — embedding-based retrieval** — only if the main failure mode turns out to be "profile mentions a specific vibe no one has tagged". `retrieval.score_artists()` is the replacement seam.
 
@@ -359,4 +359,174 @@ The publisher script uses `gh release upload --clobber` to replace both assets i
 - **`RAG_POPULARITY_PENALTY = 0.4`** — placeholder. Tune after A/B.
 - **`RAG_POOL_SIZE = 20`** — placeholder. If hallucinations still happen, try 40; if the prompt feels too directive, try 10.
 - **`_COMPOUND_BOOST = 3.0`** in `retrieval.py` — found empirically while fixing a test; may need to come down once the corpus is real and `pop`/`rnb` are properly weighted by IDF.
+
+---
+
+## 12. Hallucination measurement — pandas/Jupyter guide
+
+Manually scanning every generated playlist for "is this a real artist?" is the bottleneck for §11.4. The eval log automates the data collection: every generation run writes one structured JSONL row per AI-suggested track, capturing model, RAG state, candidate-pool membership, and Spotify-found outcome. This section is the end-to-end usage guide.
+
+### 12.1 Where the data lives
+
+[core/src/eval_log.py](../../core/src/eval_log.py) appends to `EVAL_LOG_FILE` — resolved per platform via the same `_APP_DIR` rule as `debug.log`:
+
+| Platform | Path |
+|---|---|
+| Windows | `%LOCALAPPDATA%\spotyvibe\eval.jsonl` |
+| macOS | `~/Library/Application Support/spotyvibe/eval.jsonl` |
+| Linux | `~/.local/share/spotyvibe/eval.jsonl` |
+
+Writes are **gated on `DEBUG_MODE`** — toggle it on in Settings → Debug for the duration of the A/B run, then off again. A row is roughly 300 bytes; a typical 30-track run produces ~10 KB. The file is plain append-only — safe to copy at any time, safe to delete (a fresh empty file appears on the next run).
+
+### 12.2 Row schema
+
+```jsonc
+{
+  "ts": "2026-04-19T10:23:45Z",      // UTC, ISO 8601
+  "run_id": "uuid",                   // groups all rows from one Generate click
+  "batch_num": 1,                     // GPT batch within the run (retries increment)
+  "model": "gpt-5-mini",              // active OPENAI_MODEL at write time
+  "rag_enabled": true,                // get_rag_enabled() at write time
+  "rag_corpus_version": "2026-04-19", // null when RAG off or corpus absent
+  "candidate_pool_size": 20,          // null when RAG off
+  "profile_id": "abc-123",            // active profile UUID
+  "profile_hash": "ab12cd34ef56",     // sha1 of must_have+avoid+soft_prefs+confirmed (history excluded)
+  "artist": "massive attack",         // lowercased, trimmed
+  "track":  "teardrop",
+  "found_on_spotify": true,           // false ⇒ likely hallucination OR title typo
+  "in_candidate_pool": true,          // null when RAG off
+  "rationale_types": ["profile_match"]
+}
+```
+
+`profile_hash` is deliberately stable across history changes so you can diff the *same* profile configuration before/after a tuning change — listening history is excluded from the hash.
+
+### 12.3 Capture protocol for a clean A/B
+
+1. **Reset.** Delete `eval.jsonl` (or rename to `eval-pre-ab.jsonl`).
+2. **Enable debug mode.** Settings → Debug → on.
+3. **Run N playlists with RAG off.** Settings → Candidate pool (RAG) → off. Generate the same playlist size from the same profile N times (10 is a usable sample; 20 is better). Vary nothing else.
+4. **Run N playlists with RAG on.** Toggle RAG back on, repeat the same N runs against the same profile.
+5. **Optional: vary the model.** Repeat steps 3–4 for each model you want to compare (`gpt-5-mini`, a local 8B, etc.). The `model` column makes the slices trivial.
+6. **Disable debug mode** when done — the file stops growing.
+
+The `run_id`, `model`, and `rag_enabled` columns let you slice every dimension after the fact, so you don't need separate files per condition.
+
+### 12.4 Loading into pandas
+
+```python
+import pandas as pd
+from pathlib import Path
+
+# Adjust to your platform; on Windows use Path(os.environ["LOCALAPPDATA"]) / "spotyvibe" / "eval.jsonl"
+LOG = Path.home() / ".local/share/spotyvibe/eval.jsonl"
+
+df = pd.read_json(LOG, lines=True)
+df["ts"] = pd.to_datetime(df["ts"])
+print(df.shape, df.columns.tolist())
+df.head()
+```
+
+`pd.read_json(..., lines=True)` is the canonical way to load JSONL — no preprocessing required.
+
+### 12.5 Headline metric — hallucination rate
+
+```python
+# Hallucination rate = fraction of suggested tracks Spotify could not find.
+# Slice by RAG state, then by model, then by both.
+def hallucination_rate(g):
+    return 1 - g["found_on_spotify"].mean()
+
+print("Overall:")
+print(df.groupby("rag_enabled").apply(hallucination_rate).rename("hallucination_rate"))
+
+print("\nBy model:")
+print(df.groupby(["model", "rag_enabled"]).apply(hallucination_rate)
+        .rename("hallucination_rate").unstack("rag_enabled"))
+```
+
+Expected output shape:
+
+```
+rag_enabled
+False    0.18
+True     0.07
+Name: hallucination_rate, dtype: float64
+```
+
+A drop ≥ 30% in the `True` row vs `False` is the success criterion from §1.
+
+### 12.6 Candidate-pool effectiveness
+
+When RAG is on, two further questions matter: *how often did the LLM pick from the pool?* and *did pool picks fare better than off-pool picks?*
+
+```python
+rag_on = df[df["rag_enabled"]]
+
+print("Pool adherence (share of RAG-on suggestions that came from the pool):")
+print(rag_on["in_candidate_pool"].mean())
+
+print("\nFound-rate, in-pool vs out-of-pool:")
+print(rag_on.groupby("in_candidate_pool")["found_on_spotify"].mean())
+```
+
+If pool adherence is below ~40%, the prompt isn't directive enough or the pool is mismatched to the profile; if out-of-pool tracks have a *much* worse found-rate than in-pool, that confirms the candidate pool is doing its job.
+
+### 12.7 Per-run summary (what an experiment "feels" like)
+
+```python
+per_run = (
+    df.groupby(["run_id", "model", "rag_enabled"])
+      .agg(
+          tracks=("artist", "size"),
+          missed=("found_on_spotify", lambda s: (~s).sum()),
+          pool_share=("in_candidate_pool", "mean"),
+      )
+      .assign(miss_rate=lambda d: d["missed"] / d["tracks"])
+      .reset_index()
+)
+per_run.sort_values("miss_rate", ascending=False).head(10)
+```
+
+This surfaces the *worst* runs first — usually the most informative when eyeballing what kinds of profiles/models break.
+
+### 12.8 Inspecting the actual hallucinations
+
+```python
+hallucinations = (
+    df.loc[~df["found_on_spotify"], ["model", "rag_enabled", "artist", "track", "rationale_types"]]
+      .value_counts(["artist", "track", "model", "rag_enabled"])
+      .reset_index(name="count")
+      .sort_values("count", ascending=False)
+)
+hallucinations.head(20)
+```
+
+Repeated `(artist, track)` pairs in the top of this list are *systematic* hallucinations — almost always either an LLM misremembering a real song's artist, or a confidently invented title from a real artist. Both are the highest-signal cases for prompt iteration.
+
+### 12.9 Comparing profile configurations
+
+```python
+df.groupby(["profile_hash", "rag_enabled"])["found_on_spotify"].mean().unstack()
+```
+
+Useful when iterating on the *prompt* or the *profile schema* between runs — same profile content (= same hash) before and after a change is directly comparable.
+
+### 12.10 Decision rules for §11
+
+The numbers above feed directly into the open tasks:
+
+| Observation | Action |
+|---|---|
+| RAG-on hallucination rate ≥ 30% lower than RAG-off | Already done — `DEFAULT_RAG_ENABLED = True` (2026-04-19). |
+| `in_candidate_pool` mean < 0.4 | Try `RAG_POOL_SIZE = 40` *or* tighten the candidate-pool prompt language. |
+| `in_candidate_pool` mean > 0.9 *and* hallucinations still high | The pool itself is wrong — extend `tag_aliases.json`. |
+| Out-of-pool found-rate ≈ in-pool found-rate | Pool is not adding ranking signal — revisit `RAG_POPULARITY_PENALTY` or scoring weights. |
+| Repeated identical hallucinations across runs of the same profile | Add the offending pair to the profile's `avoid` list as a smoke test, or add the *correct* artist as an alias if it's a misremember. |
+
+### 12.11 Caveats
+
+- `found_on_spotify=False` is **not** a perfect hallucination signal — Spotify catalog gaps, regional restrictions (the search uses `market="from_token"`), and minor title typos all count as misses. Cross-check the worst-offender list (§12.8) before drawing conclusions.
+- The eval log records what the LLM *initially* proposed. The dedup filter and emerging-artists filter run downstream and may discard tracks that *did* get logged here — so the log row count slightly overstates what the user actually saw in the playlist.
+- `rationale_types` is whatever the LLM emitted (post-normalisation). Empty / `fallback` types tend to correlate with weaker matches; useful as a secondary slice.
 
