@@ -1023,7 +1023,7 @@ class TestDocumentationScreenshotAcquire:
         page.locator("#genNewArtistPct").fill("33")
         page.locator("body").click()
         page.wait_for_timeout(300)
-        _shot_element(page, "59_exploration_slider_custom", ".gen-mode-body--advanced .exploration-row")
+        _shot_element(page, "59_exploration_slider_custom", ".gen-shared-controls .exploration-row")
 
     def test_60_preset_dropdown_open(self, page: Page, screenshot_url):
         """Screenshot: Preset dropdown expanded in Advanced mode."""
@@ -1313,7 +1313,7 @@ class TestDocumentationScreenshotAcquire:
         ))
         page.reload()
         page.wait_for_load_state("networkidle")
-        page.locator(".taste-dashboard-section .accordion-header").click()
+        page.locator(".taste-dashboard-section .train-header").click()
         page.wait_for_timeout(500)
         _shot_element(page, "75_taste_dashboard", ".taste-dashboard-section")
 
@@ -1329,7 +1329,7 @@ class TestDocumentationScreenshotAcquire:
         ))
         page.reload()
         page.wait_for_load_state("networkidle")
-        page.locator(".taste-dashboard-section .accordion-header").click()
+        page.locator(".taste-dashboard-section .train-header").click()
         page.wait_for_timeout(300)
         _shot_element(page, "76_taste_dashboard_empty", ".taste-dashboard-section")
 
@@ -1384,18 +1384,6 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(200)
         _shot_element(page, "81_provider_dropdown_expanded", "#settingsModal .modal")
 
-    def test_82_provider_custom_selected(self, page: Page, screenshot_url):
-        """Screenshot: Settings modal with Custom provider selected, base URL row visible."""
-        page.goto(screenshot_url)
-        page.wait_for_load_state("networkidle")
-        page.locator(".burger-btn[aria-controls='settingsDropdown']").click()
-        page.wait_for_timeout(200)
-        page.locator("button:has-text('Settings')").click()
-        page.wait_for_timeout(300)
-        page.select_option("#settings-provider", "custom")
-        page.wait_for_timeout(300)
-        _shot_element(page, "82_provider_custom_selected", "#settingsModal .modal")
-
     def test_83_provider_local_ollama(self, page: Page, screenshot_url):
         """Screenshot: Settings modal with Ollama selected, local notice visible."""
         page.goto(screenshot_url)
@@ -1438,8 +1426,7 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(200)
         page.locator("button:has-text('Settings')").click()
         page.wait_for_timeout(300)
-        page.select_option("#settings-provider", "custom")
-        page.locator("#settings-base-url").fill("http://unreachable.example/v1")
+        page.select_option("#settings-provider", "openrouter")
         page.locator("#btnFetchModels").click()
         page.wait_for_timeout(500)
         _shot_element(page, "85_fetch_models_failure", "#settingsModal .modal")
