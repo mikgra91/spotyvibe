@@ -29,13 +29,14 @@ spotyvibe/
 │   ├── history.py                 # Run history persistence
 │   ├── analysis.py                # Band/artist analysis
 │   ├── spotify_metadata.py        # Spotify metadata enrichment
-│   ├── taste.py                   # Taste aggregation for dashboard (Wave 3)
-│   ├── localised_docs.py          # Language-aware Markdown resolver (Wave 5)
+│   ├── taste.py                   # Taste aggregation for dashboard
+│   ├── localised_docs.py          # Language-aware Markdown resolver (en/de/jp fallback)
 │   └── utils.py                   # Shared utilities
 ├── core/tests/                    # Unit tests — one per core module
 ├── frontend/templates/            # Jinja2 HTML
 │   ├── base.html                  # Main layout (loads all partials)
-│   ├── onboarding.html            # 7-step setup wizard (standalone, own i18n)
+│   ├── macros.html                # Shared Jinja macros
+│   ├── onboarding.html            # 4-page setup wizard (Welcome → Language → Credentials → Connect)
 │   ├── train_profile.html         # Music profile editor
 │   ├── generate_section.html      # Playlist generation controls
 │   ├── playlist_review.html       # Track review UI
@@ -44,15 +45,20 @@ spotyvibe/
 │   ├── preview_overlay.html       # Audio preview overlay
 │   ├── taste_dashboard.html       # Taste dashboard charts panel
 │   ├── theme_switcher.html, settings_gear.html, toast.html
-│   └── modals/                    # credentials, help, quickstart, settings,
-│       │                          #   privacy, setup_guide_overlay
+│   └── modals/
+│       ├── credentials_modal.html # API keys entry
+│       ├── settings_modal.html    # Model, playlist size, language, display size, debug
+│       ├── help_modal.html        # In-app help viewer
+│       ├── quickstart_modal.html  # Provider-scoped Quick Start storyboard
 │       ├── privacy_modal.html     # "What gets sent where?" data-flow table
-│       ├── setup_guide_overlay.html # Full-screen setup guide detail overlay
-│       └── preset_manager_modal.html # Preset manager sub-screen
+│       ├── playlist_seed_modal.html # Playlist-seeded profile picker
+│       ├── preset_manager_modal.html # Preset CRUD sub-screen
+│       └── setup_guide_overlay.html # Full-screen setup guide detail overlay
 ├── frontend/static/favicon.ico    # Browser favicon
 ├── frontend/static/css/           # Modular CSS (no bundler)
-│   ├── base.css                   # Design tokens, reset, body, scrollbar
+│   ├── base.css                   # Design tokens (incl. --ui-scale), reset, body, scrollbar
 │   ├── layout.css                 # Container, typography, sr-only, focus
+│   ├── utilities.css              # Utility classes
 │   ├── buttons.css                # All .btn-* variants
 │   ├── forms.css                  # Form rows, inputs, selects, checkboxes
 │   ├── components.css             # Glass panels, toast, tooltip, spinner, accordion
@@ -60,7 +66,7 @@ spotyvibe/
 │   ├── modals.css                 # Modal overlay, help modal, lightbox
 │   ├── quickstart.css             # Quickstart guide (qs-*/qd-* prefixes)
 │   ├── sections.css               # Profile, analysis, providers, metadata
-│   ├── preview.css                # Spotify preview overlay
+│   ├── preview.css                # Spotify preview overlay + SDK player
 │   ├── onboarding.css             # Onboarding wizard shell + step styles
 │   ├── setup_guide.css            # Setup guide overlay + privacy table styles
 │   ├── completeness.css           # Profile completeness meter styling
@@ -73,9 +79,11 @@ spotyvibe/
 │   ├── provider.css               # Provider dropdown + credential rows
 │   ├── cost_estimate.css          # Cost-estimate card + footnote
 │   ├── voice.css                  # Microphone button states
+│   ├── getting_started.css        # Floating "Getting Started" checklist card
 │   └── responsive.css             # All @media queries
 ├── frontend/static/js/modules/   # JS feature modules
 │   ├── state.js                   # Central app state
+│   ├── dom.js                     # Shared DOM helpers
 │   ├── ui.js, auth.js, profile.js, pipeline.js, playlist-mode.js
 │   ├── review.js, feedback.js, preview.js, tracklist.js
 │   ├── history.js, analysis.js, audio-filters.js
@@ -94,8 +102,11 @@ spotyvibe/
 │   ├── provider.js                # Custom LLM endpoint management
 │   ├── cost_estimate.js           # Token & cost estimator widget
 │   ├── voice.js                   # Web Speech API voice input
+│   ├── getting-started.js         # Floating checklist card (binds /api/onboarding/progress)
+│   ├── ui-scale.js                # Display-size radiogroup → --ui-scale on :root
+│   ├── spotify-sdk.js             # Web Playback SDK lifecycle (Premium preview player)
 │   └── theme-switcher.js, theme-equalizer.js, theme-pulse.js,
-│       theme-spectrum.js, theme-starfield.js
+│       theme-spectrum.js, theme-starfield.js, theme-calm.js
 ├── frontend/static/i18n/          # en.json + de.json + jp.json
 ├── frontend/tests/                # Playwright tests
 │   ├── test_frontend.py           # Main frontend integration tests

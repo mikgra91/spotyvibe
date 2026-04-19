@@ -1,165 +1,82 @@
 # SpotyVibe 🎵
 
-An AI-powered music discovery tool that creates personalised Spotify playlists based on your taste.
+AI-powered music discovery. Describe what you like — SpotyVibe asks an LLM for fitting tracks, verifies each on Spotify, and drops them into a private playlist. Every like or dislike sharpens the next run.
 
 ---
 
-## What Is This?
+## How it works
 
-SpotyVibe uses **artificial intelligence** to learn what kind of music you enjoy and then generates a playlist of tracks tailored to your preferences (**playlist size is configurable**; default: 10). The tracks are automatically added to a private Spotify playlist that you can listen to right away.
+1. **Describe your taste** — core description, must-haves, soft preferences, things to avoid.
+2. **Generate** — the AI picks tracks; SpotyVibe adds them to your playlist.
+3. **Rate** — 👍 / 👎 from the preview player or each track card.
+4. **Repeat** — each run gets better as the profile grows.
 
-
-The interface features a premium dark aesthetic with frosted dark-glass panels and luminous green accents — designed for an immersive, high-end music discovery experience. A **theme switcher** at the top of the page lets you choose between two animated background styles:
-
-- **Equalizer** — animated frequency-spectrum bars with spring physics and beat simulation (the default)
-- **Pulse** — expanding concentric rings with floating particles and bass-drop effects
-
-Your theme preference is saved in the browser and restored on next visit.
-
-The more you use it, the smarter it gets — every time you like or dislike a suggestion, the AI refines its understanding of your taste and delivers better recommendations next time.
-
-## How It Works
-
-1. **Describe your taste** — Fill in structured sections (core description, must-haves, soft preferences, things to avoid) so the AI understands exactly what you want.
-2. **Generate a playlist** — The AI creates a personalised set of track suggestions (based on your configured playlist size), each shown with its Spotify album cover, and adds them to your Spotify playlist.
-
-3. **Give feedback** — Like tracks you enjoy, dislike ones you don't. The AI learns from every interaction.
-4. **Repeat** — Each run produces fresh recommendations that get more accurate over time.
+---
 
 ## Features
 
-- **AI-powered suggestions** with configurable OpenAI model selection (GPT-5.4, GPT-5.4-mini, GPT-4.1, GPT-4.1-mini, GPT-4.1-nano).
-- **Structured taste profile** — accordion-style editor with separate sections for core description, must-haves, soft preferences, and things to avoid. Existing profile data is pre-filled for easy editing. Save changes directly or use **AI Profile Update** to let GPT refine your input.
-- **Multiple profiles** — create, switch, and delete named profiles from a dropdown in the Music Profile header. Each profile is stored as a UUID-named JSON file in the `profiles/` directory. Profiles are completely independent — great for different moods, activities, or family members.
-- **Profile import/export** — import a full profile JSON (the current profile is automatically backed up to the history file) or export your current active profile as a JSON download. Import/Export/Reset controls appear below the "Last trained" status line when the profile editor is open.
-- **Reset to history** — revert your Music Profile to the previous saved version (one-step undo).
-- **Collapsible UI sections** — every major component (Music Profile, Band/Song Analysis, Audio Filters, Discover Music, Refine Playlist, History) is collapsible/expandable. Each section header includes a short description and the entire header area is clickable to toggle.
+- **Configurable LLM** — GPT-5.4 / 5.4-mini / 4.1 / 4.1-mini / 4.1-nano, or point it at any OpenAI-compatible endpoint (Ollama, LM Studio, Groq, OpenRouter, custom).
+- **Structured taste profile** with multi-profile support, import/export, one-step undo, and an AI-seed-from-playlist option.
+- **Exploration slider** (5 notches) that adjusts playlist size, new-artist %, emerging-artists toggle, and temperature in one pull. Advanced mode exposes every knob individually.
+- **Audio feature filters** (energy, valence, tempo, danceability, acousticness) injected into the GPT prompt. Populate them in one click from a Band/Song Analysis result.
+- **Emerging artists only** — restrict suggestions to artists who debuted in the last 6 months.
+- **Preview player** — Spotify Web Playback SDK on Premium (full tracks, 👍 / 👎 quick buttons, autoplay toggle) with an iframe fallback (~30 s clips).
+- **Feedback-aware prompts** — recent like/dislike reasons are summarised and fed back to GPT.
+- **Rationale chips** on every suggestion: `matches '<trait>'`, `similar to <Artist>`, `released YYYY`, `discovery pick`, `matches energy/tempo`.
+- **Taste dashboard** — genre donut, energy × valence scatter, decade bar, once you have ≥ 10 unique tracks.
+- **Refine Playlist** — load any existing Spotify playlist and curate it track by track.
+- **Run history** — last 5 runs with expandable track lists.
+- **Getting Started checklist** — a floating home-page card that auto-checks setup steps as you complete them.
+- **i18n** — English, Deutsch, 日本語 (UI and AI response language are independent settings).
+- **Display size** — three-step UI scale (Small / Default / Large).
+- **Two animated themes** — Equalizer (default) or Pulse. `prefers-reduced-motion` disables both.
+- **Mobile-responsive**, Android APK, PyInstaller EXE, and Python wheel distributions.
+- **Tests & CI** — pytest + Playwright, running in parallel on every push.
 
-- **Album artwork** displayed alongside each suggested track.
-- **Spotify integration** — auto-creates and manages a private playlist.
-- **Cancel generation** — stop an in-progress playlist generation at any time with the ⛔ Cancel button.
-- **Use tracks now** — if GPT gets stuck repeating songs, use the "▶ Use X tracks now" button to create the playlist immediately with however many tracks have already been verified.
-- **Automatic loop protection** — if GPT ignores the exclusion list for 3 consecutive batches, the loop stops automatically and creates the playlist with whatever was found. Each retry sends an explicit warning listing the exact tracks GPT suggested that were already known.
-- **New Artist % setting** — configurable percentage (1–100, default 30%) of each batch that must come from artists not yet in your history, pushing GPT to explore new territory.
-- **Model-specific GPT prompts** — each model family gets a tailored system prompt optimised for its strengths (e.g., candidate-pool reasoning for GPT-5.4, step-by-step validation for GPT-4.1). A consolidated JSON deny list ensures exclusion accuracy across all models.
-- **Band/Song Analysis** — AI-powered analysis of any band or song, returning genre, style, characteristics, GPT-estimated audio features (energy, danceability, etc.), and copy-paste profile suggestions (`core/analysis.py`).
-- **Internationalization (i18n)** — full English and German UI with a language picker in the header; translations in `static/i18n/en.json` and `de.json`. A separate **ChatGPT Language** setting controls the language used for GPT communication.
-- **GPT Audio Feature Constraints** — optional audio filters (energy, valence, tempo, danceability, acousticness) in the OpenAI section are injected directly into the GPT prompt, guiding the AI to suggest tracks matching the desired mood and feel.
-- **Emerging Artists Only** — optional checkbox that restricts suggestions to tracks by artists who debuted in the last 6 months. GPT receives a hard constraint, and surviving tracks are validated against Spotify release dates. The playlist may contain fewer tracks than requested because only emerging-artist tracks survive.
-- **Feedback Reasons in prompts** — recent like/dislike reasons are summarized and sent to GPT so it can learn *why* you liked or disliked a track, not just which ones.
-- **Multiple Playlists / Playlist Naming** — create new, append, or replace playlists with custom name templates supporting `{date}` and `{style}` tokens.
-- **Refine Playlist** — load an existing Spotify playlist and review tracks one-by-one with the Feedback panel (Like / Dislike) or Delete (🗑) to refine your taste profile and clean up the playlist.
-- **Inline loading spinners** — both playlist generation and playlist loading show a centered spinner with live progress messages inside the section, keeping the UI clean and focused.
-- **Run History** — the last 5 generation runs are saved (`core/history.py`); each entry shows date/time, track count, and a playlist link. Expand any entry to see the full list of tracks added.
-- **Previews and Richer Track Cards** — album art, inline track playback (Spotify Web Playback SDK for Premium on supported runtimes, with quick 👍 / 👎 rating in the player; iframe fallback otherwise), and direct links to track, artist, and album on Spotify. Track cards glow green on hover. The preview player uses a three-zone bottom-bar layout: player (centered), Feedback / Delete action buttons, and a sliding feedback panel with dual Like / Dislike submit buttons.
-- **Hard Cost Guardrails** — max 20 GPT calls per run, max 3 consecutive empty batches, and field-level character limits to prevent runaway usage.
-- **Better SSE Resilience** — run state is persisted by `run_id`; a recovery endpoint lets the client reconnect after a network drop.
-- **Cached Model List** — `/api/settings/models` is cached with a 5-minute TTL to reduce API calls.
-- **Security hardening** — profile import validation, server-side request size limits, character sanitization, prompt injection hardening, Android WebView download restriction, and Spotify search query sanitization.
-- **Debug mode (desktop only)** — logs all GPT communication to a file for prompt analysis and tuning (not available in the Android APK).
-- **Mobile responsive** — the UI automatically adapts to tablet and phone screens with touch-friendly controls and bottom-sheet modals, no app install required.
-- **Android APK ready** — project includes Chaquopy-based Android scaffolding for building a self-contained APK that bundles the full Flask app, Python runtime, and all dependencies. The Android build pins Android Gradle Plugin 8.2.2, Kotlin 1.9.22, Chaquopy 15.0.1, compile/target SDK 34, and Python 3.10 with pinned pip dependencies. Spotify OAuth works seamlessly on Android via deep-link callback (`spotyvibe://callback`); add this URI alongside `http://127.0.0.1:5000/callback` in your Spotify Developer Dashboard. Emulator testing is supported via the `x86_64` ABI filter.
-- **Android Onboarding Flow** — multi-page swipeable onboarding for first-time users covering intro, language selection, credentials, and Spotify connection.
-- **Android Packaging Polish** — share/import flows, external Spotify links, and improved OAuth deep linking.
-- **Testing & CI** — pytest suite with GitHub Actions CI on push and PR (`.github/workflows/ci.yml`).
+---
 
-## Project Structure (key paths)
+## Install & Run
 
-| Path | Purpose |
+| Platform | Command |
 |---|---|
-| `app.py` | Flask application entry point |
-| `core/analysis.py` | Band/song analysis logic |
-| `core/history.py` | Run history tracking |
-| `prompts/analysis_prompt.txt` | GPT prompt template for band/song analysis |
-| `static/i18n/en.json`, `de.json` | UI translation files |
-| `.github/workflows/ci.yml` | GitHub Actions CI pipeline |
-| `core/tests/` | Unit tests for core modules |
-| `frontend/tests/` | Frontend (Playwright) tests |
+| Windows | `pip install -r requirements.txt && python app.py` |
+| macOS / Linux | `pip install spotyvibe-*.whl && spotyvibe` |
+| Android | Install the APK from [GitHub Releases](../../releases) |
 
-## Platform Support
+Open <http://127.0.0.1:5000> (desktop opens automatically).
 
-| Platform | Method | Download |
-|---|---|---|
-| **Windows** | PyInstaller executable | `spotyvibe_onefile.exe` or `spotyvibe_package.zip` |
-| **macOS / Linux** | Python package (wheel) | `spotyvibe-*.whl` — install with `pip install`, run with `spotyvibe` |
-| **Android** | Chaquopy APK | `spotyvibe.apk` |
+> **Prerequisites:** Python 3.10+, Spotify Premium, and API keys from [OpenAI](https://platform.openai.com/api-keys) + [Spotify Developer](https://developer.spotify.com/dashboard).
+>
+> Register both redirect URIs on the Spotify app: `http://127.0.0.1:5000/callback` (desktop) and `spotyvibe://callback` (Android).
 
-All downloads are attached to each [GitHub Release](../../releases).
+> **macOS port 5000:** AirPlay Receiver uses this port by default. Disable it in **System Settings → General → AirDrop & Handoff** if SpotyVibe can't bind.
+
+> **💰 Cost:** OpenAI is a paid API — `gpt-5.4-mini` is affordable; larger models cost more. Free local providers (Ollama, LM Studio) are supported via Settings → Provider.
 
 ---
 
-## Quick Start
-
-### Windows
-
-1. Install Python 3.10+ and run `pip install -r requirements.txt`.
-2. Start the app with `python app.py` and open <http://127.0.0.1:5000>.
-3. A **Quick Start Guide** appears automatically for the active provider section — one for **OpenAI** (profile & analysis) and one for **Spotify** (generate, review, history). Each guide shows only the steps relevant to its provider and has its own "Don't show again" preference.
-4. To reopen the guide later, click **☰ → 🚀 Quick Start** (it opens the guide for whichever provider section is currently active).
-
-### macOS / Linux
-
-1. Install Python 3.10+ (`brew install python@3.12` on macOS, `sudo apt install python3 python3-pip` on Debian/Ubuntu).
-2. Download the `.whl` file from the latest [GitHub Release](../../releases).
-3. Install and run:
-   ```bash
-   pip install spotyvibe-*.whl
-   spotyvibe
-   ```
-4. The server starts and your browser opens to `http://127.0.0.1:5000`. Press **Ctrl+C** to stop.
-
-> **macOS port 5000:** AirPlay Receiver uses port 5000 by default. If you see a port conflict, disable it: System Settings → General → AirDrop & Handoff → AirPlay Receiver → Off.
-
----
-
-## Build a Windows executable (PyInstaller)
-
-SpotyVibe includes a desktop-only PyInstaller setup which builds a **one-folder** Windows executable.
+## Build from source
 
 ```bash
-pip install -r requirements.txt
-python build_assets/make_ico.py
-python -m pytest core/tests/ frontend/tests/ -v
-
-
-# One-folder build
-pyinstaller --noconfirm --clean spotyvibe.spec
-
-# (Optional) one-file build
-pyinstaller --noconfirm --clean spotyvibe_onefile.spec
-
-# Or use the helper script:
-#   ./build-tools/build_exe.sh --package
-#   ./build-tools/build_exe.sh --full
+bash build-tools/build_exe.sh --package    # Windows EXE (one-folder)
+bash build-tools/build_apk.sh debug        # Android APK
+pip install build && python -m build --wheel   # macOS/Linux wheel
 ```
 
-
-Output:
-- One-folder: `dist/spotyvibe/spotyvibe.exe`
-- One-file: `dist/spotyvibe_onefile.exe`
-
-
-Notes:
-- The executable runs the same local server at `http://127.0.0.1:5000`.
-- On launch, the desktop executable opens a native embedded browser window (via pywebview) — closing the window cleanly terminates the process.
-- Credentials are **not** bundled; they are stored in the OS keychain (Windows Credential Manager). Fallback: `%LOCALAPPDATA%\\spotyvibe\\.credentials`.
-- App settings (model, playlist size, etc.) are stored in `%LOCALAPPDATA%\\spotyvibe\\settings.conf`.
-- The one-file build has a slower cold start (it extracts bundled files on launch).
-
-
+Artifacts attach to each [GitHub Release](../../releases).
 
 ---
-
 
 ## Documentation
 
 | Document | Description |
 |---|---|
-| **[User Manual](documentation/UserManual.md)** | Step-by-step setup guide and usage instructions for end users. |
-| **[Technical Manual](documentation/TechnicalManual.md)** | Architecture overview, component interactions, and developer reference. |
+| [User Manual](documentation/UserManual.md) | End-user setup and usage |
+| [Technical Manual](documentation/TechnicalManual.md) | Architecture and developer reference |
+| [Project Layout](documentation/ProjectLayout.md) | Full directory tree |
 
 ---
 
 ## License
 
-This project is for personal use and educational purposes.
+Personal / educational use.
