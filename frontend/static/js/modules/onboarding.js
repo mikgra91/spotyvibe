@@ -446,12 +446,6 @@ function connectObSpotify() {
         return;
     }
 
-    // Android WebView: navigate in-window (no popup)
-    if (/; wv\)/.test(navigator.userAgent)) {
-        window.location.href = '/api/spotify/auth';
-        return;
-    }
-
     // Browser: open popup
     window.open('/api/spotify/auth', 'spotifyAuth', 'width=480,height=640');
     window.addEventListener('message', async (e) => {

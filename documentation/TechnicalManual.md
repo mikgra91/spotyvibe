@@ -47,13 +47,12 @@ See [ProjectLayout.md](ProjectLayout.md) for the full tree. Key paths:
 | `frontend/static/css/` | Modular CSS (`base.css`, `components.css`, …) |
 | `frontend/static/i18n/` | `en.json`, `de.json`, `jp.json` (kept in sync) |
 | `documentation/` | Help pages, setup guides, manuals |
-| `android/` | Chaquopy APK scaffolding |
 
 ---
 
 ## `config.py` — Configuration & Credentials
 
-Secrets are stored in the OS keychain (Windows Credential Manager / macOS Keychain) via the `keyring` library, with `%LOCALAPPDATA%\spotyvibe\.credentials` as a plaintext fallback on platforms without a usable keyring (Android). Non-secret preferences live in `%LOCALAPPDATA%\spotyvibe\settings.conf` (dotenv format). On first load, plaintext secrets in `.credentials` are migrated into keyring automatically.
+Secrets are stored in the OS keychain (Windows Credential Manager / macOS Keychain) via the `keyring` library, with `%LOCALAPPDATA%\spotyvibe\.credentials` as a plaintext fallback on platforms without a usable keyring. Non-secret preferences live in `%LOCALAPPDATA%\spotyvibe\settings.conf` (dotenv format). On first load, plaintext secrets in `.credentials` are migrated into keyring automatically.
 
 **Key constants:**
 
@@ -70,7 +69,6 @@ Secrets are stored in the OS keychain (Windows Credential Manager / macOS Keycha
 | `DEFAULT_OPENAI_MODEL` | `gpt-5.4-mini` | Fallback model. |
 | `PROFILE_IMPORT_MAX_BYTES` | 10 MB | Per-request cap for profile import. |
 | `GENERAL_REQUEST_MAX_BYTES` | 1 MB | Flask `MAX_CONTENT_LENGTH` for all other endpoints. |
-| `IS_ANDROID` | — | `True` under Chaquopy (detected via `sys.getandroidapilevel`). |
 
 **Credential keys (keyring):** `OPENAI_API_KEY`, `SPOTIPY_CLIENT_ID`, `SPOTIPY_CLIENT_SECRET`.
 
@@ -87,7 +85,7 @@ Secrets are stored in the OS keychain (Windows Credential Manager / macOS Keycha
 
 | Module | Responsibility |
 |---|---|
-| `openai_http.py` | Direct HTTP client for OpenAI-compatible APIs using `urllib.request` only. Avoids native transitive deps (`jiter`, `pydantic-core`) that blocked Chaquopy builds. Retries 429/5xx with exponential back-off. Error hierarchy: `OpenAIError` → `OpenAIConfigError`, `OpenAIAuthError`, `OpenAIRateLimitError`, `OpenAITimeoutError`, `OpenAIResponseError`, `OpenAIUnsupportedModelError`. |
+| `openai_http.py` | Direct HTTP client for OpenAI-compatible APIs using `urllib.request` only. Retries 429/5xx with exponential back-off. Error hierarchy: `OpenAIError` → `OpenAIConfigError`, `OpenAIAuthError`, `OpenAIRateLimitError`, `OpenAITimeoutError`, `OpenAIResponseError`, `OpenAIUnsupportedModelError`. |
 | `utils.py` | Shared helpers: `get_openai_models()`, `strip_code_fences()`, `debug_log()`, `sanitize_text()`, `sanitize_profile()`, `safe_text()` (form/body string extraction), `call_gpt_json()` (one-shot wrapper used by analysis, profile training, seeding), `app_log()`. |
 | `profile.py` | Multi-profile CRUD (`list_profiles`, `create_profile`, `delete_profile`, `activate_profile`), load/save, AI training (`train_profile`), direct-save (`save_profile_sections`), validation, automatic `.history.json` backup, vibe-description auto-classification. mtime-based cache avoids redundant JSON reads. |
 | `suggestions.py` | Generation engine. `build_messages()` → `call_gpt()` → `normalize_response()` → `filter_duplicate_suggestions()`. Uses a **single** `prompts/system_prompt.txt` with a `{validation_block}` placeholder that the code injects per-model (see below). Injects `{batch_size}`, `{new_artist_percentage}`, `{min_new_artists}`, `{gpt_language}`, `{recent_feedback}`, `{audio_filters_block}`, `{deny_set_json}`. |
@@ -145,7 +143,7 @@ Secrets are stored in the OS keychain (Windows Credential Manager / macOS Keycha
 | GET | `/api/spotify/token` | Short-lived access token for the Web Playback SDK. |
 | GET/POST | `/api/settings`, `/api/settings/credentials` | Non-secret prefs / masked credentials. |
 | GET | `/api/settings/models` | Model list. **Cached 5 min (`_models_cache`).** |
-| DELETE | `/api/settings/debug-log` | Clear debug log (desktop only — 404 on Android). |
+| DELETE | `/api/settings/debug-log` | Clear debug log. |
 | GET | `/api/help` | Rendered help HTML; honours `ui_language` with EN fallback. |
 | GET | `/api/help/section/<anchor>` | Single help section by anchor ID. |
 | GET | `/api/help/guide/<slug>` | Setup guide as structured JSON. Whitelisted: `openai_api_key`, `spotify_developer_app`, `python_install_macos`, `python_install_linux`. |
@@ -195,7 +193,7 @@ SDK lifecycle lives in `frontend/static/js/modules/spotify-sdk.js`; the route la
 
 **Audio filter grid:** rebuilt with per-row CSS named grid areas so each filter row lays out independently on narrow viewports without flex wrapping.
 
-**Onboarding (Android & web):** 4-page swipeable flow (intro, language, credentials, connect). CSS uses container-size queries to fluidly scale the card on short viewports.
+**Onboarding:** 4-page swipeable flow (intro, language, credentials, connect). CSS uses container-size queries to fluidly scale the card on short viewports.
 
 ### Theme system
 
@@ -214,7 +212,6 @@ Preference stored in `localStorage['spotyvibe-theme']`. Renderers registered in 
 - `validate_profile_schema()` whitelists top-level keys and enforces field-length caps.
 - Flask `MAX_CONTENT_LENGTH = 1 MB`; profile import allows 10 MB.
 - System prompts mark user-provided profile data as untrusted to harden against prompt injection.
-- Android WebView: downloads restricted to `/api/profile/export`; external URLs routed to the system browser.
 - Spotify search strings are sanitised before building `track:"..." artist:"..."` queries.
 
 ---
@@ -234,44 +231,12 @@ On 403 during playlist writes, `add_to_playlist()` calls `disconnect_spotify()` 
 
 ---
 
-## Android Platform
-
-`android/` packages SpotyVibe as a self-contained APK via **Chaquopy** (Python interpreter embedded in the APK). `IS_ANDROID` gates every Android-specific path in `config.py`.
-
-**Build:** `bash build-tools/build_apk.sh debug` copies `app.py`, `config.py`, `core/`, `prompts/`, `data/`, `frontend/`, `documentation/` into `android/app/src/main/python/` (stripping `__pycache__`) and runs `./gradlew assembleDebug`.
-
-**Pinned versions:**
-
-| Component | Version |
-|---|---|
-| Android Gradle Plugin | 8.2.2 |
-| Kotlin Gradle plugin | 1.9.22 |
-| Chaquopy Gradle plugin | 15.0.1 |
-| compile / target SDK | 34 |
-| min SDK | 26 |
-| Python runtime | 3.10 |
-
-**Lifecycle (`MainActivity.kt`):** sets `SPOTYVIBE_FILES_DIR`, runs Flask on a daemon thread, shows a splash while polling `http://127.0.0.1:5000`, then loads the URL in a WebView. `onDestroy()` interrupts the Flask thread. `onNewIntent()` handles OAuth deep-links.
-
-**OAuth on Android:** popups fail because `accounts.spotify.com` leaves the WebView. The fix:
-1. `auth.js` detects the WebView UA (`/; wv\)/`) and uses a same-window redirect instead of a popup.
-2. `playlist.py` uses redirect URI `spotyvibe://callback` on Android; `AndroidManifest.xml` registers an intent-filter for it.
-3. `handleOAuthIntent()` routes the callback back into Flask at `/callback`.
-4. The `/callback` success page falls back to a delayed home-page redirect when `window.opener` is null.
-
-> `spotyvibe://callback` **must** be added alongside `http://127.0.0.1:5000/callback` in the Spotify Developer Dashboard.
-
-**Android-only restrictions:** debug mode is unavailable (`debug_controls_available=false`); WebView downloads are limited to `/api/profile/export`; no `openai` SDK or Rust-extension packages; `pydantic` pinned <2.0 if used.
-
----
-
 ## Distribution
 
 | Target | Artifact | Build |
 |---|---|---|
 | Windows | `spotyvibe.exe` (PyInstaller one-folder) or `spotyvibe_onefile.exe` | `bash build-tools/build_exe.sh --package` |
 | macOS / Linux | `spotyvibe-*.whl` (`hatchling` backend, `py3-none-any`) | `pip install build && python -m build --wheel` |
-| Android | `spotyvibe.apk` (Chaquopy) | `bash build-tools/build_apk.sh debug` |
 
 All artifacts attach to each [GitHub Release](../../releases). CI workflow: `.github/workflows/ci.yml`.
 
@@ -284,6 +249,42 @@ All artifacts attach to each [GitHub Release](../../releases). CI workflow: `.gi
 - `hatchling` force-includes `app.py`, `config.py`, `core/src/`, `frontend/`, `prompts/`, `data/`, `documentation/`.
 - `spotyvibe.cli:main()` reserves port 5000 (Spotify's redirect URI is hard-coded), delays 1.5 s, then opens the default browser and runs Flask.
 - One `.whl` tagged `py3-none-any` serves both platforms.
+
+### RAG corpus (separate release channel)
+
+The MusicBrainz-derived candidate-pool corpus (`artists.jsonl.gz`, ~7 MB) is **not** bundled with the app artifacts above. It ships on its own rolling GitHub Release tagged `rag-corpus-latest`, independent of the versioned app releases, so the corpus can be refreshed without cutting a new app build.
+
+**Release contents** — the `rag-corpus-latest` tag always holds exactly two assets:
+
+| Asset | Purpose |
+|---|---|
+| `artists.jsonl.gz` | Top 100,000 artists by Option A popularity proxy (release count + tag total). One NDJSON row per artist. |
+| `manifest.json` | `{corpus_version, built_at, sha256, size_bytes, corpus_url}`. Clients fetch this once per startup to decide whether to prompt for an update. |
+
+**Producing a new release** (requires authenticated `gh` CLI):
+
+```bash
+# 1. Rebuild the corpus from a fresh MusicBrainz dump.
+python build-tools/refresh_rag_corpus.py           # fetch+extract+build in one step
+#    (or, if you already have the dump extracted:
+#     python build-tools/build_rag_corpus.py --source /path/to/mbdump/ ...)
+
+# 2. Publish — uploads both assets with --clobber, replacing the previous pair.
+python build-tools/publish_rag_corpus.py           # version derived from mtime (UTC date)
+python build-tools/publish_rag_corpus.py --version 2026-04-19   # or pin explicitly
+python build-tools/publish_rag_corpus.py --dry-run             # print manifest, skip upload
+```
+
+`publish_rag_corpus.py` does three things: computes sha256 of the corpus, writes `manifest.json` pointing at the asset URL under the `rag-corpus-latest` tag, and calls `gh release upload … --clobber` (creating the release on first run). The rolling tag means download URLs stay stable — clients never need to learn a new release name.
+
+**Client-side update flow** — implemented in [core/src/rag/distribution.py](../core/src/rag/distribution.py) and wired from [app.py](../app.py):
+
+1. `_check_rag_corpus_update()` runs once at startup (5-second timeout, silent on failure).
+2. Result is cached in-process and exposed via `/api/settings` as `rag_update` (`{status: current | update_available | missing_corpus | offline, remote: {...}, local_version: "…"}`).
+3. The Settings modal renders a banner when status is `update_available` or `missing_corpus`. Clicking **Download now** POSTs to `/api/rag/download-corpus`, which streams to `artists.jsonl.gz.part`, sha256-verifies against the manifest, atomically renames into place, writes the `artists.meta.json` sidecar, and hot-swaps the in-memory `RagCorpus` handle.
+4. `RAG_MANIFEST_URL` is overridable via env var for testing against a staging URL.
+
+**Cadence** — there is no scheduled refresh. Rebuild and republish when MusicBrainz's monthly dumps warrant it, or when tag/alias curation changes meaningfully alter retrieval quality.
 
 ---
 

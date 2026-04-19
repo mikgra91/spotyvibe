@@ -46,11 +46,6 @@ export function connectSpotify() {
         window.pywebview.api.open_spotify_auth();
         return;
     }
-    // Android WebView: navigate in-window (no popup)
-    if (/; wv\)/.test(navigator.userAgent)) {
-        window.location.href = '/api/spotify/auth';
-        return;
-    }
     const w = 500, h = 700;
     const left = screen.width / 2 - w / 2;
     const top = screen.height / 2 - h / 2;

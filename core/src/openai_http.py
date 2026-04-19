@@ -1,10 +1,6 @@
 """Direct HTTP client for the OpenAI REST API — no openai SDK required.
 
 Uses only Python stdlib: urllib.request, urllib.error, json, time.
-This allows the module to run on Android/Chaquopy without any native
-(Rust) extensions that newer SDK versions pull in transitively:
-  - openai>=1.35 depends on jiter (Rust)
-  - pydantic>=2 depends on pydantic-core (Rust)
 
 Endpoints used:
   POST /v1/chat/completions

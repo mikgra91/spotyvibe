@@ -16,9 +16,8 @@ Setup and usage guide for **SpotyVibe** — your AI-powered Spotify playlist gen
 | OpenAI API key | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
 | Spotify Client ID + Secret | [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) |
 
-> When registering the Spotify app, add **both** redirect URIs:
-> - `http://127.0.0.1:5000/callback` — desktop
-> - `spotyvibe://callback` — Android
+> When registering the Spotify app, add the redirect URI:
+> - `http://127.0.0.1:5000/callback`
 
 > **💰 Cost:** The OpenAI API is paid. `gpt-5.4-mini` is affordable; larger models cost significantly more. See [OpenAI Pricing](https://platform.openai.com/docs/pricing). SpotyVibe can also be pointed at free local runtimes (Ollama, LM Studio) — see [Custom AI Provider](#custom-ai-provider).
 
@@ -90,7 +89,7 @@ Below the title: **Equalizer** (default — frequency bars) or **Pulse** (concen
 
 ### 5. Connect Spotify
 
-After saving credentials, click **Connect to Spotify** in the banner. A popup (desktop) or system browser page (Android) handles the OAuth handshake. Disconnect any time via ☰ → **🔌 Disconnect Spotify**.
+After saving credentials, click **Connect to Spotify** in the banner. A popup handles the OAuth handshake. Disconnect any time via ☰ → **🔌 Disconnect Spotify**.
 
 > If you see `403 Forbidden` during generation, the app auto-disconnects. Just click **Connect to Spotify** to reconnect.
 
@@ -298,32 +297,6 @@ Works in any mobile browser. Tablets get smaller headings and padding; phones st
 
 ---
 
-## Android APK
-
-`android/` contains a Chaquopy-based build. The APK bundles Flask, Python 3.10, and all dependencies — nothing else to install.
-
-**Build:**
-
-```bash
-bash build-tools/build_apk.sh debug
-```
-
-Requires **Android Studio** with API 34 + **JDK 17**. Pins AGP 8.2.2, Kotlin 1.9.22, Chaquopy 15.0.1, compile/target SDK 34.
-
-Target ABI is `arm64-v8a`; `x86_64` is also included for emulator testing (remove for release builds).
-
-### Onboarding (Android)
-
-First launch shows a 4-page swipeable onboarding: Welcome → Language → Credentials → Connect & Import. **Skip** or **Next** to advance. Completion is remembered.
-
-### Spotify OAuth (Android)
-
-The popup flow can't work inside WebView, so the Android build uses the `spotyvibe://callback` deep-link. **Add both redirect URIs** in the Spotify Developer Dashboard or login fails with "redirect_uri: No matching configuration".
-
-Debug mode is intentionally unavailable on Android.
-
----
-
 ## Data Files
 
 All persistent data lives outside the project:
@@ -348,7 +321,6 @@ Reinstall or update without losing anything.
 | "Spotify credentials missing" | ☰ → Credentials; enter Client ID and Secret. |
 | "Please train your taste profile first" | Use the OpenAI section to describe your taste before generating. |
 | Spotify auth fails with "INVALID_CLIENT" | Check Client ID/Secret and the redirect URIs in your Spotify Developer Dashboard. |
-| Android: "redirect_uri: No matching configuration" | Add `spotyvibe://callback` in the Spotify Developer Dashboard. |
 | 403 Forbidden during generation | Session expired / permissions revoked. Click **Connect to Spotify** to reconnect. |
 | "OpenAI API key is not configured" | ☰ → Credentials; enter your OpenAI key. |
 | GPT keeps repeating songs and stops early | Loop protection kicked in (3 all-filtered batches). Use **▶ Use X tracks now** earlier, or expand your profile with new styles. |

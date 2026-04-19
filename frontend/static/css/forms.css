@@ -33,6 +33,23 @@
 .form-hint { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 3px; }
 .inline-hint { font-size: var(--fs-sm); color: var(--text-muted); margin: var(--sp-1) 0 0; line-height: 1.4; }
 
+/* RAG-corpus update banner inside the Settings modal */
+.rag-update-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2);
+    margin-top: var(--sp-2);
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--surface-muted, rgba(255,255,255,0.04));
+    border: 1px solid var(--border, rgba(255,255,255,0.1));
+    border-radius: var(--radius-md, 6px);
+    font-size: var(--fs-sm);
+}
+.rag-update-banner[hidden] { display: none; }
+.rag-update-banner > span { flex: 1 1 auto; }
+.rag-update-banner > button { flex: 0 0 auto; }
+
 /* ── Learn more collapsible ────────────────────────────────────────── */
 .learn-more { margin-top: var(--sp-2); font-size: var(--fs-sm); }
 .learn-more > summary {

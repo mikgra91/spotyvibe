@@ -108,7 +108,7 @@ export async function openSettings() {
         const resp = await fetch('/api/settings');
         const data = await resp.json();
 
-        State.setDebugControlsAvailable(!!(data.debug_controls_available ?? true) && !(data.is_android ?? false));
+        State.setDebugControlsAvailable(!!(data.debug_controls_available ?? true));
         const debugRow = el('debugModeRow');
         if (debugRow) debugRow.classList.toggle('hidden', !State.debugControlsAvailable);
 
@@ -124,6 +124,30 @@ export async function openSettings() {
             }
             updateDebugStatus();
             debugCheckbox.onchange = updateDebugStatus;
+        }
+
+        const ragCheckbox = el('settings-rag-enabled');
+        if (ragCheckbox) {
+            ragCheckbox.checked = !!data.rag_enabled;
+            const ragStatus = el('status-settings-rag');
+            const corpusAvailable = !!data.rag_corpus_available;
+            function updateRagStatus() {
+                if (!ragStatus) return;
+                if (!corpusAvailable) {
+                    ragStatus.textContent = i18n('settings.rag.missing', 'Corpus file not installed — toggle has no effect until artists.jsonl.gz is present.');
+                    ragStatus.className = 'cred-status unset';
+                } else if (ragCheckbox.checked) {
+                    ragStatus.textContent = i18n('settings.rag.enabled', '✓ Candidate pool active');
+                    ragStatus.className = 'cred-status set';
+                } else {
+                    ragStatus.textContent = i18n('settings.rag.disabled', 'Candidate pool disabled');
+                    ragStatus.className = 'cred-status unset';
+                }
+            }
+            updateRagStatus();
+            ragCheckbox.onchange = updateRagStatus;
+            if (!corpusAvailable) ragCheckbox.disabled = true;
+            renderRagUpdateBanner(data.rag_update || { status: 'unknown' });
         }
 
         const modelStatus = el('status-settings-model');
@@ -172,6 +196,11 @@ export async function saveSettings() {
 
     if (State.debugControlsAvailable) {
         payload.debug_mode = el('settings-debug').checked;
+    }
+
+    const ragCheckbox = el('settings-rag-enabled');
+    if (ragCheckbox && !ragCheckbox.disabled) {
+        payload.rag_enabled = ragCheckbox.checked;
     }
 
 
@@ -533,4 +562,64 @@ document.addEventListener('keydown', (e) => {
         }
     }
 });
+
+
+function renderRagUpdateBanner(info) {
+    const banner = el('settings-rag-update');
+    const message = el('settings-rag-update-message');
+    const button = el('settings-rag-update-btn');
+    if (!banner || !message || !button) return;
+    const status = info && info.status;
+    const remoteVer = (info && info.remote && info.remote.corpus_version) || '';
+    const localVer = (info && info.local_version) || '';
+    if (status === 'missing_corpus') {
+        message.textContent = i18n('settings.rag.banner.missing',
+            'No corpus installed. Download the latest ({version}) to enable the candidate pool.')
+            .replace('{version}', remoteVer);
+        banner.hidden = false;
+        button.disabled = false;
+    } else if (status === 'update_available') {
+        message.textContent = i18n('settings.rag.banner.update',
+            'A newer corpus is available ({local} → {remote}).')
+            .replace('{local}', localVer || '—')
+            .replace('{remote}', remoteVer);
+        banner.hidden = false;
+        button.disabled = false;
+    } else {
+        banner.hidden = true;
+    }
+}
+
+export async function downloadRagCorpus() {
+    const button = el('settings-rag-update-btn');
+    const message = el('settings-rag-update-message');
+    if (button) button.disabled = true;
+    if (message) message.textContent = i18n('settings.rag.banner.downloading', 'Downloading corpus…');
+    try {
+        const resp = await fetch('/api/rag/download-corpus', { method: 'POST' });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+            const detail = data.detail || data.error || ('HTTP ' + resp.status);
+            if (message) message.textContent = i18n('settings.rag.banner.failed',
+                'Download failed: {error}').replace('{error}', detail);
+            if (button) button.disabled = false;
+            return;
+        }
+        if (typeof showToast === 'function') {
+            showToast(i18n('settings.rag.banner.success',
+                'Corpus installed ({version}).').replace('{version}', data.corpus_version || ''),
+                'success');
+        }
+        const ragCheckbox = el('settings-rag-enabled');
+        if (ragCheckbox) {
+            ragCheckbox.disabled = false;
+        }
+        const banner = el('settings-rag-update');
+        if (banner) banner.hidden = true;
+    } catch (e) {
+        if (message) message.textContent = i18n('settings.rag.banner.failed',
+            'Download failed: {error}').replace('{error}', String(e));
+        if (button) button.disabled = false;
+    }
+}
 

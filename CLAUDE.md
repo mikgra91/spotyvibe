@@ -24,7 +24,6 @@ AI-powered music discovery: Flask + OpenAI + Spotify Web API.
 python app.py                                        # http://127.0.0.1:5000
 bash build-tools/run_tests.sh                        # core + frontend tests in parallel
 bash build-tools/build_exe.sh                        # PyInstaller Windows EXE
-bash build-tools/build_apk.sh debug                  # Chaquopy Android APK
 pip install build && python -m build --wheel         # Python wheel for macOS/Linux
 ```
 
@@ -74,20 +73,19 @@ PLAYWRIGHT_BROWSERS_PATH="$LOCALAPPDATA/ms-playwright" LOCALAPPDATA=$(mktemp -d)
 
 1. **i18n** — All user-facing text uses `data-i18n="key"` in HTML or `i18n('key','fallback')` in JS. Never hardcode strings. Keys must exist in `en.json`, `de.json`, and `jp.json`.
 2. **Spotify** — Use `sp.playlist_items()` not `playlist_tracks()`. Search `limit` max is 10. Inner key is `"item"` not `"track"` (Feb 2026 change). See `SKILL.md` for full reference.
-3. **Android** — No Rust-extension packages. No `openai` SDK. `pydantic` must be <2.0 if used. Test with `build_apk.sh debug`.
-4. **Tests** —
+3. **Tests** —
    - Run pytest before completing any code/styling change. Mock all external APIs. Skip for docs-only changes.
    - **Scope rule:** fix test failures that are (a) caused by your current change, OR (b) in code paths you are actively touching. For unrelated pre-existing failures, **report them to the user and ask whether to fix now or defer** — do not silently expand the task. A 5-line change should not turn into a 12-file refactor without explicit confirmation.
-5. **Documentation** — Feature changes must update: `README.md`, `documentation/UserManual.md`, `documentation/help.en.md` + `documentation/help.de.md` + `documentation/help.jp.md` (keep in sync), `documentation/TechnicalManual.md`.
-6. **Git** —
+4. **Documentation** — Feature changes must update: `README.md`, `documentation/UserManual.md`, `documentation/help.en.md` + `documentation/help.de.md` + `documentation/help.jp.md` (keep in sync), `documentation/TechnicalManual.md`.
+5. **Git** —
    - No destructive commands (`restore`, `checkout --`, `reset`, `clean`).
    - **Do not use `git stash` / `git stash pop` inside an assistant session** — pop re-injects every restored file's contents into the conversation as "intentional changes" system reminders, consuming tens of thousands of tokens. If work must be parked, commit to a scratch branch instead, or ask the user.
    - Sentence-case commit subjects, no trailing period.
    - **🔴 NEVER run `git commit` or `git push` unless the user explicitly instructs you to in the current message.** One-time instructions grant permission for that operation only.
-7. **Security** — Never hardcode API keys. Never commit `.credentials`, `.spotify-cache`, or `personalized_music_profile.json`.
-8. **Large tasks** — Present a plan with files/order/summary and wait for confirmation before implementing.
-9. **No code style enforcement** — Rely on linters/formatters, not AI judgment. Only follow existing conventions.
-10. **a11y** — See `RULES.md` for full checklist. Minimum: ARIA labels on interactive elements, keyboard navigation, focus management in modals.
+6. **Security** — Never hardcode API keys. Never commit `.credentials`, `.spotify-cache`, or `personalized_music_profile.json`.
+7. **Large tasks** — Present a plan with files/order/summary and wait for confirmation before implementing.
+8. **No code style enforcement** — Rely on linters/formatters, not AI judgment. Only follow existing conventions.
+9. **a11y** — See `RULES.md` for full checklist. Minimum: ARIA labels on interactive elements, keyboard navigation, focus management in modals.
 
 ## Context Discipline
 

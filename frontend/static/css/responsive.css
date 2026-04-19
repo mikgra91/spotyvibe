@@ -9,7 +9,7 @@
     .tab-bar { gap: 0; }
     .tab-bar-btn { padding: var(--sp-2) var(--sp-3); font-size: var(--fs-sm); }
 
-    /* Hide "Open data directory" — not functional on mobile / Android WebView */
+    /* Hide "Open data directory" — not functional on mobile browsers */
     #openDataDirBtn { display: none; }
 
     h1 { font-size: 2.2rem; }
@@ -276,7 +276,7 @@
 
     .spotify-preview-nav { width: 32px; height: 32px; font-size: var(--fs-xl); }
 
-    /* ── Prevent input zoom (font-size < 16px triggers zoom on Android/iOS) ── */
+    /* ── Prevent input zoom (font-size < 16px triggers zoom on mobile) ── */
     input[type="text"],
     input[type="number"],
     input[type="email"],
@@ -392,7 +392,7 @@
 }
 
 /* =============================================
-   Onboarding Screen (Android)
+   Onboarding Screen
    ============================================= */
 .onboarding-body {
     background: var(--bg-main);

@@ -404,11 +404,7 @@ class TestAddToPlaylist:
 
 
 class TestRedirectUri:
-    """The REDIRECT_URI constant must be platform-aware."""
-
-    def test_desktop_redirect_uri(self):
-        """On regular desktop Python, REDIRECT_URI is the localhost callback."""
-        assert not hasattr(sys, "getandroidapilevel")
+    def test_redirect_uri(self):
         assert REDIRECT_URI == "http://127.0.0.1:5000/callback"
 
 

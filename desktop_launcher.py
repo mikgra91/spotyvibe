@@ -1,7 +1,7 @@
 """Desktop-only entry point for PyInstaller builds.
 
 Why this exists:
-- Keeps app.py unchanged (source + Android flows stay stable)
+- Keeps app.py unchanged
 - Forces debug=False and use_reloader=False in packaged desktop builds
 - Embeds a native window (via pywebview) that renders the Flask app,
   giving users a real desktop-app experience

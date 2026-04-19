@@ -220,7 +220,6 @@ def screenshot_url():
             "model": "gpt-4.1-mini",
             "debug_mode": False,
             "debug_controls_available": True,
-            "is_android": False,
             "debug_log_path": "debug.log",
             "prompt_log_path": "prompt.log",
             "playlist_size": 30,

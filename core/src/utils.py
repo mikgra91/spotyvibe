@@ -2,8 +2,7 @@
 
 Technologies & patterns used:
 - **Direct HTTP**: OpenAI API calls use core.openai_http (stdlib urllib +
-  json) instead of the openai SDK. This removes native/Rust transitive
-  dependencies (jiter, pydantic-core) that break Android/Chaquopy builds.
+  json) instead of the openai SDK.
 - **python-dotenv integration**: API keys live in environment variables,
   loaded from a `.credentials` file by config.py. This module reads them
   via `os.getenv()` — the standard twelve-factor-app approach.
@@ -181,10 +180,8 @@ def get_openai_models():
 
     Returns a list of model dicts: {"id", "label", "supported"}.
 
-    Uses the curated allowlist from config — no API call required.
-    This approach works on Android/Chaquopy where the openai SDK (and its
-    native deps) are not available, and avoids a network round-trip just
-    to populate a dropdown.
+    Uses the curated allowlist from config — no API call required,
+    avoiding a network round-trip just to populate a dropdown.
 
     The currently configured model is appended at the end if it is not
     already in the allowlist, marked as unsupported so the UI can warn

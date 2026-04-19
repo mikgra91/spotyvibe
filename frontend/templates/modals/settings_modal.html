@@ -104,6 +104,26 @@
             <div class="cred-status" id="status-settings-debug"></div>
         </div>
 
+        <!-- RAG candidate pool (advanced) -->
+        <div class="form-row" id="ragEnabledRow">
+            <label data-i18n="settings.rag.label">Candidate pool (RAG) <span class="optional-badge" data-i18n="common.optional">(optional)</span></label>
+            <div class="modal-checkbox-row">
+                <label class="modal-checkbox-label">
+                    <input type="checkbox" id="settings-rag-enabled"
+                        {% if settings.rag_enabled %}checked{% endif %}>
+                    <span data-i18n="settings.rag.toggle">Use a local artist corpus to steer suggestions</span>
+                </label>
+            </div>
+            <p class="inline-hint" data-i18n="settings.rag.hint">Retrieves ~20 matching artists from an offline MusicBrainz corpus and injects them as hints. Requires the corpus file to be present.</p>
+            <div class="rag-update-banner" id="settings-rag-update" hidden>
+                <span id="settings-rag-update-message"></span>
+                <button type="button" class="btn btn-secondary" id="settings-rag-update-btn"
+                        onclick="downloadRagCorpus()"
+                        data-i18n="settings.rag.download_now">Download now</button>
+            </div>
+            <div class="cred-status" id="status-settings-rag"></div>
+        </div>
+
         <div class="modal-actions">
             <button class="btn btn-save" onclick="saveSettings()" data-i18n="btn.save">Save</button>
             <button class="btn btn-cancel" onclick="closeModal('settingsModal')" data-i18n="btn.cancel">Cancel</button>

@@ -23,7 +23,7 @@ from config import (
     CREDENTIALS_FILE,
     BATCH_SIZE, BASE_DIR, get_model, get_settings, get_debug_mode,
     get_playlist_size, DEBUG_LOG_FILE, MAX_CONSECUTIVE_EMPTY_BATCHES,
-    get_new_artist_percentage, get_gpt_language, IS_ANDROID, PROFILE_IMPORT_MAX_BYTES,
+    get_new_artist_percentage, get_gpt_language, PROFILE_IMPORT_MAX_BYTES,
     GENERAL_REQUEST_MAX_BYTES, MAX_GPT_CALLS_PER_RUN,
     MAX_CORE_DESCRIPTION_LEN, MAX_PROFILE_SECTION_LEN,
     MAX_FEEDBACK_REASON_LEN, MAX_FEEDBACK_ARTIST_LEN, MAX_FEEDBACK_TRACK_LEN,
@@ -90,6 +90,7 @@ from core.src.suggestions import (
     normalize_history,
     build_messages, call_gpt, update_profile,
     filter_duplicate_suggestions,
+    set_rag_corpus,
 )
 from core.src.feedback import like_track, dislike_track
 from core.src.analysis import analyze_band_song
@@ -104,6 +105,61 @@ from core.src.playlist import (
     get_spotify_client, get_spotify_access_token, get_spotify_session_info,
 )
 from core.src.taste import aggregate_taste
+
+def _load_rag_corpus_if_enabled():
+    """Load the RAG corpus at startup when the feature flag is on.
+
+    Failures are logged and swallowed — a missing or broken corpus
+    falls back to the legacy (non-RAG) prompt, never crashes boot.
+    """
+    try:
+        from config import get_rag_enabled, RAG_CORPUS_PATH, RAG_TAG_ALIASES_PATH
+        if not get_rag_enabled():
+            return
+        from core.src.rag import RagCorpus
+        corpus = RagCorpus.load(RAG_CORPUS_PATH, RAG_TAG_ALIASES_PATH)
+        set_rag_corpus(corpus)
+        logging.getLogger(__name__).info(
+            "RAG corpus active: %d artists from %s", len(corpus), RAG_CORPUS_PATH)
+    except FileNotFoundError:
+        logging.getLogger(__name__).info(
+            "RAG enabled but corpus file missing — running without candidate pool.")
+    except Exception as exc:  # pragma: no cover — defensive
+        logging.getLogger(__name__).warning("RAG corpus load failed: %s", exc)
+
+
+# Populated once at startup by _check_rag_corpus_update(); exposed to the
+# frontend via /api/config. Schema matches distribution.check_for_update().
+_rag_update_status: dict = {"status": "unknown"}
+
+
+def _check_rag_corpus_update():
+    """Probe the GitHub-hosted manifest for a newer corpus version.
+
+    Best-effort: a failed fetch (offline, rate-limited, 404) leaves the
+    status as ``{"status": "offline"}`` and never blocks startup.
+    """
+    global _rag_update_status
+    try:
+        from config import RAG_CORPUS_PATH, RAG_META_PATH, RAG_MANIFEST_URL
+        from core.src.rag.distribution import check_for_update
+        _rag_update_status = check_for_update(
+            RAG_CORPUS_PATH, RAG_META_PATH, RAG_MANIFEST_URL)
+        logging.getLogger(__name__).info(
+            "RAG update check: %s", _rag_update_status.get("status"))
+    except Exception as exc:  # pragma: no cover — defensive
+        logging.getLogger(__name__).info("RAG update check failed: %s", exc)
+        _rag_update_status = {"status": "offline"}
+
+
+def get_rag_update_status() -> dict:
+    """Return the cached RAG update status (refreshed once per startup)."""
+    return dict(_rag_update_status)
+
+
+_load_rag_corpus_if_enabled()
+_check_rag_corpus_update()
+
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
 app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(24)
@@ -201,6 +257,8 @@ def index():
         "new_artist_pct": raw_settings.get("new_artist_percentage", 30),
         "gpt_language": gpt_lang,
         "debug_mode": raw_settings.get("debug_mode", False),
+        "rag_enabled": raw_settings.get("rag_enabled", False),
+        "rag_corpus_available": raw_settings.get("rag_corpus_available", False),
     }
     debug_controls_available = raw_settings.get("debug_controls_available", True)
     current_language = "en"  # UI language is client-side (localStorage); server always sends 'en' as default
@@ -979,7 +1037,43 @@ def list_models():
 @app.route("/api/settings", methods=["GET"])
 def read_settings():
     """Return non-secret settings (model, debug mode)."""
-    return jsonify(get_settings())
+    payload = get_settings()
+    payload["rag_update"] = get_rag_update_status()
+    return jsonify(payload)
+
+
+@app.route("/api/rag/download-corpus", methods=["POST"])
+def download_rag_corpus():
+    """Download (or update) the RAG corpus from the GitHub manifest URL.
+
+    Idempotent: the file is streamed to a ``.part`` sibling, sha256-
+    verified against the manifest, then atomically renamed. On success,
+    the in-memory corpus handle is swapped and the update-check status
+    is refreshed.
+    """
+    try:
+        from config import (RAG_CORPUS_PATH, RAG_META_PATH, RAG_MANIFEST_URL,
+                            RAG_TAG_ALIASES_PATH)
+        from core.src.rag import RagCorpus
+        from core.src.rag.distribution import (
+            download_corpus, fetch_remote_manifest,
+        )
+        manifest = fetch_remote_manifest(RAG_MANIFEST_URL)
+        if manifest is None:
+            return jsonify({"error": "remote_unavailable"}), 503
+        download_corpus(manifest, RAG_CORPUS_PATH, RAG_META_PATH)
+        set_rag_corpus(RagCorpus.load(RAG_CORPUS_PATH, RAG_TAG_ALIASES_PATH))
+        _check_rag_corpus_update()
+        return jsonify({
+            "status": "ok",
+            "corpus_version": manifest.corpus_version,
+            "size_bytes": manifest.size_bytes,
+        })
+    except ValueError as exc:  # sha mismatch
+        return jsonify({"error": "checksum_failed", "detail": str(exc)}), 502
+    except Exception as exc:  # pragma: no cover — defensive
+        app_log(f"RAG download failed: {exc}")
+        return jsonify({"error": "download_failed", "detail": str(exc)}), 500
 
 
 @app.route("/api/settings", methods=["POST"])
@@ -990,8 +1084,7 @@ def write_settings():
     if "model" in data:
         payload["OPENAI_MODEL"] = data["model"]
 
-    # Debug Mode is desktop-only.
-    if "debug_mode" in data and not IS_ANDROID:
+    if "debug_mode" in data:
         payload["DEBUG_MODE"] = "true" if data["debug_mode"] else ""
 
     if "playlist_size" in data:
@@ -1022,8 +1115,27 @@ def write_settings():
         if url:
             payload["LLM_BASE_URL"] = url
 
+    if "rag_enabled" in data:
+        payload["RAG_ENABLED"] = "true" if data["rag_enabled"] else ""
+
     save_settings(payload)
     app_log(f"Settings changed: {list(payload.keys())}")
+
+    # Hot-swap the RAG corpus handle when the toggle flips. Avoids the
+    # need to restart the app for the flag to take effect.
+    if "rag_enabled" in data:
+        try:
+            from config import get_rag_enabled, RAG_CORPUS_PATH, RAG_TAG_ALIASES_PATH
+            from core.src.rag import RagCorpus
+            if get_rag_enabled():
+                set_rag_corpus(RagCorpus.load(RAG_CORPUS_PATH, RAG_TAG_ALIASES_PATH))
+            else:
+                set_rag_corpus(None)
+        except FileNotFoundError:
+            set_rag_corpus(None)
+        except Exception as exc:
+            app_log(f"RAG toggle load failed: {exc}")
+
     return jsonify({"status": "ok"})
 
 
@@ -1083,13 +1195,9 @@ def fetch_llm_models():
 def open_data_dir():
     """Open the app data directory in the OS file explorer.
 
-    Desktop-only — on Android this is a no-op (returns 404).
     Uses platform-appropriate commands: os.startfile (Windows),
     xdg-open (Linux), open (macOS).
     """
-    if IS_ANDROID:
-        return jsonify({"error": "Not available on Android."}), 404
-
     import subprocess
     import platform
 
@@ -1110,13 +1218,7 @@ def open_data_dir():
 
 @app.route("/api/settings/debug-log", methods=["DELETE"])
 def clear_debug_log_endpoint():
-    """Clear the debug log file.
-
-    Desktop-only (Android builds must not expose prompt logging controls).
-    """
-    if IS_ANDROID:
-        return jsonify({"error": "Not available on Android."}), 404
-
+    """Clear the debug log file."""
     try:
         clear_debug_log()
         return jsonify({"status": "ok"})
@@ -1625,8 +1727,7 @@ def spotify_callback():
             "<p style='margin-top:1.5rem;font-size:.85rem'>"
             "<strong>Common fix:</strong> make sure "
             "<code>http://127.0.0.1:5000/callback</code> "
-            "(desktop) or <code>spotyvibe://callback</code> "
-            "(Android) is listed as a Redirect URI in your "
+            "is listed as a Redirect URI in your "
             "<a href='https://developer.spotify.com/dashboard' target='_blank'>"
             "Spotify Developer Dashboard</a>.</p>"
             "<p style='margin-top:1rem'>"
@@ -1663,7 +1764,5 @@ if __name__ == "__main__":
         # Enable threaded mode so API calls (settings, feedback, status)
         # are not blocked while an SSE generation stream is active.
         threaded=True,
-        # The reloader forks a child process which crashes under Chaquopy
-        use_reloader=False if IS_ANDROID else None,
     )
 

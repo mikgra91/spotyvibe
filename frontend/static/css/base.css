@@ -128,10 +128,10 @@ body {
     font-size: 16px;
     line-height: 1.5;
     overflow-x: hidden;
-    -webkit-tap-highlight-color: transparent;  /* remove Android blue tap flash */
+    -webkit-tap-highlight-color: transparent;  /* remove mobile tap flash */
 }
 
-/* Prevent double-tap zoom on interactive elements (Android) */
+/* Prevent double-tap zoom on interactive elements (mobile) */
 button, a, input, select, textarea, label, [role="button"], [tabindex] {
     touch-action: manipulation;
 }

@@ -143,8 +143,7 @@ export function showToast(message, type = 'success', duration = 3000) {
 }
 
 /**
- * Custom confirm dialog — replacement for native confirm() which
- * may be blocked or styled inconsistently in Android WebViews.
+ * Custom confirm dialog — replacement for native confirm().
  * Returns a Promise<boolean>.
  */
 export function showConfirm(message) {

@@ -103,17 +103,12 @@ Both URIs must be registered in the [Spotify Developer Dashboard](https://develo
 | Platform | Redirect URI |
 |---|---|
 | Desktop | `http://127.0.0.1:5000/callback` |
-| Android APK | `spotyvibe://callback` |
-
-**Why two URIs?**
-- On desktop, Spotify redirects directly to the Flask server running at `127.0.0.1:5000`.
-- On Android, the system browser cannot reach `127.0.0.1:5000` (Flask runs inside the app process). Instead, Spotify redirects to `spotyvibe://callback`, which Android's intent system delivers to `MainActivity` via the `<intent-filter>` in `AndroidManifest.xml`. `MainActivity.handleOAuthIntent()` then extracts the auth code and forwards it to Flask at `http://127.0.0.1:5000/callback`.
 
 **Error "redirect_uri: No matching configuration"** means the URI sent in the OAuth request is not in the Dashboard — add the missing URI.
 
 ### Token cache
 
-Spotipy stores the OAuth token at `CACHE_FILE` (`%LOCALAPPDATA%\spotyvibe\.spotify-cache` on desktop, internal app storage on Android). The token is reused and auto-refreshed. Never commit this file.
+Spotipy stores the OAuth token at `CACHE_FILE` (`%LOCALAPPDATA%\spotyvibe\.spotify-cache` on desktop). The token is reused and auto-refreshed. Never commit this file.
 
 ---
 

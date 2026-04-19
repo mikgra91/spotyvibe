@@ -39,6 +39,22 @@ from pathlib import Path
 from config import BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD, get_model, get_gpt_language
 from .utils import strip_code_fences, debug_log
 from .openai_http import chat_completions_create, extract_chat_content
+from .rag import score_artists, format_candidate_pool_block
+from .rag.corpus import RagCorpus
+
+# Process-wide corpus handle. Populated once by set_rag_corpus() from app.py
+# startup; left as None when the corpus file is absent.
+_RAG_CORPUS: RagCorpus | None = None
+
+
+def set_rag_corpus(corpus: RagCorpus | None) -> None:
+    """Install the process-wide RAG corpus handle."""
+    global _RAG_CORPUS
+    _RAG_CORPUS = corpus
+
+
+def get_rag_corpus() -> RagCorpus | None:
+    return _RAG_CORPUS
 
 logger = logging.getLogger(__name__)
 
@@ -449,6 +465,28 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
         recent_feedback=feedback_summary,
         audio_filters_block=audio_filters_block,
     )
+
+    # Inject RAG candidate pool when enabled and a corpus is loaded. The
+    # deny set (from forbidden + exhausted artists) doubles as the dedup
+    # barrier so the pool never contains artists the user already has.
+    corpus = get_rag_corpus()
+    if corpus is not None:
+        try:
+            from config import RAG_POOL_SIZE, RAG_POPULARITY_PENALTY
+        except ImportError:  # pragma: no cover — defensive
+            RAG_POOL_SIZE, RAG_POPULARITY_PENALTY = 20, 0.4
+        deny_keys = _collect_forbidden_artists(profile)
+        confirmed = {a.get("name", "") if isinstance(a, dict) else str(a)
+                     for a in profile.get("artists", {}).get("confirmed", [])}
+        deny_keys = deny_keys | {c.lower().strip() for c in confirmed if c}
+        pool = score_artists(
+            corpus, profile, deny_keys=deny_keys,
+            pool_size=RAG_POOL_SIZE,
+            popularity_penalty=RAG_POPULARITY_PENALTY,
+        )
+        pool_block = format_candidate_pool_block(pool)
+        if pool_block:
+            user_message += f"\n\n{pool_block}"
 
     if accepted_tracks:
         listing = "\n".join(

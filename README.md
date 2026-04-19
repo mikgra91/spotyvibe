@@ -30,7 +30,7 @@ AI-powered music discovery. Describe what you like — SpotyVibe asks an LLM for
 - **i18n** — English, Deutsch, 日本語 (UI and AI response language are independent settings).
 - **Display size** — three-step UI scale (Small / Default / Large).
 - **Two animated themes** — Equalizer (default) or Pulse. `prefers-reduced-motion` disables both.
-- **Mobile-responsive**, Android APK, PyInstaller EXE, and Python wheel distributions.
+- **Mobile-responsive**, PyInstaller EXE, and Python wheel distributions.
 - **Tests & CI** — pytest + Playwright, running in parallel on every push.
 
 ---
@@ -41,13 +41,12 @@ AI-powered music discovery. Describe what you like — SpotyVibe asks an LLM for
 |---|---|
 | Windows | `pip install -r requirements.txt && python app.py` |
 | macOS / Linux | `pip install spotyvibe-*.whl && spotyvibe` |
-| Android | Install the APK from [GitHub Releases](../../releases) |
 
 Open <http://127.0.0.1:5000> (desktop opens automatically).
 
 > **Prerequisites:** Python 3.10+, Spotify Premium, and API keys from [OpenAI](https://platform.openai.com/api-keys) + [Spotify Developer](https://developer.spotify.com/dashboard).
 >
-> Register both redirect URIs on the Spotify app: `http://127.0.0.1:5000/callback` (desktop) and `spotyvibe://callback` (Android).
+> Register the redirect URI on the Spotify app: `http://127.0.0.1:5000/callback`.
 
 > **macOS port 5000:** AirPlay Receiver uses this port by default. Disable it in **System Settings → General → AirDrop & Handoff** if SpotyVibe can't bind.
 
@@ -59,7 +58,6 @@ Open <http://127.0.0.1:5000> (desktop opens automatically).
 
 ```bash
 bash build-tools/build_exe.sh --package    # Windows EXE (one-folder)
-bash build-tools/build_apk.sh debug        # Android APK
 pip install build && python -m build --wheel   # macOS/Linux wheel
 ```
 

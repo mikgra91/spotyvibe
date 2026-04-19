@@ -29,7 +29,6 @@ See `RULES.md` for detailed a11y, i18n, and documentation conventions.
 | Frontend | Vanilla HTML/CSS/JS (single-page, no framework, no build step) |
 | Tests | pytest ≥7.0, Playwright (frontend) |
 | Desktop | PyInstaller + webview |
-| Android | Chaquopy (no Rust-extension packages) |
 
 ## MCP Servers (recommended for AI agents)
 
@@ -50,9 +49,8 @@ If your AI tooling supports MCP (Model Context Protocol), the following servers 
 4. Run `python -m pytest core/tests/ frontend/tests/ -v` before completing changes.
 5. Feature changes require updates to all 4 documentation files (see `RULES.md`).
 6. No destructive git commands. No hardcoded secrets. **🔴 NEVER run `git commit` or `git push` unless the user has explicitly instructed you to in the current message. Permission is one-time only — once the operation completes, permission is revoked.**
-7. Android: no Rust-extension packages, no `openai` SDK, `pydantic` <2.0.
-8. Spotify OAuth redirect: `http://127.0.0.1:5000/callback`.
-9. **🔴 Pre-existing test failures are NOT to be ignored.** When running the test suite (rule 4), **all** failures must be investigated and fixed — not just those caused by changes made in the current session. A test that was already broken before you started is still a bug. Report it, diagnose it, and fix it. Never dismiss a failure with "this wasn't caused by my changes" or silently skip it.
+7. Spotify OAuth redirect: `http://127.0.0.1:5000/callback`.
+8. **🔴 Pre-existing test failures are NOT to be ignored.** When running the test suite (rule 4), **all** failures must be investigated and fixed — not just those caused by changes made in the current session. A test that was already broken before you started is still a bug. Report it, diagnose it, and fix it. Never dismiss a failure with "this wasn't caused by my changes" or silently skip it.
 
 ## Running Tests
 

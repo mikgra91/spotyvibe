@@ -2,12 +2,11 @@
 
 Stores data in a platform-appropriate directory:
   - Windows:  %LOCALAPPDATA%\\spotyvibe\\
-  - Android:  internal app storage (set via SPOTYVIBE_FILES_DIR env var)
   - Fallback: ~/spotyvibe/
 
 Credentials (API keys/secrets) are stored in the OS keychain when available
 (Windows Credential Manager / macOS Keychain) with ``.credentials`` as a
-fallback for platforms without a usable keyring (e.g. Android).
+fallback for platforms without a usable keyring.
 App preferences and state live in ``settings.conf``.
 """
 
@@ -17,8 +16,7 @@ import sys
 from pathlib import Path
 from dotenv import load_dotenv, set_key, dotenv_values
 
-# OS keychain integration — graceful fallback when keyring is unavailable
-# (e.g. Android/Chaquopy where native backends don't exist).
+# OS keychain integration — graceful fallback when keyring is unavailable.
 _KEYRING_SERVICE = "spotyvibe"
 try:
     import keyring as _keyring
@@ -80,8 +78,6 @@ DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
 
 # Curated list of known-good OpenAI model IDs for chat completions.
 # Order determines display order in the Settings dropdown.
-# Maintained here so Android/Chaquopy builds never need to query the API
-# for the model list (avoids the openai SDK and its native deps entirely).
 OPENAI_SUPPORTED_MODELS_JSON = [
     "gpt-5.4",
     "gpt-5.4-mini",
@@ -112,29 +108,52 @@ MAX_FEEDBACK_ARTIST_LEN = 200
 MAX_FEEDBACK_TRACK_LEN = 200
 
 
-# True when running inside Chaquopy on Android
-IS_ANDROID = hasattr(sys, 'getandroidapilevel')
+# ── RAG (retrieval-augmented candidate pool) ─────────────────────
+# See documentation/guides/rag-implementation.md for the design.
+# Master off-switch is the user-facing setting RAG_ENABLED in settings.conf;
+# the constants below are corpus paths and tuning knobs.
+RAG_CORPUS_DIR = BASE_DIR / "data" / "rag_corpus"
+RAG_CORPUS_PATH = RAG_CORPUS_DIR / "artists.jsonl.gz"
+RAG_TAG_ALIASES_PATH = RAG_CORPUS_DIR / "tag_aliases.json"
+RAG_META_PATH = RAG_CORPUS_DIR / "artists.meta.json"
+RAG_MANIFEST_URL = os.environ.get(
+    "RAG_MANIFEST_URL",
+    "https://github.com/mikgra91/spotyvibe/releases/download/"
+    "rag-corpus-latest/manifest.json",
+)
+RAG_POOL_SIZE = 20
+RAG_POPULARITY_PENALTY = 0.4
+DEFAULT_RAG_ENABLED = False
+
+
+def get_rag_enabled() -> bool:
+    """Return True if the candidate-pool RAG pass is active.
+
+    Gated on both the user setting and the presence of the corpus file —
+    if the corpus isn't downloaded we silently fall back to the legacy
+    prompt rather than crashing on startup.
+    """
+    raw = os.getenv("RAG_ENABLED", "").lower()
+    if raw in ("1", "true", "on", "yes"):
+        return RAG_CORPUS_PATH.exists()
+    if raw in ("0", "false", "off", "no"):
+        return False
+    return DEFAULT_RAG_ENABLED and RAG_CORPUS_PATH.exists()
+
+
+def set_rag_enabled(enabled: bool) -> None:
+    """Persist the user-facing RAG toggle."""
+    _persist_setting("RAG_ENABLED", "true" if enabled else "")
 
 
 def _get_app_dir() -> Path:
     """Return the platform-appropriate storage directory.
 
     Resolves to:
-    - Android: Passed via SPOTYVIBE_FILES_DIR or ~/spotyvibe/
     - Windows: %LOCALAPPDATA%/spotyvibe/
     - macOS: ~/Library/Application Support/spotyvibe/
     - Linux: ~/.local/share/spotyvibe/ (or $XDG_DATA_HOME/spotyvibe/)
     """
-    if IS_ANDROID:
-        # Running inside Chaquopy on Android — use the files dir
-        # passed from Kotlin via environment variable
-        android_files = os.environ.get("SPOTYVIBE_FILES_DIR")
-        if android_files:
-            return Path(android_files) / "spotyvibe"
-        # Fallback: use the Python home directory (Chaquopy sets this)
-        return Path(os.path.expanduser("~")) / "spotyvibe"
-    
-    # Desktop platforms
     if sys.platform == "win32":
         return Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))) / "spotyvibe"
     elif sys.platform == "darwin":
@@ -160,7 +179,7 @@ PROMPT_LOG_FILE = _APP_DIR / "prompt.log"      # GPT request/response log (was d
 CREDENTIAL_KEYS = ["OPENAI_API_KEY", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET"]
 
 # Non-secret keys — stored in settings.conf
-SETTINGS_KEYS = ["OPENAI_MODEL", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE", "GPT_LANGUAGE", "ONBOARDING_COMPLETED", "ACTIVE_PROFILE_ID", "UI_LANGUAGE", "LLM_BASE_URL", "PROVIDER_PRESET"]
+SETTINGS_KEYS = ["OPENAI_MODEL", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE", "GPT_LANGUAGE", "ONBOARDING_COMPLETED", "ACTIVE_PROFILE_ID", "UI_LANGUAGE", "LLM_BASE_URL", "PROVIDER_PRESET", "RAG_ENABLED"]
 
 # Maximum length for profile display names
 MAX_PROFILE_NAME_LEN = 40
@@ -238,8 +257,8 @@ def ensure_env():
     """Create the AppData .credentials and settings.conf with all required keys if missing."""
     _APP_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Migrate from the old .env file if it exists (desktop only)
-    if not IS_ANDROID and _OLD_ENV_FILE.exists() and not CREDENTIALS_FILE.exists():
+    # Migrate from the old .env file if it exists
+    if _OLD_ENV_FILE.exists() and not CREDENTIALS_FILE.exists():
         _OLD_ENV_FILE.rename(CREDENTIALS_FILE)
 
     _ensure_file(CREDENTIALS_FILE, CREDENTIAL_KEYS)
@@ -326,12 +345,7 @@ def get_model():
 
 
 def get_debug_mode():
-    """Return True if debug mode is enabled.
-
-    Debug logging is desktop-only; on Android this always returns False.
-    """
-    if IS_ANDROID:
-        return False
+    """Return True if debug mode is enabled."""
     return os.getenv("DEBUG_MODE", "").lower() in ("1", "true", "on")
 
 
@@ -405,13 +419,14 @@ def get_settings():
         "new_artist_percentage": get_new_artist_percentage(),
         "gpt_language": get_gpt_language(),
         "ui_language": get_ui_language(),
-        "debug_log_path": "" if IS_ANDROID else str(DEBUG_LOG_FILE),
-        "prompt_log_path": "" if IS_ANDROID else str(PROMPT_LOG_FILE),
-        "debug_controls_available": not IS_ANDROID,
-        "is_android": IS_ANDROID,
+        "debug_log_path": str(DEBUG_LOG_FILE),
+        "prompt_log_path": str(PROMPT_LOG_FILE),
+        "debug_controls_available": True,
         "provider_preset": get_llm_provider_preset(),
         "llm_base_url": get_llm_base_url(),
         "llm_api_key_required": llm_api_key_required(),
+        "rag_enabled": get_rag_enabled(),
+        "rag_corpus_available": RAG_CORPUS_PATH.exists(),
     }
 
 
@@ -461,7 +476,7 @@ def save_credentials(credentials):
 
     When a usable OS keychain is available, secrets are stored there and the
     .credentials file only holds empty placeholder keys (no plaintext).
-    When keyring is unavailable (e.g. Android), secrets fall back to the
+    When keyring is unavailable, secrets fall back to the
     .credentials dotenv file.
 
     A value of ``None`` means "not provided" and is skipped.

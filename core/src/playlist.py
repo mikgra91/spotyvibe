@@ -50,7 +50,7 @@ from spotipy.exceptions import SpotifyException
 # authorises via browser, the app receives a code, exchanges it for
 # access + refresh tokens, and caches them locally.
 from spotipy.oauth2 import SpotifyOAuth, CacheFileHandler
-from config import CACHE_FILE, IS_ANDROID
+from config import CACHE_FILE
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +59,8 @@ logger = logging.getLogger(__name__)
 # creating duplicate playlists on every generation.
 PLAYLIST_NAME = "SpotyVibe Playlist"
 # Redirect URI must match what is configured in the Spotify Developer
-# Dashboard. The Android variant uses a custom URI scheme (deep link)
-# while the desktop variant uses a local HTTP server callback.
-REDIRECT_URI = "spotyvibe://callback" if IS_ANDROID else "http://127.0.0.1:5000/callback"
+# Dashboard — a local HTTP server callback.
+REDIRECT_URI = "http://127.0.0.1:5000/callback"
 
 
 def _pick_album_cover(images: list) -> str | None:

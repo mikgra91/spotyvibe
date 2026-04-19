@@ -12,7 +12,6 @@ spotyvibe/
 ├── config.py                      # Config & credential mgmt
 ├── version.py                     # Version string
 ├── desktop_launcher.py            # PyInstaller EXE entry
-├── spotyvibe_bootstrap.py         # Desktop bootstrap/updater
 ├── requirements.txt               # Full dev/build dependencies (Windows + testing)
 ├── requirements-core.txt          # Runtime-only dependencies (macOS/Linux launcher)
 ├── pyproject.toml                 # Python wheel build config (hatchling)
@@ -112,8 +111,7 @@ spotyvibe/
 │   ├── test_frontend.py           # Main frontend integration tests
 │   └── test_profile_integration.py # Profile switch/create/delete state reset tests
 ├── prompts/                       # AI prompt templates
-├── android/                       # Chaquopy APK
-├── build-tools/                   # build_exe.sh, build_apk.sh, build_dist.sh, start.sh
+├── build-tools/                   # build_exe.sh, build_dist.sh, start.sh
 ├── documentation/                 # UserManual, TechnicalManual, help.en.md, help.de.md
 │   ├── guides/                    # Setup guide markdown (openai, spotify)
 │   └── assets/guides/             # Guide screenshot placeholders

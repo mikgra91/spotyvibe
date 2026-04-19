@@ -200,7 +200,6 @@ class TestWarningsWithMissingCredentials:
                         "model": "llama3",
                         "debug_mode": False,
                         "debug_controls_available": True,
-                        "is_android": False,
                         "debug_log_path": "debug.log",
                         "playlist_size": 10,
                         "new_artist_percentage": 30,
