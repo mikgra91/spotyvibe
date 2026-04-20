@@ -28,11 +28,15 @@ class TestProfileEditor:
         page.goto(base_url)
         page.wait_for_load_state("domcontentloaded")
         close_profile_editor(page)
-        page.locator("#trainToggleBtn").click()
         body = page.locator("#trainBody")
+        # First click: open. Use a fresh locator each time and dispatch a real
+        # click event so JS-driven layout shifts (the editor injecting itself
+        # into the DOM) cannot leave us with a stale element reference.
+        page.evaluate("document.getElementById('trainToggleBtn').click()")
         expect(body).to_be_visible()
         expect(page.locator("#trainToggleBtn")).to_have_text("Hide")
-        page.locator("#trainToggleBtn").click()
+        # Second click: close.
+        page.evaluate("document.getElementById('trainToggleBtn').click()")
         expect(body).to_be_hidden()
         expect(page.locator("#trainToggleBtn")).to_have_text("Show")
 

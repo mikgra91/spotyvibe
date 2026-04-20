@@ -67,10 +67,15 @@ REDIRECT_URI = "http://127.0.0.1:5000/callback"
 def _pick_album_cover(images: list) -> str | None:
     """Pick a mid-sized album cover URL.
 
-    Spotify returns images sorted largest-first (e.g. 640/300/64). We pick
-    the middle one so it stays crisp at ~140px (preview player) while
-    avoiding the huge 640px asset. Falls back to the only/smallest entry
-    when fewer sizes are available.
+    Spotify returns images sorted largest-first (typically 640 / 300 / 64).
+    We pick the middle entry so it stays crisp at ~140px (preview player)
+    while avoiding the giant 640px asset.
+
+    With fewer images returned, the middle index degrades gracefully:
+    - 2 images  → index 1 (the smaller one)
+    - 1 image   → index 0 (the only one available — *not* a "smallest"
+                  fallback; whatever Spotify returned is what we use)
+    - 0 images  → ``None``
     """
     if not images:
         return None

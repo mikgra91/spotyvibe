@@ -30,6 +30,7 @@ from config import (
     is_onboarding_completed, set_onboarding_completed, MAX_SONG_LIST_SIZE,
     _get_app_dir, get_active_profile_id, MAX_PROFILE_NAME_LEN,
     get_ui_language,
+    EVAL_LOG_FILE, RAG_META_PATH, get_rag_enabled,
 )
 import markdown
 
@@ -78,6 +79,9 @@ def _setup_logging():
 
 _setup_logging()
 
+# Module-level logger for handlers below the setup helpers.
+logger = logging.getLogger(__name__)
+
 from core.src.profile import (
     load_profile, save_profile, is_profile_trained,
     get_profile_status, train_profile, save_profile_sections,
@@ -97,7 +101,7 @@ from core.src.analysis import analyze_band_song
 from core.src.history import save_run, load_runs, update_track_sentiment
 from core.src.utils import get_openai_models, clear_debug_log, sanitize_text, safe_text, app_log
 from core.src.eval_log import log_batch_outcome
-from core.src.rag import score_artists as _rag_score_artists
+from core.src.suggestions import get_last_rag_pool_names
 from core.src.openai_http import OpenAIConfigError, OpenAIError
 from core.src.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist, delete_playlist,
@@ -210,6 +214,28 @@ _STALE_RUN_SECONDS = 600  # 10 minutes
 # Persistent song list file and lock
 _SONGLIST_FILE = _get_app_dir() / "songlist.json"
 _songlist_lock = threading.Lock()
+
+# Spotify base62 IDs are 22 chars (track / playlist / album), but we accept
+# anything that *looks* like a base62 id of plausible length so we don't
+# blow up on future format tweaks. Used to reject obviously malformed
+# client-supplied ids before we hand them to Spotipy.
+_SPOTIFY_ID_RE = re.compile(r"^[A-Za-z0-9]{16,40}$")
+
+
+def _safe_spotify_id(value):
+    """Return *value* if it looks like a Spotify base62 ID, else None.
+
+    A `None`/empty input is silently mapped to `None` (callers treat that
+    as "no client hint"). A non-empty but malformed value is also mapped
+    to `None` and logged — we'd rather fall back to the slow text-search
+    path than pass garbage straight to the Spotify API.
+    """
+    if not value:
+        return None
+    if _SPOTIFY_ID_RE.match(value):
+        return value
+    logger.warning("Rejected malformed Spotify id from client: %r", value[:60])
+    return None
 
 
 def _sweep_stale_runs():
@@ -746,22 +772,12 @@ def run_pipeline():
                 # Lets us measure hallucination rate / candidate-pool hit
                 # rate offline (see rag-implementation.md §"Hallucination
                 # measurement"). Gated on debug mode inside the helper.
+                # We pull the *actual* pool the LLM was prompted with from
+                # suggestions.get_last_rag_pool_names() — re-scoring here
+                # would waste CPU and silently drift if the scoring logic
+                # ever changes.
                 try:
-                    from core.src.suggestions import get_rag_corpus
-                    from config import (
-                        EVAL_LOG_FILE, RAG_META_PATH, RAG_POOL_SIZE,
-                        RAG_POPULARITY_PENALTY, get_rag_enabled,
-                        get_active_profile_id,
-                    )
-                    _rag_corpus = get_rag_corpus()
-                    _pool_names: list[str] | None = None
-                    if _rag_corpus is not None:
-                        _pool = _rag_score_artists(
-                            _rag_corpus, profile,
-                            pool_size=RAG_POOL_SIZE,
-                            popularity_penalty=RAG_POPULARITY_PENALTY,
-                        )
-                        _pool_names = [a.name for a in _pool]
+                    _pool_names = get_last_rag_pool_names()
                     _found_keys = [f"{t['artist']} - {t['track']}" for t in found]
                     log_batch_outcome(
                         run_id=run_id,
@@ -969,8 +985,8 @@ def submit_feedback():
     artist = safe_text(data, "artist")
     track  = safe_text(data, "track") or None
     reason = safe_text(data, "reason") or None
-    playlist_id = safe_text(data, "playlist_id") or None
-    track_id    = safe_text(data, "track_id") or None
+    playlist_id = _safe_spotify_id(safe_text(data, "playlist_id") or None)
+    track_id    = _safe_spotify_id(safe_text(data, "track_id") or None)
 
     if not artist:
         return jsonify({"error": "Artist is required."}), 400
@@ -1020,8 +1036,8 @@ def remove_track():
     data   = request.get_json(force=True)
     artist = safe_text(data, "artist")
     track  = safe_text(data, "track")
-    playlist_id = safe_text(data, "playlist_id") or None
-    track_id    = safe_text(data, "track_id") or None
+    playlist_id = _safe_spotify_id(safe_text(data, "playlist_id") or None)
+    track_id    = _safe_spotify_id(safe_text(data, "track_id") or None)
 
     if not artist or not track:
         return jsonify({"error": "Artist and track are required."}), 400

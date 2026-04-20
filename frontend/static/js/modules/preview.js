@@ -3,11 +3,23 @@ import { showAlert } from './ui.js';
 import { i18n } from './i18n.js';
 import { el } from './dom.js';
 import * as Sdk from './spotify-sdk.js';
+import { postFeedback, postRemove } from './feedback-api.js';
 
 let currentPreviewIndex = -1;
 let currentPreviewSource = 'discover'; // 'discover' or 'review'
 
 const AUTOPLAY_KEY = 'spv_preview_autoplay';
+
+/* ── Debug logging ──────────────────────────────────────────────────
+ * Verbose `[SDK]` / `[feedback]` / `[dismiss]` traces are noise for
+ * end users but indispensable when diagnosing Brave/Widevine issues.
+ * Gate them behind `window.SV_DEBUG = true` (set from devtools or via
+ * the debug-mode setting once we wire it up). Errors that block real
+ * user actions still go through console.error directly.
+ */
+function _dbg(...args) { if (window.SV_DEBUG) console.info(...args); }
+function _dbgWarn(...args) { if (window.SV_DEBUG) console.warn(...args); }
+function _dbgError(...args) { if (window.SV_DEBUG) console.error(...args); }
 
 /* ── Web Playback SDK state (§8a) ─────────────────────────────────
  * `_playbackMode` is 'sdk' once we've successfully connected on a
@@ -159,12 +171,12 @@ export function openPreviewOverlay(trackId, title, source = 'discover') {
     showLoader();
 
     maybeInitSdk().then((ok) => {
-        console.info('[SDK] maybeInitSdk() →', ok, 'track present?', !!track);
+        _dbg('[SDK] maybeInitSdk() →', ok, 'track present?', !!track);
         if (ok && track) {
             showSdkPanel();
             updateSdkMeta(track);
             sdkPlayCurrentTrack(track).catch(() => {
-                console.warn('[SDK] falling back to iframe after playTrack failure');
+                _dbgWarn('[SDK] falling back to iframe after playTrack failure');
                 fallbackToIframe(trackId);
             });
         } else {
@@ -209,24 +221,24 @@ function maybeInitSdk() {
     if (_sdkInitPromise) return _sdkInitPromise;
     _sdkInitPromise = (async () => {
         const info = await fetchSessionInfo();
-        console.info('[SDK] session info:', info);
+        _dbg('[SDK] session info:', info);
         if (!info.is_premium) {
-            console.warn('[SDK] skipping init — not Premium');
+            _dbgWarn('[SDK] skipping init — not Premium');
             return false;
         }
         try {
-            console.info('[SDK] connect() starting…');
+            _dbg('[SDK] connect() starting…');
             await Sdk.connect({ name: 'SpotyVibe' });
-            console.info('[SDK] connect() resolved');
+            _dbg('[SDK] connect() resolved');
             wireSdkEvents();
-            console.info('[SDK] ensureReady() starting…');
+            _dbg('[SDK] ensureReady() starting…');
             await Sdk.ensureReady();
-            console.info('[SDK] ensureReady() resolved — SDK ready');
+            _dbg('[SDK] ensureReady() resolved — SDK ready');
             _playbackMode = 'sdk';
             _resetSdkFailureCount();
             return true;
         } catch (e) {
-            console.error('[SDK] init failed:', e);
+            _dbgError('[SDK] init failed:', e);
             const { showToast } = await import('./ui.js');
             showToast(i18n('preview.sdk_unavailable', 'Full-track playback unavailable on this device — preview only'));
             _recordSdkFailureAndMaybeTip();
@@ -240,7 +252,7 @@ function wireSdkEvents() {
     Sdk.on('state_changed', onSdkStateChanged);
     ['initialization_error', 'authentication_error', 'account_error', 'playback_error'].forEach((evt) => {
         Sdk.on(evt, (payload) => {
-            console.error(`[SDK] ${evt}:`, payload);
+            _dbgError(`[SDK] ${evt}:`, payload);
             const track = getCurrentPreviewTrack();
             fallbackToIframe(track?.track_id);
         });
@@ -298,12 +310,12 @@ function formatMs(ms) {
 
 async function sdkPlayCurrentTrack(track) {
     if (!track || !track.track_id) return;
-    console.info('[SDK] playTrack() starting for', track.track_id, track.artist, '—', track.track);
+    _dbg('[SDK] playTrack() starting for', track.track_id, track.artist, '—', track.track);
     try {
         await Sdk.playTrack(track.track_id);
-        console.info('[SDK] playTrack() resolved');
+        _dbg('[SDK] playTrack() resolved');
     } catch (e) {
-        console.error('[SDK] playTrack() failed:', e);
+        _dbgError('[SDK] playTrack() failed:', e);
         throw e;
     }
 }
@@ -458,20 +470,16 @@ function _getContextPlaylistId() {
 async function _postFeedbackAndReact(action, artist, track, reason) {
     try {
         const currentTrack = getCurrentPreviewTrack();
-        const playlist_id = _getContextPlaylistId();
-        const track_id    = currentTrack && currentTrack.track_id ? currentTrack.track_id : null;
-
-        const resp = await fetch('/api/feedback', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action, artist, track: track || null, reason: reason || null, playlist_id, track_id }),
+        const result = await postFeedback({
+            action, artist, track, reason,
+            playlistId: _getContextPlaylistId(),
+            trackId: currentTrack && currentTrack.track_id,
         });
-        if (!resp.ok) {
-            const data = await resp.json().catch(() => ({}));
-            showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', data.error || 'unknown'));
+        if (!result.ok) {
+            showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', result.error));
             return;
         }
-        const body = await resp.json().catch(() => ({}));
+        const body = result.body;
 
         const trackLabel = track ? ` — ${track}` : '';
         const { showToast } = await import('./ui.js');
@@ -482,7 +490,7 @@ async function _postFeedbackAndReact(action, artist, track, reason) {
                 showToast(i18n('feedback.quick_disliked_toast', '👎 Disliked & removed: {track}').replace('{track}', `${artist}${trackLabel}`));
             } else {
                 const reasonText = (removal && removal.reason) || i18n('feedback.remove_unknown_reason', 'unknown');
-                console.warn('[feedback] dislike recorded but playlist removal failed:', removal);
+                _dbgWarn('[feedback] dislike recorded but playlist removal failed:', removal);
                 showToast(i18n('feedback.quick_disliked_not_removed_toast', '👎 Disliked: {track} (not removed from playlist: {reason})')
                     .replace('{track}', `${artist}${trackLabel}`)
                     .replace('{reason}', reasonText));
@@ -526,27 +534,22 @@ export async function previewDismiss() {
     if (!track) return;
 
     try {
-        const resp = await fetch('/api/remove', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                artist: track.artist,
-                track: track.track,
-                playlist_id: _getContextPlaylistId(),
-                track_id: track.track_id || null,
-            }),
+        const { body } = await postRemove({
+            artist: track.artist,
+            track: track.track,
+            playlistId: _getContextPlaylistId(),
+            trackId: track.track_id,
         });
-        const body = await resp.json().catch(() => ({}));
         const { showToast } = await import('./ui.js');
         if (body && body.removed) {
             showToast(i18n('feedback.removed_from_playlist', 'Removed from playlist: {track}').replace('{track}', `${track.artist} — ${track.track}`));
         } else {
             const reasonText = (body && body.reason) || i18n('feedback.remove_unknown_reason', 'unknown');
-            console.warn('[dismiss] playlist removal failed:', body);
+            _dbgWarn('[dismiss] playlist removal failed:', body);
             showToast(i18n('feedback.remove_failed', 'Could not remove from playlist: {reason}').replace('{reason}', reasonText));
         }
     } catch (e) {
-        console.warn('[dismiss] network error removing track:', e);
+        _dbgWarn('[dismiss] network error removing track:', e);
     }
 
     removeCurrentAndAdvance();

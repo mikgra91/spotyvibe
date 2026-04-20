@@ -271,10 +271,12 @@ class TestFeedbackButtons:
             headers={"Content-Type": "application/json"},
             body=json.dumps({"removed": True}),
         ))
-        assert page.locator(".track-item").count() == 2
+        expect(page.locator(".track-item")).to_have_count(2)
         page.locator("#track-0 .btn-remove").click()
-        page.wait_for_timeout(350)
-        assert page.locator(".track-item").count() == 1
+        # Use auto-waiting count assertion instead of a fixed sleep — the
+        # client-side removal is async (route fulfill + DOM update) and
+        # 350ms is not always enough on a busy CI runner.
+        expect(page.locator(".track-item")).to_have_count(1, timeout=3000)
 
 
 class TestBandAnalysis:

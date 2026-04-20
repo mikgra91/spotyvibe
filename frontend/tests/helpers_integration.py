@@ -18,16 +18,23 @@ from playwright.sync_api import Page, expect
 # ═══════════════════════════════════════════════════════════════════════
 
 def switch_to_tab(page: Page, tab_name: str):
-    page.wait_for_load_state("domcontentloaded")
+    """Click a tab and assert it became active.
+
+    Waits for ``window.switchTab`` (the public surface of tabs.js) to be
+    defined before clicking. Without this guard, fast tests race the ES
+    module loader and the click is silently dropped, surfacing as a
+    flaky aria-selected assertion timeout.
+    """
+    page.wait_for_load_state("load", timeout=30_000)
+    page.wait_for_function("typeof window.switchTab === 'function'", timeout=30_000)
     tab = page.locator(f'[data-tab="{tab_name}"]')
     tab.wait_for(state="visible", timeout=10_000)
     tab.click()
     try:
         expect(tab).to_have_attribute("aria-selected", "true", timeout=5_000)
     except (AssertionError, Exception):
-        page.wait_for_timeout(500)
-        page.evaluate(f"typeof switchTab === 'function' && switchTab('{tab_name}')")
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(200)
+        page.evaluate(f"window.switchTab && window.switchTab('{tab_name}')")
         expect(tab).to_have_attribute("aria-selected", "true", timeout=10_000)
 
 
@@ -332,12 +339,20 @@ def create_integration_server():
     from app import app as flask_app
     flask_app.config["TESTING"] = True
 
-    server_thread = threading.Thread(
-        target=lambda: flask_app.run(
+    # Use waitress (production WSGI server) instead of werkzeug's dev server.
+    # werkzeug + threaded=True starves parallel test runners that fetch
+    # main.js's ~30 ES-module imports concurrently.
+    try:
+        from waitress import serve as _waitress_serve
+        server_target = lambda: _waitress_serve(
+            flask_app, host="127.0.0.1", port=port, threads=8, _quiet=True,
+        )
+    except ImportError:
+        server_target = lambda: flask_app.run(
             host="127.0.0.1", port=port, use_reloader=False, threaded=True,
-        ),
-        daemon=True,
-    )
+        )
+
+    server_thread = threading.Thread(target=server_target, daemon=True)
     server_thread.start()
 
     for _ in range(50):

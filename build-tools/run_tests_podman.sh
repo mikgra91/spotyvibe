@@ -24,6 +24,13 @@ IMAGE="spotyvibe-test:latest"
 RESULTS_DIR="$PROJECT_ROOT/test-results"
 mkdir -p "$RESULTS_DIR"
 
+# ── Release-pipeline rerun policy ────────────────────────────
+# In CI we tolerate a single retry per test as last-line defence against
+# transient OS-level issues (Windows TIME_WAIT under load, ephemeral
+# network blips inside the container). Local runs (run_frontend_tests.sh)
+# deliberately do NOT enable this so real failures stay loud.
+RERUN_OPTS="--reruns 1 --reruns-delay 1"
+
 # ── Build image (unless --no-build) ──────────────────────────
 if [[ "${1:-}" != "--no-build" ]]; then
   echo "═══ Building test image ═══"
@@ -48,20 +55,20 @@ run_suite frontend-ui \
   frontend/tests/test_page_load.py \
   frontend/tests/test_navigation.py \
   frontend/tests/test_modals.py \
-  -v --tb=short \
+  -v --tb=short $RERUN_OPTS \
   --junitxml=/app/test-results/frontend-ui.xml
 
 run_suite frontend-features \
   frontend/tests/test_profile.py \
   frontend/tests/test_generation.py \
   frontend/tests/test_edge_cases.py \
-  -v --tb=short \
+  -v --tb=short $RERUN_OPTS \
   --junitxml=/app/test-results/frontend-features.xml
 
 run_suite frontend-onboarding \
   frontend/tests/test_onboarding.py \
   frontend/tests/test_profile_integration.py \
-  -v --tb=short \
+  -v --tb=short $RERUN_OPTS \
   --junitxml=/app/test-results/frontend-onboarding.xml
 
 run_suite frontend-wf \
@@ -72,7 +79,7 @@ run_suite frontend-wf \
   frontend/tests/test_wf_analysis.py \
   frontend/tests/test_wf_quickstart_openai.py \
   frontend/tests/test_wf_quickstart_spotify.py \
-  -v --tb=short \
+  -v --tb=short $RERUN_OPTS \
   --junitxml=/app/test-results/frontend-wf.xml
 
 # ── Wait for all ─────────────────────────────────────────────

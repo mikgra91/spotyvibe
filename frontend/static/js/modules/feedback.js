@@ -4,6 +4,7 @@ import { i18n } from './i18n.js';
 import { buildRationaleHtml } from './rationale.js';
 import { resetDashboard } from './taste_dashboard.js';
 import { el } from './dom.js';
+import { postFeedback, postRemove } from './feedback-api.js';
 
 /**
  * Build the inner HTML for a track card (shared by discover and review lists).
@@ -116,26 +117,21 @@ export async function submitFeedback(idx, action) {
 
     try {
         const srcTrack = State.suggestions[idx];
-        const resp = await fetch('/api/feedback', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action,
-                artist,
-                track:  track  || null,
-                reason: reason || null,
-                playlist_id: State.lastGeneratedPlaylistId || null,
-                track_id: (srcTrack && srcTrack.track_id) || null,
-            }),
+        const result = await postFeedback({
+            action,
+            artist,
+            track,
+            reason,
+            playlistId: State.lastGeneratedPlaylistId,
+            trackId: srcTrack && srcTrack.track_id,
         });
 
-        if (!resp.ok) {
-            const data = await resp.json();
-            showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', data.error || 'unknown'));
+        if (!result.ok) {
+            showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', result.error));
             return;
         }
 
-        const data = await resp.json();
+        const data = result.body;
         const trackLabel = track ? ` — ${track}` : '';
 
         if (action === 'dislike') {
@@ -183,17 +179,12 @@ export async function removeTrack(idx) {
     if (!track) { animateRemove(idx); return; }
 
     try {
-        const resp = await fetch('/api/remove', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                artist: track.artist,
-                track: track.track,
-                playlist_id: State.lastGeneratedPlaylistId || null,
-                track_id: track.track_id || null,
-            }),
+        const { body: data } = await postRemove({
+            artist: track.artist,
+            track: track.track,
+            playlistId: State.lastGeneratedPlaylistId,
+            trackId: track.track_id,
         });
-        const data = await resp.json();
         const msg = data.removed
             ? i18n('feedback.removed_from_playlist', 'Removed from playlist: {track}').replace('{track}', `${track.artist} — ${track.track}`)
             : i18n('feedback.removed', 'Removed: {track}').replace('{track}', `${track.artist} — ${track.track}`);

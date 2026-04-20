@@ -5,6 +5,7 @@ import { i18n } from './i18n.js';
 import { refreshDiscoverPlaylistPicker } from './playlist-mode.js';
 import { resetDashboard } from './taste_dashboard.js';
 import { el } from './dom.js';
+import { postFeedback, postRemove } from './feedback-api.js';
 
 export function toggleReviewBody() {
     const body = el('reviewBody');
@@ -134,29 +135,21 @@ export async function submitReviewFeedback(idx, action) {
     try {
         const picker = el('reviewPlaylistPicker');
         const reviewTrack = State.reviewTracks[idx];
-        const playlist_id = picker && picker.value ? picker.value : null;
-        const track_id = (reviewTrack && reviewTrack.track_id) || null;
-
-        const resp = await fetch('/api/feedback', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action,
-                artist,
-                track: track || null,
-                reason: reason || null,
-                playlist_id,
-                track_id,
-            }),
+        const result = await postFeedback({
+            action,
+            artist,
+            track,
+            reason,
+            playlistId: picker && picker.value ? picker.value : null,
+            trackId: reviewTrack && reviewTrack.track_id,
         });
 
-        if (!resp.ok) {
-            const data = await resp.json();
-            showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', data.error || 'unknown'));
+        if (!result.ok) {
+            showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', result.error));
             return;
         }
 
-        const body = await resp.json().catch(() => ({}));
+        const body = result.body;
         const trackLabel = track ? ` — ${track}` : '';
 
         if (action === 'dislike') {
@@ -195,17 +188,12 @@ export async function dismissReviewTrack(idx) {
 
     try {
         const picker = el('reviewPlaylistPicker');
-        const resp = await fetch('/api/remove', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                artist: track.artist,
-                track: track.track,
-                playlist_id: picker && picker.value ? picker.value : null,
-                track_id: track.track_id || null,
-            }),
+        const { body: data } = await postRemove({
+            artist: track.artist,
+            track: track.track,
+            playlistId: picker && picker.value ? picker.value : null,
+            trackId: track.track_id,
         });
-        const data = await resp.json();
         const msg = data.removed
             ? i18n('feedback.removed_from_playlist', 'Removed from playlist: {track}').replace('{track}', `${track.artist} — ${track.track}`)
             : i18n('feedback.remove_failed', 'Could not remove from playlist: {reason}').replace('{reason}', data.reason || i18n('feedback.remove_unknown_reason', 'unknown'));

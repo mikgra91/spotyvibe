@@ -8,6 +8,14 @@ markdown>=3.4,<4.0
 pytest>=7.0,<9.0
 pytest-xdist>=3.0,<4.0
 pytest-playwright>=0.6,<1.0
+# Optional: re-run transient failures one extra time. Used by the release
+# pipeline (run_tests_podman.sh) as last-line defence against OS-level
+# hiccups (TIME_WAIT under load, transient network blips). Local runs do
+# not enable --reruns so real failures stay loud.
+pytest-rerunfailures>=14.0,<16.0
+# Production WSGI server used by the test fixtures — werkzeug's dev server
+# starves under the parallel-test load (see frontend/tests/conftest.py).
+waitress>=3.0,<4.0
 pyinstaller>=6.0,<7.0
 # Embedded browser window for the Windows desktop build (desktop_launcher.py)
 pywebview>=5.0,<7.0

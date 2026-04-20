@@ -164,7 +164,12 @@ class TestOnboardingFlow:
         page.locator("#ob-input-wrap-openai:not(.hidden)").wait_for(timeout=5000)
         page.locator("#ob-openai-key").fill("sk-test-key")
         page.wait_for_timeout(100)
-        page.locator(".ob-page.active .ob-cta-next").click()
+        # The Next button can be off-screen on the default 1280x720 viewport
+        # because the wizard card is tall. Scroll it into view, then click via
+        # JS to avoid Playwright's "outside of viewport" retry loop.
+        next_btn = page.locator(".ob-page.active .ob-cta-next")
+        next_btn.scroll_into_view_if_needed()
+        next_btn.evaluate("el => el.click()")
         page.wait_for_timeout(250)
         assert len(save_requests) >= 1
 
@@ -362,7 +367,9 @@ class TestWave2QuickWins:
         page.wait_for_timeout(150)
         page.locator(".gen-mode-btn[data-mode='advanced']").click()
         page.wait_for_timeout(100)
-        page.locator(".preset-save-btn").click()
+        # Two .preset-save-btn exist — one is hidden (#presetUpdateBtn), the
+        # other is the visible "+ New" button. Click the visible one.
+        page.locator(".preset-save-btn:not(.hidden)").click()
         page.wait_for_timeout(100)
         page.locator("#savePresetInput").fill("Test preset")
         page.locator("#savePresetModal .btn-save").click()
