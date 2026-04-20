@@ -112,10 +112,16 @@ MAX_FEEDBACK_TRACK_LEN = 200
 # See documentation/guides/rag-implementation.md for the design.
 # Master off-switch is the user-facing setting RAG_ENABLED in settings.conf;
 # the constants below are corpus paths and tuning knobs.
-RAG_CORPUS_DIR = BASE_DIR / "data" / "rag_corpus"
-RAG_CORPUS_PATH = RAG_CORPUS_DIR / "artists.jsonl.gz"
-RAG_TAG_ALIASES_PATH = RAG_CORPUS_DIR / "tag_aliases.json"
-RAG_META_PATH = RAG_CORPUS_DIR / "artists.meta.json"
+#
+# Path layout (since Apr-2026):
+#   - The downloadable corpus + meta sidecar live in the user's app dir
+#     (e.g. %LOCALAPPDATA%/spotyvibe/rag_corpus/) so they survive across
+#     PyInstaller-EXE launches and live alongside other user-specific
+#     state. _APP_DIR is defined further below — RAG_CORPUS_DIR/PATH/META
+#     are therefore initialised in `_init_rag_paths()` after _APP_DIR is
+#     known.
+#   - The tag-alias map is bundled with the app and stays under BASE_DIR.
+RAG_TAG_ALIASES_PATH = BASE_DIR / "data" / "rag_corpus" / "tag_aliases.json"
 RAG_MANIFEST_URL = os.environ.get(
     "RAG_MANIFEST_URL",
     "https://github.com/mikgra91/spotyvibe/releases/download/"
@@ -124,6 +130,11 @@ RAG_MANIFEST_URL = os.environ.get(
 RAG_POOL_SIZE = 20
 RAG_POPULARITY_PENALTY = 0.4
 DEFAULT_RAG_ENABLED = True
+
+# Populated by _init_rag_paths() once _APP_DIR exists.
+RAG_CORPUS_DIR: Path  # type: ignore[assignment]
+RAG_CORPUS_PATH: Path  # type: ignore[assignment]
+RAG_META_PATH: Path  # type: ignore[assignment]
 
 
 def get_rag_enabled() -> bool:
@@ -168,6 +179,38 @@ CREDENTIALS_FILE = _APP_DIR / ".credentials"
 SETTINGS_FILE = _APP_DIR / "settings.conf"
 CACHE_FILE = _APP_DIR / ".spotify-cache"
 PROFILES_DIR = _APP_DIR / "profiles"
+
+
+def _init_rag_paths() -> None:
+    """Resolve RAG corpus paths once _APP_DIR is known.
+
+    The downloadable corpus + meta sidecar live in the user's app dir so
+    they survive across PyInstaller-EXE launches. A one-time migration
+    moves any legacy file from ``BASE_DIR/data/rag_corpus/`` (older dev
+    installs) into the new location.
+    """
+    global RAG_CORPUS_DIR, RAG_CORPUS_PATH, RAG_META_PATH
+    RAG_CORPUS_DIR = _APP_DIR / "rag_corpus"
+    RAG_CORPUS_PATH = RAG_CORPUS_DIR / "artists.jsonl.gz"
+    RAG_META_PATH = RAG_CORPUS_DIR / "artists.meta.json"
+
+    # One-time migration from the legacy in-repo location.
+    legacy_dir = BASE_DIR / "data" / "rag_corpus"
+    legacy_corpus = legacy_dir / "artists.jsonl.gz"
+    legacy_meta = legacy_dir / "artists.meta.json"
+    if legacy_corpus.exists() and not RAG_CORPUS_PATH.exists():
+        try:
+            RAG_CORPUS_DIR.mkdir(parents=True, exist_ok=True)
+            legacy_corpus.replace(RAG_CORPUS_PATH)
+            if legacy_meta.exists():
+                legacy_meta.replace(RAG_META_PATH)
+        except OSError:
+            # Read-only legacy dir (e.g. frozen EXE temp dir) — leave the
+            # legacy file alone; the user just needs to download afresh.
+            pass
+
+
+_init_rag_paths()
 
 # Legacy single-profile paths (kept for reference / migration awareness)
 PROFILE_FILE = _APP_DIR / "personalized_music_profile.json"

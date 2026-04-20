@@ -109,6 +109,7 @@ from core.src.playlist import (
     disconnect_spotify, get_user_playlists, get_playlist_tracks,
     filter_emerging_artists, fetch_user_playlists, fetch_playlist_items_for_seed,
     get_spotify_client, get_spotify_access_token, get_spotify_session_info,
+    remove_all_tracks_by_artist,
 )
 from core.src.taste import aggregate_taste
 
@@ -1026,6 +1027,39 @@ def submit_feedback():
             response["removal"] = removal
         return jsonify(response)
 
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/feedback/dislike-artist", methods=["POST"])
+def dislike_artist_purge():
+    """Artist-level dislike that also strips every track by that artist
+    from the active playlist (Item 6, 2026-04).
+
+    Frontend should show a confirmation dialog **before** calling this
+    endpoint — there is no further confirmation server-side.
+
+    Body: {"artist": str, "playlist_id": str, "reason": str (optional)}
+    Returns: {"status": "ok", "removal": {...}}
+    """
+    data = request.get_json(force=True)
+    artist = safe_text(data, "artist")
+    playlist_id = _safe_spotify_id(safe_text(data, "playlist_id") or None)
+    reason = safe_text(data, "reason") or None
+
+    if not artist:
+        return jsonify({"error": "Artist is required."}), 400
+    if len(artist) > MAX_FEEDBACK_ARTIST_LEN:
+        return jsonify({"error": f"Artist name too long (max {MAX_FEEDBACK_ARTIST_LEN} chars)."}), 400
+    if reason and len(reason) > MAX_FEEDBACK_REASON_LEN:
+        reason = reason[:MAX_FEEDBACK_REASON_LEN]
+
+    try:
+        # 1. Persist the artist-level dislike (no track ⇒ artist-level).
+        dislike_track(artist, track=None, reason=reason)
+        # 2. Strip the active playlist.
+        removal = remove_all_tracks_by_artist(artist, playlist_id=playlist_id)
+        return jsonify({"status": "ok", "removal": removal})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

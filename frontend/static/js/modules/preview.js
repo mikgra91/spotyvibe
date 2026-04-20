@@ -33,6 +33,49 @@ let _sdkLastPositionMs = 0;
 let _sdkLastDurationMs = 0;
 let _sdkScrubberDragging = false;
 
+/* ── SDK position ticker (Items 3 + 5) ─────────────────────────────
+ * The Spotify Web Playback SDK only fires `state_changed` on discrete
+ * transitions (play/pause/seek/track-change), never continuously. That
+ * makes the timebar appear frozen between events (especially when the
+ * tab was hidden) and makes track-end detection unreliable because the
+ * SDK can reset `position` to 0 the moment a track ends, missing the
+ * "position >= duration - 500" window.
+ *
+ * The ticker below extrapolates the position from the last authoritative
+ * SDK state using wall-clock time, redraws the seek bar / time labels
+ * 4× per second while playing, and triggers `nextPreview()` once the
+ * extrapolated position crosses the duration. Real `state_changed`
+ * events still re-anchor `_sdkLastPositionMs` so we never drift.
+ */
+let _tickerHandle = null;
+let _sdkPositionAnchorMs = 0;     // wall-clock time when _sdkLastPositionMs was set
+let _sdkPaused = true;
+let _sdkAdvanceFiredFor = null;   // track id we already auto-advanced from
+
+/* ── Profile-regen tip counter (Item 4) ─────────────────────────────
+ * Trigger the "regenerate profile" tip after 10+ feedback events in a
+ * fresh session, then re-trigger every additional 30 events. The tip
+ * itself (`tips.js` → `regenerate_profile_after_feedback`) is marked
+ * `oncePerSessionOnly`, so it re-appears on the next app launch too.
+ */
+const _REGEN_TIP_INITIAL_THRESHOLD = 10;
+const _REGEN_TIP_REPEAT_INTERVAL = 30;
+let _feedbackEventCount = 0;
+let _feedbackEventsAtLastTip = -_REGEN_TIP_INITIAL_THRESHOLD;
+
+function _maybeTriggerRegenProfileTip() {
+    _feedbackEventCount += 1;
+    const since = _feedbackEventCount - _feedbackEventsAtLastTip;
+    const initialReady = _feedbackEventsAtLastTip < 0
+        && _feedbackEventCount >= _REGEN_TIP_INITIAL_THRESHOLD;
+    const repeatReady = _feedbackEventsAtLastTip >= 0
+        && since >= _REGEN_TIP_REPEAT_INTERVAL;
+    if (!initialReady && !repeatReady) return;
+    if (!window.Tips || typeof window.Tips.maybeTrigger !== 'function') return;
+    window.Tips.maybeTrigger('regenerate_profile_after_feedback');
+    _feedbackEventsAtLastTip = _feedbackEventCount;
+}
+
 /* ── SDK failure tracking (Brave/Widevine diagnostic) ───────────────
  * Count repeated SDK-init failures across sessions; once we cross a
  * threshold we trigger a one-time Tips notification pointing the user
@@ -199,6 +242,7 @@ export function closePreviewOverlay() {
     if (_playbackMode === 'sdk') {
         Sdk.getPlayer()?.pause().catch(() => {});
     }
+    _stopTicker();
     closePreviewFeedback();
 }
 
@@ -271,33 +315,97 @@ function wireSdkEvents() {
             _sdkScrubberDragging = false;
         });
     }
+
+    // Resync on tab return — the SDK throttles state events while hidden,
+    // so the ticker's projection drifts. Re-anchor from authoritative state.
+    if (!wireSdkEvents._visibilityWired) {
+        wireSdkEvents._visibilityWired = true;
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState !== 'visible') return;
+            if (_playbackMode !== 'sdk') return;
+            const player = Sdk.getPlayer?.();
+            if (!player || typeof player.getCurrentState !== 'function') return;
+            player.getCurrentState().then((state) => {
+                if (state) onSdkStateChanged(state);
+            }).catch(() => { /* ignore */ });
+        });
+    }
 }
 
 function onSdkStateChanged(state) {
     if (!state) return;
     _sdkLastPositionMs = state.position || 0;
     _sdkLastDurationMs = state.duration || 0;
+    _sdkPositionAnchorMs = performance.now();
+    _sdkPaused = !!state.paused;
+
+    // Reset auto-advance latch when a new track is loaded so the next
+    // track-end can also fire.
+    const currentTrackId = state.track_window?.current_track?.id;
+    if (currentTrackId && currentTrackId !== _sdkAdvanceFiredFor) {
+        _sdkAdvanceFiredFor = null;
+    }
 
     const playBtn = el('sdkPlayToggle');
     if (playBtn) playBtn.textContent = state.paused ? '▶' : '⏸';
 
-    if (!_sdkScrubberDragging) {
-        const seek = el('sdkPlayerSeek');
-        if (seek && _sdkLastDurationMs > 0) {
-            seek.value = String(Math.round((_sdkLastPositionMs / _sdkLastDurationMs) * 100));
-        }
-        const cur = el('sdkPlayerTimeCur');
-        const dur = el('sdkPlayerTimeDur');
-        if (cur) cur.textContent = formatMs(_sdkLastPositionMs);
-        if (dur) dur.textContent = formatMs(_sdkLastDurationMs);
-    }
+    _renderSdkProgress();
 
-    // Track-end detection: when paused at (or near) duration, advance.
-    const atEnd = state.paused &&
-                  _sdkLastDurationMs > 0 &&
-                  _sdkLastPositionMs >= _sdkLastDurationMs - 500;
-    if (atEnd && isAutoplayEnabled()) {
-        nextPreview();
+    if (_sdkPaused) {
+        _stopTicker();
+    } else {
+        _startTicker();
+    }
+}
+
+/** Render seek bar + time labels from `_sdkLastPositionMs`/`Duration`. */
+function _renderSdkProgress() {
+    if (_sdkScrubberDragging) return;
+    const seek = el('sdkPlayerSeek');
+    if (seek && _sdkLastDurationMs > 0) {
+        seek.value = String(Math.round((_sdkLastPositionMs / _sdkLastDurationMs) * 100));
+    }
+    const cur = el('sdkPlayerTimeCur');
+    const dur = el('sdkPlayerTimeDur');
+    if (cur) cur.textContent = formatMs(_sdkLastPositionMs);
+    if (dur) dur.textContent = formatMs(_sdkLastDurationMs);
+}
+
+function _startTicker() {
+    if (_tickerHandle !== null) return;
+    _tickerHandle = setInterval(_tick, 250);
+}
+
+function _stopTicker() {
+    if (_tickerHandle !== null) {
+        clearInterval(_tickerHandle);
+        _tickerHandle = null;
+    }
+}
+
+function _tick() {
+    if (_sdkPaused || _sdkLastDurationMs <= 0) return;
+    const now = performance.now();
+    const elapsed = now - _sdkPositionAnchorMs;
+    const projected = Math.min(_sdkLastPositionMs + elapsed, _sdkLastDurationMs);
+
+    // Update the displayed position without mutating the anchor — the
+    // anchor is only updated by real state_changed events.
+    const oldPos = _sdkLastPositionMs;
+    _sdkLastPositionMs = projected;
+    _renderSdkProgress();
+    _sdkLastPositionMs = oldPos;
+
+    // Auto-advance: once the projected position has reached the duration,
+    // call nextPreview() once. _sdkAdvanceFiredFor latches the track id
+    // so the same track end never fires twice.
+    if (projected >= _sdkLastDurationMs - 100 && isAutoplayEnabled()) {
+        const trackId = getCurrentPreviewTrack()?.track_id;
+        if (trackId && _sdkAdvanceFiredFor !== trackId) {
+            _sdkAdvanceFiredFor = trackId;
+            _stopTicker();
+            nextPreview();
+        }
     }
 }
 
@@ -503,6 +611,8 @@ async function _postFeedbackAndReact(action, artist, track, reason) {
         if (typeof window.refreshGettingStarted === 'function') {
             window.refreshGettingStarted();
         }
+
+        _maybeTriggerRegenProfileTip();
 
         removeCurrentAndAdvance();
     } catch (e) {

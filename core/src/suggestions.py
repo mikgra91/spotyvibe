@@ -442,6 +442,21 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
     system_prompt = system_prompt.replace("{min_new_artists}", str(min_new_artists))
     system_prompt = system_prompt.replace("{gpt_language}", gpt_language)
 
+    # Item 8 (2026-04): scale the rationale count to profile size so a
+    # rich profile gets a richer per-track justification covering more
+    # than one facet. Hard cap at 5 to keep responses lean.
+    prefs = (profile or {}).get("preferences", {}) if isinstance(profile, dict) else {}
+    must_have_n = len((prefs.get("must_have") or []))
+    soft_n = len((prefs.get("soft_preferences") or []))
+    profile_facets = must_have_n + soft_n
+    if profile_facets >= 5:
+        rationale_count = "3-5"
+    elif profile_facets >= 2:
+        rationale_count = "2-3"
+    else:
+        rationale_count = "1-2"
+    system_prompt = system_prompt.replace("{rationale_count}", rationale_count)
+
     if emerging_only:
         emerging_constraint = (
             "\n8. ONLY suggest tracks by artists whose debut release is within the last 6 months."

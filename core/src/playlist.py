@@ -330,6 +330,70 @@ def remove_from_playlist(artist, track, playlist_id=None, track_id=None):
     return {"removed": True}
 
 
+def remove_all_tracks_by_artist(artist, playlist_id=None):
+    """Remove every track whose primary artist matches *artist* from a playlist.
+
+    Used by the "dislike entire band" flow (Item 6, 2026-04). Matches
+    artist names case-insensitively after stripping whitespace, against
+    *every* artist credit on the track (Spotify exposes a list).
+
+    Returns a dict::
+
+        {"removed": True/False,
+         "removed_count": int,
+         "removed_tracks": [{"artist": str, "track": str}, ...],
+         "reason": str (only when removed=False)}
+    """
+    sp = get_spotify_client()
+    if playlist_id:
+        pid = playlist_id
+    else:
+        playlist = find_existing_playlist(sp)
+        if not playlist:
+            return {"removed": False, "removed_count": 0,
+                    "removed_tracks": [], "reason": "Playlist not found"}
+        pid = playlist["id"]
+
+    target = (artist or "").strip().lower()
+    if not target:
+        return {"removed": False, "removed_count": 0,
+                "removed_tracks": [], "reason": "Empty artist name"}
+
+    uris_to_remove: list[str] = []
+    removed_tracks: list[dict] = []
+    results = sp.playlist_items(pid, fields="items(track(uri,name,artists(name))),next")
+    while results:
+        for entry in results.get("items", []):
+            track = entry.get("track") or entry.get("item")
+            if not track or not track.get("uri"):
+                continue
+            artists = [(a.get("name") or "").strip().lower()
+                       for a in (track.get("artists") or [])]
+            if target in artists:
+                uris_to_remove.append(track["uri"])
+                removed_tracks.append({
+                    "artist": (track.get("artists") or [{}])[0].get("name", artist),
+                    "track": track.get("name", ""),
+                })
+        if results.get("next") is None:
+            break
+        results = sp.next(results)
+
+    if not uris_to_remove:
+        return {"removed": False, "removed_count": 0,
+                "removed_tracks": [],
+                "reason": "No tracks by this artist in playlist"}
+
+    # Spotify caps removals at 100 URIs per call.
+    for i in range(0, len(uris_to_remove), 100):
+        sp.playlist_remove_all_occurrences_of_items(pid, uris_to_remove[i:i + 100])
+
+    logger.info("Removed %d tracks by '%s' from playlist %s",
+                len(uris_to_remove), artist, pid)
+    return {"removed": True, "removed_count": len(uris_to_remove),
+            "removed_tracks": removed_tracks}
+
+
 def _parse_release_year(release_date: str | None) -> int | None:
     """Extract a 4-digit year from a Spotify release_date string.
 

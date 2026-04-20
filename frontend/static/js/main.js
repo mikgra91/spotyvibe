@@ -28,6 +28,7 @@ import * as Exploration from './modules/exploration.js';
 import * as Presets from './modules/presets.js';
 import * as QuickAdvanced from './modules/quick_advanced.js';
 import * as Tips from './modules/tips.js';
+import * as RagUpdatePrompt from './modules/rag_update_prompt.js';
 import * as Rationale from './modules/rationale.js';
 import * as TasteDashboard from './modules/taste_dashboard.js';
 import { toggleDashboardBody } from './modules/taste_dashboard.js';
@@ -257,6 +258,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Wave 3: Tips, rationale, taste dashboard, playlist seed
     Tips.init();
+    RagUpdatePrompt.init();
     Rationale.init();
     TasteDashboard.init();
     PlaylistSeed.init();

@@ -49,9 +49,9 @@ subtitle: A concrete plan for adding a retrieval-augmented candidate pool to Spo
 
 ### 2.1 Corpus size
 
-**Top-N cut.** Full MusicBrainz has ~2M artists. Most are noise (one-release local bands with no tags). We cut to the **top 100K** by number of releases + tag count. File size on disk after packing (see §3): ~8–12 MB gzipped. Acceptable for bundling with the repo or downloading once on first run.
+**Top-N cut.** Full MusicBrainz has ~2M artists. Most are noise (one-release local bands with no tags). We cut to the **top 350K** by number of releases + tag count. File size on disk after packing (see §3): ~25–35 MB gzipped. Acceptable for downloading once on first run.
 
-Rationale: 100K covers every artist any SpotyVibe user is realistically going to encounter. Going to 500K triples the file size for artists no one searches for.
+Rationale: the previous 100K cut missed too many regional / niche artists for users with eclectic taste profiles. 350K covers virtually every artist a SpotyVibe user is realistically going to encounter while keeping the resident memory footprint (~200 MB) within reason for a desktop app. Going to 500K+ doesn't measurably improve recall and starts to hurt cold-start time.
 
 ### 2.2 Build pipeline
 
@@ -60,7 +60,7 @@ A one-off script `build-tools/build_rag_corpus.py`:
 1. Download MusicBrainz JSON dump (`mbdump.tar.bz2` from `data.metabrainz.org`).
 2. Stream-parse artists, keep only those with ≥ 1 release and ≥ 1 tag.
 3. For each kept artist, compute `listener_popularity` (§2.3).
-4. Rank by popularity, take top 100K.
+4. Rank by popularity, take top 350K.
 5. Emit `data/rag_corpus/artists.jsonl.gz` (newline-delimited JSON, one artist per line).
 
 Script runs manually, not at build time — the corpus is a versioned data artifact, refreshed quarterly. Check the `.jsonl.gz` into a separate git-LFS path or a GitHub Release asset, not the main repo.
@@ -87,7 +87,7 @@ MusicBrainz doesn't ship listener counts. Two options:
 ```python
 # core/src/rag/corpus.py
 class RagCorpus:
-    artists: list[ArtistRow]                # ~100K rows, indexed by row_idx
+    artists: list[ArtistRow]                # ~350K rows, indexed by row_idx
     by_mbid: dict[str, int]                  # mbid → row_idx
     by_name_normalised: dict[str, int]       # "the beatles" → row_idx, for deny-list filtering
     tag_index: dict[str, list[int]]          # "post-punk" → [row_idx, ...]
@@ -95,7 +95,7 @@ class RagCorpus:
     tag_idf: np.ndarray                      # shape (n_tags,), log(N/df) per tag
 ```
 
-Memory footprint: ~80 MB resident for 100K artists with ~10 tags each. Acceptable.
+Memory footprint: ~200 MB resident for 350K artists with ~10 tags each. Acceptable.
 
 **Why not SQLite / DuckDB.** Tempting, but the read pattern is 100% full-scan-over-small-tag-set. An in-memory inverted index is simpler and faster. Revisit if the corpus grows past ~500K.
 

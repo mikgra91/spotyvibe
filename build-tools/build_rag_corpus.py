@@ -5,10 +5,10 @@ Usage::
     python build-tools/build_rag_corpus.py \\
         --source <path-to-mbdump-extract-or-json> \\
         --output data/rag_corpus/artists.jsonl.gz \\
-        --top-n 100000
+        --top-n 350000
 
 See ``documentation/guides/rag-implementation.md`` §2 for the rationale
-behind the 100K cut and the Option A popularity proxy this script uses.
+behind the 350K cut and the Option A popularity proxy this script uses.
 
 The script accepts two input shapes:
 
@@ -196,7 +196,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="MusicBrainz JSON dump directory OR a pre-flattened JSONL file.")
     parser.add_argument("--output", type=Path,
                         default=Path("data/rag_corpus/artists.jsonl.gz"))
-    parser.add_argument("--top-n", type=int, default=100_000)
+    parser.add_argument("--top-n", type=int, default=350_000)
     args = parser.parse_args(argv)
 
     if args.source.is_dir():

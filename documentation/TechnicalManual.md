@@ -258,7 +258,7 @@ The suggestion pipeline can inject a pre-ranked pool of ~20 artists retrieved fr
 
 | File | Role |
 |---|---|
-| `corpus.py` | `RagCorpus` dataclass — loads `artists.jsonl.gz` into in-memory rows + inverted tag index + TF-IDF idf vector. ~80 MB resident for 100K artists. |
+| `corpus.py` | `RagCorpus` dataclass — loads `artists.jsonl.gz` into in-memory rows + inverted tag index + TF-IDF idf vector. ~200 MB resident for 350K artists. |
 | `retrieval.py` | `score_artists(profile, deny_list)` — TF-IDF over artist-tag postings with a bigram/hyphen compound boost (×3) and a popularity re-rank penalty. Returns top `RAG_POOL_SIZE` rows. |
 | `prompt.py` | Formats retrieved rows as the `CANDIDATE_POOL` prompt block appended to the suggestions user-message. |
 | `distribution.py` | Manifest fetch, update check, streaming sha256-verified download. Pure stdlib `urllib`. |
@@ -270,7 +270,7 @@ The suggestion pipeline can inject a pre-ranked pool of ~20 artists retrieved fr
 | Constant | Default | Purpose |
 |---|---|---|
 | `RAG_ENABLED` | persisted in `settings.conf`; `DEFAULT_RAG_ENABLED = True` when unset and corpus present | Master toggle; UI-exposed in Settings → Candidate pool (RAG). Disabling persists explicit `false` so the new default doesn't silently re-enable. |
-| `RAG_CORPUS_PATH` | `data/rag_corpus/artists.jsonl.gz` | Corpus location. |
+| `RAG_CORPUS_PATH` | `<app_dir>/rag_corpus/artists.jsonl.gz` (under the user's app dir, e.g. `%LOCALAPPDATA%/spotyvibe/`) | Corpus location. Survives across PyInstaller-EXE launches. |
 | `RAG_POOL_SIZE` | `20` | Candidates injected per batch. |
 | `RAG_POPULARITY_PENALTY` | `0.4` | Anti-popularity-bias re-rank coefficient (0 = pure TF-IDF, 1 = strong obscurity bias). |
 | `RAG_MANIFEST_URL` | GitHub release URL | Override via env var for staging. |
@@ -283,7 +283,7 @@ The corpus (`artists.jsonl.gz`, ~7 MB) is **not** bundled with the app artifacts
 
 | Asset | Purpose |
 |---|---|
-| `artists.jsonl.gz` | Top 100,000 artists by Option A popularity proxy (release count + tag total). One NDJSON row per artist. |
+| `artists.jsonl.gz` | Top 350,000 artists by Option A popularity proxy (release count + tag total). One NDJSON row per artist. |
 | `manifest.json` | `{corpus_version, built_at, sha256, size_bytes, corpus_url}`. Clients fetch this once per startup to decide whether to prompt for an update. |
 
 **Producing a new release** (requires authenticated `gh` CLI):

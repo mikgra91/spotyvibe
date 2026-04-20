@@ -110,6 +110,57 @@ export async function submitFeedback(idx, action) {
 
     if (!artist) { showAlert(i18n('feedback.artist_required', 'Artist is required.')); return; }
 
+    // Item 6 (2026-04): artist-level dislike (no track) → confirm, then
+    // call the dedicated endpoint that also strips the active playlist.
+    if (action === 'dislike' && !track) {
+        const msg = i18n(
+            'feedback.confirm_dislike_artist',
+            'Remove ALL songs by "{artist}" from this playlist and never suggest them again?'
+        ).replace('{artist}', artist);
+        if (!window.confirm(msg)) {
+            return;
+        }
+        const submitBtnLikeC = el(`submitBtn-${idx}-like`);
+        const submitBtnDislikeC = el(`submitBtn-${idx}-dislike`);
+        if (submitBtnLikeC) submitBtnLikeC.disabled = true;
+        if (submitBtnDislikeC) submitBtnDislikeC.disabled = true;
+        try {
+            const resp = await fetch('/api/feedback/dislike-artist', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    artist,
+                    reason,
+                    playlist_id: State.lastGeneratedPlaylistId,
+                }),
+            });
+            const body = await resp.json().catch(() => ({}));
+            if (!resp.ok) {
+                showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', body.error || resp.status));
+                return;
+            }
+            const removal = body.removal || {};
+            const count = removal.removed_count || 0;
+            const toastMsg = count > 0
+                ? i18n('feedback.artist_disliked_purged', '👎 Excluded {artist} — removed {count} tracks from playlist.')
+                    .replace('{artist}', artist).replace('{count}', count)
+                : i18n('feedback.artist_disliked_no_tracks', '👎 Excluded {artist}. (No tracks were on the playlist.)')
+                    .replace('{artist}', artist);
+            showToast(toastMsg);
+            resetDashboard();
+            if (typeof window.refreshGettingStarted === 'function') {
+                window.refreshGettingStarted();
+            }
+            animateRemove(idx);
+        } catch (e) {
+            showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
+        } finally {
+            if (submitBtnLikeC) submitBtnLikeC.disabled = false;
+            if (submitBtnDislikeC) submitBtnDislikeC.disabled = false;
+        }
+        return;
+    }
+
     const submitBtnLike = el(`submitBtn-${idx}-like`);
     const submitBtnDislike = el(`submitBtn-${idx}-dislike`);
     if (submitBtnLike) submitBtnLike.disabled = true;
