@@ -126,3 +126,54 @@ def test_pre_1960s_artists_are_filtered(tmp_path):
     assert kept == {"ok1", "ok2", "unknown"}
 
 
+# ── Phase 2: Spotify enrichment fields ───────────────────────────────
+
+def test_legacy_rows_without_spotify_fields_load(corpus_file):
+    """The fixture has no spotify_* keys — must still load cleanly."""
+    corpus = RagCorpus.load(corpus_file)
+    assert len(corpus) == 5
+    for a in corpus.artists:
+        assert a.spotify_id is None
+        assert a.spotify_popularity is None
+        assert a.spotify_followers is None
+        assert a.spotify_genres == []
+
+
+def test_enriched_rows_populate_spotify_fields(tmp_path):
+    rows = [
+        # Legacy row — no spotify_*.
+        {"mbid": "leg", "name": "Legacy", "tags": ["rock"], "tag_weights": [3],
+         "listener_popularity": 0.4},
+        # Enriched row.
+        {"mbid": "enr", "name": "Enriched", "tags": ["rock"], "tag_weights": [3],
+         "listener_popularity": 0.4,
+         "spotify_id": "abc123", "spotify_popularity": 55,
+         "spotify_followers": 12345,
+         "spotify_genres": ["progressive rock", "theatrical rock"]},
+    ]
+    path = tmp_path / "artists.jsonl"
+    path.write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    corpus = RagCorpus.load(path)
+    leg = corpus.by_mbid["leg"]
+    enr = corpus.by_mbid["enr"]
+    assert corpus.artists[leg].spotify_id is None
+    assert corpus.artists[enr].spotify_id == "abc123"
+    assert corpus.artists[enr].spotify_popularity == 55
+    assert corpus.artists[enr].spotify_followers == 12345
+    assert corpus.artists[enr].spotify_genres == ["progressive rock", "theatrical rock"]
+
+
+def test_spotify_genres_are_indexed_alongside_mb_tags(tmp_path):
+    """Phase 2 retrieval should match against spotify_genres too."""
+    rows = [
+        {"mbid": "x", "name": "X", "tags": ["rock"], "tag_weights": [3],
+         "listener_popularity": 0.5,
+         "spotify_genres": ["theatrical rock", "nerd rock"]},
+    ]
+    path = tmp_path / "artists.jsonl"
+    path.write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    corpus = RagCorpus.load(path)
+    # Both MB tags and spotify_genres should appear in the inverted index.
+    assert "rock" in corpus.tag_index
+    assert "theatrical rock" in corpus.tag_index
+    assert "nerd rock" in corpus.tag_index

@@ -143,15 +143,7 @@ def score_artists(corpus: RagCorpus,
         idf = corpus.tag_idf.get(qtag, 1.0)
         for row_idx in corpus.tag_index.get(qtag, ()):
             artist = corpus.artists[row_idx]
-            # tag_weight for this artist: find its position in artist.tags
-            # (tags are small — usually <20 — so linear scan is fine).
-            try:
-                pos = artist.tags.index(qtag)
-                w = artist.tag_weights[pos] if pos < len(artist.tag_weights) else 1
-            except ValueError:
-                # Could happen if the artist has the tag in a non-normalised
-                # form; fall back to 1 rather than missing the hit.
-                w = 1
+            w = _artist_tag_weight(artist, qtag)
             scores[row_idx] += idf * float(w) * qweight
 
     if not scores:
@@ -164,12 +156,53 @@ def score_artists(corpus: RagCorpus,
         artist = corpus.artists[idx]
         if normalise_name(artist.name) in deny_set:
             continue
-        pop = max(0.0, min(1.0, artist.listener_popularity))
+        pop = _artist_popularity(artist)
         final = s * (1.0 - popularity_penalty * pop)
+        # Phase 2: small discovery sweet-spot boost — artists in the
+        # 0.3-0.7 popularity band are lesser-known but viable and tend
+        # to be the most useful suggestions. ±10 % swing.
+        if 0.3 <= pop <= 0.7:
+            final *= 1.10
         reranked.append((final, idx))
 
     reranked.sort(key=lambda t: t[0], reverse=True)
     return [corpus.artists[i] for _, i in reranked[:pool_size]]
+
+
+# ── Per-artist scoring helpers (Phase 2) ─────────────────────────────
+
+def _artist_tag_weight(artist: ArtistRow, qtag: str) -> int:
+    """Resolve the per-artist weight for *qtag* against MB tags + Spotify genres.
+
+    MB community tags carry their explicit ``tag_weights`` count. Spotify
+    genres don't have per-artist weights — Spotify just lists them — so
+    we treat them as constant weight 2 (slightly above an average MB tag,
+    reflecting that Spotify-curated genres are higher signal than raw
+    community tags). Falls back to 1 if no match — defensive, should be
+    unreachable since the index only points us at artists that have the
+    tag somewhere.
+    """
+    try:
+        pos = artist.tags.index(qtag)
+        return artist.tag_weights[pos] if pos < len(artist.tag_weights) else 1
+    except ValueError:
+        pass
+    # Check Spotify genres (normalised match — corpus stores them raw).
+    for g in artist.spotify_genres:
+        if normalise_tag(g) == qtag:
+            return 2
+    return 1
+
+
+def _artist_popularity(artist: ArtistRow) -> float:
+    """Return a 0..1 popularity score, preferring real Spotify data.
+
+    Spotify popularity is 0-100; we map to 0-1. For unenriched artists
+    we fall back to the MB-derived ``listener_popularity`` proxy.
+    """
+    if artist.spotify_popularity is not None:
+        return max(0.0, min(1.0, artist.spotify_popularity / 100.0))
+    return max(0.0, min(1.0, artist.listener_popularity))
 
 
 # ── Stratified per-facet retrieval (Option 2) ────────────────────────
@@ -260,11 +293,7 @@ def _score_with_query(corpus: RagCorpus,
             if row_idx in already_picked_idx:
                 continue
             artist = corpus.artists[row_idx]
-            try:
-                pos = artist.tags.index(qtag)
-                w = artist.tag_weights[pos] if pos < len(artist.tag_weights) else 1
-            except ValueError:
-                w = 1
+            w = _artist_tag_weight(artist, qtag)
             scores[row_idx] += idf * float(w) * qweight
 
     if not scores:
@@ -277,8 +306,10 @@ def _score_with_query(corpus: RagCorpus,
         artist = corpus.artists[idx]
         if normalise_name(artist.name) in deny_set:
             continue
-        pop = max(0.0, min(1.0, artist.listener_popularity))
+        pop = _artist_popularity(artist)
         final = s * (1.0 - popularity_penalty * pop)
+        if 0.3 <= pop <= 0.7:
+            final *= 1.10
         reranked.append((final, idx))
 
     reranked.sort(key=lambda t: t[0], reverse=True)

@@ -36,6 +36,37 @@ _REQUEST_TIMEOUT = 15.0
 # token expiry during a long enrichment run.
 _TOKEN_REFRESH_CUSHION_SEC = 300
 
+# Spotify rate-limit safety:
+#  - hard-cap the server-supplied Retry-After. If Spotify asks us to
+#    sleep longer than this (we've seen 21h temp-bans in the wild) we
+#    abort the run cleanly instead of hanging.
+#  - throttle proactively: a small per-request sleep keeps us well
+#    under the documented limits and avoids triggering the temp-ban
+#    in the first place.
+#  - total backoff budget per process: if cumulative 429 sleeps go
+#    above this we abort (something is structurally wrong).
+_MAX_RETRY_AFTER_SEC = 300
+# 210 ms ≈ 4.7 req/s ≈ 143 req per 30s window — well under Spotify's
+# undocumented dev-app rolling-window quota (~180-300 req/30s for
+# /search). The 21h temp-ban we saw at 70ms (14 req/s = 420/30s)
+# confirmed we were over the limit.
+_MIN_INTER_REQUEST_SEC = 0.21
+_MAX_TOTAL_BACKOFF_SEC = 300
+
+
+class SpotifyRateLimitedError(RuntimeError):
+    """Raised when Spotify's Retry-After exceeds our safety cap.
+
+    Indicates the app has been temp-banned (typically a multi-hour
+    cooldown). The caller should abort the run cleanly — sleeping for
+    that long inside a Cloud Run Job would burn credits with nothing
+    to show.
+    """
+
+
+class SpotifyBackoffBudgetExhausted(RuntimeError):
+    """Raised when cumulative 429 backoff exceeds the per-process budget."""
+
 
 @dataclass
 class SpotifyArtist:
@@ -59,6 +90,8 @@ class SpotifyClient:
         self._session = session or requests.Session()
         self._token: str | None = None
         self._token_expires_at: float = 0.0
+        self._last_request_at: float = 0.0
+        self._cumulative_backoff: float = 0.0
 
     # ── Auth ─────────────────────────────────────────────────────────
 
@@ -91,12 +124,29 @@ class SpotifyClient:
 
     # ── Generic GET with retry ───────────────────────────────────────
 
+    def _throttle(self) -> None:
+        """Sleep just enough to keep us under the per-second ceiling."""
+        elapsed = time.time() - self._last_request_at
+        if elapsed < _MIN_INTER_REQUEST_SEC:
+            time.sleep(_MIN_INTER_REQUEST_SEC - elapsed)
+
+    def _account_backoff(self, seconds: float) -> None:
+        """Track cumulative 429 backoff; abort if budget exhausted."""
+        self._cumulative_backoff += seconds
+        if self._cumulative_backoff > _MAX_TOTAL_BACKOFF_SEC:
+            raise SpotifyBackoffBudgetExhausted(
+                f"Cumulative 429 backoff {self._cumulative_backoff:.0f}s "
+                f"exceeds budget {_MAX_TOTAL_BACKOFF_SEC}s — aborting"
+            )
+
     def _get(self, path: str, params: dict | None = None,
              max_retries: int = 5) -> dict:
         """GET /v1<path> with retry on 429 / 5xx."""
         url = f"{_API_BASE}{path}"
         for attempt in range(max_retries):
+            self._throttle()
             token = self._ensure_token()
+            self._last_request_at = time.time()
             resp = self._session.get(
                 url,
                 headers={"Authorization": f"Bearer {token}"},
@@ -105,8 +155,18 @@ class SpotifyClient:
             )
             if resp.status_code == 429:
                 retry_after = float(resp.headers.get("Retry-After", "1"))
+                if retry_after > _MAX_RETRY_AFTER_SEC:
+                    # Spotify temp-banned the app (we've seen 21h cooldowns).
+                    # Abort cleanly — nothing useful can happen by waiting.
+                    raise SpotifyRateLimitedError(
+                        f"Spotify Retry-After={retry_after:.0f}s exceeds "
+                        f"safety cap {_MAX_RETRY_AFTER_SEC}s — "
+                        "app is rate-limited; abort the run, wait, and "
+                        "rerun with a smaller --limit or higher --min-popularity."
+                    )
                 logger.warning("Spotify 429 — sleeping %.1fs (attempt %d/%d)",
                                retry_after, attempt + 1, max_retries)
+                self._account_backoff(retry_after)
                 time.sleep(retry_after)
                 continue
             if resp.status_code == 401:
@@ -119,6 +179,7 @@ class SpotifyClient:
                 logger.warning("Spotify %d — backoff %ds (attempt %d/%d)",
                                resp.status_code, backoff, attempt + 1,
                                max_retries)
+                self._account_backoff(backoff)
                 time.sleep(backoff)
                 continue
             resp.raise_for_status()
@@ -170,4 +231,8 @@ class SpotifyClient:
                     genres=[str(g) for g in (raw.get("genres") or [])],
                 ))
         return out
+
+
+
+
 

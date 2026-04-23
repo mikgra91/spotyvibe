@@ -5,10 +5,11 @@ Usage::
     python build-tools/build_rag_corpus.py \\
         --source <path-to-mbdump-extract-or-json> \\
         --output data/rag_corpus/artists.jsonl.gz \\
-        --top-n 350000
+        --top-n 500000
 
 See ``documentation/guides/rag-implementation.md`` §2 for the rationale
-behind the 350K cut and the Option A popularity proxy this script uses.
+behind the quality filters. The actual yield (~170-180K artists) is
+determined by MusicBrainz community tag coverage, not the top-n cap.
 
 The script accepts two input shapes:
 
@@ -247,7 +248,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="MusicBrainz JSON dump directory OR a pre-flattened JSONL file.")
     parser.add_argument("--output", type=Path,
                         default=Path("data/rag_corpus/artists.jsonl.gz"))
-    parser.add_argument("--top-n", type=int, default=350_000)
+    parser.add_argument("--top-n", type=int, default=500_000,
+                        help="Maximum artists to keep (ranked by popularity proxy). "
+                             "Note: the actual yield depends on MusicBrainz tag coverage — "
+                             "typically ~170-180K artists survive the quality filters.")
     parser.add_argument("--artist-tar", type=Path, default=None,
                         help="Path to artist.tar.xz (stream mode — avoids extraction to disk).")
     parser.add_argument("--release-group-tar", type=Path, default=None,

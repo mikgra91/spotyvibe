@@ -39,6 +39,12 @@ class ArtistRow:
     tags: list[str] = field(default_factory=list)              # normalised tag strings
     tag_weights: list[int] = field(default_factory=list)       # aligned to tags
     listener_popularity: float = 0.0                            # 0..1 normalised
+    # ── Spotify enrichment (Phase 2 / 2026-04). All optional so legacy
+    # corpus files without these fields still load cleanly.
+    spotify_id: str | None = None
+    spotify_popularity: int | None = None     # 0..100 from Spotify
+    spotify_followers: int | None = None
+    spotify_genres: list[str] = field(default_factory=list)
 
 
 def normalise_tag(tag: str) -> str:
@@ -93,12 +99,22 @@ class RagCorpus:
             if nkey and nkey not in self.by_name_normalised:
                 self.by_name_normalised[nkey] = idx
             seen_tags: set[str] = set()
+            # Index MB community tags
             for t in a.tags:
                 nt = normalise_tag(t)
                 if not nt or nt in seen_tags:
                     continue
                 seen_tags.add(nt)
                 self.tag_index.setdefault(nt, []).append(idx)
+            # Phase 2: also index Spotify genres so the retriever matches
+            # them too. Spotify genres are denser & more standard than MB
+            # community tags, so this is the primary precision boost.
+            for g in a.spotify_genres:
+                ng = normalise_tag(g)
+                if not ng or ng in seen_tags:
+                    continue
+                seen_tags.add(ng)
+                self.tag_index.setdefault(ng, []).append(idx)
             for nt in seen_tags:
                 doc_freq[nt] = doc_freq.get(nt, 0) + 1
 
@@ -133,8 +149,10 @@ class RagCorpus:
             else:
                 logger.info("No tag_aliases at %s — running without synonyms.", ap)
 
-        logger.info("RagCorpus loaded: %d artists, %d tags, %d aliases",
-                    len(artists), len(set(t for a in artists for t in a.tags)),
+        n_enriched = sum(1 for a in artists if a.spotify_id)
+        logger.info("RagCorpus loaded: %d artists, %d enriched (%.1f%%), %d aliases",
+                    len(artists), n_enriched,
+                    100.0 * n_enriched / max(1, len(artists)),
                     len(aliases))
         return cls(artists, aliases)
 
@@ -171,6 +189,12 @@ class RagCorpus:
                     tags=[str(t) for t in tags],
                     tag_weights=[int(w) if w is not None else 1 for w in weights[:len(tags)]],
                     listener_popularity=float(raw.get("listener_popularity") or 0.0),
+                    spotify_id=(str(raw["spotify_id"]) if raw.get("spotify_id") else None),
+                    spotify_popularity=(int(raw["spotify_popularity"])
+                                        if raw.get("spotify_popularity") is not None else None),
+                    spotify_followers=(int(raw["spotify_followers"])
+                                       if raw.get("spotify_followers") is not None else None),
+                    spotify_genres=[str(g) for g in (raw.get("spotify_genres") or [])],
                 )
 
     # ── lookup helpers ──────────────────────────────────────────────
