@@ -35,3 +35,9 @@
 }
 .toast-tip-close:hover { color: var(--text-primary); }
 
+/* RAG update tip status line */
+.rag-update-tip-status {
+  display: block; font-size: var(--fs-sm); color: var(--text-muted);
+  margin-bottom: var(--sp-1);
+}
+

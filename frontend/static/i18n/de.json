@@ -729,6 +729,7 @@
   "tip.regen_profile_body": "Du hast schon einige Tracks bewertet — ein KI-Profil-Update verarbeitet dieses Feedback in dein Geschmacksprofil.",
   "tip.regen_profile_link": "KI-Profil-Update starten →",
   "rag.update.title": "Neue Künstlerdaten verfügbar",
+  "rag.update.title_first": "Künstlerdaten verfügbar",
   "rag.update.body": "Eine neuere Version des MusicBrainz-Offline-Korpus wurde veröffentlicht. Jetzt herunterladen, um die Empfehlungen zu verbessern?",
   "rag.update.body_first_time": "Ein MusicBrainz-Offline-Korpus ist verfügbar, um die Empfehlungen zu verbessern. Jetzt herunterladen?",
   "rag.update.download": "Herunterladen",

@@ -130,7 +130,7 @@ export async function openSettings() {
         if (ragCheckbox) {
             ragCheckbox.checked = !!data.rag_enabled;
             const ragStatus = el('status-settings-rag');
-            const corpusAvailable = !!data.rag_corpus_available;
+            let corpusAvailable = !!data.rag_corpus_available;
             function updateRagStatus() {
                 if (!ragStatus) return;
                 if (!corpusAvailable) {
@@ -613,6 +613,14 @@ export async function downloadRagCorpus() {
         const ragCheckbox = el('settings-rag-enabled');
         if (ragCheckbox) {
             ragCheckbox.disabled = false;
+        }
+        // Refresh the RAG status text to reflect newly available corpus
+        const ragStatus = el('status-settings-rag');
+        if (ragStatus) {
+            ragStatus.textContent = ragCheckbox && ragCheckbox.checked
+                ? i18n('settings.rag.enabled', '✓ Candidate pool active')
+                : i18n('settings.rag.disabled', 'Candidate pool disabled');
+            ragStatus.className = 'cred-status ' + (ragCheckbox && ragCheckbox.checked ? 'set' : 'unset');
         }
         const banner = el('settings-rag-update');
         if (banner) banner.hidden = true;

@@ -729,6 +729,7 @@
   "tip.regen_profile_body": "You've rated quite a few tracks — running an AI Profile Update will fold that feedback into your taste profile.",
   "tip.regen_profile_link": "Trigger AI Profile Update →",
   "rag.update.title": "New artist data available",
+  "rag.update.title_first": "Artist data available",
   "rag.update.body": "A newer version of the offline MusicBrainz corpus has been published. Download it now to improve recommendations?",
   "rag.update.body_first_time": "An offline MusicBrainz corpus is available to improve recommendations. Download it now?",
   "rag.update.download": "Download",

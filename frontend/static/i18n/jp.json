@@ -496,6 +496,7 @@
   "tip.regen_profile_body": "多くのトラックを評価しましたね — AIプロフィール更新を実行すると、フィードバックを好みプロフィールに反映できます。",
   "tip.regen_profile_link": "AIプロフィール更新を実行 →",
   "rag.update.title": "新しいアーティストデータが利用可能",
+  "rag.update.title_first": "アーティストデータが利用可能",
   "rag.update.body": "MusicBrainzオフラインコーパスの新しいバージョンが公開されました。推薦を改善するために今すぐダウンロードしますか？",
   "rag.update.body_first_time": "推薦を改善するためのMusicBrainzオフラインコーパスが利用可能です。今すぐダウンロードしますか？",
   "rag.update.download": "ダウンロード",
