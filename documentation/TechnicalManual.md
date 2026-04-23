@@ -258,12 +258,14 @@ The suggestion pipeline can inject a pre-ranked pool of ~20 artists retrieved fr
 
 | File | Role |
 |---|---|
-| `corpus.py` | `RagCorpus` dataclass — loads `artists.jsonl.gz` into in-memory rows + inverted tag index + TF-IDF idf vector. ~200 MB resident for 350K artists. |
-| `retrieval.py` | `score_artists(profile, deny_list)` — TF-IDF over artist-tag postings with a bigram/hyphen compound boost (×3) and a popularity re-rank penalty. Returns top `RAG_POOL_SIZE` rows. |
+| `corpus.py` | `RagCorpus` dataclass — loads `artists.jsonl.gz` into in-memory rows + inverted tag index + TF-IDF idf vector. Slimmed schema (only `mbid`, `name`, `begin_year`, `tags`, `tag_weights`, `listener_popularity` — `sort_name`/`country`/`end_year` and the unused `by_mbid`/`by_name_normalised` indexes were dropped in 2026-04 — see rag-implementation.md §3.2). ~150 MB resident for 350K artists, ~210 MB for 500K. |
+| `retrieval.py` | `score_artists` (flat) + **`score_artists_stratified` (default)** — TF-IDF over artist-tag postings with bigram/hyphen compound boost (×3) and a popularity re-rank penalty. Stratified mode runs the retriever once per profile facet (`must_have`, `soft_preferences`, `primary_reference`, `tags`) with per-facet quotas so eclectic profiles don't get one strong facet starving the others. Returns up to `RAG_POOL_SIZE` rows (default 100). |
 | `prompt.py` | Formats retrieved rows as the `CANDIDATE_POOL` prompt block appended to the suggestions user-message. |
 | `distribution.py` | Manifest fetch, update check, streaming sha256-verified download. Pure stdlib `urllib`. |
 
 **Runtime wiring** — [app.py](../app.py) loads the corpus once at startup when `RAG_ENABLED` is true *and* the file exists (missing corpus is a silent no-op); [core/src/suggestions.py](../core/src/suggestions.py) appends the candidate-pool block to the user prompt per batch, with the user's confirmed anchors + the batch deny-list feeding the retriever's filter. Toggling the setting in the UI hot-swaps the corpus handle without a restart.
+
+**RAG bypass on `emerging_only=True`** — when the user picks the "Brand new bands" exploration notch, RAG is **skipped**. The MusicBrainz dump is republished quarterly at most and cannot contain artists who debuted in the last 6 months, so injecting the pool would contradict the system constraint. The post-Spotify `filter_emerging_artists` (album `release_date` check) remains the factual verification step. See `core/src/suggestions.py::build_messages` and `documentation/spotyvibe_with_rag/` vs `_without_rag/` eval logs for the data behind the decision.
 
 **Configuration** ([config.py](../config.py)):
 
@@ -271,36 +273,64 @@ The suggestion pipeline can inject a pre-ranked pool of ~20 artists retrieved fr
 |---|---|---|
 | `RAG_ENABLED` | persisted in `settings.conf`; `DEFAULT_RAG_ENABLED = True` when unset and corpus present | Master toggle; UI-exposed in Settings → Candidate pool (RAG). Disabling persists explicit `false` so the new default doesn't silently re-enable. |
 | `RAG_CORPUS_PATH` | `<app_dir>/rag_corpus/artists.jsonl.gz` (under the user's app dir, e.g. `%LOCALAPPDATA%/spotyvibe/`) | Corpus location. Survives across PyInstaller-EXE launches. |
-| `RAG_POOL_SIZE` | `20` | Candidates injected per batch. |
+| `RAG_POOL_SIZE` | `100` | Candidates injected per batch. Bumped from 20 → 100 in 2026-04 after the eval log showed only ~19% of GPT picks came from a 20-slot pool — i.e. the pool was too narrow to anchor for eclectic profiles. See `spotyvibe-decisions-2026-04-21.md`. |
 | `RAG_POPULARITY_PENALTY` | `0.4` | Anti-popularity-bias re-rank coefficient (0 = pure TF-IDF, 1 = strong obscurity bias). |
-| `RAG_MANIFEST_URL` | GitHub release URL | Override via env var for staging. |
+| `RAG_STRATIFIED` | `True` | When true, use `score_artists_stratified` so each facet of the profile (must_have, soft_preferences, primary_reference, tags) gets a guaranteed quota of the pool. |
+| `RAG_FACET_WEIGHTS` | `{must_have: 0.50, soft_preferences: 0.25, primary_reference: 0.15, tags: 0.10}` | Per-facet share of `RAG_POOL_SIZE`. Remainder fills from a flat pass. |
+| `RAG_MANIFEST_URL` | `https://storage.googleapis.com/spotivibe-rag-corpus/manifest.json` | Override via env var for staging. Points to the public GCS bucket populated by the weekly Cloud Run Job. |
 
-### RAG corpus (separate release channel)
+**Per-call batch size shrinks under RAG (Apr-2026, "Option A")** — when RAG is enabled, each LLM call inflates by ~1.2 k tokens (the 100-slot pool). To keep the full conversation under the ~8 k-token context window of small local LLMs (Llama 3 8B, Gemma 9B, Mistral 7B), `config.get_effective_batch_size()` returns **`BATCH_SIZE_WITH_RAG = 5`** when RAG is on and **`BATCH_SIZE = 10`** when off. The pipeline simply runs more, smaller LLM calls — total user-visible playlist size is unchanged. The `MAX_GPT_CALLS_PER_RUN = 20` guardrail accommodates the doubled call count for a 10–20 track playlist.
 
-The corpus (`artists.jsonl.gz`, ~7 MB) is **not** bundled with the app artifacts above. It ships on its own rolling GitHub Release tagged `rag-corpus-latest`, independent of the versioned app releases, so the corpus can be refreshed without cutting a new app build.
+> **⚠ RAG limitations on small local LLMs.** Even with the smaller per-call batch, a RAG-enabled prompt can run 6–9 k tokens (system + profile + history + 100-slot pool + JSON output). If you point SpotyVibe at a local model with a hard 4 k or 8 k context window the pool will be truncated and quality drops sharply. Mitigations:
+>
+> - **Disable RAG** in Settings → Candidate pool. The model falls back to its parametric music knowledge (lower hallucination resistance, but the prompt drops to ~3–4 k tokens).
+> - **Lower `RAG_POOL_SIZE`** (e.g. 40 or 20) — see the trade-off table in `documentation/guides/rag-implementation.md` §4.4.
+> - **Lower `BATCH_SIZE_WITH_RAG`** further (3 or 4) for very small windows; the cost is more LLM calls per playlist.
+> - **Use a 16 k+ context model** (most cloud APIs and any `*-128k` local model). This is the recommended path — RAG was designed against GPT-4-class models with 32 k+ contexts.
+>
+> Self-hosting a smaller open-weight model on Cloud Run **as a drop-in OpenAI replacement** was evaluated and rejected (April 2026): see `analysis.md` § Scenario B — the cost is comparable but the recommendation quality gap is the disqualifier. Use OpenAI / a hosted GPT-4-class model for the suggestion engine and reserve local LLMs for users who explicitly accept the quality trade-off.
 
-**Release contents** — the `rag-corpus-latest` tag always holds exactly two assets:
+### RAG corpus — Cloud Run automated pipeline
+
+The corpus (`artists.jsonl.gz`, ~10 MB) is **not** bundled with the app. It is built and published automatically by a **Google Cloud Run Job** that runs weekly, independent of app releases.
+
+**Infrastructure** (see [`documentation/guides/cloud-run-rag-setup.md`](guides/cloud-run-rag-setup.md) for the full setup guide):
+
+| Component | Details |
+|---|---|
+| **GCP Project** | `spotivibe-rag` |
+| **GCS Bucket** | `spotivibe-rag-corpus` (us-central1, public read via `allUsers/objectViewer`) |
+| **Cloud Run Job** | `spotivibe-rag-builder` — 2 vCPU, 8 GiB RAM, 60 min timeout |
+| **Cloud Scheduler** | `spotivibe-rag-weekly` — every Monday 03:00 Europe/Vienna |
+| **Service Account** | `spotivibe-rag-builder@spotivibe-rag.iam.gserviceaccount.com` |
+
+**Pipeline** — the Cloud Run Job executes `build-tools/cloud_run_publish.py`, which:
+
+1. Runs `refresh_rag_corpus.py` — downloads the latest MusicBrainz JSON dump (~3 GB), **streams** directly from the compressed `.tar.xz` archives (no 33 GB extraction to disk), and invokes `build_rag_corpus.py` to produce the corpus.
+2. Computes SHA-256 of the resulting `artists.jsonl.gz`.
+3. Uploads `artists.jsonl.gz` + `manifest.json` to the public GCS bucket.
+4. Wipes the ephemeral working directory.
+
+**Bucket contents** — always exactly two objects:
 
 | Asset | Purpose |
 |---|---|
-| `artists.jsonl.gz` | Top 350,000 artists by Option A popularity proxy (release count + tag total). One NDJSON row per artist. |
+| `artists.jsonl.gz` | Top 350,000 artists by Option A popularity proxy (release count + tag total), filtered to acts with `begin_year >= 1960`. One NDJSON row per artist. |
 | `manifest.json` | `{corpus_version, built_at, sha256, size_bytes, corpus_url}`. Clients fetch this once per startup to decide whether to prompt for an update. |
 
-**Producing a new release** (requires authenticated `gh` CLI):
+**Manual rebuild** (if the weekly Job is insufficient or you need an ad-hoc refresh):
 
 ```bash
-# 1. Rebuild the corpus from a fresh MusicBrainz dump.
-python build-tools/refresh_rag_corpus.py           # fetch+extract+build in one step
-#    (or, if you already have the dump extracted:
-#     python build-tools/build_rag_corpus.py --source /path/to/mbdump/ ...)
+# Option 1: Trigger the Cloud Run Job manually.
+gcloud run jobs execute spotivibe-rag-builder --region=us-central1
 
-# 2. Publish — uploads both assets with --clobber, replacing the previous pair.
-python build-tools/publish_rag_corpus.py           # version derived from mtime (UTC date)
-python build-tools/publish_rag_corpus.py --version 2026-04-19   # or pin explicitly
-python build-tools/publish_rag_corpus.py --dry-run             # print manifest, skip upload
+# Option 2: Run locally and publish to GCS (requires gcloud auth + gsutil).
+python build-tools/refresh_rag_corpus.py --top-n 350000
+# Then upload manually:
+gcloud storage cp data/rag_corpus/artists.jsonl.gz gs://spotivibe-rag-corpus/
 ```
 
-`publish_rag_corpus.py` does three things: computes sha256 of the corpus, writes `manifest.json` pointing at the asset URL under the `rag-corpus-latest` tag, and calls `gh release upload … --clobber` (creating the release on first run). The rolling tag means download URLs stay stable — clients never need to learn a new release name.
+**Cost**: $0/month on the GCP always-free tier. The Job uses <2% of the free Cloud Run vCPU quota and the bucket stores <0.01% of the free 5 GB. See `cloud-run-rag-setup.md` § 9 for the full cost breakdown.
 
 **Client-side update flow** — implemented in [core/src/rag/distribution.py](../core/src/rag/distribution.py) and wired from [app.py](../app.py):
 
@@ -309,27 +339,82 @@ python build-tools/publish_rag_corpus.py --dry-run             # print manifest,
 3. The Settings modal renders a banner when status is `update_available` or `missing_corpus`. Clicking **Download now** POSTs to `/api/rag/download-corpus`, which streams to `artists.jsonl.gz.part`, sha256-verifies against the manifest, atomically renames into place, writes the `artists.meta.json` sidecar, and hot-swaps the in-memory `RagCorpus` handle.
 4. `RAG_MANIFEST_URL` is overridable via env var for testing against a staging URL.
 
-**Cadence** — there is no scheduled refresh. Rebuild and republish when MusicBrainz's monthly dumps warrant it, or when tag/alias curation changes meaningfully alter retrieval quality.
+**Cadence** — the Cloud Run Job runs weekly (Monday 03:00 Vienna time) via Cloud Scheduler. The corpus refreshes automatically from the latest MusicBrainz dump. No manual intervention is needed unless the pipeline fails (check Cloud Run console → Jobs → Executions).
 
 ### Maintaining the RAG feature
 
-Day-to-day upkeep of the RAG pipeline breaks into four buckets:
+Day-to-day upkeep of the RAG pipeline breaks into five buckets:
 
-1. **Corpus refresh** — roughly quarterly, or when users report stale / missing artists:
-   - `python build-tools/refresh_rag_corpus.py` (fetches the latest MusicBrainz dump, extracts, rebuilds). Intermediate downloads cache under `build-tools/.rag-cache/`; pass `--cleanup` to wipe after success.
-   - `python build-tools/publish_rag_corpus.py` to upload + rewrite the `rag-corpus-latest` release. All existing clients pick up the update on their next startup via the manifest check.
-2. **Tag alias map** ([data/rag_corpus/tag_aliases.json](../data/rag_corpus/tag_aliases.json)) — the curated keyword→tag lookup that feeds query expansion. Extend additively when you see a profile term (e.g. a new subgenre, a non-English mood word) failing to match MusicBrainz tags. No rebuild required; the map is read by the retriever at startup.
-3. **Retrieval tuning** — placeholder knobs that should be revisited after real-user A/B data accumulates:
+1. **Corpus refresh (automated)** — the weekly Cloud Run Job handles this. Monitor via:
+   - `gcloud run jobs executions list --job=spotivibe-rag-builder --region=us-central1 --limit=5`
+   - GCS bucket: `gcloud storage ls --long gs://spotivibe-rag-corpus/`
+   - Public manifest: `curl -s https://storage.googleapis.com/spotivibe-rag-corpus/manifest.json`
+   - If the Job fails, check logs in the Cloud Run console or trigger a manual re-run.
+2. **Cloud Run Job maintenance** — if the build scripts change, rebuild and push the Docker image:
+   ```bash
+   cd <repo-root>
+   gcloud builds submit --config=build-tools/cloud-run-job/cloudbuild.yaml .
+   ```
+   The next scheduled (or manual) execution picks up the new image automatically.
+3. **Tag alias map** ([data/rag_corpus/tag_aliases.json](../data/rag_corpus/tag_aliases.json)) — the curated keyword→tag lookup that feeds query expansion. Extend additively when you see a profile term (e.g. a new subgenre, a non-English mood word) failing to match MusicBrainz tags. No rebuild required; the map is read by the retriever at startup. After editing, rebuild the Docker image (step 2) so the Cloud Run Job includes the updated aliases.
+4. **Retrieval tuning** — placeholder knobs that should be revisited after real-user A/B data accumulates:
    - `RAG_POPULARITY_PENALTY` (too obscure → lower; too mainstream → raise).
    - `RAG_POOL_SIZE` (persistent hallucinations → try 40; feels too directive → try 10).
    - `_COMPOUND_BOOST` in `retrieval.py` (bigram boost factor).
-4. **Tests** — [core/tests/test_rag_corpus.py](../core/tests/test_rag_corpus.py), `test_rag_retrieval.py`, `test_rag_prompt.py`, `test_rag_distribution.py`. Fixtures use tiny hand-crafted gzipped JSONL; no real corpus is checked in. Run as part of `pytest core/tests/`.
+5. **Tests** — [core/tests/test_rag_corpus.py](../core/tests/test_rag_corpus.py), `test_rag_retrieval.py`, `test_rag_prompt.py`, `test_rag_distribution.py`. Fixtures use tiny hand-crafted gzipped JSONL; no real corpus is checked in. Run as part of `pytest core/tests/`.
 
 **Known limitations to track:**
 
 - Option A popularity proxy (release count + tag total) over-rates long-dead classical composers. Acceptable because tag matching dominates selection — flag for re-evaluation only if users complain.
 - Alias map is English-centric; German/Japanese profile vocabulary degrades to unigram matching until aliases are added.
 - No embedding fallback; profiles naming vibes with no MusicBrainz tag coverage silently produce weaker pools. The `score_artists()` interface is the seam for a future embedding-based v2.
+
+---
+
+## Eval-log telemetry (`core/src/eval_log.py`)
+
+When `DEBUG_MODE=true`, every generation run appends JSONL rows to `eval.jsonl` (in the user's app dir). Two row kinds, written to the same file:
+
+| Row kind | Written by | One row per | Purpose |
+|---|---|---|---|
+| `kind: "track"` | `log_batch_outcome()` | each AI-suggested track | Hallucination + pool-hit measurement (per-track). Original 2026-04 schema. |
+| `kind: "batch_summary"` | `log_batch_summary()` | each LLM call | **Quality-impact analysis of Option A / Option C trims** (added 2026-04-22). Carries prompt-component char counts, OpenAI `usage` (when present), and the `gpt_returned → after_filter → spotify_found → in_pool` funnel. |
+
+Both row types share `run_id`, `batch_num`, `profile_hash` and **`config_signature`** — the last is a short SHA1 over `{rag_enabled, rag_pool_size, rag_stratified, effective_batch_size, extra}` so rows generated under the same configuration can be bucketed without diffing timestamps. The `extra` dict carries trim flags (`compact_json`, `slim_pool_format`, `feedback_trim_v2`, `strip_dup_profile_fields`) so a future change can be A/B-bucketed simply by flipping a flag.
+
+**Plumbing**:
+
+- `core/src/suggestions.py::build_messages` populates `_LAST_PROMPT_COMPONENTS` (per-component char counts) alongside the existing `_LAST_RAG_POOL_NAMES`. Both are exposed via `get_last_prompt_components()` and `get_last_rag_pool_names()`.
+- `core/src/suggestions.py::call_gpt` attaches OpenAI's `usage` block (`prompt_tokens` / `completion_tokens` / `total_tokens`) to the result dict under `_usage`. Local LLM providers that omit `usage` produce `_usage: None` — callers detect "provider omitted" vs "we forgot to plumb it" by key presence.
+- `app.py::run_pipeline` pops `_usage` immediately after `call_gpt`, computes the funnel counts before/after `filter_duplicate_suggestions` + Spotify verification, then writes one `track` row per suggestion plus one `batch_summary` row per LLM call.
+
+**Cost**: zero when `DEBUG_MODE` is off (every writer short-circuits at the first line). When on, write volume is ~1 KB per track + ~500 B per batch — negligible for offline-analysis workloads.
+
+**Analysis pattern** (pandas):
+
+```python
+import json, pandas as pd
+rows = [json.loads(l) for l in open("eval.jsonl", encoding="utf-8")]
+df = pd.DataFrame(rows)
+
+tracks = df[df["kind"] == "track"]
+batches = df[df["kind"] == "batch_summary"]
+
+# Spotify-found rate per config signature.
+print(tracks.groupby("config_signature")["found_on_spotify"].mean())
+
+# Funnel collapse rate per config (how many of the LLM's tracks survive dedup + Spotify).
+batches["funnel_pass"] = batches["spotify_found_count"] / batches["gpt_returned_count"]
+print(batches.groupby("config_signature")[
+    ["gpt_returned_count", "after_filter_count", "spotify_found_count", "in_pool_count", "funnel_pass"]
+].mean())
+
+# Prompt-size impact of the trims (compare config_signatures before vs after).
+prompt_sizes = batches["prompt_components"].apply(pd.Series)
+print(prompt_sizes.groupby(batches["config_signature"]).mean())
+```
+
+**Tests**: `core/tests/test_eval_log.py` (17 tests) and `core/tests/test_suggestions.py::TestPromptTelemetryCapture` (4 tests).
 
 ---
 

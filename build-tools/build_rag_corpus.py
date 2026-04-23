@@ -37,6 +37,7 @@ import json
 import logging
 import math
 import sys
+import tarfile
 from collections import defaultdict
 from pathlib import Path
 
@@ -46,6 +47,13 @@ logger = logging.getLogger("build_rag_corpus")
 # these. Dropping them keeps "Various Artists" / "[anonymous]" / "[unknown]"
 # out of suggestion candidate pools.
 _SPECIAL_PURPOSE_TAGS = {"special purpose artist", "special purpose"}
+
+# Item: filter out artists whose career started before the 1960s. The share
+# of users that listens to pre-1960s music is negligible for this app and
+# keeping them in the corpus only burns capacity. Artists with no known
+# begin year are kept (we cannot prove they're old) — same for artists
+# whose begin year sits inside the 1960s decade or later.
+MIN_ARTIST_BEGIN_YEAR = 1960
 
 
 def _iter_jsonl(path: Path):
@@ -59,6 +67,30 @@ def _iter_jsonl(path: Path):
                 yield json.loads(line)
             except json.JSONDecodeError:
                 continue
+
+
+def _iter_jsonl_from_tar(tar_path: Path, member_name: str):
+    """Stream JSONL records from a member inside a .tar.xz without full extraction.
+
+    ``member_name`` is the path inside the tarball, e.g. ``mbdump/artist``.
+    """
+    with tarfile.open(tar_path, "r:xz") as tf:
+        for m in tf:
+            if m.name.endswith(f"/{member_name}") or m.name == member_name:
+                fobj = tf.extractfile(m)
+                if fobj is None:
+                    return
+                import io
+                reader = io.TextIOWrapper(fobj, encoding="utf-8")
+                for line in reader:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        yield json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                return
 
 
 def _resolve_dump_file(source: Path, name: str) -> Path | None:
@@ -89,25 +121,39 @@ def _parse_year(value) -> int | None:
         return None
 
 
-def _load_mb_dump(source: Path) -> list[dict]:
-    """Load a MusicBrainz JSON dump directory into flat ArtistRow dicts.
+def _load_mb_dump(source: Path, *, artist_tar: Path | None = None,
+                  release_group_tar: Path | None = None) -> list[dict]:
+    """Load a MusicBrainz JSON dump into flat ArtistRow dicts.
 
-    Reads ``artist`` (required) and ``release-group`` (recommended).
-    Tags are embedded inline on each artist record as ``tags: [{name,
-    count}, ...]`` — no separate join file is needed.
+    Supports two modes:
+    - Directory mode (legacy): ``source`` points to extracted mbdump/ dir.
+    - Tar mode: ``artist_tar`` and ``release_group_tar`` point to .tar.xz
+      files, streamed without extraction (saves ~33 GB disk).
     """
-    artist_file = _resolve_dump_file(source, "artist")
-    if artist_file is None:
-        raise SystemExit(
-            f"Missing MusicBrainz JSON dump file 'artist' under {source}. "
-            "Extract artist.tar.xz from the json-dumps/<date>/ folder first."
-        )
-    release_group_file = _resolve_dump_file(source, "release-group")
+    # Determine the iterators based on mode
+    if artist_tar and artist_tar.exists():
+        logger.info("Streaming artist records from %s (no extraction)", artist_tar)
+        artist_iter = lambda: _iter_jsonl_from_tar(artist_tar, "artist")
+        if release_group_tar and release_group_tar.exists():
+            logger.info("Streaming release-group records from %s", release_group_tar)
+            rg_iter = lambda: _iter_jsonl_from_tar(release_group_tar, "release-group")
+        else:
+            rg_iter = None
+    else:
+        artist_file = _resolve_dump_file(source, "artist")
+        if artist_file is None:
+            raise SystemExit(
+                f"Missing MusicBrainz JSON dump file 'artist' under {source}. "
+                "Extract artist.tar.xz from the json-dumps/<date>/ folder first."
+            )
+        artist_iter = lambda: _iter_jsonl(artist_file)
+        release_group_file = _resolve_dump_file(source, "release-group")
+        rg_iter = (lambda: _iter_jsonl(release_group_file)) if release_group_file else None
 
     logger.info("Loading release-group for release counts …")
     release_counts: dict[str, int] = defaultdict(int)
-    if release_group_file is not None:
-        for row in _iter_jsonl(release_group_file):
+    if rg_iter is not None:
+        for row in rg_iter():
             for credit in row.get("artist-credit") or []:
                 artist = credit.get("artist") if isinstance(credit, dict) else None
                 aid = artist.get("id") if isinstance(artist, dict) else None
@@ -119,9 +165,10 @@ def _load_mb_dump(source: Path) -> list[dict]:
             "Extract release-group.tar.xz for better popularity signal."
         )
 
+    has_rg = rg_iter is not None
     logger.info("Loading artists …")
     artists: list[dict] = []
-    for row in _iter_jsonl(artist_file):
+    for row in artist_iter():
         aid = str(row.get("id") or "")
         if not aid:
             continue
@@ -145,18 +192,22 @@ def _load_mb_dump(source: Path) -> list[dict]:
             continue  # rule §2.2 step 2: require ≥1 tag
 
         rc = release_counts.get(aid, 0)
-        if release_group_file is not None and rc < 1:
+        if has_rg and rc < 1:
             continue  # require ≥1 release when we have the data
 
         life_span = row.get("life-span") or {}
+        begin_year = _parse_year(life_span.get("begin"))
+        # Drop pre-1960s artists — see MIN_ARTIST_BEGIN_YEAR.
+        if begin_year is not None and begin_year < MIN_ARTIST_BEGIN_YEAR:
+            continue
         sorted_tags = sorted(atags, key=lambda t: -t[1])
+        # Slim row schema — only fields consumed by the runtime retriever
+        # are persisted. Dropped vs. v1: sort_name, country, end_year.
+        # See documentation/guides/rag-implementation.md §3.2.
         artists.append({
             "mbid": aid,
             "name": row.get("name") or "",
-            "sort_name": row.get("sort-name") or "",
-            "country": row.get("country") or "",
-            "begin_year": _parse_year(life_span.get("begin")),
-            "end_year": _parse_year(life_span.get("end")),
+            "begin_year": begin_year,
             "tags": [t for t, _ in sorted_tags],
             "tag_weights": [w for _, w in sorted_tags],
             "_release_count": rc,
@@ -197,10 +248,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path,
                         default=Path("data/rag_corpus/artists.jsonl.gz"))
     parser.add_argument("--top-n", type=int, default=350_000)
+    parser.add_argument("--artist-tar", type=Path, default=None,
+                        help="Path to artist.tar.xz (stream mode — avoids extraction to disk).")
+    parser.add_argument("--release-group-tar", type=Path, default=None,
+                        help="Path to release-group.tar.xz (stream mode).")
     args = parser.parse_args(argv)
 
-    if args.source.is_dir():
-        artists = _load_mb_dump(args.source)
+    if args.source.is_dir() or (args.artist_tar and args.artist_tar.exists()):
+        artists = _load_mb_dump(args.source, artist_tar=args.artist_tar,
+                                release_group_tar=args.release_group_tar)
         _apply_popularity(artists)
     elif args.source.is_file():
         logger.info("Loading pre-flattened JSONL from %s", args.source)

@@ -21,6 +21,10 @@ logger = logging.getLogger(__name__)
 
 # Expected schema per JSONL line. Extra fields are ignored; missing fields
 # default to empty. See rag-implementation.md §2 for the definitive list.
+# Filter at load time to catch pre-1960s entries in older corpus files.
+MIN_ARTIST_BEGIN_YEAR = 1960
+
+
 _REQUIRED_FIELDS = ("mbid", "name", "tags")
 
 
@@ -148,6 +152,10 @@ class RagCorpus:
                     logger.warning("Skipping bad JSONL line %d: %s", line_no, exc)
                     continue
                 if not all(raw.get(f) is not None for f in _REQUIRED_FIELDS):
+                    continue
+                # Filter pre-1960s artists at load time (safety net for old corpus files)
+                by = raw.get("begin_year")
+                if by is not None and by < MIN_ARTIST_BEGIN_YEAR:
                     continue
                 tags = raw.get("tags") or []
                 weights = raw.get("tag_weights") or []

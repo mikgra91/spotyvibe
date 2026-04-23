@@ -1,9 +1,10 @@
 """Corpus distribution & update-check for the RAG candidate pool.
 
-The corpus file itself (``artists.jsonl.gz``) is hosted as a GitHub
-Release asset on a rolling ``rag-corpus-latest`` tag, together with a
-``manifest.json`` sidecar that names the version, size, and sha256. The
-helpers in this module:
+The corpus file itself (``artists.jsonl.gz``) is hosted in a public
+Google Cloud Storage bucket (``spotivibe-rag-corpus``), together with a
+``manifest.json`` sidecar that names the version, size, and sha256. A
+weekly Cloud Run Job rebuilds the corpus from the latest MusicBrainz
+dump and uploads it automatically. The helpers in this module:
 
 - :func:`fetch_remote_manifest` — best-effort GET of the manifest URL,
   short timeout, returns ``None`` on any network failure so the app
@@ -32,8 +33,7 @@ from pathlib import Path
 logger = logging.getLogger("rag.distribution")
 
 DEFAULT_MANIFEST_URL = (
-    "https://github.com/mikgra91/spotyvibe/releases/download/"
-    "rag-corpus-latest/manifest.json"
+    "https://storage.googleapis.com/spotivibe-rag-corpus/manifest.json"
 )
 _NETWORK_TIMEOUT = 5.0  # seconds; short so startup is never blocked for long
 

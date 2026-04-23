@@ -113,6 +113,10 @@
                         {% if settings.rag_enabled %}checked{% endif %}>
                     <span data-i18n="settings.rag.toggle">Use a local artist corpus to steer suggestions</span>
                 </label>
+                <span class="rag-help-indicator" tabindex="0" role="img"
+                      aria-label="Coverage information"
+                      data-i18n-title="settings.rag.scope_help"
+                      title="Note: the corpus only covers artists that started in the 1960s or later. Pre-1960s music is intentionally excluded.">ⓘ</span>
             </div>
             <p class="inline-hint" data-i18n="settings.rag.hint">Retrieves ~20 matching artists from an offline MusicBrainz corpus and injects them as hints. Requires the corpus file to be present.</p>
             <div class="rag-update-banner" id="settings-rag-update" hidden>

@@ -85,3 +85,38 @@ def test_get_last_rag_pool_names_resets_on_new_call(corpus):
     sugg.build_messages(_profile(), batch_size=10)
     assert sugg.get_last_rag_pool_names() is None
 
+
+def test_rag_bypassed_when_emerging_only(corpus):
+    """When ``emerging_only=True``, RAG must NOT inject a candidate pool.
+
+    The corpus is built quarterly and cannot contain artists who debuted in
+    the last 6 months, so injecting it would contradict the system constraint
+    *"only suggest tracks by artists whose debut release is within the last
+    6 months"*. This verifies the bypass introduced together with the
+    stratified retrieval (Option 2) decision — see report
+    spotyvibe-decisions-2026-04-21.md.
+    """
+    sugg.set_rag_corpus(corpus)
+    try:
+        messages = sugg.build_messages(_profile(), batch_size=10,
+                                       emerging_only=True)
+        assert sugg.get_last_rag_pool_names() is None
+        # The CANDIDATE_POOL block header must NOT appear in the prompt.
+        user_msg = messages[1]["content"]
+        assert "CANDIDATE_POOL" not in user_msg
+    finally:
+        sugg.set_rag_corpus(None)
+
+
+def test_rag_active_when_emerging_only_false(corpus):
+    """Counterpart: with ``emerging_only=False`` the pool must still inject."""
+    sugg.set_rag_corpus(corpus)
+    try:
+        messages = sugg.build_messages(_profile(), batch_size=10,
+                                       emerging_only=False)
+        assert sugg.get_last_rag_pool_names() is not None
+        assert "CANDIDATE_POOL" in messages[1]["content"]
+    finally:
+        sugg.set_rag_corpus(None)
+
+

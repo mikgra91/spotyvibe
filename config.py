@@ -124,12 +124,24 @@ MAX_FEEDBACK_TRACK_LEN = 200
 RAG_TAG_ALIASES_PATH = BASE_DIR / "data" / "rag_corpus" / "tag_aliases.json"
 RAG_MANIFEST_URL = os.environ.get(
     "RAG_MANIFEST_URL",
-    "https://github.com/mikgra91/spotyvibe/releases/download/"
-    "rag-corpus-latest/manifest.json",
+    "https://storage.googleapis.com/spotivibe-rag-corpus/manifest.json",
 )
 RAG_POOL_SIZE = 20
 RAG_POPULARITY_PENALTY = 0.4
 DEFAULT_RAG_ENABLED = True
+# Stratified retrieval: split RAG_POOL_SIZE across profile facets (must_have,
+# soft_preferences, primary_reference, genres/moods/eras) so an eclectic
+# profile gets guaranteed per-facet coverage instead of one strong facet
+# starving the others. See documentation/guides/rag-implementation.md §4.
+RAG_STRATIFIED = True
+# Per-facet quotas (must sum to <= 1.0 — remainder is filled from the
+# undifferentiated flat ranking). Tuned for the 100-slot default.
+RAG_FACET_WEIGHTS = {
+    "must_have": 0.50,
+    "soft_preferences": 0.25,
+    "primary_reference": 0.15,
+    "tags": 0.10,  # genres + moods + eras combined
+}
 
 # Populated by _init_rag_paths() once _APP_DIR exists.
 RAG_CORPUS_DIR: Path  # type: ignore[assignment]

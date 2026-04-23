@@ -5,22 +5,50 @@ RAG / model A/B work documented in
 ``documentation/guides/rag-implementation.md`` can be measured with
 pandas/Jupyter instead of by hand.
 
-Schema (one object per line)::
+Two row kinds are emitted to the same file:
 
-    {"ts": "2026-04-19T10:23:45Z",
-     "run_id": "uuid",
-     "batch_num": 1,
-     "model": "gpt-5-mini",
-     "rag_enabled": true,
-     "rag_corpus_version": "2026-04-19" | null,
-     "candidate_pool_size": 20,
-     "profile_id": "...",
-     "profile_hash": "abcd1234",
-     "artist": "...",
-     "track": "...",
-     "found_on_spotify": true | false,
-     "in_candidate_pool": true | false | null,
-     "rationale_types": ["profile_match", "artist_match"]}
+1. **Per-track rows** (``kind`` field absent / equal to ``"track"``) —
+   one per AI-suggested track. The original Apr-2026 schema, kept
+   backward-compatible::
+
+        {"ts": "2026-04-19T10:23:45Z",
+         "run_id": "uuid",
+         "batch_num": 1,
+         "model": "gpt-5-mini",
+         "rag_enabled": true,
+         "rag_corpus_version": "2026-04-19" | null,
+         "candidate_pool_size": 100,
+         "profile_id": "...",
+         "profile_hash": "abcd1234",
+         "artist": "...", "track": "...",
+         "found_on_spotify": true | false,
+         "in_candidate_pool": true | false | null,
+         "rationale_types": ["profile_match", "artist_match"],
+         "effective_batch_size": 5,           # added 2026-04-22 (Option A)
+         "config_signature": "c1f2a3"}        # added 2026-04-22
+
+2. **Per-batch summary rows** (``kind: "batch_summary"``) — one per LLM
+   call, added 2026-04-22 to track Option A (per-call batch shrink) and
+   Option C (prompt trim) impact on output quality::
+
+        {"kind": "batch_summary",
+         "ts": "...", "run_id": "...", "batch_num": 1,
+         "model": "...", "rag_enabled": true,
+         "config_signature": "c1f2a3",
+         "effective_batch_size": 5,
+         "rag_pool_size": 100, "rag_stratified": true,
+         "prompt_components": {"system": 1820, "user_total": 5240,
+                               "profile": 980, "deny_set": 1450,
+                               "pool": 1180, "accepted": 0,
+                               "feedback": 220, "diversity_hint": 0,
+                               "audio_filters": 0},
+         "usage": {"prompt_tokens": 1900, "completion_tokens": 720,
+                   "total_tokens": 2620},
+         "gpt_returned_count": 8,
+         "after_filter_count": 6,
+         "spotify_found_count": 5,
+         "in_pool_count": 2,
+         "consecutive_empty_batches": 0}
 
 Gated on ``DEBUG_MODE`` (matches ``utils.app_log``); a no-op when debug
 is off so production users don't pay for an analysis-only file.
@@ -74,6 +102,31 @@ def _read_corpus_version(meta_path: Path) -> str | None:
     return str(v) if v else None
 
 
+def compute_config_signature(*,
+                             rag_enabled: bool,
+                             rag_pool_size: int | None,
+                             rag_stratified: bool | None,
+                             effective_batch_size: int | None,
+                             extra: dict | None = None) -> str:
+    """Short, stable hash of the configuration knobs that shape the prompt.
+
+    Two batches with the same signature were generated under the same
+    Option A / Option C configuration and can be compared apples-to-apples
+    in the eval log. ``extra`` is an open dict for future trim flags
+    (e.g. ``{"slim_pool": True, "compact_json": True}``) — pass any
+    JSON-serialisable knob you want to bucket on.
+    """
+    payload = {
+        "rag_enabled": bool(rag_enabled),
+        "rag_pool_size": rag_pool_size,
+        "rag_stratified": rag_stratified,
+        "effective_batch_size": effective_batch_size,
+        "extra": extra or {},
+    }
+    raw = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:8]
+
+
 def log_batch_outcome(
     *,
     run_id: str,
@@ -88,6 +141,8 @@ def log_batch_outcome(
     found_keys: Iterable[str],
     eval_log_path: Path,
     debug_mode: bool,
+    effective_batch_size: int | None = None,
+    config_signature: str | None = None,
 ) -> None:
     """Append one row per suggested track to *eval_log_path*.
 
@@ -101,6 +156,10 @@ def log_batch_outcome(
     the corpus is absent; in that case ``in_candidate_pool`` is
     serialised as ``null`` rather than ``false`` so the two cases stay
     distinguishable downstream.
+
+    ``effective_batch_size`` and ``config_signature`` (added 2026-04-22)
+    are optional but strongly recommended — they let the per-track rows
+    be joined back to the per-batch summary rows for trim-impact analysis.
     """
     if not debug_mode:
         return
@@ -133,6 +192,7 @@ def log_batch_outcome(
                     if isinstance(r, dict) and r.get("type")
                 ]
                 row = {
+                    "kind": "track",
                     "ts": ts,
                     "run_id": run_id,
                     "batch_num": batch_num,
@@ -147,7 +207,104 @@ def log_batch_outcome(
                     "found_on_spotify": key in found_set,
                     "in_candidate_pool": (artist in pool_set) if pool_set is not None else None,
                     "rationale_types": rationale_types,
+                    "effective_batch_size": effective_batch_size,
+                    "config_signature": config_signature,
                 }
                 fh.write(json.dumps(row, ensure_ascii=False) + "\n")
     except OSError as exc:  # pragma: no cover — disk-full / permission
         logger.warning("eval_log write failed (%s): %s", eval_log_path, exc)
+
+
+def log_batch_summary(
+    *,
+    run_id: str,
+    batch_num: int,
+    model: str,
+    rag_enabled: bool,
+    rag_corpus_meta_path: Path | None,
+    profile_id: str,
+    profile: dict,
+    eval_log_path: Path,
+    debug_mode: bool,
+    effective_batch_size: int | None = None,
+    rag_pool_size: int | None = None,
+    rag_stratified: bool | None = None,
+    candidate_pool_names: Iterable[str] | None = None,
+    prompt_components: dict | None = None,
+    usage: dict | None = None,
+    gpt_returned_count: int | None = None,
+    after_filter_count: int | None = None,
+    spotify_found_count: int | None = None,
+    in_pool_count: int | None = None,
+    consecutive_empty_batches: int | None = None,
+    config_signature: str | None = None,
+) -> None:
+    """Append a single ``kind: "batch_summary"`` row to the eval log.
+
+    One row per LLM call. Added 2026-04-22 to enable offline analysis of
+    how Option A (per-call batch shrink under RAG) and Option C (prompt
+    trims) affect output quality. The row carries:
+
+    - **What was sent** (``prompt_components``): per-component char counts
+      from ``suggestions.get_last_prompt_components()`` — system, profile,
+      deny_set, pool, accepted-tracks listing, feedback, audio filters,
+      diversity hint, and the user-message total. Char counts (not tokens)
+      so the row is deterministic and tokeniser-free.
+    - **What it cost** (``usage``): OpenAI's ``prompt_tokens`` /
+      ``completion_tokens`` / ``total_tokens`` when the provider returns
+      them (``null`` otherwise — common for local LLMs).
+    - **What came back** (``gpt_returned_count`` / ``after_filter_count``
+      / ``spotify_found_count`` / ``in_pool_count``): the funnel from raw
+      LLM output → post-dedup → Spotify-verified → pool-anchored.
+    - **Under which configuration** (``config_signature`` +
+      ``effective_batch_size`` + ``rag_pool_size`` + ``rag_stratified``):
+      so multiple runs can be bucketed without diffing run timestamps.
+
+    Same gating as ``log_batch_outcome`` — no-op unless ``debug_mode``.
+    Failures are logged as a warning but never raise.
+    """
+    if not debug_mode:
+        return
+
+    pool_set = (
+        {n.lower().strip() for n in candidate_pool_names if n}
+        if candidate_pool_names is not None else None
+    )
+    corpus_version = (
+        _read_corpus_version(rag_corpus_meta_path)
+        if rag_enabled and rag_corpus_meta_path is not None
+        else None
+    )
+
+    row = {
+        "kind": "batch_summary",
+        "ts": _now_iso(),
+        "run_id": run_id,
+        "batch_num": batch_num,
+        "model": model,
+        "rag_enabled": bool(rag_enabled),
+        "rag_corpus_version": corpus_version,
+        "candidate_pool_size": len(pool_set) if pool_set is not None else None,
+        "profile_id": profile_id,
+        "profile_hash": compute_profile_hash(profile),
+        "config_signature": config_signature,
+        "effective_batch_size": effective_batch_size,
+        "rag_pool_size": rag_pool_size,
+        "rag_stratified": rag_stratified,
+        "prompt_components": prompt_components or {},
+        "usage": usage,
+        "gpt_returned_count": gpt_returned_count,
+        "after_filter_count": after_filter_count,
+        "spotify_found_count": spotify_found_count,
+        "in_pool_count": in_pool_count,
+        "consecutive_empty_batches": consecutive_empty_batches,
+    }
+
+    eval_log_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with open(eval_log_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    except OSError as exc:  # pragma: no cover
+        logger.warning("eval_log batch summary write failed (%s): %s",
+                       eval_log_path, exc)
+

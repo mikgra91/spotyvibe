@@ -439,3 +439,4 @@ class TestIsOnboardingCompleted:
             with patch.object(config, "SETTINGS_FILE", settings_file):
                 assert config.is_onboarding_completed() is False
 
+

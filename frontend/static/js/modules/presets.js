@@ -745,6 +745,21 @@ export function init() {
     window._presetDelete = _deletePreset;
     window._presetExportSingle = _exportSingle;
 
+    // Item 7 — keep the "CUSTOM" badge next to the New Artist % field in
+    // sync with both manual edits and preset changes. Wired AFTER the
+    // window.* exports so a defect here cannot strand the onclick handlers.
+    try {
+        const napInput = el('genNewArtistPct');
+        if (napInput) {
+            napInput.addEventListener('input', _updateNewArtistPctCustomBadge);
+            napInput.addEventListener('change', _updateNewArtistPctCustomBadge);
+        }
+        _updateNewArtistPctCustomBadge();
+    } catch (err) {
+        // Non-fatal — keep the rest of the page interactive.
+        console.warn('NewArtistPct badge init failed', err);
+    }
+
     // Import file input
     const importInput = el('presetImportInput');
     if (importInput) importInput.addEventListener('change', _handleImportFile);

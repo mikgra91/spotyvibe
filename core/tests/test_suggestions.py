@@ -745,3 +745,4 @@ class TestNormalizeRationale:
         assert normalized["playlist"][0]["rationale"][0]["type"] == "profile_match"
         assert normalized["playlist"][1]["rationale"][0]["type"] == "legacy"
 
+

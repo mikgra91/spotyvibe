@@ -51,6 +51,7 @@ let _tickerHandle = null;
 let _sdkPositionAnchorMs = 0;     // wall-clock time when _sdkLastPositionMs was set
 let _sdkPaused = true;
 let _sdkAdvanceFiredFor = null;   // track id we already auto-advanced from
+let _sdkCurrentTrackId = null;    // id of the SDK's current_track from the last state_changed
 
 /* ── Profile-regen tip counter (Item 4) ─────────────────────────────
  * Trigger the "regenerate profile" tip after 10+ feedback events in a
@@ -334,16 +335,36 @@ function wireSdkEvents() {
 
 function onSdkStateChanged(state) {
     if (!state) return;
-    _sdkLastPositionMs = state.position || 0;
-    _sdkLastDurationMs = state.duration || 0;
+
+    const newPos = state.position || 0;
+    const newPaused = !!state.paused;
+    const newDuration = state.duration || 0;
+    const newTrackId = state.track_window?.current_track?.id || null;
+
+    // ── Natural end-of-track detection (re-opens the bug "fixed" in item 5) ──
+    // The Spotify Web Playback SDK fires state_changed with
+    //   { paused: true, position: 0, current_track: <same as before> }
+    // the instant a track ends naturally. The 250 ms ticker can miss the
+    // tiny "projected >= duration - 100" window, so we also detect it here:
+    // we WERE playing past the start of THIS track, and now we're paused
+    // back at position 0 on the same current_track id → track just finished.
+    const sameTrack = newTrackId && newTrackId === _sdkCurrentTrackId;
+    const wasPlayingPastStart = !_sdkPaused && _sdkLastPositionMs > 1000;
+    const looksLikeNaturalEnd = sameTrack && wasPlayingPastStart
+                                && newPaused && newPos === 0;
+
+    _sdkLastPositionMs = newPos;
+    _sdkLastDurationMs = newDuration;
     _sdkPositionAnchorMs = performance.now();
-    _sdkPaused = !!state.paused;
+    _sdkPaused = newPaused;
 
     // Reset auto-advance latch when a new track is loaded so the next
     // track-end can also fire.
-    const currentTrackId = state.track_window?.current_track?.id;
-    if (currentTrackId && currentTrackId !== _sdkAdvanceFiredFor) {
+    if (newTrackId && newTrackId !== _sdkCurrentTrackId) {
         _sdkAdvanceFiredFor = null;
+        _sdkCurrentTrackId = newTrackId;
+    } else if (newTrackId && _sdkCurrentTrackId === null) {
+        _sdkCurrentTrackId = newTrackId;
     }
 
     const playBtn = el('sdkPlayToggle');
@@ -355,6 +376,17 @@ function onSdkStateChanged(state) {
         _stopTicker();
     } else {
         _startTicker();
+    }
+
+    // Fire AFTER updating internal state + stopping the ticker so the
+    // outgoing track's stale state can't re-trigger anything.
+    if (looksLikeNaturalEnd && isAutoplayEnabled()) {
+        const ourTrackId = getCurrentPreviewTrack()?.track_id;
+        if (ourTrackId && _sdkAdvanceFiredFor !== ourTrackId) {
+            _sdkAdvanceFiredFor = ourTrackId;
+            _dbg('[SDK] natural end-of-track detected → nextPreview()');
+            nextPreview();
+        }
     }
 }
 

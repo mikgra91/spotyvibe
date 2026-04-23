@@ -100,7 +100,9 @@ def _extract(tarball: Path, dest: Path) -> None:
         tf.extractall(dest)
 
 
-def _run_builder(source: Path, output: Path, top_n: int) -> None:
+def _run_builder(source: Path, output: Path, top_n: int, *,
+                 artist_tar: Path | None = None,
+                 release_group_tar: Path | None = None) -> None:
     builder = Path(__file__).parent / "build_rag_corpus.py"
     cmd = [
         sys.executable, str(builder),
@@ -108,6 +110,10 @@ def _run_builder(source: Path, output: Path, top_n: int) -> None:
         "--output", str(output),
         "--top-n", str(top_n),
     ]
+    if artist_tar:
+        cmd += ["--artist-tar", str(artist_tar)]
+    if release_group_tar:
+        cmd += ["--release-group-tar", str(release_group_tar)]
     logger.info("Running builder: %s", " ".join(cmd))
     subprocess.check_call(cmd)
 
@@ -150,13 +156,23 @@ def main(argv: list[str] | None = None) -> int:
 
     mbdump = extract_root / "mbdump"
     expected = {"artist": mbdump / "artist", "release-group": mbdump / "release-group"}
-    if all(p.exists() for p in expected.values()):
+
+    # Prefer streaming from tar archives (no extraction needed — saves ~33 GB
+    # disk, critical for Cloud Run's ephemeral storage limits).
+    artist_tar = downloads / "artist.tar.xz"
+    rg_tar = downloads / "release-group.tar.xz"
+
+    if artist_tar.exists():
+        logger.info("Using tar-stream mode (no extraction to disk)")
+        _run_builder(extract_root, args.output, args.top_n,
+                     artist_tar=artist_tar, release_group_tar=rg_tar)
+    elif all(p.exists() for p in expected.values()):
         logger.info("Extracted files already present, skipping extraction")
+        _run_builder(extract_root, args.output, args.top_n)
     else:
         for name in ENTITY_FILES:
             _extract(downloads / name, extract_root)
-
-    _run_builder(extract_root, args.output, args.top_n)
+        _run_builder(extract_root, args.output, args.top_n)
 
     if args.cleanup:
         logger.info("Cleaning up %s", work)

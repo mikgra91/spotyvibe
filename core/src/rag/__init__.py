@@ -9,13 +9,14 @@ Public entry points:
 """
 
 from .corpus import RagCorpus, ArtistRow
-from .retrieval import score_artists, build_query_tags
+from .retrieval import score_artists, score_artists_stratified, build_query_tags
 from .prompt import format_candidate_pool_block
 
 __all__ = [
     "RagCorpus",
     "ArtistRow",
     "score_artists",
+    "score_artists_stratified",
     "build_query_tags",
     "format_candidate_pool_block",
 ]

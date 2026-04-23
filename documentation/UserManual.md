@@ -163,6 +163,20 @@ Hand-editing a field in Advanced mode to an off-preset value shows a **Custom** 
 
 The preset dropdown ships with **Safe picks**, **Balanced**, and **Deep discovery**. Save your own via "💾 Save current as preset…". Manage (rename, delete, reorder, import, export) via ☰ → **🎛 Manage presets**.
 
+When you hand-edit the **New Artist %** field to a value that no longer matches the active preset, a small **CUSTOM** badge appears next to the input. The active preset itself is untouched — save the deviation as a new preset (or update the existing one) to make it persistent.
+
+### Artist coverage
+
+SpotyVibe's offline artist corpus (the optional **Candidate pool (RAG)** in Settings) only includes acts that started in the **1960s or later**. Pre-1960s music is intentionally excluded — the share of typical SpotyVibe listening before 1960 is negligible and dropping it keeps the index lean. The same note appears as a tooltip (ⓘ) next to the toggle in Settings.
+
+### Local LLMs and the candidate pool (RAG)
+
+If you point SpotyVibe at a **local LLM** (Ollama, LM Studio, …) with a small context window (4 k or 8 k tokens), keep these limits in mind:
+
+- The candidate pool adds ~1.2 k tokens to every prompt. With a 100-slot pool, profile, history and JSON output the conversation typically lands at **6–9 k tokens**.
+- SpotyVibe automatically shrinks the per-call batch to 5 tracks when RAG is on (versus 10 when RAG is off) so the prompt stays within most local-model windows. You will see **about twice as many "Batch N…" progress messages** during a run with RAG on — this is expected.
+- If your local model still truncates the prompt, **disable RAG** (Settings → Candidate pool) or switch to a 16 k+ context model. The RAG feature was designed for hosted GPT-4-class models; smaller open-weight models also tend to ignore the pool more often, so the quality uplift may not justify the extra tokens.
+
 ### Playlist mode
 
 | Mode | Behaviour |

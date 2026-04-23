@@ -39,7 +39,7 @@ from pathlib import Path
 from config import BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD, get_model, get_gpt_language
 from .utils import strip_code_fences, debug_log
 from .openai_http import chat_completions_create, extract_chat_content
-from .rag import score_artists, format_candidate_pool_block
+from .rag import score_artists, score_artists_stratified, format_candidate_pool_block
 from .rag.corpus import RagCorpus
 
 # Process-wide corpus handle. Populated once by set_rag_corpus() from app.py
@@ -501,27 +501,51 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
     # Inject RAG candidate pool when enabled and a corpus is loaded. The
     # deny set (from forbidden + exhausted artists) doubles as the dedup
     # barrier so the pool never contains artists the user already has.
+    #
+    # IMPORTANT — bypass RAG when ``emerging_only=True``: the candidate
+    # pool is built from a quarterly MusicBrainz dump and cannot contain
+    # artists who debuted in the last ~3-6 months. Injecting it would
+    # contradict the system constraint *"only suggest tracks by artists
+    # whose debut release is within the last 6 months"* and waste tokens.
+    # The post-Spotify ``filter_emerging_artists`` (release_date check)
+    # remains the factual verification step. See report
+    # spotyvibe-decisions-2026-04-21.md for the rationale.
     global _LAST_RAG_POOL_NAMES
     _LAST_RAG_POOL_NAMES = None
     corpus = get_rag_corpus()
-    if corpus is not None:
+    if corpus is not None and not emerging_only:
         try:
-            from config import RAG_POOL_SIZE, RAG_POPULARITY_PENALTY
+            from config import (RAG_POOL_SIZE, RAG_POPULARITY_PENALTY,
+                                RAG_STRATIFIED, RAG_FACET_WEIGHTS)
         except ImportError:  # pragma: no cover — defensive
-            RAG_POOL_SIZE, RAG_POPULARITY_PENALTY = 20, 0.4
+            RAG_POOL_SIZE, RAG_POPULARITY_PENALTY = 100, 0.4
+            RAG_STRATIFIED = True
+            RAG_FACET_WEIGHTS = {"must_have": 0.5, "soft_preferences": 0.25,
+                                 "primary_reference": 0.15, "tags": 0.10}
         deny_keys = _collect_forbidden_artists(profile)
         confirmed = {a.get("name", "") if isinstance(a, dict) else str(a)
                      for a in profile.get("artists", {}).get("confirmed", [])}
         deny_keys = deny_keys | {c.lower().strip() for c in confirmed if c}
-        pool = score_artists(
-            corpus, profile, deny_keys=deny_keys,
-            pool_size=RAG_POOL_SIZE,
-            popularity_penalty=RAG_POPULARITY_PENALTY,
-        )
+        if RAG_STRATIFIED:
+            pool = score_artists_stratified(
+                corpus, profile, deny_keys=deny_keys,
+                pool_size=RAG_POOL_SIZE,
+                popularity_penalty=RAG_POPULARITY_PENALTY,
+                facet_weights=RAG_FACET_WEIGHTS,
+            )
+        else:
+            pool = score_artists(
+                corpus, profile, deny_keys=deny_keys,
+                pool_size=RAG_POOL_SIZE,
+                popularity_penalty=RAG_POPULARITY_PENALTY,
+            )
         _LAST_RAG_POOL_NAMES = [a.name for a in pool]
         pool_block = format_candidate_pool_block(pool)
         if pool_block:
             user_message += f"\n\n{pool_block}"
+    elif corpus is not None and emerging_only:
+        logger.debug("RAG bypassed: emerging_only=True (corpus cannot contain "
+                     "artists who debuted in the last 6 months).")
 
     if accepted_tracks:
         listing = "\n".join(

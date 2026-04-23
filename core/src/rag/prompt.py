@@ -16,6 +16,13 @@ def format_candidate_pool_block(artists: list[ArtistRow],
     Callers should concatenate this *after* the stable system prompt +
     profile and *before* the deny-list block (see §5.3 for KV-cache
     rationale).
+
+    Output is intentionally terse (Option C #2, 2026-04-22): no per-row
+    index prefix, tags inline in parentheses. Saves ~6 tokens / row vs the
+    previous ``"42. Name — tags: [a, b, c]"`` format — at the 100-slot
+    default that's ~600 tokens/batch reclaimed without losing any
+    information GPT actually uses (the index was never read; the
+    ``— tags:`` prose was redundant given the parenthetical convention).
     """
     if not artists:
         return ""
@@ -24,17 +31,15 @@ def format_candidate_pool_block(artists: list[ArtistRow],
         f"CANDIDATE_POOL ({len(artists)} artists ranked by profile match, "
         "mid-popularity-weighted):"
     ]
-    for i, a in enumerate(artists, 1):
+    for a in artists:
         shown_tags = [t for t in a.tags[:max_tags_per_artist] if t]
-        tag_str = f" — tags: [{', '.join(shown_tags)}]" if shown_tags else ""
-        lines.append(f"{i}. {a.name}{tag_str}")
+        tag_str = f" ({', '.join(shown_tags)})" if shown_tags else ""
+        lines.append(f"{a.name}{tag_str}")
 
     lines.append("")
     lines.append("GUIDANCE:")
-    lines.append("- Prefer artists from CANDIDATE_POOL when a suggestion fits. "
-                 "You do not have to pick all of them.")
-    lines.append("- You MAY suggest artists outside the pool if they match the "
-                 "profile strictly better. Do NOT invent artists.")
-    lines.append("- CANDIDATE_POOL does NOT override DENY_LIST or "
-                 "must_have/avoid constraints — those still win.")
+    lines.append("- Prefer pool artists when a suggestion fits. Not all need to be picked.")
+    lines.append("- You MAY suggest artists outside the pool if they match the profile "
+                 "strictly better. Do NOT invent artists.")
+    lines.append("- CANDIDATE_POOL does NOT override DENY_LIST or must_have/avoid.")
     return "\n".join(lines)

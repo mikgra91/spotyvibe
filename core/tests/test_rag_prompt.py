@@ -19,8 +19,8 @@ def test_block_contains_header_and_artists():
                _row("Beta", ["post-punk"])]
     block = format_candidate_pool_block(artists)
     assert "CANDIDATE_POOL (2 artists" in block
-    assert "1. Alpha" in block
-    assert "2. Beta" in block
+    assert "Alpha" in block
+    assert "Beta" in block
     assert "shoegaze" in block
     assert "GUIDANCE:" in block
 
@@ -32,11 +32,17 @@ def test_tag_cap_enforced():
     assert "t3" not in block
 
 
-def test_token_budget_holds():
-    # §5.2 claim: 20 artists ≈ 240 input tokens (~12 tokens/line).
-    # Use character count as a proxy (~4 chars/token for English).
+def test_artist_with_no_tags_renders_name_only():
+    """Slim format must still work when the row has no tags."""
+    artists = [_row("Solo", [])]
+    block = format_candidate_pool_block(artists)
+    assert "Solo" in block
+
+
+def test_token_budget_under_cap():
+    """20 artists should stay under the 1200-char cap."""
     artists = [_row(f"Artist Number {i}", ["tag-a", "tag-b", "tag-c"])
                for i in range(20)]
     block = format_candidate_pool_block(artists)
-    # Rough cap: 250 tokens * 4 chars = 1000 chars, allow 1200 for headers.
     assert len(block) < 1400
+    assert len(block) < 1200

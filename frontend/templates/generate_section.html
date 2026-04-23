@@ -110,9 +110,13 @@
         </div>
 
         <!-- New artist % (Advanced exposure) -->
-        <div class="form-row gen-field-new-artist-pct">
+        <div class="form-row gen-field-new-artist-pct" id="genNewArtistPctWrap">
             <label for="genNewArtistPct" data-i18n="settings.new_artist_pct_label">New Artist %</label>
             <input id="genNewArtistPct" type="number" min="1" max="100" step="1" value="{{ settings.new_artist_pct if settings.new_artist_pct is not none else 50 }}">
+            <span class="new-artist-pct-custom-badge hidden" id="genNewArtistPctCustomBadge"
+                  data-i18n="settings.new_artist_pct_custom"
+                  data-i18n-title="settings.new_artist_pct_custom_hint"
+                  title="Differs from the active preset.">CUSTOM</span>
             <p class="inline-hint" data-i18n="settings.new_artist_pct_hint">Minimum share of suggestions from artists you haven't listened to yet.</p>
             {{ learn_more('settings.new_artist_pct_learn_more', 'Higher pushes exploration; lower keeps things familiar. The exploration slider above drives this — edit here to override.') }}
         </div>

@@ -150,23 +150,24 @@
 
 .ob-privacy-text { font-size: var(--fs-sm); color: var(--text-secondary); line-height: 1.35; }
 
-.ob-privacy-link {
-    display: inline-block;
+/* ============ Corpus scope note (Step 1) ============ */
+/* Same look-and-feel as the privacy panel but with a neutral accent so
+ * it reads as informational rather than security-related. */
+.ob-corpus-note {
+    background: rgba(180, 180, 200, 0.06);
+    border: 1px solid rgba(180, 180, 200, 0.2);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3) var(--sp-4);
+    display: flex;
+    gap: var(--sp-3);
+    align-items: flex-start;
+    width: 100%;
+    max-width: 360px;
     margin-top: var(--sp-2);
-    color: var(--primary);
-    font-size: var(--fs-md);
-    font-weight: 500;
-    text-decoration: none;
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    font-family: inherit;
+    text-align: left;
 }
-
-@media (hover: hover) {
-    .ob-privacy-link:hover { text-decoration: underline; }
-}
+.ob-corpus-note-icon { font-size: var(--fs-xl); flex-shrink: 0; margin-top: 2px; }
+.ob-corpus-note-text { font-size: var(--fs-sm); color: var(--text-secondary); line-height: 1.35; }
 
 /* ============ Nav row ============ */
 

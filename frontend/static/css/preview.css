@@ -1,4 +1,4 @@
-/* preview.css — Spotify preview overlay, tabs, feedback panel */
+ /* preview.css — Spotify preview overlay, tabs, feedback panel */
 /* ---- Spotify Preview Overlay ---- */
 .spotify-preview-overlay {
     position: fixed;
@@ -51,9 +51,16 @@
     color: var(--text-primary);
     margin-bottom: var(--sp-3);
     padding-right: 32px;
-    white-space: nowrap;
+    /* Wrap long "Artist — Track" strings onto a 2nd line so the player
+     * panel keeps a stable width. Cap at 2 lines + ellipsis to prevent
+     * a runaway 4-line title from pushing the play controls down. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.3;
 }
 
 /* Loader shown while we resolve SDK vs iframe playback path. */

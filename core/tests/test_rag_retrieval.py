@@ -8,7 +8,8 @@ import json
 import pytest
 
 from core.src.rag.corpus import RagCorpus
-from core.src.rag.retrieval import build_query_tags, score_artists
+from core.src.rag.retrieval import (build_query_tags, score_artists,
+                                    score_artists_stratified)
 
 
 ARTISTS = [
@@ -94,3 +95,72 @@ def test_aliases_expand_matches(corpus):
     profile = {"preferences": {"must_have": ["dreampop"]}}  # alias for "dream pop"
     results = score_artists(corpus, profile, pool_size=5)
     assert any(a.name == "Ethereal Echoes" for a in results)
+
+
+# ── Stratified retrieval (Option 2) ─────────────────────────────────
+
+
+def test_stratified_gives_each_facet_representation(corpus):
+    """Eclectic profile: must_have=shoegaze, soft=synthwave, tags=industrial.
+
+    Without stratification the strongest single facet would dominate the
+    top-K. With stratification each facet should land at least one
+    artist in the pool.
+    """
+    profile = {"preferences": {
+        "must_have": ["shoegaze"],
+        "soft_preferences": ["synthwave"],
+        "moods": ["industrial"],
+    }}
+    weights = {"must_have": 0.4, "soft_preferences": 0.3,
+               "primary_reference": 0.0, "tags": 0.3}
+    pool = score_artists_stratified(corpus, profile, pool_size=6,
+                                    facet_weights=weights)
+    names = {a.name for a in pool}
+    # must_have facet should pull a shoegaze artist
+    assert "Ethereal Echoes" in names or "The Broken Gramophone" in names
+    # soft_preferences facet should pull the synthwave artist
+    assert "Nova Drive" in names
+    # tags (moods=industrial) facet should pull the industrial artist
+    assert "Concrete Signal" in names
+
+
+def test_stratified_dedupes_across_facets(corpus):
+    """An artist that wins quotas in two facets is only listed once."""
+    profile = {"preferences": {
+        "must_have": ["shoegaze"],
+        "soft_preferences": ["shoegaze post-punk"],  # would also pick the same artists
+    }}
+    pool = score_artists_stratified(corpus, profile, pool_size=10,
+                                    facet_weights={"must_have": 0.5,
+                                                   "soft_preferences": 0.5,
+                                                   "primary_reference": 0.0,
+                                                   "tags": 0.0})
+    names = [a.name for a in pool]
+    assert len(names) == len(set(names))  # no duplicates
+
+
+def test_stratified_falls_back_when_all_facets_empty(corpus):
+    """If no facet produces a query, behave like the flat retriever."""
+    profile = {"preferences": {"core_description": "shoegaze"}}
+    # core_description is in soft_preferences facet, so it should still work.
+    pool = score_artists_stratified(corpus, profile, pool_size=3)
+    assert any(a.name in {"Ethereal Echoes", "The Broken Gramophone"}
+               for a in pool)
+
+
+def test_stratified_respects_deny_keys(corpus):
+    profile = {"preferences": {"must_have": ["shoegaze post-punk"]}}
+    pool = score_artists_stratified(corpus, profile, pool_size=5,
+                                    deny_keys=["The Broken Gramophone"])
+    assert all(a.name != "The Broken Gramophone" for a in pool)
+
+
+def test_stratified_caps_at_pool_size(corpus):
+    profile = {"preferences": {
+        "must_have": ["shoegaze post-punk dream pop"],
+        "soft_preferences": ["pop rnb synthwave electronica industrial"],
+    }}
+    pool = score_artists_stratified(corpus, profile, pool_size=3)
+    assert len(pool) <= 3
+

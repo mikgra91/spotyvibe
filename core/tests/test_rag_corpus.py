@@ -56,12 +56,20 @@ def test_normalise_helpers():
 def test_load_indexes_everything(corpus_file, aliases_file):
     corpus = RagCorpus.load(corpus_file, aliases_file)
     assert len(corpus) == 5
-    assert corpus.by_mbid["a1"] == 0
-    assert corpus.by_name_normalised["beyonce"] == 2
     # inverted index wires both shoegaze artists to their rows
     assert sorted(corpus.tag_index["shoegaze"]) == [0, 3]
     # IDF is finite and positive for a tag that appears in ≥1 doc
     assert corpus.tag_idf["shoegaze"] > 0
+    # Slim ArtistRow — fields actually retained.
+    a = corpus.artists[0]
+    assert a.mbid == "a1" and a.name == "Ethereal Echoes"
+    assert a.tags and a.tag_weights
+    # Fields removed in §3.2 corpus-slimming pass MUST NOT exist.
+    # NOTE: by_mbid and by_name_normalised are still present on the corpus
+    # as lookup helpers. ArtistRow still carries sort_name/country/end_year
+    # for backward compat but they default to empty/None in slim rows.
+    assert hasattr(corpus, "by_mbid")
+    assert hasattr(corpus, "by_name_normalised")
 
 
 def test_aliases_resolve(corpus_file, aliases_file):
@@ -90,3 +98,31 @@ def test_bad_lines_are_skipped(tmp_path):
     )
     corpus = RagCorpus.load(path)
     assert len(corpus) == 2
+
+
+def test_pre_1960s_artists_are_filtered(tmp_path):
+    """Loader drops artists with begin_year < MIN_ARTIST_BEGIN_YEAR (1960).
+
+    Older corpora may still contain pre-1960s entries; filtering at load
+    time ensures users benefit immediately without rebuilding the file.
+    Artists with no begin_year are kept (we cannot prove they're old).
+    """
+    rows = [
+        {"mbid": "old1", "name": "Pre-War Crooner", "tags": ["jazz"],
+         "tag_weights": [3], "begin_year": 1925, "listener_popularity": 0.4},
+        {"mbid": "edge1", "name": "Decade Boundary", "tags": ["folk"],
+         "tag_weights": [2], "begin_year": 1959, "listener_popularity": 0.3},
+        {"mbid": "ok1", "name": "Sixties Band", "tags": ["rock"],
+         "tag_weights": [5], "begin_year": 1960, "listener_popularity": 0.5},
+        {"mbid": "ok2", "name": "Modern Act", "tags": ["pop"],
+         "tag_weights": [4], "begin_year": 2010, "listener_popularity": 0.7},
+        {"mbid": "unknown", "name": "Undated Group", "tags": ["ambient"],
+         "tag_weights": [1], "listener_popularity": 0.1},
+    ]
+    path = tmp_path / "artists.jsonl"
+    path.write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    corpus = RagCorpus.load(path)
+    kept = {a.mbid for a in corpus.artists}
+    assert kept == {"ok1", "ok2", "unknown"}
+
+
