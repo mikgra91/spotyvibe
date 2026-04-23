@@ -684,3 +684,116 @@ To keep the scope honest:
 
 
 
+---
+## 9. Phase 2 — Spotify enrichment (optional but recommended)
+**Status (2026-04):** implemented. Disabled by default; enabled by attaching two secrets to the Cloud Run Job.
+### 9.1 Why enrich?
+MusicBrainz community tags are sparse and inconsistent. Spotify exposes:
+- **Real popularity** (0–100) — replaces our crude `release_count + tag_total` proxy.
+- **Curated genres** — denser, more standardised vocabulary (`indie rock`, `bedroom pop`, `theatrical rock`) that aligns with how users describe their taste.
+- **Follower counts** — discovery-tier signal.
+Both are merged into the existing tag-index at runtime, so retrieval scores against the **union** of MB tags and Spotify genres. Enriched artists also get a small "discovery sweet-spot" boost for popularity in the 30–70 band.
+### 9.2 Credentials
+You need a **single** Spotify Developer app — the same one SpotyVibe already uses for user OAuth at runtime. The Client Credentials flow used here is independent of user OAuth, so the credentials can serve both purposes simultaneously without conflict.
+1. Open the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) → your existing app → "Settings".
+2. Copy the **Client ID** and **Client Secret**.
+3. Store them in Google Secret Manager:
+```bash
+printf '%s' '<your-client-id>'     | gcloud secrets create spotify-client-id     --data-file=- --replication-policy=automatic
+printf '%s' '<your-client-secret>' | gcloud secrets create spotify-client-secret --data-file=- --replication-policy=automatic
+```
+4. Grant the Cloud Run service account read access to both secrets:
+```bash
+SA="spotivibe-rag-builder@$(gcloud config get-value project).iam.gserviceaccount.com"
+for SECRET in spotify-client-id spotify-client-secret; do
+  gcloud secrets add-iam-policy-binding "$SECRET" \
+    --member="serviceAccount:$SA" \
+    --role=roles/secretmanager.secretAccessor
+done
+```
+### 9.3 Wire the secrets into the Job
+```bash
+gcloud run jobs update spotivibe-rag-builder --region=us-central1 \
+  --update-secrets=SPOTIFY_CLIENT_ID=spotify-client-id:latest,SPOTIFY_CLIENT_SECRET=spotify-client-secret:latest
+```
+That's it — the next execution (`gcloud run jobs execute spotivibe-rag-builder --region=us-central1 --wait`) will run enrichment automatically. To temporarily disable without removing the secrets, set `DISABLE_SPOTIFY_ENRICHMENT=1` as an env var on the job.
+### 9.4 What enrichment does at runtime
+For each MB artist, the job:
+1. Searches Spotify by name (`/v1/search?q=artist:"<name>"`).
+2. Scores up to 5 candidates with a conservative heuristic (exact name + genre overlap + popularity floor).
+3. Accepts the top scorer if confidence ≥ 1.0 (otherwise leaves the artist MB-only).
+4. Bulk-fetches details for matched IDs (50 IDs per call, ~20–25 minutes for 170K artists).
+5. Writes `spotify_id`, `spotify_popularity`, `spotify_followers`, `spotify_genres` into each row.
+Estimated match rate: 65–80% of MB artists. Unmatched rows are emitted unchanged — fully backward compatible. The runtime treats unenriched rows as legacy and falls back to the MB proxy popularity.
+### 9.5 Rotating the Spotify secret
+If you ever need to rotate the Spotify Client Secret (compromised, suspicious activity, periodic hygiene):
+1. In the Spotify Dashboard → app → Settings → "Reset Client Secret".
+2. Update the GCP secret:
+   ```bash
+   printf '%s' '<new-client-secret>' | gcloud secrets versions add spotify-client-secret --data-file=-
+   ```
+3. The Cloud Run Job picks up the new version automatically on next execution (because the env binding uses `:latest`).
+4. Update your **local** SpotyVibe credentials too (Settings → Credentials → re-enter the secret) so the user-OAuth flow keeps working.
+---
+## 10. Circuit breaker & auto-retry (2026-04)
+### 10.1 Why this exists
+### 10.2 How it works
+
+| Component | Behaviour |
+|---|---|
+| **Cloud Scheduler** | Triggers the Job **every 2 hours** (cron `0 */2 * * *`, Europe/Vienna). |
+| **Job startup** | Reads `gs://spotivibe-rag-corpus/halt.flag`. If absent or expired → proceed. If present and active → exit 0 immediately. |
+| **Soft halt (auto-expiring)** | Halt-flag JSON includes `"expires_at": "<ISO-8601 UTC>"`. Once the timestamp is in the past, the job **auto-deletes the flag and proceeds**. Used to wait out known temp-ban windows without manual intervention. |
+| **Hard halt (manual reset)** | Halt-flag JSON has no `expires_at`. **Always active** until the user manually deletes the flag. Set automatically by the rate-limit catcher because an unexpected rate-limit means something is structurally wrong (creds, throttle config, Spotify policy change) — silently retrying could trigger another multi-hour temp-ban. |
+| **Recent-build skip** | If `manifest.json` shows a successful build < 6 days old (`MIN_REBUILD_DAYS`), exits 0. Preserves weekly cadence. |
+| **Enrichment step** | Uses 210 ms throttle (~4.7 req/s, ~143 req/30s) — well under Spotify's dev-app limit. Aborts on `Retry-After > 300s` or cumulative backoff > 300s. |
+| **On rate-limit** | Enrichment exits 42; publisher writes a **hard** `halt.flag` to GCS and exits non-zero (Cloud Run logs the failure). **No partial corpus is uploaded** — the existing GCS corpus stays intact. |
+### 10.3 Manual operations
+
+| Action | Command |
+|---|---|
+| **Inspect halt flag** | `gcloud storage cat gs://spotivibe-rag-corpus/halt.flag` |
+| **Resume after a halt (hard or soft)** | `gcloud storage rm gs://spotivibe-rag-corpus/halt.flag` |
+| **Seed a soft halt** (auto-clears after `expires_at`) | See snippet in §10.3.1 below |
+| **Force a rebuild** (bypasses both checks) | `gcloud run jobs execute spotivibe-rag-builder --region=us-central1 --update-env-vars=FORCE_REBUILD=1 --wait` |
+| **Disable enrichment temporarily** | `gcloud run jobs update spotivibe-rag-builder --region=us-central1 --update-env-vars=DISABLE_SPOTIFY_ENRICHMENT=1` |
+| **Re-enable enrichment** | `gcloud run jobs update spotivibe-rag-builder --region=us-central1 --remove-env-vars=DISABLE_SPOTIFY_ENRICHMENT` |
+| **Pause scheduler entirely** | `gcloud scheduler jobs pause spotivibe-rag-weekly --location=us-central1` |
+| **Resume scheduler** | `gcloud scheduler jobs resume spotivibe-rag-weekly --location=us-central1` |
+
+#### 10.3.1 Seeding a soft (auto-expiring) halt
+
+When you want the job to wait out a known temp-ban window without
+remembering to manually re-enable it, write a halt flag with an
+``expires_at`` timestamp. Adjust the date to a few hours past the
+expected ban lift:
+
+```bash
+cat > /tmp/halt.json << 'EOF'
+{
+  "halted_at": "2026-04-23T10:00:00Z",
+  "expires_at": "2026-04-24T11:30:00Z",
+  "reason": "spotify_temp_ban_active",
+  "detail": "Auto-expires; job will resume on the next scheduler tick after expires_at."
+}
+EOF
+gcloud storage cp /tmp/halt.json gs://spotivibe-rag-corpus/halt.flag \
+  --cache-control='no-cache, max-age=0' --content-type='application/json'
+```
+
+The next 2-h scheduler tick **after** `expires_at` will see that the
+timestamp is in the past, auto-delete the flag, and proceed with a real
+build. No manual action required.
+### 10.4 What happens during a temp-ban
+1. **Now (during ban):** halt.flag is set → the every-2h scheduler triggers the job, the job sees the flag and exits cleanly. No Spotify API calls. Cloud Run cost: <1 second per attempt.
+2. **After ban lifts (≥24h later):** you delete the halt flag manually. The next 2h scheduler tick triggers a real run.
+3. **If rate-limited again:** halt flag is auto-set, run fails (visible in Cloud Run logs as a failed execution), all subsequent scheduler ticks skip until you resume.
+### 10.5 Tuning knobs
+All are env vars on the Cloud Run job (set via `gcloud run jobs update ... --update-env-vars=KEY=value`):
+| Var | Default | Effect |
+|---|---|---|
+| `MIN_REBUILD_DAYS` | `6` | Skip if last build is younger than this. |
+| `FORCE_REBUILD` | unset | If `1`, ignore both halt flag and recent-build skip. |
+| `DISABLE_SPOTIFY_ENRICHMENT` | unset | If `1`, build MB-only corpus. Phase 1 fallback. |
+| `CORPUS_TOP_N` | `500000` | MB filter cap. Actual yield ~170-180K. |
+The Spotify throttle (`_MIN_INTER_REQUEST_SEC = 0.21`) and the `--max-enrich 50000` slice are baked into the code; change them in `build-tools/spotify_enrichment/client.py` and `build-tools/enrich_with_spotify.py` respectively, then rebuild the container.

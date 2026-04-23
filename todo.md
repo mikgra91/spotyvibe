@@ -384,3 +384,8 @@ Source: `analysis.md` (in repo root, generated 2026-04-21).
 - **[ ] Wrap song title if it is too long in preview player.** Already fixed in item 13 — but the user reports the player still gets stretched in some cases. Re-verify and tighten the CSS clamp / overflow handling.
 - **[ ] Analyse results between RAG and not-RAG** — see `documentation/spotyvibe_with_rag/` and `documentation/spotyvibe_without_rag/` eval logs. Re-run the A/B with the new stratified retrieval + 100-slot pool + Option A batch shrink, confirm the `in_candidate_pool` ratio target (≥ 40 %) from the Apr-21 decision report.
 
+- **[ ] RAG enrichment Phase 3 — Spotify related-artists graph as re-ranking signal.** After Phase 2 (Spotify popularity + genres) is in production, leverage Spotify's `/v1/artists/{id}/related-artists` endpoint to build an artist-similarity graph. Use it as a soft re-ranking signal in `score_artists`: if the top candidates are densely connected in the Spotify graph, they are more likely to fit the user's taste cluster. Considerations:
+  - Rate-limited endpoint — pre-compute the graph during the Cloud Run build and store as adjacency lists (~5-10 MB additional gzipped).
+  - Graph weight should be tunable and small (e.g., +10-15 % score boost) so it never overrides explicit must_have / avoid constraints.
+  - Optional: use the graph to detect and surface "bridge" artists between the user's listed must_have artists.
+  - Depends on Phase 2 being live and stable.

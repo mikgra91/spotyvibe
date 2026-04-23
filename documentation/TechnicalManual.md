@@ -307,9 +307,10 @@ The corpus (`artists.jsonl.gz`, ~10 MB) is **not** bundled with the app. It is b
 **Pipeline** — the Cloud Run Job executes `build-tools/cloud_run_publish.py`, which:
 
 1. Runs `refresh_rag_corpus.py` — downloads the latest MusicBrainz JSON dump (~3 GB), **streams** directly from the compressed `.tar.xz` archives (no 33 GB extraction to disk), and invokes `build_rag_corpus.py` to produce the corpus.
-2. Computes SHA-256 of the resulting `artists.jsonl.gz`.
-3. Uploads `artists.jsonl.gz` + `manifest.json` to the public GCS bucket.
-4. Wipes the ephemeral working directory.
+2. **(Phase 2, 2026-04, optional)** Runs `enrich_with_spotify.py` if `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` are set — looks up each MB artist on Spotify (Client Credentials flow), attaches `spotify_id`, `spotify_popularity` (0-100), `spotify_followers`, and `spotify_genres`. Conservative match heuristic skips artists below confidence ≥ 1.0 (≈ 65-80% match rate). Adds ~7-10 MB to the gzipped corpus. See `documentation/guides/cloud-run-rag-setup.md` §9 for setup.
+3. Computes SHA-256 of the resulting `artists.jsonl.gz`.
+4. Uploads `artists.jsonl.gz` + `manifest.json` to the public GCS bucket.
+5. Wipes the ephemeral working directory.
 
 **Bucket contents** — always exactly two objects:
 
