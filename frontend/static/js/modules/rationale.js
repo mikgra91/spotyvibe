@@ -44,7 +44,7 @@ function _buildChips(rationale) {
     if (!rationale || !Array.isArray(rationale) || rationale.length === 0) {
         return '';
     }
-    return rationale.slice(0, 2).map(renderChip).filter(Boolean).join('');
+    return rationale.slice(0, 4).map(renderChip).filter(Boolean).join('');
 }
 
 /**

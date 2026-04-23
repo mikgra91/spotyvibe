@@ -450,11 +450,11 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
     soft_n = len((prefs.get("soft_preferences") or []))
     profile_facets = must_have_n + soft_n
     if profile_facets >= 5:
-        rationale_count = "3-5"
+        rationale_count = "4"
     elif profile_facets >= 2:
-        rationale_count = "2-3"
+        rationale_count = "3"
     else:
-        rationale_count = "1-2"
+        rationale_count = "2"
     system_prompt = system_prompt.replace("{rationale_count}", rationale_count)
 
     if emerging_only:

@@ -177,6 +177,11 @@ def log_batch_outcome(
         else None
     )
     profile_hash = compute_profile_hash(profile)
+    must_have_tags = [
+        str(t).strip() for t in
+        ((profile or {}).get("preferences", {}) or {}).get("must_have", []) or []
+        if str(t).strip()
+    ]
     ts = _now_iso()
 
     eval_log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -189,6 +194,10 @@ def log_batch_outcome(
                 key = f"{artist} - {track}"
                 rationale_types = [
                     r.get("type") for r in (entry.get("rationale") or [])
+                    if isinstance(r, dict) and r.get("type")
+                ]
+                rationale_args = [
+                    r.get("arg", "") for r in (entry.get("rationale") or [])
                     if isinstance(r, dict) and r.get("type")
                 ]
                 row = {
@@ -207,6 +216,15 @@ def log_batch_outcome(
                     "found_on_spotify": key in found_set,
                     "in_candidate_pool": (artist in pool_set) if pool_set is not None else None,
                     "rationale_types": rationale_types,
+                    "rationale_args": rationale_args,
+                    "rationale_count": len(rationale_types),
+                    "has_must_have_cite": any(
+                        r.get("type") == "profile_match"
+                        and any(mh.lower() in (r.get("arg") or "").lower()
+                                for mh in must_have_tags)
+                        for r in (entry.get("rationale") or [])
+                        if isinstance(r, dict)
+                    ) if must_have_tags else None,
                     "effective_batch_size": effective_batch_size,
                     "config_signature": config_signature,
                 }
@@ -238,6 +256,7 @@ def log_batch_summary(
     in_pool_count: int | None = None,
     consecutive_empty_batches: int | None = None,
     config_signature: str | None = None,
+    suggested_playlist: list[dict] | None = None,
 ) -> None:
     """Append a single ``kind: "batch_summary"`` row to the eval log.
 
@@ -276,6 +295,32 @@ def log_batch_summary(
         else None
     )
 
+    # ── Rationale coverage stats ──────────────────────────────────────
+    rationale_stats = None
+    if suggested_playlist:
+        prefs = ((profile or {}).get("preferences", {}) or {})
+        mh_tags = [str(t).strip().lower() for t in (prefs.get("must_have") or []) if str(t).strip()]
+        total_tracks = len(suggested_playlist)
+        rationale_counts = []
+        must_have_cite_count = 0
+        type_counter: dict[str, int] = {}
+        for entry in suggested_playlist:
+            rats = [r for r in (entry.get("rationale") or []) if isinstance(r, dict) and r.get("type")]
+            rationale_counts.append(len(rats))
+            for r in rats:
+                rtype = r.get("type", "unknown")
+                type_counter[rtype] = type_counter.get(rtype, 0) + 1
+                if rtype == "profile_match" and mh_tags:
+                    arg_lower = (r.get("arg") or "").lower()
+                    if any(mh in arg_lower for mh in mh_tags):
+                        must_have_cite_count += 1
+                        break  # count once per track
+        rationale_stats = {
+            "avg_rationale_per_track": round(sum(rationale_counts) / total_tracks, 2) if total_tracks else 0,
+            "must_have_cite_rate": round(must_have_cite_count / total_tracks, 2) if total_tracks and mh_tags else None,
+            "type_distribution": type_counter,
+        }
+
     row = {
         "kind": "batch_summary",
         "ts": _now_iso(),
@@ -298,6 +343,7 @@ def log_batch_summary(
         "spotify_found_count": spotify_found_count,
         "in_pool_count": in_pool_count,
         "consecutive_empty_batches": consecutive_empty_batches,
+        "rationale_stats": rationale_stats,
     }
 
     eval_log_path.parent.mkdir(parents=True, exist_ok=True)
