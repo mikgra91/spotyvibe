@@ -529,11 +529,14 @@ class TestRunPipeline:
             "preferences": {},
         }
         mock_norm.return_value = mock_load.return_value
-        mock_gpt.return_value = {
-            "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 10,
-            "new_artists": ["a"],
-            "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
-        }
+        mock_gpt.return_value = (
+            {
+                "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 10,
+                "new_artists": ["a"],
+                "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
+            },
+            {"usage": None, "latency_s": 0.0},
+        )
         mock_filter.return_value = {
             "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 10,
             "new_artists": ["a"],
@@ -582,11 +585,14 @@ class TestRunPipeline:
             "preferences": {},
         }
         mock_norm.return_value = mock_load.return_value
-        mock_gpt.return_value = {
-            "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 15,
-            "new_artists": ["a"],
-            "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
-        }
+        mock_gpt.return_value = (
+            {
+                "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 15,
+                "new_artists": ["a"],
+                "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
+            },
+            {"usage": None, "latency_s": 0.0},
+        )
         mock_filter.return_value = {
             "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 15,
             "new_artists": ["a"],

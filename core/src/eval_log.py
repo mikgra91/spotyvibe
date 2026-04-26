@@ -354,3 +354,64 @@ def log_batch_summary(
         logger.warning("eval_log batch summary write failed (%s): %s",
                        eval_log_path, exc)
 
+
+def log_run_summary(
+    *,
+    run_id: str,
+    model: str,
+    profile_id: str,
+    eval_log_path: Path,
+    debug_mode: bool,
+    batch_count: int,
+    batch_latencies_s: list[float],
+    total_wall_s: float,
+    verified_count: int,
+    playlist_size: int,
+    gpt_call_count: int,
+) -> None:
+    """Append one ``kind: "run_summary"`` row.
+
+    Establishes the latency baseline Goal #3 measures against. p50/p95 are
+    computed over per-batch LLM-call latencies; ``total_wall_s`` is end-to-end
+    pipeline wall-clock (LLM + Spotify verify + everything else).
+    """
+    if not debug_mode:
+        return
+
+    def _percentile(values: list[float], pct: float) -> float | None:
+        if not values:
+            return None
+        s = sorted(values)
+        # Linear interpolation between closest ranks
+        k = (len(s) - 1) * pct
+        lo = int(k)
+        hi = min(lo + 1, len(s) - 1)
+        return round(s[lo] + (s[hi] - s[lo]) * (k - lo), 3)
+
+    row = {
+        "kind": "run_summary",
+        "ts": _now_iso(),
+        "run_id": run_id,
+        "model": model,
+        "profile_id": profile_id,
+        "batch_count": batch_count,
+        "gpt_call_count": gpt_call_count,
+        "verified_count": verified_count,
+        "playlist_size": playlist_size,
+        "total_wall_s": round(total_wall_s, 3),
+        "batch_latency_s": {
+            "p50": _percentile(batch_latencies_s, 0.50),
+            "p95": _percentile(batch_latencies_s, 0.95),
+            "max": round(max(batch_latencies_s), 3) if batch_latencies_s else None,
+            "samples": len(batch_latencies_s),
+        },
+    }
+
+    eval_log_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with open(eval_log_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    except OSError as exc:  # pragma: no cover
+        logger.warning("eval_log run summary write failed (%s): %s",
+                       eval_log_path, exc)
+

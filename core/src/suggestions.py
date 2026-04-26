@@ -53,6 +53,12 @@ _RAG_CORPUS: RagCorpus | None = None
 # logic ever changes). None means RAG was disabled / corpus missing.
 _LAST_RAG_POOL_NAMES: list[str] | None = None
 
+# Per-component char counts of the most recent build_messages() output.
+# Captured so the eval log (log_batch_summary) can record which prompt slice
+# changed batch-to-batch without re-tokenising. Char counts (deterministic,
+# tokeniser-free) — see eval_log.log_batch_summary docstring for the schema.
+_LAST_PROMPT_COMPONENTS: dict | None = None
+
 
 def set_rag_corpus(corpus: RagCorpus | None) -> None:
     """Install the process-wide RAG corpus handle."""
@@ -73,6 +79,16 @@ def get_last_rag_pool_names() -> list[str] | None:
     """
     return _LAST_RAG_POOL_NAMES
 
+
+def get_last_prompt_components() -> dict | None:
+    """Return per-component char counts of the most recent build_messages output.
+
+    Schema matches eval_log.log_batch_summary's ``prompt_components`` field:
+    ``{system, user_total, profile, deny_set, pool, accepted, feedback,
+    diversity_hint, audio_filters}``. ``None`` until the first call.
+    """
+    return _LAST_PROMPT_COMPONENTS
+
 logger = logging.getLogger(__name__)
 
 # Paths resolved from the package root using pathlib — immune to os.chdir()
@@ -81,13 +97,13 @@ PROMPT_FILE = BASE_DIR / "prompts" / "prompt_template.txt"
 
 
 
-def build_feedback_summary(profile, max_chars=2000):
+def build_feedback_summary(profile, max_chars=2000, recent_n=3, line_cap=300):
     """Build a short 'recent feedback' block from liked/disliked tracks.
 
-    Picks the last N entries from each list and formats them as a concise
-    human-readable block that GPT can use to bias the next run.
-
-    Capped at max_chars to prevent prompt bloat.
+    Picks the last ``recent_n`` entries from each list and formats them as a
+    concise human-readable block that GPT can use to bias the next run.
+    Each line is capped at ``line_cap`` chars, and the whole block at
+    ``max_chars``.
     """
     liked = profile.get("feedback", {}).get("liked_tracks", [])
     disliked = profile.get("feedback", {}).get("disliked_tracks", [])
@@ -97,25 +113,20 @@ def build_feedback_summary(profile, max_chars=2000):
 
     lines = ["Recent user feedback (use to fine-tune your suggestions):"]
 
-    recent_liked = liked[-10:]
-    for entry in recent_liked:
-        artist = entry.get("artist", "")
-        track = entry.get("track", "")
-        reason = entry.get("reason", "")
-        line = f"  + Liked: {artist} - {track}"
-        if reason:
-            line += f" (reason: {reason})"
-        lines.append(line)
+    def _format(prefix, entries):
+        for entry in entries[-recent_n:]:
+            artist = entry.get("artist", "")
+            track = entry.get("track", "")
+            reason = entry.get("reason", "")
+            line = f"  {prefix} {artist} - {track}"
+            if reason:
+                line += f" (reason: {reason})"
+            if len(line) > line_cap:
+                line = line[:line_cap] + "…"
+            lines.append(line)
 
-    recent_disliked = disliked[-10:]
-    for entry in recent_disliked:
-        artist = entry.get("artist", "")
-        track = entry.get("track", "")
-        reason = entry.get("reason", "")
-        line = f"  - Disliked: {artist} - {track}"
-        if reason:
-            line += f" (reason: {reason})"
-        lines.append(line)
+    _format("+ Liked:", liked)
+    _format("- Disliked:", disliked)
 
     summary = "\n".join(lines)
     if len(summary) > max_chars:
@@ -330,7 +341,7 @@ def _build_deny_set_json(profile, ephemeral_deny_tracks=None):
     if ephemeral_deny_tracks:
         deny_set["retry_forbidden_tracks"] = sorted(ephemeral_deny_tracks)
 
-    return json.dumps(deny_set, indent=2)
+    return json.dumps(deny_set, separators=(",", ":"), ensure_ascii=False)
 
 
 def _format_audio_filters(audio_filters):
@@ -495,18 +506,39 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
     if len(artists_hist) > GPT_HISTORY_LIMIT:
         history["suggested_artists"] = artists_hist[-GPT_HISTORY_LIMIT:]
     profile_for_gpt.get("artists", {}).pop("rejected", None)
-    profile_for_gpt.get("feedback", {}).pop("disliked_artists", None)
+    fb_for_gpt = profile_for_gpt.get("feedback", {})
+    fb_for_gpt.pop("disliked_artists", None)
+    # P0.3 trim: liked/disliked tracks are surfaced via build_feedback_summary
+    # (capped, prose-formatted) — sending the raw arrays as well wastes ~1.5 k
+    # tokens per batch with no signal the summary doesn't already carry.
+    fb_for_gpt.pop("liked_tracks", None)
+    fb_for_gpt.pop("disliked_tracks", None)
 
     feedback_summary = build_feedback_summary(profile)
     audio_filters_block = _format_audio_filters(audio_filters)
 
+    profile_json_str = json.dumps(profile_for_gpt, separators=(",", ":"), ensure_ascii=False)
     user_message = user_template.format(
-        profile_json=json.dumps(profile_for_gpt, indent=2),
+        profile_json=profile_json_str,
         deny_set_json=deny_set_json,
         batch_size=effective_batch_size,
         recent_feedback=feedback_summary,
         audio_filters_block=audio_filters_block,
     )
+
+    # Component sizes (chars) — captured for the eval log so we can attribute
+    # batch-to-batch prompt growth to a specific slice. Updated below as
+    # optional blocks are appended.
+    components = {
+        "system": len(system_prompt),
+        "profile": len(profile_json_str),
+        "deny_set": len(deny_set_json),
+        "feedback": len(feedback_summary),
+        "audio_filters": len(audio_filters_block),
+        "pool": 0,
+        "accepted": 0,
+        "diversity_hint": 0,
+    }
 
     # Inject RAG candidate pool when enabled and a corpus is loaded. The
     # deny set (from forbidden + exhausted artists) doubles as the dedup
@@ -553,6 +585,7 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
         pool_block = format_candidate_pool_block(pool)
         if pool_block:
             user_message += f"\n\n{pool_block}"
+            components["pool"] = len(pool_block)
     elif corpus is not None and emerging_only:
         logger.debug("RAG bypassed: emerging_only=True (corpus cannot contain "
                      "artists who debuted in the last 6 months).")
@@ -561,13 +594,15 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
         listing = "\n".join(
             f"- {t['artist']} - {t['track']}" for t in accepted_tracks
         )
-        user_message += (
+        accepted_block = (
             f"\n\nI already accepted these {len(accepted_tracks)} tracks from"
             f" previous batches — do NOT suggest them again:\n{listing}\n\n"
             f"I need {effective_batch_size} MORE tracks. Still return the result in"
             " the same JSON schema but with exactly"
             f" {effective_batch_size} entries in \"playlist\"."
         )
+        user_message += accepted_block
+        components["accepted"] = len(accepted_block)
 
     # Diversity hints when history is large — give GPT a concrete direction.
     # These are instruction-language (always English) — they tell GPT what
@@ -582,7 +617,13 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
             "Explore soundtrack and compilation albums for hidden gems.",
         ]
         hint = diversity_hints[batch_num % len(diversity_hints)]
-        user_message += f"\n\nDiversity guidance: {hint}"
+        diversity_block = f"\n\nDiversity guidance: {hint}"
+        user_message += diversity_block
+        components["diversity_hint"] = len(diversity_block)
+
+    components["user_total"] = len(user_message)
+    global _LAST_PROMPT_COMPONENTS
+    _LAST_PROMPT_COMPONENTS = components
 
     return [
         {"role": "system", "content": system_prompt},
@@ -726,34 +767,52 @@ def _strip_gpt_annotation(artist: str, annotation_words: set) -> str:
     return artist
 
 
-def call_gpt(messages, temperature=0.7):
+def call_gpt(messages, temperature=0.7, return_meta=False):
     """Send the assembled messages to the OpenAI Chat Completions API.
 
     Temperature is configurable — callers pass a lower value on retries
     to push toward more deterministic (less repetitive) output.
+
+    When ``return_meta=True``, returns ``(result, meta)`` where ``meta`` is
+    ``{"usage": dict|None, "latency_s": float}``. ``usage`` is the provider's
+    ``{prompt_tokens, completion_tokens, total_tokens}`` block when available
+    (None for local LLMs that don't report it). Without ``return_meta`` the
+    legacy single-return signature is preserved.
     """
+    import time as _time
+    _t0 = _time.monotonic()
     response = chat_completions_create(
         model=get_model(),
         messages=messages,
         temperature=temperature,
         response_format={"type": "json_object"},
     )
+    latency_s = _time.monotonic() - _t0
 
     raw_content = extract_chat_content(response)
     debug_log("Suggestion Generation", messages, raw_content)
 
+    usage = response.get("usage") if isinstance(response, dict) else None
+    meta = {"usage": usage, "latency_s": latency_s}
+
     content = strip_code_fences(raw_content)
+
+    def _empty():
+        return {"playlist": [], "new_artists": [],
+                "profile_updates": {"suggested_artists": [], "suggested_tracks": []}}
 
     if not content:
         logger.warning("GPT returned empty response. Using empty playlist.")
-        return {"playlist": [], "new_artists": [], "profile_updates": {"suggested_artists": [], "suggested_tracks": []}}
+        result = _empty()
+        return (result, meta) if return_meta else result
 
     try:
-        result = json.loads(content)
-        return normalize_response(result)
+        result = normalize_response(json.loads(content))
     except json.JSONDecodeError:
         logger.warning("GPT response could not be parsed as JSON. Response was: %s", content)
-        return {"playlist": [], "new_artists": [], "profile_updates": {"suggested_artists": [], "suggested_tracks": []}}
+        result = _empty()
+
+    return (result, meta) if return_meta else result
 
 
 def update_profile(profile, result):

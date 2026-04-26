@@ -24,6 +24,30 @@
 - Replacing MusicBrainz with embeddings (TF-IDF stays — reasoning in carry-forward §B.3).
 - Self-hosted LLM on Cloud Run GPU (rejected — cost/quality trade-off bad).
 
+## Post-Phase-0 measurements (2026-04-26, from eval.jsonl after P0 landed)
+
+Two real runs captured immediately after Phase 0 shipped.
+
+| Metric | GPT-5.5 | GPT-5.4-mini | Notes |
+|---|---:|---:|---|
+| Batches | 3 | 4 | mini uses smaller effective batch |
+| Wall-clock (30 tracks) | **299.9 s** | **41.8 s** | 5.5 blows Goal #3 (≤ 60 s) |
+| Batch latency p50 | 105.3 s | 9.1 s | — |
+| Batch latency p95 | **110.4 s** | **9.4 s** | 5.5 is 1.8× over target |
+| Tracks in RAG pool | **0 / 30** | 11 / 30 | pool still not influencing 5.5 picks |
+| must_have cited | 21 / 30 (70%) | 26 / 31 (84%) | mini actually stronger on constraint |
+| Spotify-found | 30 / 30 | 30 / 31 | both excellent |
+| Profile chars/batch | 6,548–6,813 | 7,166–7,270 | ≈ 1.6–1.8 k tok (down from ~7 k) |
+| Deny-set chars/batch | 4,308–4,970 | 5,486–6,257 | grows as run accumulates deny history |
+| Token counts (batch_summary) | **None** | **None** | telemetry bug — see CF-Bug-5 |
+
+**Conclusions**:
+- P0.3 trims landed: profile is ~1.6 k tok, not 7 k. Target (~4 k total) approximately met.
+- GPT-5.5 latency is unacceptably high at p95=110 s. Not usable as the default model unless Phase 1 shrinks the prompt dramatically. Interim: consider switching default back to gpt-5.4-mini until Phase 1 ships.
+- GPT-5.4-mini quality signals are surprisingly competitive (84% must_have_cite vs 70% for 5.5, identical Spotify-found). Warrants staying as the interim default.
+- RAG pool still yields 0 picks on gpt-5.5 — pool-inclusion problem predates Phase 0 and requires Phase 1 P1.1 code-side retrieval to fix.
+- Token counts in batch_summary rows are all `None` — the `llm_usage` from `call_gpt(return_meta=True)` is not flowing into `log_batch_summary`. See CF-Bug-5.
+
 ## Measured baseline (2026-04-24, from eval.jsonl + OpenAI billing)
 
 | Metric | Value | Source |
@@ -49,11 +73,13 @@
 
 ---
 
-# Phase 0 — Bleed stop (this week, no quality risk)
+# Phase 0 — Bleed stop (this week, no quality risk) ✅ DONE 2026-04-26
 
 Goal: stop losing money, start measuring, cleanup false-shipped claims.
 
-## P0.1 — Fix the cost estimator
+**Status**: shipped. P0.1 cost estimator now multiplies by batch count and pulls live prompt sizes from `GET /api/profile/prompt-size`; P0.2 wires `log_batch_summary` + new `log_run_summary` (with p50/p95 batch latency); P0.3 trims (compact JSON in deny set + profile, stripped `liked_tracks`/`disliked_tracks` from `profile_for_gpt`, `recent_feedback` capped to 3 each side × 300 chars/line) all landed. P0.4 reckoning is captured here in this file's commit message when the migration commit lands.
+
+## P0.1 — Fix the cost estimator ✅
 **File**: [frontend/static/js/modules/cost_estimate.js](frontend/static/js/modules/cost_estimate.js#L25-L37)
 
 Today's `estimate()` ignores the deny set, the full profile JSON, the RAG pool, and treats a 30-track playlist as one call.
@@ -66,7 +92,7 @@ Changes:
 
 **Acceptance**: estimator reports within ±20% of OpenAI billing for a 30-track run. Verified by running 1 generation and comparing against billing dashboard.
 
-## P0.2 — Wire eval-log telemetry (incl. latency baseline)
+## P0.2 — Wire eval-log telemetry (incl. latency baseline) ✅
 The functions exist in [eval_log.py:236](core/src/eval_log.py#L236) (`log_batch_summary`, `compute_config_signature`) but `app.py::run_pipeline` never calls them. Net effect: `eval.jsonl` has 0 `batch_summary` rows. We also have no latency baseline today — Goal #3 ("p95 ≤ 60 s") is currently unmeasurable.
 
 Changes in [app.py:712](app.py#L712):
@@ -77,7 +103,7 @@ Changes in [app.py:712](app.py#L712):
 
 **Acceptance**: a generation run produces ≥ 1 `batch_summary` row per LLM call in `eval.jsonl`. Sum of `usage.total_tokens` reconciles to OpenAI dashboard within 5%. Run-level row records p50/p95 batch latency and total wall-clock — establishing the latency baseline that Goal #3 measures against.
 
-## P0.3 — Land the Option A + Option C trims that were claimed shipped but aren't
+## P0.3 — Land the Option A + Option C trims that were claimed shipped but aren't ✅
 todo.md §14 marked these as shipped 2026-04-22. They are not in the codebase. Either ship them or update todo (we're picking ship).
 
 | Trim | File / line | Saving |
@@ -90,7 +116,7 @@ todo.md §14 marked these as shipped 2026-04-22. They are not in the codebase. E
 
 **Acceptance**: per-batch input drops from ~7,000 to ~4,000 tok measured via the new telemetry. No regression in like-rate (run 30 tracks, compare).
 
-## P0.4 — Update todo.md "Re-opened bugs" reckoning
+## P0.4 — Update todo.md "Re-opened bugs" reckoning ✅ (process change)
 Before deleting todo.md (final step of this plan), document in commit message which "✅ shipped" claims were actually false:
 - Option A (BATCH_SIZE_WITH_RAG) — never shipped
 - Option C #1, #4, #5 — never shipped
@@ -348,6 +374,21 @@ Hitting like/dislike on a track keeps current song playing instead of advancing,
 ## CF-Doc-1 — UserManual + README catch-up
 - `documentation/UserManual.md` — add "Dislike a whole artist" subsection (already in help.{en,de,jp}.md).
 - `README.md` — describe the offline-corpus prompt and the artist-dislike behaviour.
+
+## CF-Bug-5 — Batch-summary token counts are always `None`
+`log_batch_summary` receives `llm_usage=None` on every batch despite `call_gpt(return_meta=True)` returning a meta dict. The `_llm_meta` dict is captured and `_batch_latencies` accumulates correctly (run_summary has valid p50/p95), but the usage part never reaches `log_batch_summary`. Root cause likely: `_emit_batch_summary` closure in `app.py` is not forwarding `_llm_meta` to the call. Net effect: we have latency telemetry but zero token-count data — Goal #2 cost reconciliation is unmeasurable until fixed.
+
+**File**: [app.py](app.py) `_emit_batch_summary` closure — verify `llm_usage` argument.
+
+## CF-Bug-6 — Track removal does not stop playback; other tracks cannot start
+Removing a track from the playlist leaves it playing in the preview player. After removal, clicking play on any other track does nothing — the player is stuck. Likely: the removal handler doesn't call `stopPreview()` / reset player state, so the player believes a track is still active and ignores new play requests.
+
+**File**: [frontend/static/js/modules/feedback.js](frontend/static/js/modules/feedback.js) (removal handler) + [frontend/static/js/modules/preview.js](frontend/static/js/modules/preview.js) (player state reset). Likely related to CF-Bug-1 and CF-Bug-3.
+
+## CF-Bug-7 — Settings Save button has no loading indicator
+The `saveSettings()` call can take several seconds (API key validation, model fetch). During this time the button gives no visual feedback, causing users to click multiple times and submit duplicate saves. Fix: disable the Save button and show a spinner immediately on click; re-enable on completion or error.
+
+**File**: [frontend/templates/modals/settings_modal.html](frontend/templates/modals/settings_modal.html) + whichever JS module handles `saveSettings()`.
 
 ## CF-Test-1 — Brittle Playwright selectors
 Replace `text=⚙️ Settings` and `>> text=...` selectors in [frontend/tests/test_page_load.py](frontend/tests/test_page_load.py) and [frontend/tests/test_modals.py](frontend/tests/test_modals.py) with `aria-label` / `data-menu-item` hooks.

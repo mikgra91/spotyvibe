@@ -10,6 +10,7 @@ import { populateReviewPlaylistPicker } from './review.js';
 import { resetDashboard } from './taste_dashboard.js';
 import { i18n } from './i18n.js';
 import { el } from './dom.js';
+import { estimate as estimateCost, recordRunSpend } from './cost_estimate.js';
 
 let _runPlaylistMode = null;  // playlist mode at time of generation (for auto-switch)
 
@@ -316,6 +317,23 @@ export function handleStreamEvent(event) {
             renderTracks();
             const _batchCount = State.suggestions.length;
             if (State.historyBodyOpen) loadHistory();
+
+            // P0.1: add this run's estimated cost to the session-cumulative
+            // spend display. Estimate is provider-side cost only; Spotify is free.
+            try {
+                const _modelEl = el('settings-model-freetext');
+                let _model = '';
+                if (_modelEl && !_modelEl.classList.contains('hidden')) _model = _modelEl.value.trim();
+                if (!_model) {
+                    const _sel = el('settings-model');
+                    if (_sel) _model = _sel.value;
+                }
+                if (_model && _batchCount > 0) {
+                    estimateCost({ model: _model, profileText: '', tracks: _batchCount }).then(r => {
+                        if (r && r.cost) recordRunSpend(r.cost);
+                    });
+                }
+            } catch (_) { /* ignore */ }
             if (event.playlist_url) showPlaylistLink(event.playlist_url);
             if (event.playlist_id) {
                 State.setLastGeneratedPlaylistId(event.playlist_id);

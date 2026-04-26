@@ -268,11 +268,15 @@ def chat_completions_create(
                 "Select a supported model in ⚙️ Settings."
             )
 
+    # Some models (e.g. gpt-5.5) only accept the default temperature and reject
+    # any explicit value, even if it equals the default.
+    _NO_TEMPERATURE_MODELS = {"gpt-5.5"}
     payload: dict = {
         "model": model,
         "messages": messages,
-        "temperature": temperature,
     }
+    if model not in _NO_TEMPERATURE_MODELS:
+        payload["temperature"] = temperature
     if response_format is not None:
         payload["response_format"] = response_format
 

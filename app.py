@@ -100,8 +100,8 @@ from core.src.feedback import like_track, dislike_track
 from core.src.analysis import analyze_band_song
 from core.src.history import save_run, load_runs, update_track_sentiment
 from core.src.utils import get_openai_models, clear_debug_log, sanitize_text, safe_text, app_log
-from core.src.eval_log import log_batch_outcome
-from core.src.suggestions import get_last_rag_pool_names
+from core.src.eval_log import log_batch_outcome, log_batch_summary, compute_config_signature
+from core.src.suggestions import get_last_rag_pool_names, get_last_prompt_components
 from core.src.openai_http import OpenAIConfigError, OpenAIError
 from core.src.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist, delete_playlist,
@@ -649,6 +649,73 @@ def run_pipeline():
             was_cancelled = False
             gpt_exhausted = False
 
+            # P0.2: capture wall-clock latencies (per-batch and run-total) for
+            # the eval log so Goal #3's p95 ≤ 60 s target is measurable.
+            _run_t0 = time.monotonic()
+            _batch_latencies: list[float] = []
+
+            def _emit_batch_summary(*, llm_meta, gpt_returned_count, after_filter_count,
+                                     spotify_found_count, in_pool_count,
+                                     batch_size_used, suggested_playlist):
+                """Best-effort write of one ``batch_summary`` row to eval.jsonl.
+
+                Pulls prompt-component sizes from the most recent ``build_messages``
+                call and merges them with usage + funnel counts. Failure is
+                logged as a warning — telemetry must never break a run.
+                """
+                try:
+                    rag_enabled_now = get_rag_enabled()
+                    pool_names = get_last_rag_pool_names()
+                    components = get_last_prompt_components() or {}
+                    rag_pool_size_cfg = None
+                    rag_stratified_cfg = None
+                    try:
+                        from config import (RAG_POOL_SIZE as _RPS,
+                                            RAG_STRATIFIED as _RST)
+                        rag_pool_size_cfg = _RPS
+                        rag_stratified_cfg = _RST
+                    except ImportError:
+                        pass
+                    sig = compute_config_signature(
+                        rag_enabled=rag_enabled_now,
+                        rag_pool_size=rag_pool_size_cfg,
+                        rag_stratified=rag_stratified_cfg,
+                        effective_batch_size=batch_size_used,
+                        extra={
+                            "compact_json": True,
+                            "stripped_track_arrays": True,
+                        },
+                    )
+                    log_batch_summary(
+                        run_id=run_id,
+                        batch_num=batch_num,
+                        model=get_model(),
+                        rag_enabled=rag_enabled_now,
+                        rag_corpus_meta_path=RAG_META_PATH,
+                        profile_id=get_active_profile_id(),
+                        profile=profile,
+                        eval_log_path=EVAL_LOG_FILE,
+                        debug_mode=get_debug_mode(),
+                        effective_batch_size=batch_size_used,
+                        rag_pool_size=rag_pool_size_cfg,
+                        rag_stratified=rag_stratified_cfg,
+                        candidate_pool_names=pool_names,
+                        prompt_components={
+                            **components,
+                            "latency_s": round(llm_meta.get("latency_s") or 0.0, 3),
+                        },
+                        usage=llm_meta.get("usage"),
+                        gpt_returned_count=gpt_returned_count,
+                        after_filter_count=after_filter_count,
+                        spotify_found_count=spotify_found_count,
+                        in_pool_count=in_pool_count,
+                        consecutive_empty_batches=consecutive_empty_batches,
+                        config_signature=sig,
+                        suggested_playlist=suggested_playlist,
+                    )
+                except Exception as _exc:  # pragma: no cover — never break a run
+                    logger.warning("log_batch_summary skipped: %s", _exc)
+
             # Retry tracking: how many consecutive batches returned entirely
             # filtered results, and which tracks were in the last such batch.
             consecutive_empty_batches = 0
@@ -709,7 +776,9 @@ def run_pipeline():
                 base_temp = client_temperature if client_temperature is not None else 0.7
                 floor = 0.0 if client_temperature is not None else 0.3
                 temperature = max(floor, base_temp - (consecutive_empty_batches * 0.2))
-                result = call_gpt(messages, temperature=temperature)
+                result, _llm_meta = call_gpt(messages, temperature=temperature, return_meta=True)
+                _batch_latencies.append(_llm_meta.get("latency_s") or 0.0)
+                _gpt_returned_count = len(result.get("playlist", []))
 
                 # ── Check again after the blocking GPT call ──
                 if cancel_event.is_set():
@@ -736,6 +805,16 @@ def run_pipeline():
                 if not result["playlist"]:
                     consecutive_empty_batches += 1
                     last_filtered_tracks = filtered_out  # used in next build_messages call
+
+                    _emit_batch_summary(
+                        llm_meta=_llm_meta,
+                        gpt_returned_count=_gpt_returned_count,
+                        after_filter_count=0,
+                        spotify_found_count=0,
+                        in_pool_count=0,
+                        batch_size_used=request_count,
+                        suggested_playlist=[],
+                    )
 
                     if consecutive_empty_batches >= MAX_CONSECUTIVE_EMPTY_BATCHES:
                         gpt_exhausted = True
@@ -795,6 +874,21 @@ def run_pipeline():
                         eval_log_path=EVAL_LOG_FILE,
                         debug_mode=get_debug_mode(),
                     )
+                    _pool_set = ({n.lower().strip() for n in _pool_names if n}
+                                 if _pool_names is not None else set())
+                    _in_pool_count = sum(
+                        1 for t in result["playlist"]
+                        if (t.get("artist") or "").lower().strip() in _pool_set
+                    ) if _pool_set else 0
+                    _emit_batch_summary(
+                        llm_meta=_llm_meta,
+                        gpt_returned_count=_gpt_returned_count,
+                        after_filter_count=len(result["playlist"]),
+                        spotify_found_count=len(found),
+                        in_pool_count=_in_pool_count,
+                        batch_size_used=request_count,
+                        suggested_playlist=result["playlist"],
+                    )
                 except Exception as _exc:  # pragma: no cover — never break a run
                     logger.warning("eval_log_outcome skipped: %s", _exc)
 
@@ -831,6 +925,25 @@ def run_pipeline():
                 # Inform the UI how many tracks we have so far (drives the
                 # "Use X tracks now" button label)
                 yield _sse("batch_verified", count=len(verified_tracks), total=playlist_size)
+
+            # P0.2: emit run-level latency baseline (Goal #3 measurability).
+            try:
+                from core.src.eval_log import log_run_summary
+                log_run_summary(
+                    run_id=run_id,
+                    model=get_model(),
+                    profile_id=get_active_profile_id(),
+                    eval_log_path=EVAL_LOG_FILE,
+                    debug_mode=get_debug_mode(),
+                    batch_count=batch_num,
+                    batch_latencies_s=_batch_latencies,
+                    total_wall_s=time.monotonic() - _run_t0,
+                    verified_count=len(verified_tracks),
+                    playlist_size=playlist_size,
+                    gpt_call_count=gpt_call_count,
+                )
+            except Exception as _exc:  # pragma: no cover
+                logger.warning("log_run_summary skipped: %s", _exc)
 
             # ── Handle cancellation ────────────────────────────────────────
             if was_cancelled:
@@ -1423,6 +1536,58 @@ def profile_data():
         return jsonify({})
     profile = load_profile()
     return jsonify(profile)
+
+
+@app.route("/api/profile/prompt-size")
+def profile_prompt_size():
+    """Return prompt-slice char counts for the live profile.
+
+    Used by the cost estimator (P0.1) so it can compute realistic per-batch
+    token costs against the *actual* serialised profile + deny set + RAG pool,
+    not against the train-form textareas (which omit ~3/4 of the real prompt).
+
+    Response shape::
+
+        {"trained": bool,
+         "batch_size": 10,
+         "system_chars": int,
+         "user_chars": int,
+         "profile_chars": int,
+         "deny_chars": int,
+         "pool_chars": int,
+         "feedback_chars": int,
+         "ai_update_chars": int}        # estimated train-profile prompt size
+
+    ``ai_update_chars`` is an estimate — the train_profile prompt sends the
+    full profile JSON and expects an updated profile back. The estimator uses
+    profile size × 2 plus a fixed system-prompt overhead.
+    """
+    if not get_active_profile_id() or not is_profile_trained():
+        return jsonify({"trained": False})
+    try:
+        profile = load_profile()
+        normalize_history(profile)
+        msgs = build_messages(profile, batch_size=BATCH_SIZE)
+        components = get_last_prompt_components() or {}
+        # Rough AI Profile Update size: profile JSON sent + returned, plus
+        # ~1500 chars system overhead. Real number depends on user input
+        # length; this is a consistent-direction estimate for the UI.
+        profile_chars = components.get("profile") or len(json.dumps(profile, separators=(",", ":")))
+        ai_update_chars = profile_chars * 2 + 1500
+        return jsonify({
+            "trained": True,
+            "batch_size": BATCH_SIZE,
+            "system_chars": len(msgs[0]["content"]),
+            "user_chars": len(msgs[1]["content"]),
+            "profile_chars": profile_chars,
+            "deny_chars": components.get("deny_set", 0),
+            "pool_chars": components.get("pool", 0),
+            "feedback_chars": components.get("feedback", 0),
+            "ai_update_chars": ai_update_chars,
+        })
+    except Exception as exc:
+        app.logger.warning("prompt-size endpoint failed: %s", exc)
+        return jsonify({"trained": False, "error": str(exc)}), 500
 
 
 @app.route("/api/profile/export")
