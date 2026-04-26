@@ -327,6 +327,55 @@ Approx ~$0.30 per full evaluation (3 models × 1 iteration, playlist_size=30). g
 
 If you find yourself manually running the dev server multiple times to compare two model variants — stop, run `python evaluation/run_evaluation.py`, and read `comparison.md`. That is what it exists for.
 
+## Phase 1 — Critical regression analysis: gpt-5.5 hallucination spike (open, 2026-04-26)
+
+**User report**: since the Phase 1 staged-pipeline shipped, gpt-5.5 produces playlists where ~90 % of suggested tracks fail Spotify verification. Pre-Phase-1 the same model had a 96.8 % Spotify-found rate (see baseline table line 57). This is a **catastrophic regression that the eval period would never have surfaced** because the eval was originally judged on cost/latency, not on raw not-found counts. **This task is now blocking the eval-period sign-off and Phase 2.**
+
+### What we know
+
+Investigation during 2026-04-26 eval-harness debugging produced these data points (full forensic notes in this commit's Bash transcripts):
+
+- **Artists are real, tracks are not.** Spot-check of 13 RAG-retrieved candidate artists that gpt-5.5 picked ([Newfangled Four, Niflhel, Nite Mrkt, I Heard Whispers, CousCous, Le Grand Sbam, anna.luca, Ben Barnes, Elephant, …]): 12 / 13 exist on Spotify under their `artist:"…"` query. The miss is at the **track** level — gpt-5.5 invents plausible track titles that aren't in those artists' catalogs. Stage 3 only sees an artist-name list; it has nothing to ground track titles against.
+- **gpt-5.4-mini does not show this pattern in production**: the user's manual usage with `gpt-5.4-mini` + `playlist_size=10` against a profile with 108 history artists / 43 confirmed / 52 liked reports a 96 % Spotify-hit rate. The smaller model appears to refuse / fall back when it doesn't know an artist's discography; gpt-5.5 confabulates instead.
+- **Two confounding bugs already fixed in this commit** (so are NOT the cause of the residual problem, but were inflating the apparent severity during diagnosis):
+  - History-pollution: pre-fix, even unverified suggestions inflated `history.suggested_tracks`, pushing artists past `EXHAUSTED_ARTIST_THRESHOLD = 4` after 4 hallucinated picks each, falsely shrinking the available candidate pool mid-run. Fixed in [app.py](app.py) — only Spotify-verified tracks now reach `update_profile`.
+  - Cross-batch hallucination repeats: pre-fix, with `history.suggested_tracks` empty (bug above) the same not-found tracks could be re-suggested every batch. Fixed via per-run `_run_unverified` list fed back through `recently_filtered_tracks`.
+- **The RAG query had a stop-word leak** (`or` carried weight 4.0 — top-ranked tag — from prose like "art-pop or J-pop crossover"). Fixed in [core/src/rag/retrieval.py](core/src/rag/retrieval.py); reduces but does not eliminate the obscurity bias of returned candidates.
+- **Eval seed profile is the *worst-case* RAG input**: prose-only `must_have`/`soft_preferences`/`avoid`/`core_description`, no `genres`/`moods` arrays, no `primary_reference`, no history, no confirmed. RAG anchoring is at its weakest, so the candidate pool skews to long-tail MB-tag matches the model has shaky discography knowledge of.
+
+### Hypotheses to test
+
+In likely order of explanatory power. Ranking is a guess — pick whichever is cheapest to falsify first.
+
+1. **Stage 3's prompt amputation removed the grounding gpt-5.5 needs.** Pre-Phase-1, the monolithic call shipped the full profile JSON + RAG pool to a single big-context model. Post-Phase-1, Stage 3 sees only the **artist name list** + a 200-token taste summary; it lost access to the candidate pool's metadata (Spotify genres, MB tags, popularity), the user's history (which would prime it on artists it knows tracks for), and feedback reasons. For gpt-5.4-mini this leanness might be neutral or positive (fewer distractors), but for gpt-5.5 — which was producing 96.8 % Spotify-found in the monolithic regime — the missing context may be exactly what kept track-name confabulation in check.
+2. **The `taste_summary` is failing to convey "modern, on-Spotify" priors.** [build_taste_summary in suggestions.py](core/src/suggestions.py) is deterministic but condensed. If it drops era or popularity hints, gpt-5.5 has no signal to prefer artists with documented tracks.
+3. **Stage 3 system prompt actively encourages confabulation.** [prompts/track_select_system.txt](prompts/track_select_system.txt) instructs the model to produce N tracks per batch with rationale. There is no clause like *"if you do not know an actual track by this artist, omit them rather than invent"*. gpt-5.5 may be optimizing for the produced-quantity contract over factual grounding.
+4. **The avoid-checker (Stage 2) approves obscure long-tail artists wholesale.** With a fresh seed, almost no artist matches an avoid trait → Stage 2 returns the entire Stage 1 list → Stage 3 has 50 obscure names to pick from with no signal to prefer the more-discoverable ones. gpt-5.4-mini's caution may save it; gpt-5.5's confidence may not.
+5. **RAG corpus enrichment status is misleading the popularity penalty.** Local corpus version 2026-04-22 has `spotify_popularity is None` for all 172 827 rows, so [retrieval.py](core/src/rag/retrieval.py) falls back to MB `listener_popularity`, then applies the discovery-sweet-spot ×1.10 boost for `0.3 ≤ pop ≤ 0.7` — exactly the band where MB-only artists with no Spotify presence cluster. The Phase-2 cloud-run enrichment is supposed to populate these fields but the published manifest has not been refreshed.
+
+### Investigation plan
+
+Run as a sequenced suite — each step's outcome decides whether the next is worth running. Capture findings inline; do **not** ship fixes until a hypothesis is confirmed.
+
+1. **Pin the regression to Phase 1.** Re-run the eval harness on the *pre-Phase-1* monolithic commit (`a0330e3` is post-Phase-0 / pre-Phase-1 — verify) with the same seed and gpt-5.5. Record Spotify-found rate. If it's near 96 %, hypothesis 1 is confirmed structurally. If it's also ~10 %, the regression is older than Phase 1 and this whole analysis re-targets.
+2. **Identify which prompt slice was load-bearing.** Re-run staged-pipeline gpt-5.5 with three variants:
+   - Stage 3 prompt augmented with the candidate pool's `{name, mb_tags, spotify_genres, listener_popularity}` (i.e. the Stage 1 candidate metadata, not just names).
+   - Stage 3 prompt augmented with the last-50 `history.suggested_artists` so the model sees what the user has previously been suggested.
+   - Stage 3 prompt with both. Whichever variant restores the hit rate identifies the load-bearing context.
+3. **Hallucination-discipline clause.** Add to [prompts/track_select_system.txt](prompts/track_select_system.txt): *"If you cannot recall an actual released track by an approved artist, drop that artist from this batch. Returning fewer tracks is correct; inventing track names is not."* Re-run; measure delta independently of step 2.
+4. **Profile signal strength**. Re-run with `genres` / `moods` arrays added to the seed (matching the Phase 4 `taste_vector` shape). RAG retrieval should anchor more tightly; measure whether Stage 3 hit rate improves regardless of the prompt patches in steps 2 / 3.
+5. **Corpus-enrichment baseline.** Re-run after a fresh enriched-corpus pull (run the cloud-run enrichment job, publish to manifest). Confirm `_artist_popularity` returns Spotify-derived values for the candidate pool. Measure delta against an unenriched-corpus run on the same model + prompt.
+
+### Acceptance
+
+- Spotify-found rate for gpt-5.5 in the canonical eval scenario is restored to ≥ **90 %** (pre-Phase-1 baseline was 96.8 %).
+- Root cause is documented (which combination of hypotheses explained it) and fixed in code, not by reverting Phase 1.
+- A regression test pins the fix: a deterministic mini-eval (1 model × 1 iteration × small playlist) that fails CI if the hit rate drops below the floor.
+
+### Why this matters
+
+Phase 1's premise was *"split the call to enforce constraints the model is currently ignoring"* (Goal #1). If splitting the call destroys Goal #4 (≥ 95 % Spotify-found) on the quality model, the rework is net-negative — we traded constraint enforcement for hallucination, which the user judges immediately and harshly. **Phase 5's cost A/B cannot proceed until this is closed**: any cheaper variant that posts a similar hit rate to the broken gpt-5.5 baseline would be hidden by the regression rather than benchmarked against a working one.
+
 ---
 
 # Phase 2 — Quality enforcement (weeks 3–4)
