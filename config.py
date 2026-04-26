@@ -76,6 +76,16 @@ DEFAULT_NEW_ARTIST_PERCENTAGE = 30
 # Default OpenAI model used when none is configured
 DEFAULT_OPENAI_MODEL = "gpt-5.5"
 
+# Stage 2 avoid-compliance checker model (binary classification — cheapest mini).
+# Used by check_avoid_compliance() in suggestions.py. Falls back to get_model()
+# for local providers where a separate mini variant may not exist.
+STAGE2_MODEL = "gpt-5.4-mini"
+
+# Number of candidate artists retrieved by Stage 1 code-side retrieval (P1.1).
+# Intentionally larger than a single batch so Stage 2 + Stage 3 have room to
+# be selective without starving the playlist.
+RETRIEVE_CANDIDATES_SIZE = 50
+
 # Curated list of known-good OpenAI model IDs for chat completions.
 # Order determines display order in the Settings dropdown.
 OPENAI_SUPPORTED_MODELS_JSON = [
@@ -173,11 +183,17 @@ def set_rag_enabled(enabled: bool) -> None:
 def _get_app_dir() -> Path:
     """Return the platform-appropriate storage directory.
 
-    Resolves to:
+    Resolves to (highest priority first):
+    - ``$SPOTYVIBE_APP_DIR`` if set (used by the evaluation harness to
+      sandbox test runs without touching the user's real profiles +
+      eval log + Spotify cache).
     - Windows: %LOCALAPPDATA%/spotyvibe/
     - macOS: ~/Library/Application Support/spotyvibe/
     - Linux: ~/.local/share/spotyvibe/ (or $XDG_DATA_HOME/spotyvibe/)
     """
+    override = os.environ.get("SPOTYVIBE_APP_DIR")
+    if override:
+        return Path(override)
     if sys.platform == "win32":
         return Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))) / "spotyvibe"
     elif sys.platform == "darwin":
@@ -660,5 +676,44 @@ def set_llm_provider_preset(preset: str):
 def llm_api_key_required() -> bool:
     """Return True if the current provider requires an API key."""
     return get_llm_provider_preset() not in LOCAL_PRESETS
+
+
+def get_stage2_model() -> str:
+    """Return the model for Stage 2 avoid-compliance checking.
+
+    Cloud providers (OpenAI, Groq, OpenRouter): use STAGE2_MODEL (gpt-5.4-mini)
+    so the cheap binary-classification call stays cheap. Local providers
+    (Ollama, LM Studio) may not have a separate mini variant, so fall back
+    to whatever the user has configured as their main model.
+    """
+    if get_llm_provider_preset() not in LOCAL_PRESETS:
+        return STAGE2_MODEL
+    return get_model()
+
+
+def validate_pricing_entries() -> list[str]:
+    """Check that pricing.json has entries for the models we route LLM calls to.
+
+    Missing entries cause the cost estimator to silently report $0 for a
+    feature that is actually billable, which is a real problem during the
+    Phase 1 evaluation period. Returns a list of model IDs we expect but
+    cannot find. Caller logs the result; we don't raise so a missing entry
+    never blocks startup.
+    """
+    import json as _json
+    pricing_file = BASE_DIR / "frontend" / "static" / "data" / "pricing.json"
+    expected = [DEFAULT_OPENAI_MODEL, STAGE2_MODEL]
+    missing: list[str] = []
+    if not pricing_file.exists():
+        return expected  # treat all as missing
+    try:
+        data = _json.loads(pricing_file.read_text(encoding="utf-8"))
+        priced_models = set((data.get("models") or {}).keys())
+    except (OSError, _json.JSONDecodeError):
+        return expected
+    for m in expected:
+        if m not in priced_models:
+            missing.append(m)
+    return missing
 
 

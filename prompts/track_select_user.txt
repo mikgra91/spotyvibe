@@ -1,0 +1,11 @@
+APPROVED_ARTISTS (ONLY suggest tracks by these artists):
+{approved_artists}
+
+TASTE SUMMARY:
+{taste_summary}
+
+{recent_feedback}
+
+{audio_filters_block}
+
+Suggest at least {batch_size} tracks following all system instructions. Return only JSON.

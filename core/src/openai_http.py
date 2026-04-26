@@ -324,25 +324,49 @@ def call_gpt_json(messages, temperature=0.7, label="GPT Call"):
     Raises:
         ValueError: If GPT returns empty or unparseable JSON.
     """
+    result, _meta = call_gpt_json_with_meta(messages, temperature=temperature, label=label)
+    return result
+
+
+def call_gpt_json_with_meta(messages, temperature=0.7, label="GPT Call"):
+    """Same as ``call_gpt_json`` but also returns telemetry meta.
+
+    Returns ``(result, meta)`` where ``meta = {"usage": …, "latency_s": …,
+    "model": "…", "raw_response_chars": int}``. Used by features that
+    write per-call rows to the eval log (Band/Song Analysis, AI Profile
+    Update, Stage 2 avoid-checker, etc.) so cost / latency / quality can be
+    compared across model A/B variants.
+    """
     from .utils import strip_code_fences, debug_log
     from config import get_model
 
+    model = get_model()
+    t0 = time.monotonic()
     response = chat_completions_create(
-        model=get_model(),
+        model=model,
         messages=messages,
         temperature=temperature,
         response_format={"type": "json_object"},
     )
+    latency_s = time.monotonic() - t0
 
     raw = extract_chat_content(response)
     debug_log(label, messages, raw)
     content = strip_code_fences(raw)
 
+    usage = response.get("usage") if isinstance(response, dict) else None
+    meta = {
+        "usage": usage,
+        "latency_s": latency_s,
+        "model": model,
+        "raw_response_chars": len(raw or ""),
+    }
+
     if not content:
         raise ValueError(f"AI returned an empty response ({label}). Please try again.")
 
     try:
-        return json.loads(content)
+        return json.loads(content), meta
     except json.JSONDecodeError as exc:
         raise ValueError(f"AI returned invalid JSON ({label}). Please try again.") from exc
 

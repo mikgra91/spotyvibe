@@ -9,7 +9,7 @@ import pytest
 
 from core.src.rag.corpus import RagCorpus
 from core.src.rag.retrieval import (build_query_tags, score_artists,
-                                    score_artists_stratified)
+                                    score_artists_stratified, retrieve_candidates)
 
 
 ARTISTS = [
@@ -228,3 +228,90 @@ def test_mixed_legacy_and_enriched_corpus(tmp_path):
     assert len(pool) == 2
     names = {a.name for a in pool}
     assert names == {"Legacy", "Enriched"}
+
+
+# ── retrieve_candidates (Phase 1 Stage 1) ────────────────────────────
+
+_RETRIEVE_ARTISTS = [
+    # in popularity band, matches must_have
+    {"mbid": "r1", "name": "Good Fit", "tags": ["indie rock", "quirky"],
+     "tag_weights": [6, 4], "listener_popularity": 0.5},
+    # avoid-tagged artist
+    {"mbid": "r2", "name": "Classic Rock Band", "tags": ["classic rock", "hard rock"],
+     "tag_weights": [8, 7], "listener_popularity": 0.5},
+    # too popular (above band)
+    {"mbid": "r3", "name": "Mega Famous", "tags": ["indie rock"],
+     "tag_weights": [9], "listener_popularity": 0.95},
+    # in band, different tags — should survive without must_have hard filter
+    {"mbid": "r4", "name": "Discovery Artist", "tags": ["indie rock", "post-punk"],
+     "tag_weights": [5, 3], "listener_popularity": 0.4},
+    # deny-listed (should never appear)
+    {"mbid": "r5", "name": "History Artist", "tags": ["indie rock"],
+     "tag_weights": [6], "listener_popularity": 0.5},
+]
+
+
+@pytest.fixture
+def retrieve_corpus(tmp_path):
+    path = tmp_path / "artists.jsonl.gz"
+    with gzip.open(path, "wt", encoding="utf-8") as fh:
+        for a in _RETRIEVE_ARTISTS:
+            fh.write(json.dumps(a) + "\n")
+    return RagCorpus.load(path)
+
+
+def test_retrieve_candidates_returns_artists(retrieve_corpus):
+    profile = {"preferences": {"must_have": ["indie rock"], "avoid": []}}
+    result = retrieve_candidates(retrieve_corpus, profile, target_size=10)
+    assert len(result) > 0
+    names = {a.name for a in result}
+    assert "Good Fit" in names
+    assert "Discovery Artist" in names
+
+
+def test_retrieve_candidates_deny_keys_excluded(retrieve_corpus):
+    profile = {"preferences": {"must_have": ["indie rock"], "avoid": []}}
+    result = retrieve_candidates(
+        retrieve_corpus, profile,
+        deny_keys=["history artist"],
+        target_size=10,
+    )
+    names = {a.name for a in result}
+    assert "History Artist" not in names
+
+
+def test_retrieve_candidates_avoid_filter(retrieve_corpus):
+    profile = {
+        "preferences": {
+            "must_have": ["indie rock"],
+            "avoid": ["classic rock"],
+        }
+    }
+    result = retrieve_candidates(retrieve_corpus, profile, target_size=10)
+    names = {a.name for a in result}
+    assert "Classic Rock Band" not in names
+    assert "Good Fit" in names
+
+
+def test_retrieve_candidates_popularity_band(retrieve_corpus):
+    profile = {"preferences": {"must_have": ["indie rock"], "avoid": []}}
+    # Use target_size=4: in-band threshold = 4//2 = 2. Four artists are in-band
+    # (pop 0.4-0.5), so the band filter applies and Mega Famous (pop=0.95) is dropped.
+    result = retrieve_candidates(retrieve_corpus, profile, target_size=4)
+    names = {a.name for a in result}
+    assert "Mega Famous" not in names
+
+
+def test_retrieve_candidates_empty_corpus(tmp_path):
+    path = tmp_path / "empty.jsonl.gz"
+    with gzip.open(path, "wt", encoding="utf-8") as fh:
+        pass
+    corpus = RagCorpus.load(path)
+    result = retrieve_candidates(corpus, {}, target_size=10)
+    assert result == []
+
+
+def test_retrieve_candidates_target_size_respected(retrieve_corpus):
+    profile = {"preferences": {"must_have": ["indie rock"], "avoid": []}}
+    result = retrieve_candidates(retrieve_corpus, profile, target_size=2)
+    assert len(result) <= 2

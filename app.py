@@ -31,6 +31,7 @@ from config import (
     _get_app_dir, get_active_profile_id, MAX_PROFILE_NAME_LEN,
     get_ui_language,
     EVAL_LOG_FILE, RAG_META_PATH, get_rag_enabled,
+    RETRIEVE_CANDIDATES_SIZE, RAG_POPULARITY_PENALTY,
 )
 import markdown
 
@@ -94,14 +95,19 @@ from core.src.suggestions import (
     normalize_history,
     build_messages, call_gpt, update_profile,
     filter_duplicate_suggestions,
-    set_rag_corpus,
+    set_rag_corpus, get_rag_corpus,
+    build_taste_summary, check_avoid_compliance, select_tracks,
+    collect_forbidden_artists,
+    get_last_rag_pool_names, get_last_prompt_components,
+    set_last_rag_pool_names,
 )
 from core.src.feedback import like_track, dislike_track
 from core.src.analysis import analyze_band_song
 from core.src.history import save_run, load_runs, update_track_sentiment
 from core.src.utils import get_openai_models, clear_debug_log, sanitize_text, safe_text, app_log
-from core.src.eval_log import log_batch_outcome, log_batch_summary, compute_config_signature
-from core.src.suggestions import get_last_rag_pool_names, get_last_prompt_components
+from core.src.eval_log import (log_batch_outcome, log_batch_summary,
+                                compute_config_signature, log_stage2_summary)
+from core.src.rag import retrieve_candidates
 from core.src.openai_http import OpenAIConfigError, OpenAIError
 from core.src.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist, delete_playlist,
@@ -166,6 +172,21 @@ def get_rag_update_status() -> dict:
 
 _load_rag_corpus_if_enabled()
 _check_rag_corpus_update()
+
+
+# Pricing sanity check — log any models we route LLM calls to that lack a
+# pricing entry, so the cost estimator and the eval-log analyst know to
+# treat their cost as missing rather than $0.
+try:
+    from config import validate_pricing_entries as _validate_pricing
+    _missing_pricing = _validate_pricing()
+    if _missing_pricing:
+        logger.warning(
+            "pricing.json missing entries for: %s — cost estimator will under-report",
+            ", ".join(_missing_pricing),
+        )
+except Exception as _exc:  # pragma: no cover
+    logger.debug("pricing validation skipped: %s", _exc)
 
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
@@ -654,18 +675,59 @@ def run_pipeline():
             _run_t0 = time.monotonic()
             _batch_latencies: list[float] = []
 
+            # Forward declarations populated by the staged-pipeline block below
+            # so _emit_batch_summary can read them without conditionally importing.
+            _stage1_candidates: list = []
+            _approved_names: list[str] = []
+            _stage2_meta: dict = {}
+            _config_sig_cache: str | None = None
+
+            # In-run ephemeral deny: tracks GPT suggested that Spotify could
+            # not verify. Without this, GPT keeps re-suggesting the same
+            # hallucinated track names every batch (since they never enter
+            # history — only verified tracks do). Capped to keep the prompt
+            # small; the suggestions module further trims to the 20 most
+            # recent before injection.
+            _run_unverified: list[dict] = []
+            _RUN_UNVERIFIED_CAP = 80
+
+            def _build_config_signature(batch_size_used: int) -> str:
+                """Build the eval-log config_signature for this run/batch.
+
+                Adds ``phase1_pipeline`` to ``extra`` so legacy vs staged runs
+                bucket cleanly in pandas. Cached per batch so signature is
+                stable across batch_summary and stage2_summary rows.
+                """
+                rag_pool_size_cfg = None
+                rag_stratified_cfg = None
+                try:
+                    from config import (RAG_POOL_SIZE as _RPS,
+                                        RAG_STRATIFIED as _RST)
+                    rag_pool_size_cfg = _RPS
+                    rag_stratified_cfg = _RST
+                except ImportError:
+                    pass
+                return compute_config_signature(
+                    rag_enabled=get_rag_enabled(),
+                    rag_pool_size=rag_pool_size_cfg,
+                    rag_stratified=rag_stratified_cfg,
+                    effective_batch_size=batch_size_used,
+                    extra={
+                        "compact_json": True,
+                        "stripped_track_arrays": True,
+                        "phase1_pipeline": _use_staged_pipeline,
+                    },
+                )
+
             def _emit_batch_summary(*, llm_meta, gpt_returned_count, after_filter_count,
                                      spotify_found_count, in_pool_count,
                                      batch_size_used, suggested_playlist):
                 """Best-effort write of one ``batch_summary`` row to eval.jsonl.
 
-                Pulls prompt-component sizes from the most recent ``build_messages``
-                call and merges them with usage + funnel counts. Failure is
-                logged as a warning — telemetry must never break a run.
+                Failure is logged as a warning — telemetry must never break a run.
                 """
                 try:
                     rag_enabled_now = get_rag_enabled()
-                    pool_names = get_last_rag_pool_names()
                     components = get_last_prompt_components() or {}
                     rag_pool_size_cfg = None
                     rag_stratified_cfg = None
@@ -676,16 +738,15 @@ def run_pipeline():
                         rag_stratified_cfg = _RST
                     except ImportError:
                         pass
-                    sig = compute_config_signature(
-                        rag_enabled=rag_enabled_now,
-                        rag_pool_size=rag_pool_size_cfg,
-                        rag_stratified=rag_stratified_cfg,
-                        effective_batch_size=batch_size_used,
-                        extra={
-                            "compact_json": True,
-                            "stripped_track_arrays": True,
-                        },
-                    )
+
+                    # Per-track in_candidate_pool measures membership in the
+                    # binding constraint set: Stage 2 approved (staged path)
+                    # or the legacy RAG pool (legacy path).
+                    if _use_staged_pipeline:
+                        per_track_pool_names = _approved_names
+                    else:
+                        per_track_pool_names = get_last_rag_pool_names()
+
                     log_batch_summary(
                         run_id=run_id,
                         batch_num=batch_num,
@@ -699,22 +760,124 @@ def run_pipeline():
                         effective_batch_size=batch_size_used,
                         rag_pool_size=rag_pool_size_cfg,
                         rag_stratified=rag_stratified_cfg,
-                        candidate_pool_names=pool_names,
-                        prompt_components={
-                            **components,
-                            "latency_s": round(llm_meta.get("latency_s") or 0.0, 3),
-                        },
+                        candidate_pool_names=per_track_pool_names,
+                        prompt_components=components,
                         usage=llm_meta.get("usage"),
+                        latency_s=llm_meta.get("latency_s"),
                         gpt_returned_count=gpt_returned_count,
                         after_filter_count=after_filter_count,
                         spotify_found_count=spotify_found_count,
                         in_pool_count=in_pool_count,
                         consecutive_empty_batches=consecutive_empty_batches,
-                        config_signature=sig,
+                        config_signature=_build_config_signature(batch_size_used),
                         suggested_playlist=suggested_playlist,
+                        stage1_candidate_count=len(_stage1_candidates) if _use_staged_pipeline else None,
+                        stage2_approved_count=len(_approved_names) if _use_staged_pipeline else None,
                     )
                 except Exception as _exc:  # pragma: no cover — never break a run
                     logger.warning("log_batch_summary skipped: %s", _exc)
+
+            # ── Phase 1: three-stage pipeline pre-computation ────────────────
+            # Stage 1 (code-side retrieval) + Stage 2 (avoid-compliance mini
+            # LLM) run once per generation run, before the batching loop.
+            # Stage 3 (select_tracks) is then called per batch.
+            #
+            # Activated when RAG is enabled and the corpus is loaded.
+            # Falls back to the existing build_messages + call_gpt path otherwise.
+            _corpus = get_rag_corpus()
+            _use_staged_pipeline = _corpus is not None and get_rag_enabled() and not emerging_only
+
+            _taste_summary: str = ""
+            _avoid_traits: list[str] = []
+
+            if _use_staged_pipeline:
+                try:
+                    yield _sse("progress", message="Stage 1: building candidate pool…")
+                    # deny_keys = forbidden artists + confirmed anchors + history
+                    _deny_keys = collect_forbidden_artists(profile)
+                    _confirmed_names = {
+                        (a.get("name", "") if isinstance(a, dict) else str(a)).lower().strip()
+                        for a in profile.get("artists", {}).get("confirmed", [])
+                    }
+                    _history_names = {
+                        a.lower().strip()
+                        for a in profile.get("history", {}).get("suggested_artists", [])
+                    }
+                    _deny_keys = _deny_keys | _confirmed_names | _history_names
+                    _stage1_candidates = retrieve_candidates(
+                        _corpus, profile,
+                        deny_keys=_deny_keys,
+                        target_size=RETRIEVE_CANDIDATES_SIZE,
+                        popularity_penalty=RAG_POPULARITY_PENALTY,
+                    )
+                    set_last_rag_pool_names([a.name for a in _stage1_candidates])
+
+                    _avoid_traits = (profile.get("preferences", {}) or {}).get("avoid") or []
+                    if isinstance(_avoid_traits, str):
+                        _avoid_traits = [_avoid_traits]
+
+                    if _stage1_candidates:
+                        yield _sse("progress",
+                                   message=f"Stage 2: avoid-compliance check on {len(_stage1_candidates)} candidates…")
+                        _approved_names, _stage2_meta = check_avoid_compliance(
+                            [a.name for a in _stage1_candidates],
+                            _avoid_traits,
+                        )
+                    else:
+                        _approved_names = []
+                        _stage2_meta = {"status": "skipped_empty_input",
+                                        "latency_s": None, "usage": None,
+                                        "model": None, "prompt_chars": 0}
+
+                    # Distinguish three cases when _approved_names is empty:
+                    #   (a) Stage 1 returned nothing — fall back to legacy.
+                    #   (b) Stage 2 errored out — check_avoid_compliance falls
+                    #       back internally to the full candidate list, so this
+                    #       branch is unreachable for status="error".
+                    #   (c) Stage 2 correctly rejected ALL candidates (empty
+                    #       response or every artist matched an avoid trait) —
+                    #       falling back to legacy hides this from the user;
+                    #       continue with empty approved and surface a warning.
+                    if not _approved_names and not _stage1_candidates:
+                        logger.warning("Stage 1 returned no candidates — falling back to legacy path")
+                        _use_staged_pipeline = False
+                    elif not _approved_names:
+                        logger.warning(
+                            "Stage 2 rejected all %d candidates — staying on staged path with empty approved list",
+                            len(_stage1_candidates),
+                        )
+                        _taste_summary = build_taste_summary(profile)
+                        yield _sse("progress",
+                                   message="Stage 2 rejected all candidates — Stage 3 will surface this as no tracks.")
+                    else:
+                        _taste_summary = build_taste_summary(profile)
+                        yield _sse("progress",
+                                   message=f"Stage 2 approved {len(_approved_names)} artists. Starting track selection…")
+                except Exception as _stage_exc:
+                    logger.warning("Phase 1 staging failed (%s) — falling back to legacy path", _stage_exc)
+                    _use_staged_pipeline = False
+
+                # Stage 2 telemetry — one row per generation run.
+                try:
+                    if _stage2_meta:
+                        log_stage2_summary(
+                            run_id=run_id,
+                            model=(_stage2_meta.get("model") or get_model()),
+                            profile_id=get_active_profile_id(),
+                            profile=profile,
+                            eval_log_path=EVAL_LOG_FILE,
+                            debug_mode=get_debug_mode(),
+                            candidates_in=len(_stage1_candidates),
+                            approved_out=len(_approved_names),
+                            avoid_traits_count=len(_avoid_traits),
+                            status=_stage2_meta.get("status", "ok"),
+                            latency_s=_stage2_meta.get("latency_s"),
+                            usage=_stage2_meta.get("usage"),
+                            prompt_chars=_stage2_meta.get("prompt_chars"),
+                            config_signature=_build_config_signature(BATCH_SIZE),
+                        )
+                except Exception as _exc:  # pragma: no cover
+                    logger.warning("log_stage2_summary skipped: %s", _exc)
 
             # Retry tracking: how many consecutive batches returned entirely
             # filtered results, and which tracks were in the last such batch.
@@ -758,25 +921,47 @@ def run_pipeline():
                 if large_history and large_history_half is not None and len(verified_tracks) >= large_history_half:
                     effective_nap = min(new_artist_percentage + 40, 95)
 
-                messages = build_messages(
-                    profile,
-                    accepted_tracks=accepted,
-                    batch_size=request_count,
-                    recently_filtered_tracks=last_filtered_tracks if last_filtered_tracks else None,
-                    new_artist_percentage=effective_nap,
-                    batch_num=batch_num,
-                    audio_filters=audio_filters or None,
-                    emerging_only=emerging_only,
-                )
-                gpt_call_count += 1
                 # Adaptive temperature: lower on retries for more deterministic output.
-                # When the user explicitly sets a temperature, use their value as the
-                # baseline and allow it to go as low as 0.0.  The 0.3 floor only
-                # applies to the server default (no user override).
                 base_temp = client_temperature if client_temperature is not None else 0.7
                 floor = 0.0 if client_temperature is not None else 0.3
                 temperature = max(floor, base_temp - (consecutive_empty_batches * 0.2))
-                result, _llm_meta = call_gpt(messages, temperature=temperature, return_meta=True)
+
+                gpt_call_count += 1
+                if _use_staged_pipeline:
+                    # Phase 1 path: Stage 3 select_tracks uses approved artists
+                    # and compact taste summary — no deny list, no full profile JSON.
+                    result, _llm_meta = select_tracks(
+                        _approved_names,
+                        _taste_summary,
+                        request_count,
+                        profile,
+                        accepted_tracks=accepted,
+                        recently_filtered_tracks=(
+                            (last_filtered_tracks or []) + _run_unverified
+                        ) or None,
+                        new_artist_percentage=effective_nap,
+                        batch_num=batch_num,
+                        audio_filters=audio_filters or None,
+                        emerging_only=emerging_only,
+                        temperature=temperature,
+                    )
+                else:
+                    # Legacy path: full build_messages + call_gpt (RAG disabled
+                    # or corpus not loaded or emerging_only mode).
+                    messages = build_messages(
+                        profile,
+                        accepted_tracks=accepted,
+                        batch_size=request_count,
+                        recently_filtered_tracks=(
+                            (last_filtered_tracks or []) + _run_unverified
+                        ) or None,
+                        new_artist_percentage=effective_nap,
+                        batch_num=batch_num,
+                        audio_filters=audio_filters or None,
+                        emerging_only=emerging_only,
+                    )
+                    result, _llm_meta = call_gpt(messages, temperature=temperature, return_meta=True)
+
                 _batch_latencies.append(_llm_meta.get("latency_s") or 0.0)
                 _gpt_returned_count = len(result.get("playlist", []))
 
@@ -848,6 +1033,23 @@ def run_pipeline():
                 found, not_found = search_tracks(result["playlist"])
                 all_not_found.extend(not_found)
 
+                # Build the ephemeral in-run deny set from this batch's
+                # Spotify misses. _run_unverified holds {artist, track} dicts
+                # so the suggestions module can hash them the same way as
+                # accepted/filtered tracks — strings would crash the lookup.
+                _found_keys_set = {
+                    (t["artist"].lower().strip(), t["track"].lower().strip())
+                    for t in found
+                }
+                for t in result["playlist"]:
+                    key = (t["artist"].lower().strip(),
+                           t["track"].lower().strip())
+                    if key not in _found_keys_set:
+                        _run_unverified.append({"artist": t["artist"],
+                                                "track": t["track"]})
+                if len(_run_unverified) > _RUN_UNVERIFIED_CAP:
+                    _run_unverified = _run_unverified[-_RUN_UNVERIFIED_CAP:]
+
                 # ── Eval log: one JSONL row per suggested track ────────
                 # Lets us measure hallucination rate / candidate-pool hit
                 # rate offline (see TechnicalManual.md §"RAG design
@@ -915,6 +1117,24 @@ def run_pipeline():
                         _runs[run_id]["verified_tracks"] = list(verified_tracks)
 
                 # 4 — Update history (in memory; saved once after loop)
+                # Only Spotify-verified tracks land in history. Without this
+                # restriction, GPT-suggested tracks that fail Spotify lookup
+                # still inflate per-artist counts, pushing artists past
+                # EXHAUSTED_ARTIST_THRESHOLD (= 4) even though no playlist
+                # ever contained them — which poisons the candidate pool
+                # for all subsequent batches in the same run.
+                verified_artist_keys = sorted(
+                    {t["artist"].lower().strip() for t in found}
+                )
+                verified_track_entries = [
+                    {"artist": t["artist"].lower().strip(),
+                     "track": t["track"].lower().strip()}
+                    for t in found
+                ]
+                result["profile_updates"] = {
+                    "suggested_artists": verified_artist_keys,
+                    "suggested_tracks": verified_track_entries,
+                }
                 profile = update_profile(profile, result)
 
                 yield _sse(

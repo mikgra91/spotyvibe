@@ -5,7 +5,17 @@ RAG / model A/B work documented in ``documentation/TechnicalManual.md``
 §"RAG design reference" can be measured with pandas/Jupyter instead of
 by hand.
 
-Two row kinds are emitted to the same file:
+Five row kinds are emitted to the same file (joined by ``run_id``):
+
+  - ``track`` — per AI-suggested track (Phase 0 baseline).
+  - ``batch_summary`` — per LLM call inside a generation run.
+  - ``run_summary`` — once per generation run (latency p50/p95).
+  - ``stage2_summary`` — once per run, Phase 1 P1.2 avoid-checker LLM cost.
+  - ``profile_update_summary`` — per AI Profile Update / playlist seed draft.
+  - ``analysis_summary`` — per Band/Song Analysis call.
+
+The two original kinds are documented inline below; the new ones share a
+common shape: ``status``, ``latency_s``, ``usage``, ``prompt_chars``.
 
 1. **Per-track rows** (``kind`` field absent / equal to ``"track"``) —
    one per AI-suggested track. The original Apr-2026 schema, kept
@@ -250,6 +260,7 @@ def log_batch_summary(
     candidate_pool_names: Iterable[str] | None = None,
     prompt_components: dict | None = None,
     usage: dict | None = None,
+    latency_s: float | None = None,
     gpt_returned_count: int | None = None,
     after_filter_count: int | None = None,
     spotify_found_count: int | None = None,
@@ -257,6 +268,8 @@ def log_batch_summary(
     consecutive_empty_batches: int | None = None,
     config_signature: str | None = None,
     suggested_playlist: list[dict] | None = None,
+    stage1_candidate_count: int | None = None,
+    stage2_approved_count: int | None = None,
 ) -> None:
     """Append a single ``kind: "batch_summary"`` row to the eval log.
 
@@ -338,12 +351,15 @@ def log_batch_summary(
         "rag_stratified": rag_stratified,
         "prompt_components": prompt_components or {},
         "usage": usage,
+        "latency_s": round(latency_s, 3) if latency_s is not None else None,
         "gpt_returned_count": gpt_returned_count,
         "after_filter_count": after_filter_count,
         "spotify_found_count": spotify_found_count,
         "in_pool_count": in_pool_count,
         "consecutive_empty_batches": consecutive_empty_batches,
         "rationale_stats": rationale_stats,
+        "stage1_candidate_count": stage1_candidate_count,
+        "stage2_approved_count": stage2_approved_count,
     }
 
     eval_log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -415,3 +431,158 @@ def log_run_summary(
         logger.warning("eval_log run summary write failed (%s): %s",
                        eval_log_path, exc)
 
+
+# ── Per-feature single-call summaries ────────────────────────────────
+#
+# Phase-1 evaluation period needs per-feature cost / latency / quality
+# rows so the user's "test all three features then analyse" workflow has
+# something to compare. Each function appends one row of its own ``kind``
+# so pandas joins (run_id / profile_id / config_signature) stay clean.
+
+def _write_row(eval_log_path: Path, row: dict, kind_label: str) -> None:
+    """Shared row-writer for the per-feature summaries below."""
+    eval_log_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with open(eval_log_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    except OSError as exc:  # pragma: no cover
+        logger.warning("eval_log %s write failed (%s): %s",
+                       kind_label, eval_log_path, exc)
+
+
+def log_stage2_summary(
+    *,
+    run_id: str,
+    model: str,
+    profile_id: str,
+    profile: dict,
+    eval_log_path: Path,
+    debug_mode: bool,
+    candidates_in: int,
+    approved_out: int,
+    avoid_traits_count: int,
+    status: str,
+    latency_s: float | None,
+    usage: dict | None,
+    prompt_chars: int | None = None,
+    config_signature: str | None = None,
+) -> None:
+    """Append one ``kind: "stage2_summary"`` row (Phase 1 P1.2 telemetry).
+
+    One row per generation run. ``status`` is one of ``"ok"``,
+    ``"empty_response"``, ``"error"`` so a flaky Stage 2 surfaces in the
+    eval log instead of silently degrading to "blocking nothing".
+    """
+    if not debug_mode:
+        return
+
+    row = {
+        "kind": "stage2_summary",
+        "ts": _now_iso(),
+        "run_id": run_id,
+        "model": model,
+        "profile_id": profile_id,
+        "profile_hash": compute_profile_hash(profile),
+        "config_signature": config_signature,
+        "candidates_in": candidates_in,
+        "approved_out": approved_out,
+        "avoid_traits_count": avoid_traits_count,
+        "status": status,
+        "latency_s": round(latency_s, 3) if latency_s is not None else None,
+        "usage": usage,
+        "prompt_chars": prompt_chars,
+    }
+    _write_row(eval_log_path, row, "stage2_summary")
+
+
+def log_profile_update_summary(
+    *,
+    run_id: str,
+    model: str,
+    profile_id: str,
+    profile_before: dict,
+    profile_after: dict | None,
+    eval_log_path: Path,
+    debug_mode: bool,
+    label: str,
+    status: str,
+    latency_s: float | None,
+    usage: dict | None,
+    prompt_chars: int | None = None,
+    response_chars: int | None = None,
+) -> None:
+    """Append one ``kind: "profile_update_summary"`` row.
+
+    Captures cost / latency / quality signals for the AI Profile Update path
+    (``train_profile``) and the playlist-seed draft path
+    (``draft_profile_from_playlist``). ``label`` distinguishes the two so
+    analysis can bucket them. Profile-hash before vs after lets the analyst
+    confirm the call actually mutated the profile.
+    """
+    if not debug_mode:
+        return
+
+    row = {
+        "kind": "profile_update_summary",
+        "ts": _now_iso(),
+        "run_id": run_id,
+        "label": label,
+        "model": model,
+        "profile_id": profile_id,
+        "profile_hash_before": compute_profile_hash(profile_before),
+        "profile_hash_after": (
+            compute_profile_hash(profile_after) if profile_after is not None else None
+        ),
+        "status": status,
+        "latency_s": round(latency_s, 3) if latency_s is not None else None,
+        "usage": usage,
+        "prompt_chars": prompt_chars,
+        "response_chars": response_chars,
+    }
+    _write_row(eval_log_path, row, "profile_update_summary")
+
+
+def log_analysis_summary(
+    *,
+    run_id: str,
+    model: str,
+    profile_id: str,
+    eval_log_path: Path,
+    debug_mode: bool,
+    artist: str,
+    track: str,
+    status: str,
+    latency_s: float | None,
+    usage: dict | None,
+    prompt_chars: int | None = None,
+    response_chars: int | None = None,
+    genre_count: int | None = None,
+    style_tag_count: int | None = None,
+    suggestion_count: int | None = None,
+) -> None:
+    """Append one ``kind: "analysis_summary"`` row (Band/Song Analysis).
+
+    One row per ``analyze_band_song`` invocation so the analyst can compare
+    Band/Song Analysis cost and quality across model A/B variants.
+    """
+    if not debug_mode:
+        return
+
+    row = {
+        "kind": "analysis_summary",
+        "ts": _now_iso(),
+        "run_id": run_id,
+        "model": model,
+        "profile_id": profile_id,
+        "artist": (artist or "").lower().strip(),
+        "track": (track or "").lower().strip(),
+        "status": status,
+        "latency_s": round(latency_s, 3) if latency_s is not None else None,
+        "usage": usage,
+        "prompt_chars": prompt_chars,
+        "response_chars": response_chars,
+        "genre_count": genre_count,
+        "style_tag_count": style_tag_count,
+        "suggestion_count": suggestion_count,
+    }
+    _write_row(eval_log_path, row, "analysis_summary")

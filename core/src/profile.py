@@ -38,13 +38,16 @@ from pathlib import Path
 from config import (
     BASE_DIR, PROFILES_DIR, MAX_PROFILE_NAME_LEN,
     MAX_CORE_DESCRIPTION_LEN, MAX_PROFILE_SECTION_LEN,
+    EVAL_LOG_FILE, get_debug_mode,
     get_model, get_gpt_language,
     get_active_profile_id, set_active_profile_id,
     get_active_profile_path, get_active_history_path,
     validate_profile_id,
 )
 from .utils import debug_log, strip_code_fences, sanitize_profile, sanitize_text
-from .openai_http import chat_completions_create, extract_chat_content, call_gpt_json
+from .openai_http import (chat_completions_create, extract_chat_content,
+                          call_gpt_json, call_gpt_json_with_meta)
+from .eval_log import log_profile_update_summary
 
 
 # Template and prompt paths are resolved from BASE_DIR (the project root)
@@ -617,7 +620,34 @@ def train_profile(sections):
         {"role": "user", "content": user_message},
     ]
 
-    gpt_profile = call_gpt_json(train_messages, temperature=0.3, label="Profile Training")
+    prompt_chars = sum(len(m.get("content", "")) for m in train_messages)
+    run_id = str(_uuid.uuid4())
+    profile_before = profile
+
+    try:
+        gpt_profile, _meta = call_gpt_json_with_meta(
+            train_messages, temperature=0.3, label="Profile Training",
+        )
+    except ValueError as exc:
+        try:
+            log_profile_update_summary(
+                run_id=run_id,
+                model=get_model(),
+                profile_id=get_active_profile_id(),
+                profile_before=profile_before,
+                profile_after=None,
+                eval_log_path=EVAL_LOG_FILE,
+                debug_mode=get_debug_mode(),
+                label="train_profile",
+                status="empty_response" if "empty" in str(exc).lower() else "invalid_json",
+                latency_s=None,
+                usage=None,
+                prompt_chars=prompt_chars,
+                response_chars=None,
+            )
+        except Exception as _exc:  # pragma: no cover
+            _logger.warning("log_profile_update_summary skipped: %s", _exc)
+        raise
 
     # Start from the template to guarantee all required keys survive,
     # then deep-merge the GPT output on top (shallow .update() would lose
@@ -638,6 +668,26 @@ def train_profile(sections):
     updated_profile["last_updated"] = datetime.now(timezone.utc).isoformat()
 
     save_profile(updated_profile)
+
+    try:
+        log_profile_update_summary(
+            run_id=run_id,
+            model=_meta.get("model") or get_model(),
+            profile_id=get_active_profile_id(),
+            profile_before=profile_before,
+            profile_after=updated_profile,
+            eval_log_path=EVAL_LOG_FILE,
+            debug_mode=get_debug_mode(),
+            label="train_profile",
+            status="ok",
+            latency_s=_meta.get("latency_s"),
+            usage=_meta.get("usage"),
+            prompt_chars=prompt_chars,
+            response_chars=_meta.get("raw_response_chars"),
+        )
+    except Exception as _exc:  # pragma: no cover
+        _logger.warning("log_profile_update_summary skipped: %s", _exc)
+
     return updated_profile
 
 
@@ -787,14 +837,56 @@ def draft_profile_from_playlist(summary: dict) -> dict:
         moods=moods,
     )
 
-    result = call_gpt_json(
-        [
-            {"role": "system", "content": "You draft music taste profiles from playlist data. Return strict JSON only."},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.7,
-        label="Playlist Seed Draft",
-    )
+    seed_messages = [
+        {"role": "system", "content": "You draft music taste profiles from playlist data. Return strict JSON only."},
+        {"role": "user", "content": prompt},
+    ]
+    prompt_chars = sum(len(m.get("content", "")) for m in seed_messages)
+    run_id = str(_uuid.uuid4())
+
+    try:
+        result, _meta = call_gpt_json_with_meta(
+            seed_messages,
+            temperature=0.7,
+            label="Playlist Seed Draft",
+        )
+    except ValueError as exc:
+        try:
+            log_profile_update_summary(
+                run_id=run_id,
+                model=get_model(),
+                profile_id=get_active_profile_id(),
+                profile_before={},
+                profile_after=None,
+                eval_log_path=EVAL_LOG_FILE,
+                debug_mode=get_debug_mode(),
+                label="playlist_seed_draft",
+                status="empty_response" if "empty" in str(exc).lower() else "invalid_json",
+                latency_s=None, usage=None,
+                prompt_chars=prompt_chars, response_chars=None,
+            )
+        except Exception as _exc:  # pragma: no cover
+            _logger.warning("log_profile_update_summary skipped: %s", _exc)
+        raise
+
+    try:
+        log_profile_update_summary(
+            run_id=run_id,
+            model=_meta.get("model") or get_model(),
+            profile_id=get_active_profile_id(),
+            profile_before={},
+            profile_after=result if isinstance(result, dict) else None,
+            eval_log_path=EVAL_LOG_FILE,
+            debug_mode=get_debug_mode(),
+            label="playlist_seed_draft",
+            status="ok",
+            latency_s=_meta.get("latency_s"),
+            usage=_meta.get("usage"),
+            prompt_chars=prompt_chars,
+            response_chars=_meta.get("raw_response_chars"),
+        )
+    except Exception as _exc:  # pragma: no cover
+        _logger.warning("log_profile_update_summary skipped: %s", _exc)
 
     # Enforce shape constraints
     draft = {

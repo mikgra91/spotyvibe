@@ -8,7 +8,9 @@ from pathlib import Path
 import pytest
 
 from core.src.eval_log import (compute_profile_hash, log_batch_outcome,
-                               log_batch_summary, compute_config_signature)
+                               log_batch_summary, compute_config_signature,
+                               log_stage2_summary, log_profile_update_summary,
+                               log_analysis_summary)
 
 
 @pytest.fixture
@@ -275,6 +277,136 @@ def test_batch_summary_handles_missing_usage(tmp_log):
     assert row["usage"] is None
     assert row["candidate_pool_size"] is None
     assert row["rag_pool_size"] is None
+
+
+def test_batch_summary_carries_top_level_latency_and_stage_counts(tmp_log):
+    """Phase 1 review fix: latency_s is top-level (not buried in prompt_components),
+    and stage1/stage2 counts are first-class fields for staged-pipeline analysis."""
+    log_batch_summary(
+        run_id="r", batch_num=1, model="gpt-x",
+        rag_enabled=True, rag_corpus_meta_path=None,
+        profile_id="p", profile={},
+        eval_log_path=tmp_log, debug_mode=True,
+        effective_batch_size=10, candidate_pool_names=["a", "b"],
+        prompt_components={"system": 600, "user_total": 1500, "pool": 80},
+        latency_s=4.236,
+        usage={"prompt_tokens": 500, "completion_tokens": 700, "total_tokens": 1200},
+        gpt_returned_count=10, after_filter_count=8,
+        spotify_found_count=7, in_pool_count=2,
+        stage1_candidate_count=50, stage2_approved_count=32,
+    )
+    row = _read_rows(tmp_log)[0]
+    assert row["latency_s"] == 4.236
+    assert row["stage1_candidate_count"] == 50
+    assert row["stage2_approved_count"] == 32
+    # latency_s lives at top level, not inside prompt_components.
+    assert "latency_s" not in row["prompt_components"]
+
+
+# ── log_stage2_summary ──
+
+def test_stage2_summary_writes_row(tmp_log):
+    log_stage2_summary(
+        run_id="r1", model="gpt-5.4-mini",
+        profile_id="p", profile={"must_have": ["jazz"]},
+        eval_log_path=tmp_log, debug_mode=True,
+        candidates_in=50, approved_out=32, avoid_traits_count=3,
+        status="ok", latency_s=1.234,
+        usage={"prompt_tokens": 800, "completion_tokens": 50,
+               "total_tokens": 850},
+        prompt_chars=2400, config_signature="sig1",
+    )
+    row = _read_rows(tmp_log)[0]
+    assert row["kind"] == "stage2_summary"
+    assert row["candidates_in"] == 50
+    assert row["approved_out"] == 32
+    assert row["avoid_traits_count"] == 3
+    assert row["status"] == "ok"
+    assert row["latency_s"] == 1.234
+    assert row["usage"]["total_tokens"] == 850
+    assert row["prompt_chars"] == 2400
+    assert row["config_signature"] == "sig1"
+
+
+def test_stage2_summary_no_op_when_debug_off(tmp_log):
+    log_stage2_summary(
+        run_id="r", model="m", profile_id="p", profile={},
+        eval_log_path=tmp_log, debug_mode=False,
+        candidates_in=0, approved_out=0, avoid_traits_count=0,
+        status="ok", latency_s=None, usage=None,
+    )
+    assert not tmp_log.exists()
+
+
+def test_stage2_summary_status_error_serialised(tmp_log):
+    log_stage2_summary(
+        run_id="r", model="m", profile_id="p", profile={},
+        eval_log_path=tmp_log, debug_mode=True,
+        candidates_in=10, approved_out=10, avoid_traits_count=2,
+        status="error", latency_s=None, usage=None, prompt_chars=500,
+    )
+    row = _read_rows(tmp_log)[0]
+    assert row["status"] == "error"
+    assert row["latency_s"] is None
+
+
+# ── log_profile_update_summary ──
+
+def test_profile_update_summary_carries_before_and_after_hashes(tmp_log):
+    before = {"must_have": ["pop"]}
+    after = {"must_have": ["pop", "indie"]}
+    log_profile_update_summary(
+        run_id="r", model="gpt-5.5", profile_id="p",
+        profile_before=before, profile_after=after,
+        eval_log_path=tmp_log, debug_mode=True,
+        label="train_profile", status="ok", latency_s=2.5,
+        usage={"prompt_tokens": 5000, "completion_tokens": 3000,
+               "total_tokens": 8000},
+        prompt_chars=22000, response_chars=14000,
+    )
+    row = _read_rows(tmp_log)[0]
+    assert row["kind"] == "profile_update_summary"
+    assert row["label"] == "train_profile"
+    assert row["latency_s"] == 2.5
+    assert row["prompt_chars"] == 22000
+    # Before/after hashes differ when profile changed.
+    assert row["profile_hash_before"] != row["profile_hash_after"]
+
+
+def test_profile_update_summary_after_none_when_call_failed(tmp_log):
+    log_profile_update_summary(
+        run_id="r", model="m", profile_id="p",
+        profile_before={"must_have": ["x"]},
+        profile_after=None,
+        eval_log_path=tmp_log, debug_mode=True,
+        label="train_profile", status="empty_response",
+        latency_s=None, usage=None,
+    )
+    row = _read_rows(tmp_log)[0]
+    assert row["status"] == "empty_response"
+    assert row["profile_hash_after"] is None
+
+
+# ── log_analysis_summary ──
+
+def test_analysis_summary_writes_row_with_quality_counts(tmp_log):
+    log_analysis_summary(
+        run_id="r", model="gpt-5.5", profile_id="p",
+        eval_log_path=tmp_log, debug_mode=True,
+        artist="Bear Ghost", track="Mr. Bubbles",
+        status="ok", latency_s=1.8,
+        usage={"prompt_tokens": 600, "completion_tokens": 400,
+               "total_tokens": 1000},
+        prompt_chars=2300, response_chars=1500,
+        genre_count=3, style_tag_count=5, suggestion_count=4,
+    )
+    row = _read_rows(tmp_log)[0]
+    assert row["kind"] == "analysis_summary"
+    assert row["artist"] == "bear ghost"
+    assert row["track"] == "mr. bubbles"
+    assert row["genre_count"] == 3
+    assert row["style_tag_count"] == 5
+    assert row["suggestion_count"] == 4
 
 
 def test_batch_summary_appends_alongside_track_rows(tmp_log):

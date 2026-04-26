@@ -10,7 +10,7 @@ Public entry points:
 """
 
 from .corpus import RagCorpus, ArtistRow
-from .retrieval import score_artists, score_artists_stratified, build_query_tags
+from .retrieval import score_artists, score_artists_stratified, build_query_tags, retrieve_candidates
 from .prompt import format_candidate_pool_block
 
 __all__ = [
@@ -19,5 +19,6 @@ __all__ = [
     "score_artists",
     "score_artists_stratified",
     "build_query_tags",
+    "retrieve_candidates",
     "format_candidate_pool_block",
 ]

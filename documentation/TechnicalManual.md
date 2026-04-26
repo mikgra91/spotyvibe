@@ -157,7 +157,7 @@ Each `/api/run` request is assigned a `run_id`. The server stores a `threading.E
 
 ### Backend helpers
 
-`app.py` uses a handful of private helpers to keep route functions small: `safe_text(data, key)` (text extraction with sanitisation + length caps), `call_gpt_json()` (single-shot JSON completion with error mapping), `_parse_profile_sections()` (body → structured dict), `_load_help_html()` (language-aware), `_persist_setting()` (dotenv write), `_collect_forbidden_artists()` / `_compute_exhausted_artists()` (build deny blocks fed to GPT).
+`app.py` uses a handful of private helpers to keep route functions small: `safe_text(data, key)` (text extraction with sanitisation + length caps), `call_gpt_json()` (single-shot JSON completion with error mapping), `_parse_profile_sections()` (body → structured dict), `_load_help_html()` (language-aware), `_persist_setting()` (dotenv write), `collect_forbidden_artists()` / `_compute_exhausted_artists()` (build deny blocks fed to GPT).
 
 ### Performance
 

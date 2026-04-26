@@ -22,16 +22,35 @@ logger = logging.getLogger(__name__)
 _RERANK_POOL = 200
 
 
+# Common English stop words that pollute the query if a user writes prose
+# like "art-pop or J-pop crossover" or "punchy guitars and strong hooks".
+# Without filtering, "or" / "and" / "the" accumulate the highest weights and
+# overwhelm legitimate genre tags. Bigrams that contain a stop word are also
+# meaningless ("strong or", "hooks and") so we drop them too.
+_STOP_TOKENS = frozenset({
+    "or", "and", "but", "the", "a", "an", "of", "to", "in", "on", "at", "by",
+    "for", "with", "from", "as", "is", "it", "be", "are", "was", "were",
+    "this", "that", "these", "those",
+})
+
+
 def _extract_text_tokens(text: str) -> list[str]:
     """Crude tokeniser used to harvest extra tag hints from free-text fields.
 
-    Splits on non-word characters, lowercases, drops 1-char tokens, and
-    also emits 2-grams because genre names like "post punk" or "dream pop"
-    are commonly written without a hyphen in user prose.
+    Splits on non-word characters, lowercases, drops 1-char tokens and
+    common stop words, and emits 2-grams because genre names like
+    "post punk" or "dream pop" are commonly written without a hyphen
+    in user prose. Bigrams containing a stop word on either side are
+    skipped — a phrase like "strong hooks" survives, but "strong or"
+    gets dropped.
     """
     if not text:
         return []
-    words = [w.lower() for w in re.split(r"\W+", str(text)) if len(w) > 1]
+    words = [
+        w.lower()
+        for w in re.split(r"\W+", str(text))
+        if len(w) > 1 and w.lower() not in _STOP_TOKENS
+    ]
     # Unigrams first, then bigrams — callers weight the second half higher
     # because compound genre names are more specific than their unigrams.
     tokens = list(words)
@@ -404,4 +423,131 @@ def score_artists_stratified(corpus: RagCorpus,
     logger.debug("RAG stratified: %s → %d artists", facet_pool_counts,
                  len(picked_in_order))
     return [corpus.artists[i] for i in picked_in_order]
+
+
+# ── Stage 1: code-side candidate retrieval (Phase 1 pipeline) ────────
+
+
+def _build_avoid_tags(corpus: RagCorpus, profile: dict) -> set[str]:
+    """Extract avoid tags from ``profile.preferences.avoid`` as a canonical tag set.
+
+    Tokenises prose avoid text (same tokeniser as build_query_tags), then
+    maps through the corpus alias table so the result is directly comparable
+    to artist.tags keys.
+    """
+    prefs = (profile or {}).get("preferences", {}) or {}
+    avoid_source = prefs.get("avoid")
+    if not avoid_source:
+        return set()
+
+    raw: set[str] = set()
+
+    def _ingest(source) -> None:
+        if isinstance(source, list):
+            for item in source:
+                if isinstance(item, str):
+                    for tok in _extract_text_tokens(item):
+                        n = normalise_tag(tok)
+                        if n:
+                            raw.add(n)
+        elif isinstance(source, str):
+            for tok in _extract_text_tokens(source):
+                n = normalise_tag(tok)
+                if n:
+                    raw.add(n)
+
+    _ingest(avoid_source)
+
+    # Map through corpus alias table to canonical forms
+    mapped: set[str] = set()
+    for tag in raw:
+        canon = corpus.resolve_alias(tag)
+        # Include only tags the corpus actually indexes — unindexed tokens
+        # cannot match any artist and would silently exclude nothing.
+        if canon in corpus.tag_index:
+            mapped.add(canon)
+    return mapped
+
+
+def _artist_has_any_tag(artist: ArtistRow, tag_set: set[str]) -> bool:
+    """Return True if *artist* has any of the given normalised tags."""
+    for t in artist.tags:
+        if t in tag_set:
+            return True
+    for g in artist.spotify_genres:
+        if normalise_tag(g) in tag_set:
+            return True
+    return False
+
+
+def retrieve_candidates(
+    corpus: RagCorpus,
+    profile: dict,
+    deny_keys: Iterable[str] = (),
+    target_size: int = 50,
+    popularity_penalty: float = 0.4,
+) -> list[ArtistRow]:
+    """Stage 1 code-side retrieval for the three-stage pipeline (P1.1).
+
+    Returns up to *target_size* candidate artists without any LLM call.
+    Uses stratified scoring for initial ranking, then applies two hard filters:
+
+    1. **Avoid filter** — drops artists whose tags overlap with
+       ``preferences.avoid``. Skipped if fewer than one third of
+       *target_size* survive (too aggressive for this profile).
+    2. **Popularity band** — prefers artists in the 0.3–0.7 discovery
+       sweet-spot. Relaxed to the full pool when fewer than half
+       *target_size* fall inside the band.
+
+    *deny_keys* are normalised artist name strings (history + confirmed +
+    rejected) forwarded to the underlying stratified scorer so already-
+    seen artists are excluded before ranking.
+
+    Returns an empty list when the corpus is empty or *target_size* ≤ 0.
+    """
+    if not corpus.artists or target_size <= 0:
+        return []
+
+    # Fetch a broad pool — 3× target so there is room to survive filters.
+    broad = score_artists_stratified(
+        corpus, profile,
+        deny_keys=deny_keys,
+        pool_size=target_size * 3,
+        popularity_penalty=popularity_penalty,
+    )
+    if not broad:
+        return []
+
+    # Hard filter 1: avoid tags — drop artists matching any avoid trait.
+    avoid_tags = _build_avoid_tags(corpus, profile)
+    if avoid_tags:
+        filtered = [a for a in broad if not _artist_has_any_tag(a, avoid_tags)]
+        # Threshold scales with target_size so the floor is not binding for
+        # small target sizes (used in tests). For target_size=4 the floor
+        # would otherwise be 10, making the avoid filter unreachable.
+        threshold = max(min(10, target_size), target_size // 3)
+        if len(filtered) >= threshold:
+            broad = filtered
+        else:
+            logger.debug(
+                "retrieve_candidates: avoid filter too aggressive (%d→%d), skipping",
+                len(broad), len(filtered),
+            )
+
+    # Hard filter 2: popularity band — prefer 0.3–0.7 discovery sweet-spot.
+    in_band = [a for a in broad if 0.3 <= _artist_popularity(a) <= 0.7]
+    if len(in_band) >= target_size // 2:
+        broad = in_band
+    else:
+        logger.debug(
+            "retrieve_candidates: popularity band too narrow (%d of %d in-band), using full pool",
+            len(in_band), len(broad),
+        )
+
+    result = broad[:target_size]
+    logger.debug(
+        "retrieve_candidates: %d candidates selected (avoid_tags=%d)",
+        len(result), len(avoid_tags),
+    )
+    return result
 

@@ -36,7 +36,8 @@ import re
 import unicodedata
 from collections import defaultdict
 from pathlib import Path
-from config import BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD, get_model, get_gpt_language
+from config import (BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD,
+                    get_model, get_gpt_language, get_stage2_model)
 from .utils import strip_code_fences, debug_log
 from .openai_http import chat_completions_create, extract_chat_content
 from .rag import score_artists, score_artists_stratified, format_candidate_pool_block
@@ -70,6 +71,12 @@ def get_rag_corpus() -> RagCorpus | None:
     return _RAG_CORPUS
 
 
+def set_last_rag_pool_names(names: list[str] | None) -> None:
+    """Set the candidate-pool artist names (used by app.py after Stage 1)."""
+    global _LAST_RAG_POOL_NAMES
+    _LAST_RAG_POOL_NAMES = names
+
+
 def get_last_rag_pool_names() -> list[str] | None:
     """Return the candidate-pool artist names from the most recent build_messages call.
 
@@ -94,6 +101,9 @@ logger = logging.getLogger(__name__)
 # Paths resolved from the package root using pathlib — immune to os.chdir()
 SYSTEM_PROMPT_FILE = BASE_DIR / "prompts" / "system_prompt.txt"
 PROMPT_FILE = BASE_DIR / "prompts" / "prompt_template.txt"
+AVOID_CHECK_SYSTEM_FILE = BASE_DIR / "prompts" / "avoid_check_system.txt"
+TRACK_SELECT_SYSTEM_FILE = BASE_DIR / "prompts" / "track_select_system.txt"
+TRACK_SELECT_USER_FILE = BASE_DIR / "prompts" / "track_select_user.txt"
 
 
 
@@ -229,7 +239,7 @@ def load_text_file(filepath):
     return path.read_text(encoding="utf-8")
 
 
-def _collect_forbidden_artists(profile, normalizer=None):
+def collect_forbidden_artists(profile, normalizer=None):
     """Collect forbidden artist keys from rejected + disliked artists.
 
     Args:
@@ -293,7 +303,7 @@ def _build_deny_set_json(profile, ephemeral_deny_tracks=None):
     exclusion fields are stripped from the profile JSON before sending.
     """
     # Forbidden artists (merged from all sources)
-    forbidden_artists = _collect_forbidden_artists(profile)
+    forbidden_artists = collect_forbidden_artists(profile)
 
     # Exhausted artists via history counts
     exhausted = sorted(_compute_exhausted_artists(profile))
@@ -564,7 +574,7 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
             RAG_STRATIFIED = True
             RAG_FACET_WEIGHTS = {"must_have": 0.5, "soft_preferences": 0.25,
                                  "primary_reference": 0.15, "tags": 0.10}
-        deny_keys = _collect_forbidden_artists(profile)
+        deny_keys = collect_forbidden_artists(profile)
         confirmed = {a.get("name", "") if isinstance(a, dict) else str(a)
                      for a in profile.get("artists", {}).get("confirmed", [])}
         deny_keys = deny_keys | {c.lower().strip() for c in confirmed if c}
@@ -815,6 +825,311 @@ def call_gpt(messages, temperature=0.7, return_meta=False):
     return (result, meta) if return_meta else result
 
 
+def build_taste_summary(profile: dict) -> str:
+    """Build a compact ≤800-char taste summary for Stage 3 prompts (P1.3).
+
+    Deterministic — no LLM. Extracts must_have, soft_preferences, avoid,
+    confirmed artist anchors, era, and core_description from the profile and
+    renders them as a concise single-paragraph hint.
+
+    This replaces the full profile JSON + deny set + RAG pool in Stage 3,
+    cutting the input from ~7 k tok to ~200 tok.
+    """
+    prefs = (profile or {}).get("preferences", {}) or {}
+
+    def _join(val: object) -> str:
+        if isinstance(val, list):
+            return ", ".join(str(v) for v in val if v)
+        return str(val).strip() if val else ""
+
+    parts: list[str] = []
+
+    eras = _join(prefs.get("eras"))
+    if eras:
+        parts.append(f"Era: {eras}.")
+
+    must = _join(prefs.get("must_have"))
+    if must:
+        parts.append(f"Must: {must}.")
+
+    soft = _join(prefs.get("soft_preferences"))
+    if soft:
+        parts.append(f"Style: {soft}.")
+
+    avoid = _join(prefs.get("avoid"))
+    if avoid:
+        parts.append(f"Avoid: {avoid}.")
+
+    primary = (profile or {}).get("meta", {}).get("primary_reference") or ""
+    if isinstance(primary, str) and primary.strip():
+        parts.append(f"Primary reference: {primary.strip()}.")
+
+    confirmed = (profile or {}).get("artists", {}).get("confirmed", [])
+    anchors: list[str] = []
+    for a in confirmed[:5]:
+        name = a.get("name", "") if isinstance(a, dict) else str(a)
+        if name:
+            anchors.append(name)
+    if anchors:
+        parts.append(f"Style anchors: {', '.join(anchors)}.")
+
+    core = (prefs.get("core_description") or "").strip()
+    if core:
+        if len(core) > 200:
+            core = core[:200] + "…"
+        parts.append(core)
+
+    summary = " ".join(parts)
+    if len(summary) > 800:
+        summary = summary[:800] + "…"
+    return summary
+
+
+def check_avoid_compliance(
+    artist_names: list[str],
+    avoid_traits: list[str] | None,
+) -> tuple[list[str], dict]:
+    """Stage 2: mini-LLM avoid-compliance filter (P1.2).
+
+    Sends *artist_names* and *avoid_traits* to STAGE2_MODEL (gpt-5.4-mini on
+    cloud, main model on local) and returns the approved subset alongside a
+    meta dict the caller can write to the eval log. The meta dict contains:
+
+    - ``status``: ``"ok"`` (LLM call succeeded with valid JSON),
+      ``"empty_response"`` (LLM returned empty / invalid JSON — fell back
+      to passthrough), ``"error"`` (LLM call raised — fell back to
+      passthrough), ``"skipped_empty_input"`` (no artists supplied),
+      ``"skipped_no_avoid"`` (caller had no avoid traits).
+    - ``latency_s``: wall-clock for the LLM call (None on skipped paths).
+    - ``usage``: provider usage dict, when supplied.
+    - ``model``: which model was actually used.
+    - ``prompt_chars``: total system+user prompt char count.
+
+    Failure modes never break a generation run — on error, returns the
+    full candidate list. Telemetry callers can see the failure via
+    ``status != "ok"``.
+
+    Cost: ~$0.0008 per call at gpt-5.4-mini rates.
+    """
+    import time as _time
+
+    if not artist_names:
+        return [], {"status": "skipped_empty_input", "latency_s": None,
+                    "usage": None, "model": get_stage2_model(),
+                    "prompt_chars": 0}
+    if not avoid_traits:
+        return list(artist_names), {"status": "skipped_no_avoid",
+                                    "latency_s": None, "usage": None,
+                                    "model": get_stage2_model(),
+                                    "prompt_chars": 0}
+
+    stage2_model = get_stage2_model()
+    system_prompt = load_text_file(AVOID_CHECK_SYSTEM_FILE)
+    avoid_str = "\n".join(f"- {t}" for t in avoid_traits[:20])
+    artists_str = "\n".join(
+        f"{i + 1}. {name}" for i, name in enumerate(artist_names)
+    )
+    user_message = f"AVOID TRAITS:\n{avoid_str}\n\nARTISTS:\n{artists_str}"
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message},
+    ]
+    prompt_chars = sum(len(m.get("content", "")) for m in messages)
+
+    meta: dict = {"status": "ok", "latency_s": None, "usage": None,
+                  "model": stage2_model, "prompt_chars": prompt_chars}
+
+    try:
+        t0 = _time.monotonic()
+        response = chat_completions_create(
+            model=stage2_model,
+            messages=messages,
+            temperature=0.0,
+            response_format={"type": "json_object"},
+        )
+        meta["latency_s"] = _time.monotonic() - t0
+        if isinstance(response, dict):
+            meta["usage"] = response.get("usage")
+        raw = extract_chat_content(response)
+        data = json.loads(strip_code_fences(raw))
+        approved = data.get("approved", [])
+        if isinstance(approved, list):
+            valid_lower = {n.lower().strip() for n in artist_names}
+            filtered = [
+                n for n in approved
+                if isinstance(n, str) and n.lower().strip() in valid_lower
+            ]
+            return filtered, meta
+        meta["status"] = "empty_response"
+    except Exception as exc:
+        logger.warning("check_avoid_compliance failed (%s) — using all candidates", exc)
+        meta["status"] = "error"
+
+    return list(artist_names), meta
+
+
+def select_tracks(
+    approved_artist_names: list[str],
+    taste_summary: str,
+    batch_size: int,
+    profile: dict,
+    *,
+    accepted_tracks=None,
+    recently_filtered_tracks=None,
+    new_artist_percentage: int = 30,
+    batch_num: int = 0,
+    audio_filters=None,
+    emerging_only: bool = False,
+    temperature: float = 0.7,
+) -> tuple[dict, dict]:
+    """Stage 3: track selection from pre-approved artists (P1.3).
+
+    Much smaller prompt than build_messages — no deny list, no full profile
+    JSON, no RAG pool. Only the approved artist list and a compact taste
+    summary reach the model.
+
+    Returns ``(result, meta)`` where ``meta = {"usage": …, "latency_s": …}``.
+    Same result shape as call_gpt so all downstream code (filter_duplicate_
+    suggestions, update_profile) works unchanged.
+    """
+    import time as _time
+
+    # Stage 3 is gated to non-emerging runs in app.py; the +5 buffer is the
+    # only one reachable here. emerging_only is still threaded through so the
+    # function stays reusable if/when staged emerging support lands.
+    effective_batch_size = batch_size + 5
+    min_new_artists = math.ceil(effective_batch_size * new_artist_percentage / 100)
+
+    gpt_language = get_gpt_language()
+
+    prefs = (profile or {}).get("preferences", {}) if isinstance(profile, dict) else {}
+    must_have_n = len((prefs.get("must_have") or []))
+    soft_n = len((prefs.get("soft_preferences") or []))
+    profile_facets = must_have_n + soft_n
+    if profile_facets >= 5:
+        rationale_count = "4"
+    elif profile_facets >= 2:
+        rationale_count = "3"
+    else:
+        rationale_count = "2"
+
+    system_prompt = load_text_file(TRACK_SELECT_SYSTEM_FILE)
+    validation_block = _get_validation_block(get_model())
+    system_prompt = system_prompt.replace("{validation_block}", validation_block)
+    system_prompt = system_prompt.replace("{batch_size}", str(effective_batch_size))
+    system_prompt = system_prompt.replace("{min_new_artists}", str(min_new_artists))
+    system_prompt = system_prompt.replace("{gpt_language}", gpt_language)
+    system_prompt = system_prompt.replace("{rationale_count}", rationale_count)
+
+    if emerging_only:
+        emerging_constraint = (
+            "\n7. ONLY suggest tracks by artists whose debut release is within the last 6 months."
+            " Prefer unknown, underground, or recently debuted artists."
+        )
+        system_prompt += emerging_constraint
+
+    user_template = load_text_file(TRACK_SELECT_USER_FILE)
+    artists_str = "\n".join(f"- {name}" for name in approved_artist_names)
+
+    feedback_summary = build_feedback_summary(profile)
+    audio_filters_block = _format_audio_filters(audio_filters or {})
+
+    user_message = user_template.format(
+        approved_artists=artists_str,
+        taste_summary=taste_summary,
+        batch_size=effective_batch_size,
+        recent_feedback=feedback_summary,
+        audio_filters_block=audio_filters_block,
+    )
+
+    if recently_filtered_tracks:
+        retry_list = "\n".join(
+            f"- {t.get('artist', '?')} — {t.get('track', '')}"
+            for t in recently_filtered_tracks[:20]
+        )
+        user_message += f"\n\nDo NOT suggest these tracks again (already filtered):\n{retry_list}"
+
+    accepted_block = ""
+    if accepted_tracks:
+        listing = "\n".join(
+            f"- {t['artist']} - {t['track']}" for t in accepted_tracks
+        )
+        accepted_block = (
+            f"\n\nI already accepted these {len(accepted_tracks)} tracks"
+            f" — do NOT suggest them again:\n{listing}"
+            f"\n\nI need {effective_batch_size} MORE tracks. Still return"
+            " the result in the same JSON schema."
+        )
+        user_message += accepted_block
+
+    _history_tracks = (
+        (profile or {}).get("history", {}).get("suggested_tracks", [])
+        if isinstance(profile, dict) else []
+    )
+    if len(_history_tracks) > 50:
+        diversity_hints = [
+            "Focus on artists from the 1970s-1980s that match the profile.",
+            "Explore Japanese, Korean, or Scandinavian artists matching the profile.",
+            "Look for artists who released their first album after 2020.",
+            "Consider solo projects or side projects of artists similar to the anchors.",
+            "Explore soundtrack and compilation albums for hidden gems.",
+        ]
+        hint = diversity_hints[batch_num % len(diversity_hints)]
+        user_message += f"\n\nDiversity guidance: {hint}"
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message},
+    ]
+
+    # Capture prompt components for the eval log (pool = approved artists block).
+    global _LAST_PROMPT_COMPONENTS
+    _LAST_PROMPT_COMPONENTS = {
+        "system": len(system_prompt),
+        "profile": 0,
+        "deny_set": 0,
+        "feedback": len(feedback_summary),
+        "audio_filters": len(audio_filters_block),
+        "pool": len(artists_str),
+        "accepted": len(accepted_block),
+        "diversity_hint": 0,
+        "user_total": len(user_message),
+    }
+
+    def _empty() -> dict:
+        return {
+            "playlist": [], "new_artists": [],
+            "profile_updates": {"suggested_artists": [], "suggested_tracks": []},
+        }
+
+    _t0 = _time.monotonic()
+    response = chat_completions_create(
+        model=get_model(),
+        messages=messages,
+        temperature=temperature,
+        response_format={"type": "json_object"},
+    )
+    latency_s = _time.monotonic() - _t0
+
+    raw_content = extract_chat_content(response)
+    debug_log("Stage 3 Track Selection", messages, raw_content)
+    usage = response.get("usage") if isinstance(response, dict) else None
+    meta = {"usage": usage, "latency_s": latency_s}
+
+    content = strip_code_fences(raw_content)
+    if not content:
+        logger.warning("Stage 3 returned empty response.")
+        return _empty(), meta
+
+    try:
+        result = normalize_response(json.loads(content))
+    except json.JSONDecodeError:
+        logger.warning("Stage 3 JSON parse failed: %s", content[:200])
+        result = _empty()
+
+    return result, meta
+
+
 def update_profile(profile, result):
     """Append newly suggested artists and tracks to the profile history.
 
@@ -906,7 +1221,7 @@ def filter_duplicate_suggestions(profile, result):
             exclude_keys.add(_normalize_key(f"{artist} {track}"))
 
     # Build forbidden artist keys (rejected + disliked artists)
-    forbidden_artist_keys = _collect_forbidden_artists(profile, normalizer=_normalize_key)
+    forbidden_artist_keys = collect_forbidden_artists(profile, normalizer=_normalize_key)
 
     # Build exhausted artist keys
     exhausted_artist_keys = _compute_exhausted_artists(profile, normalizer=_normalize_key)

@@ -6,6 +6,17 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
+# Stub meta dict returned alongside parsed JSON by call_gpt_json_with_meta.
+# Phase 1 review: train_profile / draft_profile_from_playlist now consume
+# (result, meta) tuples so AI Profile Update telemetry rows can be written
+# without breaking the legacy unit-test contracts on result shape.
+_GPT_META_STUB = {
+    "usage": {"prompt_tokens": 200, "completion_tokens": 100, "total_tokens": 300},
+    "latency_s": 0.5,
+    "model": "gpt-test",
+    "raw_response_chars": 800,
+}
+
 from core.src.profile import (
     _load_template,
     ensure_profile,
@@ -148,7 +159,7 @@ class TestGetProfileStatus:
 
 class TestTrainProfile:
     @patch("core.src.profile.save_profile")
-    @patch("core.src.profile.call_gpt_json")
+    @patch("core.src.profile.call_gpt_json_with_meta")
     @patch("core.src.profile.load_profile")
     def test_calls_gpt_and_updates_profile(
         self, mock_load, mock_gpt, mock_save
@@ -173,7 +184,7 @@ class TestTrainProfile:
             "feedback": {"liked_tracks": ["REPLACED"], "disliked_tracks": []},
             "taste_rules": {"primary_driver": "energy", "dealbreaker_priority": ["country"]},
         }
-        mock_gpt.return_value = gpt_output
+        mock_gpt.return_value = (gpt_output, _GPT_META_STUB)
 
         sections = {
             "core_description": "I love rock music",
@@ -199,7 +210,7 @@ class TestTrainProfile:
         mock_save.assert_called_once()
 
     @patch("core.src.profile.save_profile")
-    @patch("core.src.profile.call_gpt_json")
+    @patch("core.src.profile.call_gpt_json_with_meta")
     @patch("core.src.profile.load_profile")
     def test_raises_on_invalid_json(
         self, mock_load, mock_gpt, mock_save
@@ -225,7 +236,7 @@ class TestTrainProfile:
         mock_save.assert_not_called()
 
     @patch("core.src.profile.save_profile")
-    @patch("core.src.profile.call_gpt_json")
+    @patch("core.src.profile.call_gpt_json_with_meta")
     @patch("core.src.profile.load_profile")
     def test_preserves_schema_when_gpt_drops_keys(
         self, mock_load, mock_gpt, mock_save
@@ -245,7 +256,7 @@ class TestTrainProfile:
         gpt_output = {
             "preferences": {"core_description": "heavy rock", "must_have": ["guitar"], "soft_preferences": [], "avoid": []},
         }
-        mock_gpt.return_value = gpt_output
+        mock_gpt.return_value = (gpt_output, _GPT_META_STUB)
 
         result = train_profile({
             "core_description": "heavy rock",
@@ -587,7 +598,7 @@ class TestDraftProfileFromPlaylist:
             "moods": ["upbeat", "energetic"],
         }
 
-        with patch("core.src.profile.call_gpt_json") as mock_gpt, \
+        with patch("core.src.profile.call_gpt_json_with_meta") as mock_gpt, \
              patch("core.src.profile.SEED_PROMPT_FILE") as mock_file:
             mock_file.read_text.return_value = (
                 "Playlist: {name}, {count} tracks. "
@@ -595,7 +606,7 @@ class TestDraftProfileFromPlaylist:
                 "Energy: {energy}, Valence: {valence}, Tempo: {tempo}. "
                 "Moods: {moods}"
             )
-            mock_gpt.return_value = json.loads(mock_gpt_json)
+            mock_gpt.return_value = (json.loads(mock_gpt_json), _GPT_META_STUB)
 
             result = draft_profile_from_playlist(summary)
 
@@ -629,13 +640,13 @@ class TestDraftProfileFromPlaylist:
             "moods": [],
         }
 
-        with patch("core.src.profile.call_gpt_json") as mock_gpt, \
+        with patch("core.src.profile.call_gpt_json_with_meta") as mock_gpt, \
              patch("core.src.profile.SEED_PROMPT_FILE") as mock_file:
             mock_file.read_text.return_value = (
                 "{name}{count}{top_artists_list}{top_genres_list}"
                 "{energy}{valence}{tempo}{moods}"
             )
-            mock_gpt.return_value = mock_gpt_result
+            mock_gpt.return_value = (mock_gpt_result, _GPT_META_STUB)
 
             result = draft_profile_from_playlist(summary)
 

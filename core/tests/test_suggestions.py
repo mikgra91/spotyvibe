@@ -746,3 +746,198 @@ class TestNormalizeRationale:
         assert normalized["playlist"][1]["rationale"][0]["type"] == "legacy"
 
 
+# ── Phase 1: build_taste_summary ─────────────────────────────────────
+
+class TestBuildTasteSummary:
+    def _call(self, profile):
+        from core.src.suggestions import build_taste_summary
+        return build_taste_summary(profile)
+
+    def test_basic_fields_included(self):
+        profile = {
+            "preferences": {
+                "must_have": ["punchy guitars", "hooks"],
+                "soft_preferences": ["theatrical", "quirky"],
+                "avoid": ["classic rock"],
+                "eras": ["modern"],
+            },
+            "artists": {"confirmed": [{"name": "Bear Ghost"}, {"name": "Tally Hall"}]},
+            "meta": {"primary_reference": "Bear Ghost"},
+        }
+        summary = self._call(profile)
+        assert "Must:" in summary
+        assert "punchy guitars" in summary
+        assert "Avoid:" in summary
+        assert "classic rock" in summary
+        assert "Style anchors:" in summary
+        assert "Bear Ghost" in summary
+
+    def test_empty_profile_returns_empty_string(self):
+        assert self._call({}) == ""
+        assert self._call(None) == ""  # type: ignore[arg-type]
+
+    def test_length_cap(self):
+        long_desc = "x" * 2000
+        profile = {"preferences": {"core_description": long_desc}}
+        summary = self._call(profile)
+        assert len(summary) <= 800
+
+    def test_confirmed_anchors_capped_at_five(self):
+        confirmed = [{"name": f"Artist {i}"} for i in range(10)]
+        profile = {"artists": {"confirmed": confirmed}}
+        summary = self._call(profile)
+        # Only first 5 appear in anchors block
+        assert "Artist 0" in summary
+        assert "Artist 5" not in summary
+
+    def test_no_avoid_no_avoid_line(self):
+        profile = {"preferences": {"must_have": ["hooks"]}}
+        summary = self._call(profile)
+        assert "Avoid:" not in summary
+
+
+# ── Phase 1: check_avoid_compliance ──────────────────────────────────
+
+class TestCheckAvoidCompliance:
+    def _call(self, artist_names, avoid_traits, mock_response=None):
+        from core.src.suggestions import check_avoid_compliance
+        import json
+        from unittest.mock import patch
+        if mock_response is None:
+            mock_response = json.dumps({"approved": list(artist_names)})
+
+        def _fake_create(**kwargs):
+            return {"choices": [{"message": {"content": mock_response}}], "usage": None}
+
+        with patch("core.src.suggestions.chat_completions_create", side_effect=_fake_create):
+            with patch("core.src.suggestions.extract_chat_content",
+                       side_effect=lambda r: r["choices"][0]["message"]["content"]):
+                return check_avoid_compliance(artist_names, avoid_traits)
+
+    def test_empty_artists_returns_empty(self):
+        from core.src.suggestions import check_avoid_compliance
+        approved, meta = check_avoid_compliance([], ["classic rock"])
+        assert approved == []
+        assert meta["status"] == "skipped_empty_input"
+
+    def test_no_avoid_traits_returns_all(self):
+        from core.src.suggestions import check_avoid_compliance
+        names = ["Artist A", "Artist B"]
+        approved, meta = check_avoid_compliance(names, [])
+        assert approved == names
+        assert meta["status"] == "skipped_no_avoid"
+        approved2, meta2 = check_avoid_compliance(names, None)
+        assert approved2 == names
+        assert meta2["status"] == "skipped_no_avoid"
+
+    def test_approved_subset_returned(self):
+        names = ["Good Band", "Classic Rock Band", "Indie Artist"]
+        response = '{"approved": ["Good Band", "Indie Artist"]}'
+        approved, meta = self._call(names, ["classic rock"], mock_response=response)
+        assert set(approved) == {"Good Band", "Indie Artist"}
+        assert "Classic Rock Band" not in approved
+        assert meta["status"] == "ok"
+        assert meta["latency_s"] is not None
+        assert meta["prompt_chars"] > 0
+
+    def test_only_original_names_returned(self):
+        """LLM cannot inject new names not in the input list."""
+        names = ["Artist A"]
+        response = '{"approved": ["Artist A", "Injected Artist"]}'
+        approved, _meta = self._call(names, ["avoid trait"], mock_response=response)
+        assert approved == ["Artist A"]
+        assert "Injected Artist" not in approved
+
+    def test_fallback_on_llm_error(self):
+        from core.src.suggestions import check_avoid_compliance
+        from unittest.mock import patch
+        names = ["Artist A", "Artist B"]
+        with patch("core.src.suggestions.chat_completions_create", side_effect=RuntimeError("api down")):
+            approved, meta = check_avoid_compliance(names, ["rock"])
+        assert approved == names
+        assert meta["status"] == "error"
+
+    def test_invalid_json_response_marks_status(self):
+        names = ["Artist A"]
+        response = "not even close to json"
+        approved, meta = self._call(names, ["rock"], mock_response=response)
+        # Falls through except branch — JSONDecodeError is an Exception
+        assert approved == names
+        assert meta["status"] == "error"
+
+
+# ── Phase 1: select_tracks ───────────────────────────────────────────
+
+class TestSelectTracks:
+    _GOOD_RESULT = {
+        "playlist": [
+            {
+                "artist": "good band", "track": "great song",
+                "reason": "fits taste", "energy": 0.8, "valence": 0.7,
+                "genres": ["indie rock"],
+                "rationale": [{"type": "profile_match", "arg": "punchy guitars"}],
+            }
+        ]
+    }
+
+    def _make_profile(self):
+        return {
+            "preferences": {"must_have": ["hooks"], "soft_preferences": ["quirky"], "avoid": []},
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {"liked_tracks": [], "disliked_tracks": []},
+            "artists": {"confirmed": [], "rejected": []},
+            "meta": {},
+        }
+
+    def _call(self, approved_names, taste_summary, batch_size, profile, **kwargs):
+        from core.src.suggestions import select_tracks
+        import json
+        from unittest.mock import patch
+
+        raw_json = json.dumps(self._GOOD_RESULT)
+
+        def _fake_create(**kw):
+            return {"choices": [{"message": {"content": raw_json}}], "usage": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}}
+
+        with patch("core.src.suggestions.chat_completions_create", side_effect=_fake_create):
+            with patch("core.src.suggestions.extract_chat_content",
+                       side_effect=lambda r: r["choices"][0]["message"]["content"]):
+                return select_tracks(approved_names, taste_summary, batch_size, profile, **kwargs)
+
+    def test_returns_tuple_result_meta(self):
+        profile = self._make_profile()
+        result, meta = self._call(["Good Band"], "Must: hooks.", 10, profile)
+        assert isinstance(result, dict)
+        assert "playlist" in result
+        assert "latency_s" in meta
+
+    def test_result_normalized(self):
+        profile = self._make_profile()
+        result, _ = self._call(["Good Band"], "Must: hooks.", 10, profile)
+        # normalize_response lowercases artist/track
+        assert result["playlist"][0]["artist"] == "good band"
+
+    def test_empty_response_returns_empty_playlist(self):
+        from core.src.suggestions import select_tracks
+        from unittest.mock import patch
+
+        def _fake_create(**kw):
+            return {"choices": [{"message": {"content": ""}}], "usage": None}
+
+        with patch("core.src.suggestions.chat_completions_create", side_effect=_fake_create):
+            with patch("core.src.suggestions.extract_chat_content", return_value=""):
+                result, meta = select_tracks(["Artist"], "summary", 5, self._make_profile())
+        assert result["playlist"] == []
+        assert meta["latency_s"] >= 0
+
+    def test_prompt_components_captured(self):
+        from core.src.suggestions import get_last_prompt_components
+        profile = self._make_profile()
+        self._call(["Good Band"], "Must: hooks.", 10, profile)
+        components = get_last_prompt_components()
+        assert components is not None
+        assert components["pool"] > 0   # approved artists block
+        assert components["deny_set"] == 0  # no deny list in Stage 3
+        assert components["profile"] == 0   # no full profile JSON
+
+

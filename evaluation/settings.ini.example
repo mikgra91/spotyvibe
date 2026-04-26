@@ -1,0 +1,35 @@
+# Evaluation harness — local credentials. Copy this file to
+# `evaluation/settings.ini` (which is gitignored) and fill in real values.
+#
+# The harness reads this file at startup. It NEVER writes to it.
+
+[openai]
+# Your OpenAI API key. The harness will issue real billable requests
+# against this key for every model under test.
+api_key = sk-REPLACE_ME
+
+[spotify]
+# Spotify Web API client credentials. Same client_id / client_secret you
+# use for the app itself — the harness creates and deletes test playlists
+# on YOUR Spotify account.
+client_id = REPLACE_ME
+client_secret = REPLACE_ME
+# Redirect URI registered in your Spotify app dashboard. Must match the
+# value the app uses (default: http://127.0.0.1:5000/callback).
+redirect_uri = http://127.0.0.1:5000/callback
+
+[evaluation]
+# Comma-separated list of OpenAI model IDs to evaluate. Each model gets
+# its own profile + playlist + AI Profile Update cycle.
+models = gpt-5.5,gpt-5.4,gpt-5.4-mini
+
+# Number of full cycles per model. Start with 1; bump to 3+ if you want
+# averaging to smooth out single-run variance.
+iterations = 1
+
+# Tracks per generated playlist.
+playlist_size = 30
+
+# Stage 2 model — overrides STAGE2_MODEL from config.py for the duration
+# of the evaluation. Leave commented out to use config.py's default.
+# stage2_model = gpt-5.4-mini
