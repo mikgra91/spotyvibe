@@ -376,6 +376,44 @@ Run as a sequenced suite — each step's outcome decides whether the next is wor
 
 Phase 1's premise was *"split the call to enforce constraints the model is currently ignoring"* (Goal #1). If splitting the call destroys Goal #4 (≥ 95 % Spotify-found) on the quality model, the rework is net-negative — we traded constraint enforcement for hallucination, which the user judges immediately and harshly. **Phase 5's cost A/B cannot proceed until this is closed**: any cheaper variant that posts a similar hit rate to the broken gpt-5.5 baseline would be hidden by the regression rather than benchmarked against a working one.
 
+### Finding (2026-04-26): gpt-5.4-mini reveals a *second* Phase-1 regression — schema mangling
+
+A single-model eval run (gpt-5.4-mini only, canonical seed, 20 batches, hit `MAX_GPT_CALLS_PER_RUN`) produced these numbers:
+
+| | gpt-5.5 (Phase-1 staged) | gpt-5.4-mini (Phase-1 staged) | Pre-Phase-1 monolithic |
+|---|---:|---:|---:|
+| Verified tracks | ~9 / 30 | **4 / 30** | 30 / 30 |
+| Spotify-found rate | ~10 % | **2.0 %** | 96.8 % |
+| Schema-correct output | yes | **70 %** (30 % mangled) | yes |
+| Stage 3 batches needed | 9+ (call-cap reached) | 20 (capped) | 3 |
+| Stage 3 p50 latency | 100 s | 9 s | — |
+
+gpt-5.4-mini does **not** improve the situation; it makes it worse in a *different* way. **30 % of its suggestions had the artist name prepended to the `track` field**, e.g.:
+
+```
+{"artist": "the newfangled four", "track": "the newfangled four - everything is awesome"}
+{"artist": "micappella",          "track": "micappella - uptown funk"}
+{"artist": "san salvador",        "track": "san salvador - la grande folie"}
+```
+
+Spotify then searches `track:"the newfangled four - everything is awesome" artist:"the newfangled four"` and finds nothing — even though the artists exist on Spotify and (in some cases, e.g. Micappella's "Uptown Funk" cover) the tracks exist too. This is **schema mangling, not hallucination**: the LLM is filling the `track` field as if it were a "Artist – Title" display string, ignoring the JSON-shape contract in the system prompt.
+
+This makes Phase 1 a **two-failure-mode** regression, not one:
+
+| Model | Failure mode | Where it bites |
+|---|---|---|
+| gpt-5.5 | Hallucinates track titles for obscure RAG artists | Schema correct, fails Spotify lookup |
+| gpt-5.4-mini | Mangles JSON schema (artist prefix in `track` field) **plus** hallucinates the remainder | 30 % of output cannot be Spotify-verified at all; the rest behaves like 5.5 |
+
+Two implications for the investigation plan:
+
+- **Hypothesis 3 is now load-bearing for both models, not just gpt-5.5.** The current [prompts/track_select_system.txt](prompts/track_select_system.txt) shows the output schema as `{"artist": "…", "track": "…", …}` with bare `"…"` placeholders. Add a literal example *and* an explicit "do NOT include the artist name in the `track` field" rule. Test both models against the patched prompt before any further hypothesis work — if 30 % of the small model's output is schema-noise, no other measurement on it is meaningful.
+- **The pre-Phase-1 monolithic prompt apparently disambiguated the schema well enough that even the small model produced clean tracks** (the 96.8 % baseline holds for both). Whatever was in the old `build_messages` user prompt that did this is the missing piece — diff that prompt against `track_select_user.txt` before patching.
+
+Add to step 2 of the investigation plan:
+
+> 2b. **Schema-mangling regression test.** For both gpt-5.5 and gpt-5.4-mini, log raw LLM output before `normalize_response` mutates it, and count the fraction of `track` fields that contain a hyphen-separated `"{artist} - {real_title}"` pattern. Pre-Phase-1 baseline must be re-measured the same way to confirm the regression is real (and not pre-existing). Acceptance: ≤ 5 % schema-mangled rate on both models against the patched prompt.
+
 ---
 
 # Phase 2 — Quality enforcement (weeks 3–4)
