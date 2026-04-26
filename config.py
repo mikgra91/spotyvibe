@@ -74,11 +74,12 @@ MAX_GPT_CALLS_PER_RUN = 20
 DEFAULT_NEW_ARTIST_PERCENTAGE = 30
 
 # Default OpenAI model used when none is configured
-DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
+DEFAULT_OPENAI_MODEL = "gpt-5.5"
 
 # Curated list of known-good OpenAI model IDs for chat completions.
 # Order determines display order in the Settings dropdown.
 OPENAI_SUPPORTED_MODELS_JSON = [
+    "gpt-5.5",
     "gpt-5.4",
     "gpt-5.4-mini",
     "gpt-4.1",
@@ -109,7 +110,7 @@ MAX_FEEDBACK_TRACK_LEN = 200
 
 
 # ── RAG (retrieval-augmented candidate pool) ─────────────────────
-# See documentation/guides/rag-implementation.md for the design.
+# See documentation/TechnicalManual.md §"RAG candidate-pool feature" for the design.
 # Master off-switch is the user-facing setting RAG_ENABLED in settings.conf;
 # the constants below are corpus paths and tuning knobs.
 #
@@ -126,16 +127,16 @@ RAG_MANIFEST_URL = os.environ.get(
     "RAG_MANIFEST_URL",
     "https://storage.googleapis.com/spotivibe-rag-corpus/manifest.json",
 )
-RAG_POOL_SIZE = 20
+RAG_POOL_SIZE = 60
 RAG_POPULARITY_PENALTY = 0.4
 DEFAULT_RAG_ENABLED = True
 # Stratified retrieval: split RAG_POOL_SIZE across profile facets (must_have,
 # soft_preferences, primary_reference, genres/moods/eras) so an eclectic
 # profile gets guaranteed per-facet coverage instead of one strong facet
-# starving the others. See documentation/guides/rag-implementation.md §4.
+# starving the others. See documentation/TechnicalManual.md §"RAG design reference" → Stratified retrieval.
 RAG_STRATIFIED = True
 # Per-facet quotas (must sum to <= 1.0 — remainder is filled from the
-# undifferentiated flat ranking). Tuned for the 100-slot default.
+# undifferentiated flat ranking). Tuned for the 60-slot default.
 RAG_FACET_WEIGHTS = {
     "must_have": 0.50,
     "soft_preferences": 0.25,
@@ -483,6 +484,7 @@ def get_settings():
         "llm_api_key_required": llm_api_key_required(),
         "rag_enabled": get_rag_enabled(),
         "rag_corpus_available": RAG_CORPUS_PATH.exists(),
+        "rag_pool_size": RAG_POOL_SIZE,
     }
 
 

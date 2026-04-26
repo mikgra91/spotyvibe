@@ -55,6 +55,23 @@ from .utils import app_log
 
 logger = logging.getLogger(__name__)
 
+_legacy_track_key_warned = False
+
+
+def _warn_legacy_track_key_once():
+    """Log once per process when Spotify's playlist item still uses the
+    pre-Feb-2026 'track' key instead of the current 'item' key.
+    A regression here would otherwise be silent — the read-side fallback
+    keeps things working but should not stay invisible.
+    """
+    global _legacy_track_key_warned
+    if not _legacy_track_key_warned:
+        _legacy_track_key_warned = True
+        logger.warning(
+            "Spotify playlist item missing 'item' key — falling back to legacy 'track' key. "
+            "API may have regressed; verify against current Spotify docs."
+        )
+
 # Name used for the managed playlist. If a playlist with this name
 # already exists, new tracks are added to it (idempotent). This avoids
 # creating duplicate playlists on every generation.
@@ -280,7 +297,10 @@ def get_existing_track_uris(sp, playlist_id):
     results = sp.playlist_items(playlist_id, fields="items(item(uri)),next", limit=100)
     while True:
         for entry in results.get("items", []):
-            track = entry.get("item") or entry.get("track")
+            track = entry.get("item")
+            if track is None and entry.get("track") is not None:
+                _warn_legacy_track_key_once()
+                track = entry.get("track")
             if track and track.get("uri"):
                 existing.add(track["uri"])
         if results.get("next") is None:
@@ -361,10 +381,15 @@ def remove_all_tracks_by_artist(artist, playlist_id=None):
 
     uris_to_remove: list[str] = []
     removed_tracks: list[dict] = []
-    results = sp.playlist_items(pid, fields="items(track(uri,name,artists(name))),next")
+    # Feb 2026: Spotify renamed the inner key from "track" to "item".
+    # Mirror what get_existing_track_uris does — request "item" by name.
+    results = sp.playlist_items(pid, fields="items(item(uri,name,artists(name))),next")
     while results:
         for entry in results.get("items", []):
-            track = entry.get("track") or entry.get("item")
+            track = entry.get("item")
+            if track is None and entry.get("track") is not None:
+                _warn_legacy_track_key_once()
+                track = entry.get("track")
             if not track or not track.get("uri"):
                 continue
             artists = [(a.get("name") or "").strip().lower()

@@ -6,4 +6,5 @@ This directory holds the retrieval corpus used by `core/src/rag/`.
 - `artists.jsonl.gz` — the artist corpus. **Not committed.** Build with
   `build-tools/build_rag_corpus.py` or download the release asset.
 
-See `documentation/guides/rag-implementation.md` for the full design.
+See `documentation/TechnicalManual.md` §"RAG candidate-pool feature" and
+§"RAG design reference" for the full design.

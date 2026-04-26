@@ -1,6 +1,7 @@
 """Retrieval-augmented candidate pool for suggestion prompts.
 
-See documentation/guides/rag-implementation.md for design.
+See documentation/TechnicalManual.md §"RAG candidate-pool feature" and
+§"RAG design reference" for the design.
 Public entry points:
     RagCorpus.load(path)             — construct an in-memory corpus.
     score_artists(corpus, query,     — return the top-K candidate pool.

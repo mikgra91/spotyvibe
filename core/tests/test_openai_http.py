@@ -132,8 +132,18 @@ class TestRequestJson:
     @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"})
     @patch("core.src.openai_http.time.sleep")
     @patch("urllib.request.urlopen")
-    def test_raises_timeout_error_on_url_error(self, mock_urlopen, mock_sleep):
-        mock_urlopen.side_effect = urllib.error.URLError("timed out")
+    def test_raises_timeout_error_on_socket_timeout(self, mock_urlopen, mock_sleep):
+        import socket
+        mock_urlopen.side_effect = urllib.error.URLError(socket.timeout("timed out"))
+        with pytest.raises(OpenAITimeoutError):
+            _request_json("GET", "/models", retries=0)
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"})
+    @patch("core.src.openai_http.time.sleep")
+    @patch("urllib.request.urlopen")
+    def test_raises_timeout_error_on_bare_socket_timeout(self, mock_urlopen, mock_sleep):
+        import socket
+        mock_urlopen.side_effect = socket.timeout("timed out")
         with pytest.raises(OpenAITimeoutError):
             _request_json("GET", "/models", retries=0)
 

@@ -20,7 +20,8 @@ from typing import Iterable
 logger = logging.getLogger(__name__)
 
 # Expected schema per JSONL line. Extra fields are ignored; missing fields
-# default to empty. See rag-implementation.md §2 for the definitive list.
+# default to empty. See documentation/TechnicalManual.md §"RAG design
+# reference" → Per-artist schema for the definitive list.
 # Filter at load time to catch pre-1960s entries in older corpus files.
 MIN_ARTIST_BEGIN_YEAR = 1960
 

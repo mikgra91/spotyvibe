@@ -1,8 +1,8 @@
 """Fetch the latest MusicBrainz JSON dump and rebuild the RAG corpus.
 
-End-to-end automation for the manual steps documented in
-``documentation/guides/rag-implementation.md`` §"How to build and use
-the corpus":
+End-to-end automation for the manual MusicBrainz dump → corpus pipeline.
+See ``documentation/TechnicalManual.md`` §"RAG corpus — Cloud Run
+automated pipeline" for the production cadence; the steps here are:
 
 1. Read the ``LATEST`` marker at
    https://data.metabrainz.org/pub/musicbrainz/data/json-dumps/ to find

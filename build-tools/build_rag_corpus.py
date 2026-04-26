@@ -7,9 +7,10 @@ Usage::
         --output data/rag_corpus/artists.jsonl.gz \\
         --top-n 500000
 
-See ``documentation/guides/rag-implementation.md`` §2 for the rationale
-behind the quality filters. The actual yield (~170-180K artists) is
-determined by MusicBrainz community tag coverage, not the top-n cap.
+See ``documentation/TechnicalManual.md`` §"RAG design reference" → Corpus
+size rationale and Per-artist schema for the rationale behind the quality
+filters. The actual yield (~170-180K artists) is determined by MusicBrainz
+community tag coverage, not the top-n cap.
 
 The script accepts two input shapes:
 
@@ -204,7 +205,8 @@ def _load_mb_dump(source: Path, *, artist_tar: Path | None = None,
         sorted_tags = sorted(atags, key=lambda t: -t[1])
         # Slim row schema — only fields consumed by the runtime retriever
         # are persisted. Dropped vs. v1: sort_name, country, end_year.
-        # See documentation/guides/rag-implementation.md §3.2.
+        # See documentation/TechnicalManual.md §"RAG design reference" →
+        # Per-artist schema (slimming history note).
         artists.append({
             "mbid": aid,
             "name": row.get("name") or "",

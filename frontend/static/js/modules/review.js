@@ -54,7 +54,11 @@ export async function loadPlaylistTracks() {
         const resp = await fetch(`/api/playlist/${encodeURIComponent(playlistId)}/tracks`);
         const data = await resp.json();
         if (data.error) {
-            listEl.innerHTML = `<p style="color:var(--error)">${data.error}</p>`;
+            const errP = document.createElement('p');
+            errP.style.color = 'var(--error)';
+            errP.textContent = data.error;
+            listEl.innerHTML = '';
+            listEl.appendChild(errP);
             return;
         }
         const tracks = data.tracks || [];

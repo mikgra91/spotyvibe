@@ -788,6 +788,10 @@ This helps SpotyVibe avoid similar tracks in future runs.
 
 ![Dislike feedback form](/docs/screenshots/35_dislike_feedback_form.png)
 
+#### Dislike a whole artist
+
+If you submit a Dislike with the **Track** field left empty, SpotyVibe asks for confirmation: *"Remove ALL songs by '<artist>' from this playlist and never suggest them again?"* Clicking OK removes every track by that artist from the active playlist (not just the visible one) and remembers the artist-level dislike, so they will not be suggested again. Cancel does nothing.
+
 ---
 
 <a id="remove-a-track"></a>

@@ -415,7 +415,7 @@ def validate_profile_schema(data):
                 raise ValueError(f"'{section}' must be an object.")
             for key, val in sec.items():
                 if isinstance(val, list) and len(val) > _MAX_LIST_ITEMS * 10:
-                    sec[key] = val[-(  _MAX_LIST_ITEMS * 10):]
+                    sec[key] = val[-(_MAX_LIST_ITEMS * 10):]
 
     # taste_rules
     if "taste_rules" in data:

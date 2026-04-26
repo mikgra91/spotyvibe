@@ -131,6 +131,14 @@ export async function openSettings() {
             ragCheckbox.checked = !!data.rag_enabled;
             const ragStatus = el('status-settings-rag');
             let corpusAvailable = !!data.rag_corpus_available;
+
+            // Replace the {count} placeholder in settings.rag.hint with the
+            // actual server-side RAG_POOL_SIZE so the hint never drifts from
+            // the constant in config.py.
+            const ragHint = document.querySelector('[data-i18n="settings.rag.hint"]');
+            if (ragHint && data.rag_pool_size != null) {
+                ragHint.textContent = ragHint.textContent.replace('{count}', String(data.rag_pool_size));
+            }
             function updateRagStatus() {
                 if (!ragStatus) return;
                 if (!corpusAvailable) {

@@ -777,6 +777,10 @@ Like した曲は、SpotyVibe が「何がうまく機能しているか」を�
 
 ![Dislike feedback form](/docs/screenshots/35_dislike_feedback_form.png)
 
+#### アーティスト全体を Dislike する
+
+Dislike を送信するときに **Track** 欄を空のままにすると、SpotyVibe が確認ダイアログを表示します:「このプレイリストから '<アーティスト>' のすべての曲を削除し、今後提案しないようにしますか?」。OK を押すと、現在のプレイリストからそのアーティストのすべての曲が削除され(表示されている曲だけではありません)、アーティスト単位の Dislike として記録されます。Cancel を押すと何も起こりません。
+
 ---
 
 <a id="remove-a-track"></a>

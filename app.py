@@ -771,8 +771,9 @@ def run_pipeline():
 
                 # ── Eval log: one JSONL row per suggested track ────────
                 # Lets us measure hallucination rate / candidate-pool hit
-                # rate offline (see rag-implementation.md §"Hallucination
-                # measurement"). Gated on debug mode inside the helper.
+                # rate offline (see TechnicalManual.md §"RAG design
+                # reference" → Hallucination measurement). Gated on debug
+                # mode inside the helper.
                 # We pull the *actual* pool the LLM was prompted with from
                 # suggestions.get_last_rag_pool_names() — re-scoring here
                 # would waste CPU and silently drift if the scoring logic

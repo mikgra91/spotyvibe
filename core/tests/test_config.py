@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch, mock_open, MagicMock
 
+import pytest
 
 import config
 
@@ -27,29 +28,15 @@ class TestGetModel:
 
 
 class TestGetDebugMode:
-    @patch.dict(os.environ, {"DEBUG_MODE": "true"})
-    def test_true_when_true(self):
-        assert config.get_debug_mode() is True
+    @pytest.mark.parametrize("value", ["true", "1", "on", "ON"])
+    def test_true_values(self, value):
+        with patch.dict(os.environ, {"DEBUG_MODE": value}):
+            assert config.get_debug_mode() is True
 
-    @patch.dict(os.environ, {"DEBUG_MODE": "1"})
-    def test_true_when_one(self):
-        assert config.get_debug_mode() is True
-
-    @patch.dict(os.environ, {"DEBUG_MODE": "on"})
-    def test_true_when_on(self):
-        assert config.get_debug_mode() is True
-
-    @patch.dict(os.environ, {"DEBUG_MODE": "ON"})
-    def test_case_insensitive(self):
-        assert config.get_debug_mode() is True
-
-    @patch.dict(os.environ, {"DEBUG_MODE": ""})
-    def test_false_when_empty(self):
-        assert config.get_debug_mode() is False
-
-    @patch.dict(os.environ, {"DEBUG_MODE": "false"})
-    def test_false_when_false(self):
-        assert config.get_debug_mode() is False
+    @pytest.mark.parametrize("value", ["", "false"])
+    def test_false_values(self, value):
+        with patch.dict(os.environ, {"DEBUG_MODE": value}):
+            assert config.get_debug_mode() is False
 
 
 class TestGetPlaylistSize:
@@ -72,25 +59,19 @@ class TestGetPlaylistSize:
 
 
 class TestGetNewArtistPercentage:
-    @patch.dict(os.environ, {"NEW_ARTIST_PERCENTAGE": "50"})
-    def test_returns_configured_value(self):
-        assert config.get_new_artist_percentage() == 50
+    @pytest.mark.parametrize("env_value,expected", [
+        ("50", 50),
+        ("0", 1),       # clamped low
+        ("200", 100),   # clamped high
+    ])
+    def test_returns_or_clamps(self, env_value, expected):
+        with patch.dict(os.environ, {"NEW_ARTIST_PERCENTAGE": env_value}):
+            assert config.get_new_artist_percentage() == expected
 
-    @patch.dict(os.environ, {"NEW_ARTIST_PERCENTAGE": "0"})
-    def test_clamps_low_to_one(self):
-        assert config.get_new_artist_percentage() == 1
-
-    @patch.dict(os.environ, {"NEW_ARTIST_PERCENTAGE": "200"})
-    def test_clamps_high_to_hundred(self):
-        assert config.get_new_artist_percentage() == 100
-
-    @patch.dict(os.environ, {"NEW_ARTIST_PERCENTAGE": ""})
-    def test_falls_back_to_default(self):
-        assert config.get_new_artist_percentage() == config.DEFAULT_NEW_ARTIST_PERCENTAGE
-
-    @patch.dict(os.environ, {"NEW_ARTIST_PERCENTAGE": "abc"})
-    def test_falls_back_on_invalid(self):
-        assert config.get_new_artist_percentage() == config.DEFAULT_NEW_ARTIST_PERCENTAGE
+    @pytest.mark.parametrize("env_value", ["", "abc"])
+    def test_falls_back_on_empty_or_invalid(self, env_value):
+        with patch.dict(os.environ, {"NEW_ARTIST_PERCENTAGE": env_value}):
+            assert config.get_new_artist_percentage() == config.DEFAULT_NEW_ARTIST_PERCENTAGE
 
 
 class TestGetSettings:
@@ -380,41 +361,19 @@ class TestBaseDir:
 class TestIsOnboardingCompleted:
     """Tests for is_onboarding_completed — reads from settings.conf file."""
 
-    def test_returns_true_when_file_has_true(self, tmp_path):
+    @pytest.mark.parametrize("file_value,expected", [
+        ("ONBOARDING_COMPLETED=true\n", True),
+        ("ONBOARDING_COMPLETED=yes\n", True),
+        ("ONBOARDING_COMPLETED=1\n", True),
+        ("ONBOARDING_COMPLETED=false\n", False),
+        ("ONBOARDING_COMPLETED=\n", False),
+        ("OPENAI_MODEL=gpt-4o\n", False),  # key missing from file
+    ])
+    def test_settings_file_value(self, tmp_path, file_value, expected):
         settings_file = tmp_path / "settings.conf"
-        settings_file.write_text("ONBOARDING_COMPLETED=true\n")
+        settings_file.write_text(file_value)
         with patch.object(config, "SETTINGS_FILE", settings_file):
-            assert config.is_onboarding_completed() is True
-
-    def test_returns_true_when_file_has_yes(self, tmp_path):
-        settings_file = tmp_path / "settings.conf"
-        settings_file.write_text("ONBOARDING_COMPLETED=yes\n")
-        with patch.object(config, "SETTINGS_FILE", settings_file):
-            assert config.is_onboarding_completed() is True
-
-    def test_returns_true_when_file_has_1(self, tmp_path):
-        settings_file = tmp_path / "settings.conf"
-        settings_file.write_text("ONBOARDING_COMPLETED=1\n")
-        with patch.object(config, "SETTINGS_FILE", settings_file):
-            assert config.is_onboarding_completed() is True
-
-    def test_returns_false_when_file_has_false(self, tmp_path):
-        settings_file = tmp_path / "settings.conf"
-        settings_file.write_text("ONBOARDING_COMPLETED=false\n")
-        with patch.object(config, "SETTINGS_FILE", settings_file):
-            assert config.is_onboarding_completed() is False
-
-    def test_returns_false_when_file_has_empty_value(self, tmp_path):
-        settings_file = tmp_path / "settings.conf"
-        settings_file.write_text("ONBOARDING_COMPLETED=\n")
-        with patch.object(config, "SETTINGS_FILE", settings_file):
-            assert config.is_onboarding_completed() is False
-
-    def test_returns_false_when_key_missing_from_file(self, tmp_path):
-        settings_file = tmp_path / "settings.conf"
-        settings_file.write_text("OPENAI_MODEL=gpt-4o\n")
-        with patch.object(config, "SETTINGS_FILE", settings_file):
-            assert config.is_onboarding_completed() is False
+            assert config.is_onboarding_completed() is expected
 
     def test_returns_false_when_file_does_not_exist(self, tmp_path):
         settings_file = tmp_path / "settings.conf"

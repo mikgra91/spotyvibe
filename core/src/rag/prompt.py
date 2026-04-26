@@ -1,7 +1,9 @@
 """Render a candidate-pool block for injection into the GPT system prompt.
 
 Kept tiny and deterministic so its token-count is predictable — we claim
-≤250 input tokens in rag-implementation.md §5.2 and hold ourselves to it.
+≤250 input tokens for a 20-artist pool (scales linearly to ~1,200 for the
+100-slot default) in documentation/TechnicalManual.md §"RAG design
+reference" → Token budget for the candidate pool, and hold ourselves to it.
 """
 
 from __future__ import annotations

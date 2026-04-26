@@ -2,7 +2,8 @@
 
 The retrieval contract is a single function — ``score_artists`` — so that
 v2 can swap the implementation for embedding-based retrieval without
-touching any caller. See rag-implementation.md §4 and §7.
+touching any caller. See documentation/TechnicalManual.md §"RAG design
+reference" → Retrieval scoring formula and Sparse retrieval over embeddings.
 """
 
 from __future__ import annotations
@@ -214,7 +215,8 @@ def _artist_popularity(artist: ArtistRow) -> float:
 # ``score_artists_stratified`` runs the retrieval once *per facet* with a
 # per-facet quota and merges the results so every non-empty facet gets
 # guaranteed representation in the final pool. See
-# documentation/guides/rag-implementation.md §4 for the rationale.
+# documentation/TechnicalManual.md §"RAG design reference" → Stratified
+# retrieval for the rationale.
 
 # Facet → which profile fields contribute, with the per-field weight that
 # ``build_query_tags`` already applies. Keeping the mapping close to the
@@ -330,7 +332,8 @@ def score_artists_stratified(corpus: RagCorpus,
     keys default to 0. The remainder (1 - sum of weights, but never < 0)
     is filled from a final flat pass that ignores facets — this captures
     artists that match the profile broadly without dominating any single
-    facet. See rag-implementation.md §4.
+    facet. See documentation/TechnicalManual.md §"RAG design reference"
+    → Stratified retrieval.
 
     Falls back to the flat :func:`score_artists` when:
     - every facet returns an empty query (caller has a near-empty profile), or

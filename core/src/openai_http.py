@@ -8,6 +8,7 @@ Endpoints used:
 
 import json
 import os
+import socket
 import time
 import urllib.request
 import urllib.error
@@ -206,12 +207,15 @@ def _request_json(method: str, path: str, body=None, retries: int = 1) -> dict:
             )
 
         except urllib.error.URLError as exc:
-            reason = str(exc.reason) if hasattr(exc, "reason") else str(exc)
-            if "timed out" in reason.lower() or "timeout" in reason.lower():
+            inner = getattr(exc, "reason", exc)
+            if isinstance(inner, (socket.timeout, TimeoutError)):
                 last_exc = OpenAITimeoutError(f"Request timed out: {exc}")
             else:
                 last_exc = OpenAIRequestError(f"Network error: {exc}")
             continue  # retry on network errors
+        except socket.timeout as exc:
+            last_exc = OpenAITimeoutError(f"Request timed out: {exc}")
+            continue
 
     # All attempts failed — raise the last recorded exception
     if last_exc is not None:

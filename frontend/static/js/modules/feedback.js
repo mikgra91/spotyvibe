@@ -151,7 +151,25 @@ export async function submitFeedback(idx, action) {
             if (typeof window.refreshGettingStarted === 'function') {
                 window.refreshGettingStarted();
             }
-            animateRemove(idx);
+            // Remove every track in the visible list that matches this artist —
+            // not just the one whose form was submitted. Iterate descending so
+            // splicing doesn't shift later indices we still need to read.
+            const target = (artist || '').trim().toLowerCase();
+            const matchedIdx = [];
+            for (let i = 0; i < State.suggestions.length; i++) {
+                const t = State.suggestions[i];
+                if (!t) continue;
+                if ((t.artist || '').trim().toLowerCase() === target) {
+                    matchedIdx.push(i);
+                }
+            }
+            if (matchedIdx.length === 0) {
+                animateRemove(idx);
+            } else {
+                for (let i = matchedIdx.length - 1; i >= 0; i--) {
+                    animateRemove(matchedIdx[i]);
+                }
+            }
         } catch (e) {
             showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
         } finally {

@@ -1,9 +1,9 @@
 """Per-suggestion JSONL eval log for offline hallucination analysis.
 
 Writes one JSON line per AI-suggested track to ``EVAL_LOG_FILE`` so the
-RAG / model A/B work documented in
-``documentation/guides/rag-implementation.md`` can be measured with
-pandas/Jupyter instead of by hand.
+RAG / model A/B work documented in ``documentation/TechnicalManual.md``
+§"RAG design reference" can be measured with pandas/Jupyter instead of
+by hand.
 
 Two row kinds are emitted to the same file:
 

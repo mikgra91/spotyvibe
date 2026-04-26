@@ -125,6 +125,7 @@ Secrets are stored in the OS keychain (Windows Credential Manager / macOS Keycha
 | POST | `/api/cancel` | `{run_id, finalize}`. With `finalize:true`, stops the loop and creates the playlist from what was verified. |
 | GET | `/api/run/<run_id>/status` | SSE recovery state after disconnect. |
 | POST | `/api/feedback` | Record like/dislike. Dislikes also remove from the Spotify playlist. |
+| POST | `/api/feedback/dislike-artist` | Record artist-level dislike AND strip every track by that artist from the active playlist. Returns `{removal: {removed_count, removed_tracks}}`. |
 | POST | `/api/remove` | Remove a track from Spotify without recording feedback. |
 | POST | `/api/analyze` | Band/song analysis. |
 | GET | `/api/profile/status` | Trained state + timestamp. |
@@ -252,13 +253,13 @@ All artifacts attach to each [GitHub Release](../../releases). CI workflow: `.gi
 
 ### RAG candidate-pool feature
 
-The suggestion pipeline can inject a pre-ranked pool of ~20 artists retrieved from a local MusicBrainz-derived corpus into the LLM prompt. This converts the model's job from *recall* (naming fitting artists from parametric memory — where small local models hallucinate and `gpt-*-mini` defaults to popular names) into *ranking* (picking from a supplied shortlist). The full design rationale lives in [guides/rag-implementation.md](guides/rag-implementation.md); this section is the operational summary.
+The suggestion pipeline can inject a pre-ranked pool of ~20 artists retrieved from a local MusicBrainz-derived corpus into the LLM prompt. This converts the model's job from *recall* (naming fitting artists from parametric memory — where small local models hallucinate and `gpt-*-mini` defaults to popular names) into *ranking* (picking from a supplied shortlist). The detailed design rationale lives in §"RAG design reference" further down; this section is the operational summary.
 
 **Module layout** ([core/src/rag/](../core/src/rag/)):
 
 | File | Role |
 |---|---|
-| `corpus.py` | `RagCorpus` dataclass — loads `artists.jsonl.gz` into in-memory rows + inverted tag index + TF-IDF idf vector. Slimmed schema (only `mbid`, `name`, `begin_year`, `tags`, `tag_weights`, `listener_popularity` — `sort_name`/`country`/`end_year` and the unused `by_mbid`/`by_name_normalised` indexes were dropped in 2026-04 — see rag-implementation.md §3.2). ~150 MB resident for 350K artists, ~210 MB for 500K. |
+| `corpus.py` | `RagCorpus` dataclass — loads `artists.jsonl.gz` into in-memory rows + inverted tag index + TF-IDF idf vector. Slimmed schema (only `mbid`, `name`, `begin_year`, `tags`, `tag_weights`, `listener_popularity` — `sort_name`/`country`/`end_year` and the unused `by_mbid`/`by_name_normalised` indexes were dropped in 2026-04 — see §"RAG design reference" → Per-artist schema). ~150 MB resident for 350K artists, ~210 MB for 500K. |
 | `retrieval.py` | `score_artists` (flat) + **`score_artists_stratified` (default)** — TF-IDF over artist-tag postings with bigram/hyphen compound boost (×3) and a popularity re-rank penalty. Stratified mode runs the retriever once per profile facet (`must_have`, `soft_preferences`, `primary_reference`, `tags`) with per-facet quotas so eclectic profiles don't get one strong facet starving the others. Returns up to `RAG_POOL_SIZE` rows (default 100). |
 | `prompt.py` | Formats retrieved rows as the `CANDIDATE_POOL` prompt block appended to the suggestions user-message. |
 | `distribution.py` | Manifest fetch, update check, streaming sha256-verified download. Pure stdlib `urllib`. |
@@ -284,7 +285,7 @@ The suggestion pipeline can inject a pre-ranked pool of ~20 artists retrieved fr
 > **⚠ RAG limitations on small local LLMs.** Even with the smaller per-call batch, a RAG-enabled prompt can run 6–9 k tokens (system + profile + history + 100-slot pool + JSON output). If you point SpotyVibe at a local model with a hard 4 k or 8 k context window the pool will be truncated and quality drops sharply. Mitigations:
 >
 > - **Disable RAG** in Settings → Candidate pool. The model falls back to its parametric music knowledge (lower hallucination resistance, but the prompt drops to ~3–4 k tokens).
-> - **Lower `RAG_POOL_SIZE`** (e.g. 40 or 20) — see the trade-off table in `documentation/guides/rag-implementation.md` §4.4.
+> - **Lower `RAG_POOL_SIZE`** (e.g. 40 or 20) — see the trade-off table in §"RAG design reference" → Pool size sweet-spot data.
 > - **Lower `BATCH_SIZE_WITH_RAG`** further (3 or 4) for very small windows; the cost is more LLM calls per playlist.
 > - **Use a 16 k+ context model** (most cloud APIs and any `*-128k` local model). This is the recommended path — RAG was designed against GPT-4-class models with 32 k+ contexts.
 >
@@ -369,6 +370,139 @@ Day-to-day upkeep of the RAG pipeline breaks into five buckets:
 - Option A popularity proxy (release count + tag total) over-rates long-dead classical composers. Acceptable because tag matching dominates selection — flag for re-evaluation only if users complain.
 - Alias map is English-centric; German/Japanese profile vocabulary degrades to unigram matching until aliases are added.
 - No embedding fallback; profiles naming vibes with no MusicBrainz tag coverage silently produce weaker pools. The `score_artists()` interface is the seam for a future embedding-based v2.
+
+### RAG design reference
+
+This subsection captures the formulas, memory budgets, and design-rationale answers that earlier lived in `documentation/guides/rag-implementation.md` (deleted 2026-04-25 after consolidation). Code comments throughout `core/src/rag/` point here.
+
+#### Per-artist schema
+
+| Field | Source | Used for |
+|---|---|---|
+| `mbid` (UUID) | MusicBrainz `artist.id` | Stable primary key |
+| `name` | MusicBrainz `artist.name` | Prompt injection + Spotify search |
+| `begin_year` | MusicBrainz `artist.begin_date_year` | Era matching |
+| `tags` (list) | MusicBrainz `artist_tag` joined on tag id | Genre / mood matching — main retrieval signal |
+| `tag_weights` (list of ints) | MusicBrainz `artist_tag.count` | Tag relevance ranking |
+| `listener_popularity` (0–1) | Derived: release count + tag total proxy (Option A) | Anti-popularity-bias re-rank |
+| `spotify_id`, `spotify_popularity`, `spotify_followers`, `spotify_genres` | Phase 2 enrichment via Spotify Client Credentials | Optional: real popularity + extra tag vocabulary |
+
+Slimming history (2026-04): `sort_name`, `country`, `end_year` and the in-memory `by_mbid` / `by_name_normalised` indexes were dropped because they were loaded but never read. Net: ~25–30% resident memory reduction. JSONL parser silently ignores extra fields, so older corpora still load.
+
+#### Corpus size rationale
+
+| Top-N cut | Disk (gzipped) | Resident | Recall | Decision |
+|---:|---:|---:|---|---|
+| 100,000 | ~5 MB | ~80 MB | Misses regional / niche acts for eclectic tastes | Too small |
+| 350,000 | ~25–35 MB | ~150–200 MB | Covers virtually every artist a real user will encounter | **Default** |
+| 500,000+ | ~40–55 MB | ~210–280 MB | No measurable recall gain; hurts cold start | Avoid |
+
+Pre-1960 artists are filtered (`MIN_ARTIST_BEGIN_YEAR = 1960`) at both build time and runtime — historical/classical acts dominate tag-weighted rankings but don't fit modern music discovery. Onboarding panel + Settings tooltip surface this constraint.
+
+#### Retrieval scoring formula
+
+Given the user's `profile`, `primary_reference`, and the batch's `deny_list`:
+
+```
+query_tags = profile.must_have_tags
+           + profile.soft_preferences (lower weight)
+           + extract_tags(primary_reference.analysis)
+
+score(artist) = sum(tag_idf[t] * tag_weight[artist, t] * query_weight[t]
+                    for t in query_tags if t in artist.tags)
+
+final_score   = score(artist) * (1 - RAG_POPULARITY_PENALTY * popularity_normalised)
+```
+
+`tag_idf` uses smoothed IDF: `log((N+1)/(df+1)) + 1`. Bigrams and hyphenated compounds get a `_COMPOUND_BOOST = 3.0` multiplier — discovered empirically because "dream pop" is far more diagnostic than "pop". Tag extraction from free-text profile hints uses [data/rag_corpus/tag_aliases.json](../data/rag_corpus/tag_aliases.json), a hand-curated keyword→tag lookup (~200 entries covering common synonyms like "electronic" → `electronica`).
+
+#### Stratified retrieval
+
+`score_artists_stratified` runs the retriever once per profile facet (`must_have`, `soft_preferences`, `primary_reference`, `tags`) with per-facet quotas, dedupes across facets, fills the remainder from a flat pass, and falls back to the flat scorer if every facet is empty. Quotas defined in `RAG_FACET_WEIGHTS` (must_have 50%, soft 25%, reference 15%, tags 10%) — tuned for the 60-slot default but works at any pool size.
+
+Rationale: a single TF-IDF pass over a heavily-weighted `must_have` facet starves softer signals on eclectic profiles. Stratified guarantees per-facet coverage.
+
+#### Pool size sweet-spot data
+
+Eval data (Apr 2026, 4 playlists × 30 tracks on the "Rock" profile):
+
+| `RAG_POOL_SIZE` | Pool adherence | Hallucination rate | Notes |
+|---:|---:|---:|---|
+| 20 | 19% | 5.5% | Pool too narrow to anchor an eclectic profile — model picks off-pool 81% of the time |
+| 60 | ~38% | ~5% | Better adherence, prompt grows ~600 tok |
+| **100** | **~50%** | **~5%** | **Default since 2026-04**; further width adds prompt cost without measurable gain |
+| 200 | ~55% | ~5% | Hits 8K context for some local LLMs |
+
+The 2026-04-21 decision report set `≥ 40% in_candidate_pool` as the target metric; the 100-slot default reaches it.
+
+#### Sparse retrieval over embeddings — design choice
+
+TF-IDF + tag matching chosen over sentence-transformers embeddings because:
+
+1. **Offline-first discipline.** Tag TF-IDF has zero runtime ML dependencies; embeddings pull in `sentence-transformers` or ONNX Runtime (~90 MB model + dep tree).
+2. **Tag data is already structured.** MusicBrainz tags are human-curated. Running embeddings over already-categorised text gives diminishing returns.
+3. **Workload is short-tail filtering, not fuzzy similarity.** The profile already names specific genres/moods; tag matching is a strong signal.
+4. **Debuggability.** TF-IDF scores are inspectable by reading the query; embedding scores are opaque.
+
+`score_artists()` is the replacement seam if "profile mentions a vibe with no exact tag match" becomes a measured failure mode.
+
+#### Hallucination measurement — pandas guide
+
+The eval log (`%LOCALAPPDATA%/spotyvibe/eval.jsonl` on Windows; `~/.local/share/spotyvibe/eval.jsonl` on Linux) writes one row per AI-suggested track when `DEBUG_MODE=true`. Schema is documented under "Eval-log telemetry" below.
+
+Capture protocol for a clean A/B:
+1. Reset the eval log (delete or rename).
+2. Enable `DEBUG_MODE` in Settings.
+3. Run N playlists with RAG off (Settings → Candidate pool (RAG) → off). Vary nothing else.
+4. Run N playlists with RAG on. Same profile, same playlist size.
+5. Disable `DEBUG_MODE` when done.
+
+Headline analysis (drop a 30-row sample into Jupyter):
+
+```python
+import pandas as pd
+from pathlib import Path
+
+LOG = Path.home() / ".local/share/spotyvibe/eval.jsonl"  # or %LOCALAPPDATA% on Windows
+df = pd.read_json(LOG, lines=True)
+
+# Hallucination rate: tracks Spotify could not find
+print(df.groupby("rag_enabled")["found_on_spotify"].apply(lambda s: 1 - s.mean()))
+
+# Pool effectiveness (RAG-on only)
+rag_on = df[df["rag_enabled"]]
+print("Pool adherence:", rag_on["in_candidate_pool"].mean())
+print("Found-rate by pool membership:")
+print(rag_on.groupby("in_candidate_pool")["found_on_spotify"].mean())
+
+# Repeated hallucinations — high-signal cases
+hallucinations = (df.loc[~df["found_on_spotify"], ["model", "rag_enabled", "artist", "track"]]
+                    .value_counts(["artist", "track", "model", "rag_enabled"])
+                    .reset_index(name="count").sort_values("count", ascending=False))
+hallucinations.head(20)
+```
+
+Decision rules:
+
+| Observation | Action |
+|---|---|
+| RAG-on hallucination rate ≥ 30% lower than RAG-off | Confirms RAG value; keep `DEFAULT_RAG_ENABLED = True` |
+| `in_candidate_pool` mean < 0.4 | Try `RAG_POOL_SIZE = 200` *or* tighten the candidate-pool prompt language |
+| `in_candidate_pool` mean > 0.9 *and* hallucinations still high | The pool itself is wrong — extend `tag_aliases.json` |
+| Out-of-pool found-rate ≈ in-pool found-rate | Pool not adding ranking signal — revisit `RAG_POPULARITY_PENALTY` |
+| Repeated identical hallucinations across runs of the same profile | Add to the profile's `avoid` list, or add the *correct* artist as an alias if it's a misremember |
+
+Caveats: `found_on_spotify=False` is not a perfect hallucination signal — Spotify catalog gaps, regional restrictions (`market="from_token"`), and minor title typos all count as misses. Cross-check the worst-offender list before drawing conclusions.
+
+#### Token budget for the candidate pool
+
+The `CANDIDATE_POOL` block in [core/src/rag/prompt.py](../core/src/rag/prompt.py) holds itself to **≤ 250 input tokens for a 20-artist pool** (~12 tokens per row: name + 2-3 tags). At the current 100-slot default, the budget scales linearly to ~1,200 tokens — accounted for in the per-call cost analysis (see §RAG candidate-pool feature above and [result-improvement.md](../result-improvement.md) Phase 0).
+
+Format is intentionally terse (no per-row index prefix, tags inline in parentheses) since the index was never read by GPT and the `— tags:` prose was redundant given the parenthetical convention.
+
+#### KV-cache friendliness
+
+The `CANDIDATE_POOL` block is placed **after** the stable system prompt + profile but **before** the deny-list and feedback. Rationale: profile is stable across a single playlist run, so everything before the pool stays cached on llama.cpp's `--cache-reuse` and on OpenAI's prompt cache. The pool itself changes per batch (deny-list grows, re-ranking shifts), so cache resets there and onward — already the case with the current deny-list.
 
 ---
 

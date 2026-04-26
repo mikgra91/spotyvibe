@@ -395,6 +395,16 @@ _VALIDATION_BLOCKS = {
         "Select {batch_size} maximizing fit + diversity. "
         "Ensure ≥ {min_new_artists} from new artists."
     ),
+    "gpt-5-5": (
+        "VALIDATION: Build candidate pool > {batch_size}. For each candidate verify:\n"
+        "(a) Artist NOT in any DENY_LIST section — else DISCARD.\n"
+        "(b) Track NOT in any DENY_LIST section — else DISCARD.\n"
+        "(c) Satisfies EVERY must_have trait — if even one missing, DISCARD.\n"
+        "(d) Matches ZERO avoid traits — if even one matches, DISCARD.\n"
+        "(e) Per-artist count ≤ 2.\n"
+        "Select {batch_size} maximizing fit + diversity. "
+        "Ensure ≥ {min_new_artists} from new artists."
+    ),
 }
 _DEFAULT_VALIDATION = "VALIDATION: Before output, verify every track against constraints 1–7. Replace failures."
 

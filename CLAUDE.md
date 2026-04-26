@@ -31,7 +31,7 @@ pip install build && python -m build --wheel         # Python wheel for macOS/Li
 
 | Command | Runs |
 |---|---|
-| `python -m pytest core/tests/ -v` | Core unit tests (~458 tests, ~3s) |
+| `python -m pytest core/tests/ -v` | Core unit tests (~539 tests, ~3s) |
 | `bash build-tools/run_frontend_tests.sh` | Frontend tests in 3 parallel groups (~237 tests) |
 | `bash build-tools/run_tests.sh` | Core + frontend in parallel (4 groups) |
 | `bash build-tools/run_tests.sh core` \| `frontend` | Scope to one side |
@@ -56,6 +56,7 @@ PLAYWRIGHT_BROWSERS_PATH="$LOCALAPPDATA/ms-playwright" LOCALAPPDATA=$(mktemp -d)
 | OpenAI / GPT calls | `core/src/openai_http.py` (direct HTTP, no SDK) |
 | Music profile logic | `core/src/profile.py` |
 | Suggestion engine | `core/src/suggestions.py` |
+| RAG corpus & retrieval | `core/src/rag/` (corpus, retrieval, prompt, distribution) |
 | Like/dislike | `core/src/feedback.py` |
 | Run history | `core/src/history.py` |
 | Artist analysis | `core/src/analysis.py` |

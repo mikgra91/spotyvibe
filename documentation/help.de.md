@@ -791,6 +791,10 @@ Das hilft SpotyVibe, ähnliche Tracks in zukünftigen Durchläufen zu vermeiden.
 
 ![Dislike-Feedback-Formular](/docs/screenshots/35_dislike_feedback_form.png)
 
+#### Eine ganze Band ablehnen
+
+Wenn du beim Dislike das **Track**-Feld leer lässt, fragt SpotyVibe nach: *„Alle Songs von '<Künstler>' aus dieser Playlist entfernen und nie wieder vorschlagen?"*. Mit OK werden alle Tracks dieses Künstlers aus der aktiven Playlist entfernt (nicht nur der sichtbare) und der Künstler dauerhaft auf die Vermeiden-Liste gesetzt. Abbrechen tut nichts.
+
 ---
 
 <a id="track-entfernen"></a>

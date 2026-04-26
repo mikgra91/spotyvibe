@@ -53,7 +53,12 @@ export function setGenerating(generating) {
 
     if (loadArea) {
         loadArea.classList.toggle('hidden', !generating);
-        if (!generating) {
+        if (generating) {
+            // Scroll the loading area into view so the user gets a clear visual signal
+            // that the click was registered. Especially important on small screens
+            // where the spinner might otherwise be below the fold.
+            try { loadArea.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) { /* older browsers */ }
+        } else {
             const msg = el('generateLoadingMsg');
             if (msg) msg.textContent = '';
         }

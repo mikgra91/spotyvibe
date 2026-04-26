@@ -8,6 +8,7 @@ build/
 *.egg
 .env
 .claude
+.mcp.json
 .credentials
 .spotify-cache
 *.log

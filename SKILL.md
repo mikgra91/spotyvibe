@@ -2,7 +2,7 @@
 
 This document summarises the Spotify Web API endpoints and patterns used by SpotyVibe, including breaking changes introduced in **February 2026**. Consult the [official Spotify Web API Reference](https://developer.spotify.com/documentation/web-api) before making API changes.
 
-> **MCP Server available:** If you are using an AI coding assistant, a Spotify MCP server (`marcelmarais/spotify-mcp-server`) is recommended for live API exploration, verifying response shapes, and testing search queries. See `CLAUDE.md` → "Optional MCP Servers" for setup instructions.
+> **MCP Server available:** If you are using an AI coding assistant, a Spotify MCP server (`marcelmarais/spotify-mcp-server`) is recommended for live API exploration, verifying response shapes, and testing search queries. See [`documentation/MCPServers.md`](documentation/MCPServers.md) for setup instructions.
 
 ---
 

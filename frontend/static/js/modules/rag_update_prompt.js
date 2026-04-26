@@ -1,35 +1,29 @@
 /**
- * rag_update_prompt.js — RAG corpus update tip notification
+ * rag_update_prompt.js — Artist-data update tip notification
  *
- * Shows a non-blocking tip toast at the top of the page when a new RAG
- * corpus version is available (or none is installed yet). Reuses the
+ * Shows a non-blocking tip at the top of the page when a new artist
+ * database version is available (or none is installed yet). Reuses the
  * existing /api/settings response (`rag_update.status`) and
  * POST /api/rag/download-corpus endpoint.
  *
  * Behaviour:
- *  - Shows once per app load if status is 'update_available' or
- *    'missing_corpus'. A `sessionStorage` flag prevents repeat shows in
- *    the same tab session even if `init()` is called twice.
- *  - Dismiss just hides the tip — no further side effects.
+ *  - Shows on every app start when status is 'update_available' or
+ *    'missing_corpus'. There is no per-session suppression: the user
+ *    explicitly asked for a re-show on every launch (the tip is the
+ *    only place outside ⚙️ Settings where the download is offered).
+ *  - The tip stays on screen until the user dismisses it or clicks
+ *    Download. There is no auto-dismiss timer.
  *  - "Download" POSTs the endpoint, shows progress, then closes on
  *    success and surfaces a toast.
  */
 import { i18n } from './i18n.js';
 
-const SHOWN_FLAG_KEY = 'sv.rag_update_prompt_shown';
-const AUTO_DISMISS_MS = 20000;
-
 let _tipElement = null;
-let _autoDismissTimer = null;
 
 function _dismiss() {
     if (_tipElement) {
         _tipElement.classList.add('hidden');
         setTimeout(() => { _tipElement?.remove(); _tipElement = null; }, 300);
-    }
-    if (_autoDismissTimer) {
-        clearTimeout(_autoDismissTimer);
-        _autoDismissTimer = null;
     }
 }
 
@@ -40,13 +34,13 @@ function _showTip(status) {
 
     const isMissing = status === 'missing_corpus';
     const title = isMissing
-        ? i18n('rag.update.title_first', 'Artist data available')
-        : i18n('rag.update.title', 'New artist data available');
+        ? i18n('rag.update.title_first', 'Artist database available')
+        : i18n('rag.update.title', 'New artist database available');
     const body = isMissing
         ? i18n('rag.update.body_first_time',
-            'Download the offline MusicBrainz corpus to improve recommendations with real artist data.')
+            'An offline artist database is available to improve recommendations. Download it now.')
         : i18n('rag.update.body',
-            'A newer version of the offline MusicBrainz corpus has been published. Download it now to improve recommendations?');
+            'A newer version of the offline artist database has been published. Download it for better recommendations.');
 
     const tip = document.createElement('div');
     tip.id = 'ragUpdateTip';
@@ -68,18 +62,6 @@ function _showTip(status) {
 
     tip.querySelector('#ragUpdateTipDownload').addEventListener('click', _handleDownload);
     tip.querySelector('#ragUpdateTipClose').addEventListener('click', _dismiss);
-
-    // Pause auto-dismiss on hover
-    tip.addEventListener('mouseenter', () => {
-        if (_autoDismissTimer) { clearTimeout(_autoDismissTimer); _autoDismissTimer = null; }
-    });
-    tip.addEventListener('mouseleave', () => {
-        _autoDismissTimer = setTimeout(_dismiss, AUTO_DISMISS_MS);
-    });
-
-    _autoDismissTimer = setTimeout(_dismiss, AUTO_DISMISS_MS);
-
-    try { sessionStorage.setItem(SHOWN_FLAG_KEY, '1'); } catch { /* ignore */ }
 }
 
 async function _handleDownload() {
@@ -90,8 +72,6 @@ async function _handleDownload() {
         statusLine.hidden = false;
         statusLine.textContent = i18n('rag.update.downloading', 'Downloading…');
     }
-    // Cancel auto-dismiss during download
-    if (_autoDismissTimer) { clearTimeout(_autoDismissTimer); _autoDismissTimer = null; }
 
     try {
         const resp = await fetch('/api/rag/download-corpus', { method: 'POST' });
@@ -118,11 +98,6 @@ async function _handleDownload() {
 }
 
 export async function init() {
-    // Skip if already shown in this tab session.
-    try {
-        if (sessionStorage.getItem(SHOWN_FLAG_KEY) === '1') return;
-    } catch { /* ignore */ }
-
     try {
         const resp = await fetch('/api/settings');
         if (!resp.ok) return;
