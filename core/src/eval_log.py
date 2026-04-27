@@ -270,6 +270,7 @@ def log_batch_summary(
     suggested_playlist: list[dict] | None = None,
     stage1_candidate_count: int | None = None,
     stage2_approved_count: int | None = None,
+    schema_collapse: dict | None = None,
 ) -> None:
     """Append a single ``kind: "batch_summary"`` row to the eval log.
 
@@ -360,6 +361,7 @@ def log_batch_summary(
         "rationale_stats": rationale_stats,
         "stage1_candidate_count": stage1_candidate_count,
         "stage2_approved_count": stage2_approved_count,
+        "schema_collapse": schema_collapse,
     }
 
     eval_log_path.parent.mkdir(parents=True, exist_ok=True)

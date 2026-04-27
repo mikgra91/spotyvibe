@@ -691,6 +691,10 @@ def normalize_response(result):
       with reasons like "Forbidden track, excluded." instead of omitting them).
     - Strips parenthetical meta-commentary from artist names (e.g.
       "Tycho (different track)" → "tycho") to prevent profile pollution.
+    - Drops schema-collapse rows where the model echoed the artist name into
+      the `track` field, used a placeholder string, or duplicated the
+      previous row's track. Counts each shape on
+      ``result["_schema_collapse"]`` for telemetry.
     - Normalises rationale arrays to the bounded chip vocabulary (Wave 3).
     """
     result.pop("validation", None)
@@ -700,6 +704,16 @@ def normalize_response(result):
                          "due to", "see above", "alternate version",
                          "from history", "other track", "previously"}
 
+    # Strings the LLM falls back to when it has no real track to supply.
+    # Conservative: only obvious schema-collapse placeholders. Single-word
+    # fillers like "song" or "track" can plausibly appear in legitimate
+    # short titles, so they are excluded.
+    _PLACEHOLDER_TRACKS = {"", "-", "—", "untitled", "intro", "outro",
+                           "track 1", "interlude", "self-titled"}
+
+    schema_collapse = {"eq_artist": 0, "placeholder_token": 0,
+                       "dup_in_batch": 0}
+    seen_tracks: set[str] = set()
     sanitized_playlist = []
     for entry in result.get("playlist", []):
         # Drop entries where GPT explicitly flagged them as excluded
@@ -716,8 +730,29 @@ def normalize_response(result):
         # Strip parenthetical GPT annotations from artist names
         artist = entry.get("artist", "")
         artist = _strip_gpt_annotation(artist, _ANNOTATION_WORDS)
-        entry["artist"] = artist.lower().strip()
-        entry["track"] = entry.get("track", "").lower().strip()
+        artist_norm = artist.lower().strip()
+        track_norm = entry.get("track", "").lower().strip()
+        entry["artist"] = artist_norm
+        entry["track"] = track_norm
+
+        # ── Anti-confabulation guards (P1.x schema-collapse fix 2026-04-27) ──
+        if artist_norm and track_norm and artist_norm == track_norm:
+            # Model echoed the artist name into the track field — most common
+            # collapse mode for gpt-5.4-mini against an obscure RAG pool.
+            schema_collapse["eq_artist"] += 1
+            logger.debug("Dropped schema-collapse (track==artist): %s", artist_norm)
+            continue
+        if track_norm in _PLACEHOLDER_TRACKS:
+            schema_collapse["placeholder_token"] += 1
+            logger.debug("Dropped schema-collapse (placeholder track): %r for artist %r",
+                         track_norm, artist_norm)
+            continue
+        track_key = f"{artist_norm}::{track_norm}"
+        if track_key in seen_tracks:
+            schema_collapse["dup_in_batch"] += 1
+            logger.debug("Dropped schema-collapse (duplicate within batch): %s", track_key)
+            continue
+        seen_tracks.add(track_key)
 
         # Normalise rationale (Wave 3)
         entry["rationale"] = _normalize_rationale(entry)
@@ -748,6 +783,10 @@ def normalize_response(result):
         sanitized_playlist.append(entry)
 
     result["playlist"] = sanitized_playlist
+    schema_collapse["total"] = (schema_collapse["eq_artist"]
+                                + schema_collapse["placeholder_token"]
+                                + schema_collapse["dup_in_batch"])
+    result["_schema_collapse"] = schema_collapse
 
     # These are derived in code — initialize empty so downstream never fails
     result["new_artists"] = []
@@ -968,6 +1007,43 @@ def check_avoid_compliance(
     return list(artist_names), meta
 
 
+def _format_approved_artists_block(
+    approved_artist_names: list[str],
+    approved_top_tracks: dict | None,
+    max_tracks_per_artist: int = 5,
+) -> str:
+    """Render the APPROVED_ARTISTS section of the Stage 3 user prompt.
+
+    Without overlay data, lines are bare names: ``- {name}``.
+
+    With overlay data, lines carry an indented ``known:`` listing of up
+    to *max_tracks_per_artist* real released tracks per artist. This is
+    the in-context track-level grounding that prevents the LLM from
+    confabulating titles for obscure artists. The model is explicitly
+    told (in the system prompt) it MAY pick from the listed tracks OR
+    another real released track by the same artist — preserving deep-cut
+    discovery while eliminating the bare-name guessing regime.
+
+    Artists with no overlay entry get a marker line so the model knows
+    grounding is unavailable for them and the anti-confab clause applies.
+    """
+    overlay = approved_top_tracks or {}
+    lines: list[str] = []
+    for name in approved_artist_names:
+        lines.append(f"- {name}")
+        key = (name or "").lower().strip()
+        tracks = overlay.get(key) or []
+        tracks = [t for t in tracks if isinstance(t, str) and t.strip()][:max_tracks_per_artist]
+        if tracks:
+            quoted = ", ".join(f'"{t}"' for t in tracks)
+            lines.append(f"    known: {quoted}")
+        elif overlay:
+            # Overlay is in use but we have no entry for this artist — be
+            # explicit so the model invokes the anti-confab clause.
+            lines.append("    known: (no track examples available — only suggest if you recall a real release)")
+    return "\n".join(lines)
+
+
 def select_tracks(
     approved_artist_names: list[str],
     taste_summary: str,
@@ -981,12 +1057,21 @@ def select_tracks(
     audio_filters=None,
     emerging_only: bool = False,
     temperature: float = 0.7,
+    approved_top_tracks: dict | None = None,
 ) -> tuple[dict, dict]:
     """Stage 3: track selection from pre-approved artists (P1.3).
 
     Much smaller prompt than build_messages — no deny list, no full profile
     JSON, no RAG pool. Only the approved artist list and a compact taste
     summary reach the model.
+
+    *approved_top_tracks* is an optional ``{artist_name_lower: [track_titles]}``
+    map sourced from the corpus / runtime overlay. When present, each
+    artist's APPROVED_ARTISTS bullet line is followed by an indented
+    ``known: "t1", "t2", ...`` listing of up to 5 real released tracks.
+    This is the load-bearing track-level grounding signal that prevents
+    confabulation when the model has weak parametric recall for obscure
+    artists (root cause of the 2026-04-27 hallucination regression).
 
     Returns ``(result, meta)`` where ``meta = {"usage": …, "latency_s": …}``.
     Same result shape as call_gpt so all downstream code (filter_duplicate_
@@ -1029,7 +1114,9 @@ def select_tracks(
         system_prompt += emerging_constraint
 
     user_template = load_text_file(TRACK_SELECT_USER_FILE)
-    artists_str = "\n".join(f"- {name}" for name in approved_artist_names)
+    artists_str = _format_approved_artists_block(
+        approved_artist_names, approved_top_tracks
+    )
 
     feedback_summary = build_feedback_summary(profile)
     audio_filters_block = _format_audio_filters(audio_filters or {})
@@ -1113,6 +1200,23 @@ def select_tracks(
 
     raw_content = extract_chat_content(response)
     debug_log("Stage 3 Track Selection", messages, raw_content)
+
+    # ── Diagnostic logging (2026-04-27, Phase 1 quality investigation) ──
+    # During the active investigation we want the full prompt + raw model
+    # response visible at INFO level, not buried in debug.log. Cost is
+    # cheap (a few KB per batch) and the alternative — fishing through
+    # debug.log line by line per run — burns far more time. Remove or
+    # gate behind an env var once Phase 1 is closed and ranking + prompt
+    # guardrails have settled.
+    logger.info(
+        "[Stage 3 prompt] system=%d chars, user=%d chars, model=%s",
+        len(system_prompt), len(user_message), get_model(),
+    )
+    logger.info("[Stage 3 user message] vvvvvvvvvvvvvvvvvvvv\n%s\n^^^^^^^^^^^^^^^^^^^^",
+                user_message)
+    logger.info("[Stage 3 raw response] vvvvvvvvvvvvvvvvvvvv\n%s\n^^^^^^^^^^^^^^^^^^^^",
+                raw_content)
+
     usage = response.get("usage") if isinstance(response, dict) else None
     meta = {"usage": usage, "latency_s": latency_s}
 
@@ -1126,6 +1230,32 @@ def select_tracks(
     except json.JSONDecodeError:
         logger.warning("Stage 3 JSON parse failed: %s", content[:200])
         result = _empty()
+
+    # ── Surface the model's `reasoning` block at INFO level ──
+    # The reasoning block (added 2026-04-27) is the diagnostic anchor —
+    # it tells us how the model interpreted the seed, judged the
+    # candidate pool, and decided what to omit / pick / reach outside
+    # the pool for. Without this we can only observe that the playlist
+    # is bad; with it we can pinpoint whether the failure is in
+    # retrieval (wrong pool), prompt comprehension (model misread the
+    # constraints), or knowledge (model has no tracks for these
+    # obscure artists).
+    reasoning = result.get("reasoning") if isinstance(result, dict) else None
+    if reasoning and isinstance(reasoning, dict):
+        for key in ("seed_interpretation", "pool_assessment",
+                    "selection_strategy", "constraints_evaluated"):
+            val = reasoning.get(key)
+            if val:
+                logger.info("[Stage 3 reasoning] %s: %s", key, val)
+        omitted = reasoning.get("omitted_artists") or []
+        if omitted:
+            logger.info("[Stage 3 reasoning] omitted_artists (%d):", len(omitted))
+            for entry in omitted:
+                logger.info("    - %s", entry)
+    else:
+        logger.warning("[Stage 3 reasoning] MISSING from response — model did "
+                       "not follow the new schema. Raw start: %s",
+                       (raw_content or "")[:200])
 
     return result, meta
 

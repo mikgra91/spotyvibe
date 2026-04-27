@@ -315,3 +315,113 @@ def test_retrieve_candidates_target_size_respected(retrieve_corpus):
     profile = {"preferences": {"must_have": ["indie rock"], "avoid": []}}
     result = retrieve_candidates(retrieve_corpus, profile, target_size=2)
     assert len(result) <= 2
+# ── P2.0 retrieval-quality fix (2026-04-27) ──
+# Stop-list expansion + min-frequency floor for noise tags. Both are
+# regression-prone because they affect the candidate pool composition
+# silently — a future refactor that drops the stop-words back into the
+# tokeniser, or removes the frequency floor, would re-introduce the
+# tag-noise problem that surfaced barbershop a-cappella for a
+# "modern theatrical pop-rock" seed.
+def _build_large_corpus(tmp_path, n_artists: int = 200):
+    """Build a corpus large enough (>= 100 artists) to enable the
+    production min-frequency floor. Each artist gets a few generic
+    pop/rock tags; ONE artist gets a singleton noise tag 'hooks'.
+    """
+    rows = []
+    # 199 generic pop-rock artists — gives the corpus a plausible
+    # frequency distribution where 'pop' / 'rock' are common.
+    for i in range(n_artists - 1):
+        rows.append({
+            "mbid": f"mbid-{i:04d}", "name": f"Artist{i:04d}",
+            "tags": ["pop", "rock", "indie"],
+            "begin_year": 2010 + (i % 10),
+        })
+    # ONE artist tagged with the singleton noise tag 'hooks'.
+    # In the broken regime this artist would dominate the candidate
+    # pool for any seed that mentions "hooks" because IDF=max for n=1.
+    rows.append({
+        "mbid": "mbid-noise",
+        "name": "NoiseTagArtist",
+        "tags": ["hooks", "barbershop", "a cappella"],
+        "begin_year": 2015,
+    })
+    path = tmp_path / "large.jsonl.gz"
+    with gzip.open(path, "wt", encoding="utf-8") as fh:
+        for row in rows:
+            fh.write(json.dumps(row) + "\n")
+    return RagCorpus.load(path)
+def test_min_frequency_floor_drops_singleton_noise_tags(tmp_path):
+    """A query that contains 'hooks' (singleton noise tag) MUST NOT
+    surface the one artist tagged with it. Pre-fix, that artist would
+    rank #1 due to IDF=max for n=1.
+    """
+    from core.src.rag.retrieval import retrieve_candidates
+    corpus = _build_large_corpus(tmp_path)
+    profile = {
+        "preferences": {
+            "must_have": ["strong hooks", "punchy guitars"],
+            "avoid": [],
+        },
+    }
+    result = retrieve_candidates(corpus, profile, target_size=10)
+    names = [a.name for a in result]
+    assert "NoiseTagArtist" not in names, (
+        "min-frequency floor failed — singleton noise tag 'hooks' "
+        "still let the noise-tagged artist into the pool"
+    )
+def test_music_domain_stop_words_excluded_from_query(tmp_path):
+    """Music-domain quality descriptors (modern, strong, polished, vocal,
+    melody, production, etc.) must not become query tokens. Pre-fix,
+    these would match random user-tagged artists and dominate the score.
+    """
+    from core.src.rag.retrieval import build_query_tags, _apply_aliases
+    corpus = _build_large_corpus(tmp_path)
+    profile = {
+        "preferences": {
+            "must_have": ["modern production", "strong melody",
+                          "polished vocal", "punchy guitars"],
+            "avoid": [],
+        },
+    }
+    raw_tags = set(build_query_tags(profile).keys())
+    forbidden = {"modern", "production", "strong", "melody", "polished",
+                 "vocal", "vocals", "melodic", "punchy", "lyrics",
+                 "personality", "storytelling"}
+    leaked = raw_tags & forbidden
+    assert not leaked, (
+        f"music-domain stop words leaked into query tokens: {sorted(leaked)}"
+    )
+    # 'guitars' is NOT a stop word — it's a legitimate instrument signal.
+    # Make sure we didn't over-strip.
+    assert "guitars" in raw_tags, "over-stripped: 'guitars' is legit signal"
+def test_min_frequency_floor_disabled_for_tiny_corpora(tmp_path):
+    """Tests use 3-5-artist fixture corpora to verify scoring LOGIC.
+    The min-frequency floor must be auto-disabled for tiny corpora so
+    those tests still work — otherwise every tag in a tiny corpus has
+    n < 3 and the query collapses to empty.
+    """
+    from core.src.rag.retrieval import _apply_aliases
+    # Tiny 3-artist corpus
+    rows = [
+        {"mbid": f"m{i}", "name": f"A{i}", "tags": ["niche-tag-x"]}
+        for i in range(3)
+    ]
+    path = tmp_path / "tiny.jsonl.gz"
+    with gzip.open(path, "wt", encoding="utf-8") as fh:
+        for r in rows:
+            fh.write(json.dumps(r) + "\n")
+    corpus = RagCorpus.load(path)
+    # 'niche-tag-x' has n=3 in this tiny corpus. Production floor (3) would
+    # keep it. But 'niche-tag-y' with n=1 would be dropped. Test the auto-
+    # disable: pass a single-artist tag and expect it to survive.
+    rows.append({"mbid": "m4", "name": "A4", "tags": ["niche-tag-y"]})
+    path2 = tmp_path / "tiny2.jsonl.gz"
+    with gzip.open(path2, "wt", encoding="utf-8") as fh:
+        for r in rows:
+            fh.write(json.dumps(r) + "\n")
+    corpus2 = RagCorpus.load(path2)
+    # Tiny corpus (4 artists < 100) — floor auto-disabled, so n=1 tag survives.
+    result = _apply_aliases(corpus2, {"niche-tag-y": 1.0})
+    assert "niche-tag-y" in result, (
+        "tiny-corpus auto-disable failed: n=1 tag dropped when it shouldn't be"
+    )

@@ -28,9 +28,33 @@ _RERANK_POOL = 200
 # overwhelm legitimate genre tags. Bigrams that contain a stop word are also
 # meaningless ("strong or", "hooks and") so we drop them too.
 _STOP_TOKENS = frozenset({
+    # English grammatical stop words
     "or", "and", "but", "the", "a", "an", "of", "to", "in", "on", "at", "by",
     "for", "with", "from", "as", "is", "it", "be", "are", "was", "were",
     "this", "that", "these", "those",
+    # ── Music-domain quality descriptors (added 2026-04-27) ──
+    # These describe a track's QUALITY or CHARACTER, not a GENRE. They
+    # appear in user-written taste prose ("strong hooks, modern production,
+    # clear vocal melody, polished but not generic, vocal-forward,
+    # storytelling lyrics, orchestral horn-section flourishes…") but they
+    # do NOT discriminate between artists. Worse: when 1-3 random artists
+    # in MusicBrainz happen to be tagged with these literal words, those
+    # artists get an enormous IDF-weighted score boost and dominate the
+    # candidate pool — which is exactly the P2.0 bug that surfaced
+    # barbershop a-cappella for a "modern theatrical pop-rock" seed.
+    # Empirical proof: see the diagnostic dump in result-improvement.md
+    # (Phase 1 / 2026-04-27). Each entry below is documented as either
+    # "quality" (track property) or "noise" (random tag fragment from
+    # the seed prose decomposition).
+    "strong", "modern", "polished", "generic", "punchy", "clear", "forward",
+    "vocal", "vocals", "melodic", "melody", "production", "lyrics",
+    "personality", "storytelling", "flourishes", "influences", "crossover",
+    "dominance", "dominated", "straight", "ahead", "straightforward",
+    "unmastered", "demos", "lean", "not", "post", "section", "feel",
+    "based", "driven", "leaning", "esque", "like", "ish",
+    # Numeric era fragments — handled by year-band logic in score_artists,
+    # not by literal tag matching.
+    "2010", "2020", "60s", "70s", "80s", "90s", "00s",
 })
 
 
@@ -124,14 +148,40 @@ def build_query_tags(profile: dict,
     return dict(weights)
 
 
-def _apply_aliases(corpus: RagCorpus, query: dict[str, float]) -> dict[str, float]:
+def _apply_aliases(corpus: RagCorpus, query: dict[str, float],
+                   min_artist_frequency: int | None = None) -> dict[str, float]:
     """Rewrite query keys through the alias map and drop tags the corpus
-    doesn't know about — they can't possibly match anything anyway."""
+    doesn't know about — they can't possibly match anything anyway.
+
+    Also drops tags whose corpus frequency is below *min_artist_frequency*
+    (default 3 for production-sized corpora). Rationale (added 2026-04-27
+    as P2.0 fix): a tag matching only 1-2 artists out of 172k is almost
+    certainly a random user-tagging artefact (someone literally typed
+    "hooks" or "strong" in the free-form tag field), not a discriminating
+    genre signal. With TF-IDF, these single-artist tags get the maximum
+    IDF weight, meaning a single noise-tagged artist can dominate the
+    candidate pool. The min-frequency floor neutralises this without
+    touching the IDF computation itself.
+
+    The floor is auto-disabled for tiny corpora (< 100 artists) so unit
+    tests built on hand-crafted 3-5-artist fixtures still pass — those
+    test the scoring LOGIC not the noise-floor heuristic.
+    """
+    if min_artist_frequency is None:
+        min_artist_frequency = 3 if len(corpus.artists) >= 100 else 1
     mapped: dict[str, float] = defaultdict(float)
+    dropped_lowfreq = 0
     for tag, w in query.items():
         canon = corpus.resolve_alias(tag)
-        if canon in corpus.tag_index:
-            mapped[canon] += w
+        if canon not in corpus.tag_index:
+            continue
+        if len(corpus.tag_index.get(canon, ())) < min_artist_frequency:
+            dropped_lowfreq += 1
+            continue
+        mapped[canon] += w
+    if dropped_lowfreq:
+        logger.debug("RAG: dropped %d query tags with corpus frequency "
+                     "< %d (likely noise).", dropped_lowfreq, min_artist_frequency)
     return dict(mapped)
 
 

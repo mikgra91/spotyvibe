@@ -220,6 +220,9 @@ def cleanup_only() -> int:
 
 # ── Main ─────────────────────────────────────────────────────────────
 
+_RUN_LOCK_PATH = HERE / ".run.lock"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--no-confirm", action="store_true",
@@ -227,10 +230,36 @@ def main() -> int:
     parser.add_argument("--cleanup-only", action="store_true",
                         help="Sweep orphaned [EVAL] playlists from your Spotify "
                              "account and exit. Useful after a hard kill.")
+    parser.add_argument("--release-lock", action="store_true",
+                        help="Force-release a stale run lock left behind by a "
+                             "hard-killed previous run, then exit.")
     args = parser.parse_args()
 
+    # ── Run-lock escape hatch ─────────────────────────────────────
+    from evaluation._runlock import (
+        LockHeldError,
+        acquire as _acquire_lock,
+        release_stale_lock,
+    )
+    if args.release_lock:
+        removed = release_stale_lock(_RUN_LOCK_PATH)
+        print(f"Run lock {'removed' if removed else 'not present'}: {_RUN_LOCK_PATH}")
+        return 0
+
+    # cleanup-only is a quick read-only sweep — no need for the lock
+    # (and we want it usable even when a previous run wedged the lock).
     if args.cleanup_only:
         return cleanup_only()
+
+    # Acquire the exclusive run lock BEFORE we burn any OpenAI/Spotify
+    # quota. A second concurrent run is almost always an accident
+    # (orphan process, double-click, forgotten background terminal)
+    # and silently doubles the bill — fail fast instead.
+    try:
+        _acquire_lock(_RUN_LOCK_PATH, kind="evaluation")
+    except LockHeldError as exc:
+        print(f"\n  ❌ {exc}\n", file=sys.stderr)
+        return 4
 
     settings = load_settings()
     models = settings["evaluation"]["models"]

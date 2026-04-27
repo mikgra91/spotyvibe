@@ -19,12 +19,10 @@ build/
 Thumbs.db
 .venv/
 *.whl
-*.egg-info/
-
 
 test-results/
-
 # Evaluation harness — local-only outputs and credentials
 evaluation/settings.ini
 evaluation/results/
 evaluation/sandbox/
+evaluation/.run.lock

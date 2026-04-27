@@ -1,11 +1,7 @@
-APPROVED_ARTISTS (ONLY suggest tracks by these artists):
+APPROVED_ARTISTS — pick from this list ONLY. Each line starting with "-" is the name of an artist (it is NOT a track title). When an indented "known:" line appears beneath an artist, it lists up to 5 real released tracks by that artist that exist on Spotify; you MAY pick one of those, OR another real released track by the same artist if you confidently recall one. Never invent titles. Never echo the artist name into the `track` field.
 {approved_artists}
-
 TASTE SUMMARY:
 {taste_summary}
-
 {recent_feedback}
-
 {audio_filters_block}
-
-Suggest at least {batch_size} tracks following all system instructions. Return only JSON.
+Suggest UP TO {batch_size} tracks following all system instructions. Returning fewer is correct when you cannot recall a real released track for an approved artist — drop that artist rather than echo its name into the `track` field. Return only JSON.

@@ -721,7 +721,8 @@ def run_pipeline():
 
             def _emit_batch_summary(*, llm_meta, gpt_returned_count, after_filter_count,
                                      spotify_found_count, in_pool_count,
-                                     batch_size_used, suggested_playlist):
+                                     batch_size_used, suggested_playlist,
+                                     schema_collapse=None):
                 """Best-effort write of one ``batch_summary`` row to eval.jsonl.
 
                 Failure is logged as a warning — telemetry must never break a run.
@@ -773,6 +774,7 @@ def run_pipeline():
                         suggested_playlist=suggested_playlist,
                         stage1_candidate_count=len(_stage1_candidates) if _use_staged_pipeline else None,
                         stage2_approved_count=len(_approved_names) if _use_staged_pipeline else None,
+                        schema_collapse=schema_collapse,
                     )
                 except Exception as _exc:  # pragma: no cover — never break a run
                     logger.warning("log_batch_summary skipped: %s", _exc)
@@ -789,21 +791,27 @@ def run_pipeline():
 
             _taste_summary: str = ""
             _avoid_traits: list[str] = []
+            _approved_top_tracks: dict = {}
 
             if _use_staged_pipeline:
                 try:
                     yield _sse("progress", message="Stage 1: building candidate pool…")
-                    # deny_keys = forbidden artists + confirmed anchors + history
+                    # deny_keys = forbidden artists + history (for novelty).
+                    # 2026-04-27: confirmed anchors are NO LONGER added to
+                    # deny_keys — they are precisely the artists the model
+                    # has the strongest discography knowledge for, and
+                    # excluding them was a load-bearing source of obscurity
+                    # in the candidate pool (driving the schema-collapse
+                    # regression). Stage 1's popularity penalty + tag
+                    # scoring still prevents the pool from collapsing to
+                    # confirmed-only output, and Stage 3's "≥ min_new_artists
+                    # not in accepted list" constraint preserves discovery.
                     _deny_keys = collect_forbidden_artists(profile)
-                    _confirmed_names = {
-                        (a.get("name", "") if isinstance(a, dict) else str(a)).lower().strip()
-                        for a in profile.get("artists", {}).get("confirmed", [])
-                    }
                     _history_names = {
                         a.lower().strip()
                         for a in profile.get("history", {}).get("suggested_artists", [])
                     }
-                    _deny_keys = _deny_keys | _confirmed_names | _history_names
+                    _deny_keys = _deny_keys | _history_names
                     _stage1_candidates = retrieve_candidates(
                         _corpus, profile,
                         deny_keys=_deny_keys,
@@ -853,6 +861,18 @@ def run_pipeline():
                         _taste_summary = build_taste_summary(profile)
                         yield _sse("progress",
                                    message=f"Stage 2 approved {len(_approved_names)} artists. Starting track selection…")
+
+                    # Build a name → top_tracks lookup for Stage 3 grounding
+                    # (2026-04-27 schema-collapse follow-up). Empty list when
+                    # the corpus / overlay has no tracks for that artist —
+                    # Stage 3's anti-confab clause then takes over.
+                    _approved_top_tracks = {}
+                    if _stage1_candidates:
+                        _approved_lower = {n.lower().strip() for n in _approved_names}
+                        for a in _stage1_candidates:
+                            key = (a.name or "").lower().strip()
+                            if key and key in _approved_lower:
+                                _approved_top_tracks[key] = list(a.top_tracks or [])[:5]
                 except Exception as _stage_exc:
                     logger.warning("Phase 1 staging failed (%s) — falling back to legacy path", _stage_exc)
                     _use_staged_pipeline = False
@@ -944,6 +964,7 @@ def run_pipeline():
                         audio_filters=audio_filters or None,
                         emerging_only=emerging_only,
                         temperature=temperature,
+                        approved_top_tracks=_approved_top_tracks or None,
                     )
                 else:
                     # Legacy path: full build_messages + call_gpt (RAG disabled
@@ -964,6 +985,36 @@ def run_pipeline():
 
                 _batch_latencies.append(_llm_meta.get("latency_s") or 0.0)
                 _gpt_returned_count = len(result.get("playlist", []))
+
+                # ── HC2 violation detector (2026-04-27 diagnostic) ──
+                # Stage 3's HC2 says "ONLY suggest tracks by artists in the
+                # APPROVED_ARTISTS list". When the model violates this we
+                # only used to find out via Spotify-search misses, which
+                # masks the root cause. Surface it directly here so the
+                # log line says "le grand sbam (NOT IN POOL)" rather than
+                # forcing us to cross-reference two systems later.
+                if _use_staged_pipeline:
+                    _approved_lower = {n.lower().strip() for n in (_approved_names or [])}
+                    _stage3_picks = result.get("playlist", []) if isinstance(result, dict) else []
+                    _hc2_violations = []
+                    for _entry in _stage3_picks:
+                        _a = (_entry.get("artist") or "").lower().strip()
+                        if _a and _a not in _approved_lower:
+                            _hc2_violations.append(f"{_a} - {_entry.get('track', '')}")
+                    if _hc2_violations:
+                        logger.warning(
+                            "[HC2 VIOLATION] Stage 3 returned %d/%d picks "
+                            "for artists OUTSIDE the approved pool. "
+                            "Approved pool size=%d. Out-of-pool picks: %s",
+                            len(_hc2_violations), len(_stage3_picks),
+                            len(_approved_lower), _hc2_violations[:10],
+                        )
+                    else:
+                        logger.info(
+                            "[HC2 OK] Stage 3 returned %d picks, all in "
+                            "approved pool (size=%d).",
+                            len(_stage3_picks), len(_approved_lower),
+                        )
 
                 # ── Check again after the blocking GPT call ──
                 if cancel_event.is_set():
@@ -999,6 +1050,7 @@ def run_pipeline():
                         in_pool_count=0,
                         batch_size_used=request_count,
                         suggested_playlist=[],
+                        schema_collapse=result.get("_schema_collapse"),
                     )
 
                     if consecutive_empty_batches >= MAX_CONSECUTIVE_EMPTY_BATCHES:
@@ -1090,6 +1142,7 @@ def run_pipeline():
                         in_pool_count=_in_pool_count,
                         batch_size_used=request_count,
                         suggested_playlist=result["playlist"],
+                        schema_collapse=result.get("_schema_collapse"),
                     )
                 except Exception as _exc:  # pragma: no cover — never break a run
                     logger.warning("eval_log_outcome skipped: %s", _exc)

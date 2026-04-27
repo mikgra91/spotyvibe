@@ -46,6 +46,12 @@ class ArtistRow:
     spotify_popularity: int | None = None     # 0..100 from Spotify
     spotify_followers: int | None = None
     spotify_genres: list[str] = field(default_factory=list)
+    # ── Track-level grounding (2026-04-27). Up to ~5 known released
+    # tracks per artist, sourced either from corpus build (offline
+    # enrichment) or a runtime overlay file. Empty list means: no
+    # grounding available — Stage 3 must rely on parametric memory or
+    # drop the artist (anti-confab clause).
+    top_tracks: list[str] = field(default_factory=list)
 
 
 def normalise_tag(tag: str) -> str:
@@ -127,12 +133,22 @@ class RagCorpus:
 
     @classmethod
     def load(cls, corpus_path: str | Path,
-             aliases_path: str | Path | None = None) -> "RagCorpus":
+             aliases_path: str | Path | None = None,
+             top_tracks_overlay_path: str | Path | None = None) -> "RagCorpus":
         """Load a `.jsonl.gz` corpus + optional `tag_aliases.json`.
 
         Raises FileNotFoundError if *corpus_path* is missing. The aliases
         file is optional — retrieval still works without it, just with
         fewer synonym hits.
+
+        *top_tracks_overlay_path* is an optional JSON file mapping
+        ``mbid → list[str]`` (up to ~5 track titles per artist). When
+        provided, its entries are merged onto matching ``ArtistRow``
+        objects after corpus load. The overlay is the runtime path for
+        track-level grounding while the corpus enrichment job catches up;
+        once tracks are baked into the corpus itself, this overlay layer
+        becomes a no-op for those artists. If not specified, the loader
+        auto-detects ``top_tracks_overlay.json`` next to *corpus_path*.
         """
         corpus_path = Path(corpus_path)
         if not corpus_path.exists():
@@ -150,10 +166,38 @@ class RagCorpus:
             else:
                 logger.info("No tag_aliases at %s — running without synonyms.", ap)
 
+        # Auto-detect overlay next to the corpus file if not explicitly given.
+        if top_tracks_overlay_path is None:
+            candidate = corpus_path.parent / "top_tracks_overlay.json"
+            if candidate.exists():
+                top_tracks_overlay_path = candidate
+
+        n_overlay_merged = 0
+        if top_tracks_overlay_path:
+            op = Path(top_tracks_overlay_path)
+            if op.exists():
+                try:
+                    overlay = json.loads(op.read_text(encoding="utf-8"))
+                    if isinstance(overlay, dict):
+                        # Index artists by mbid for O(1) merge
+                        by_mbid_local: dict[str, ArtistRow] = {a.mbid: a for a in artists if a.mbid}
+                        for mbid, tracks in overlay.items():
+                            if not isinstance(tracks, list):
+                                continue
+                            row = by_mbid_local.get(str(mbid))
+                            if row is None:
+                                continue
+                            row.top_tracks = [str(t) for t in tracks if t]
+                            n_overlay_merged += 1
+                except (OSError, json.JSONDecodeError) as exc:
+                    logger.warning("Ignoring unreadable top_tracks overlay at %s: %s", op, exc)
+
         n_enriched = sum(1 for a in artists if a.spotify_id)
-        logger.info("RagCorpus loaded: %d artists, %d enriched (%.1f%%), %d aliases",
+        n_with_tracks = sum(1 for a in artists if a.top_tracks)
+        logger.info("RagCorpus loaded: %d artists, %d enriched (%.1f%%), %d with top_tracks (%d from overlay), %d aliases",
                     len(artists), n_enriched,
                     100.0 * n_enriched / max(1, len(artists)),
+                    n_with_tracks, n_overlay_merged,
                     len(aliases))
         return cls(artists, aliases)
 
@@ -196,6 +240,7 @@ class RagCorpus:
                     spotify_followers=(int(raw["spotify_followers"])
                                        if raw.get("spotify_followers") is not None else None),
                     spotify_genres=[str(g) for g in (raw.get("spotify_genres") or [])],
+                    top_tracks=[str(t) for t in (raw.get("top_tracks") or []) if t],
                 )
 
     # ── lookup helpers ──────────────────────────────────────────────

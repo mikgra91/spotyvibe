@@ -130,7 +130,7 @@ def prepare_sandbox(sandbox_dir: Path, settings: dict) -> None:
     dst_rag_dir = sandbox_dir / "rag_corpus"
     dst_rag_dir.mkdir(parents=True, exist_ok=True)
     if src_rag_dir.exists():
-        for fname in ("artists.jsonl.gz", "artists.meta.json"):
+        for fname in ("artists.jsonl.gz", "artists.meta.json", "top_tracks_overlay.json"):
             src = src_rag_dir / fname
             if not src.exists():
                 continue
@@ -283,6 +283,26 @@ def _step_playlist(flask_app, playlist_size: int) -> dict[str, Any]:
                 error_msg = event.get("message")
                 logger.warning("[playlist] error event: %s", error_msg)
     if error_msg:
+        # Distinguish "honest under-fill" — model refused to confabulate
+        # because the candidate pool didn't yield enough grounded tracks
+        # — from a real error (Spotify down, network, exception). Both
+        # currently surface as the same "error" SSE event for UI reasons,
+        # but for eval purposes they are NOT the same: honest under-fill
+        # means the system worked AS DESIGNED (anti-hallucination guard
+        # fired) and the eval should NOT mark it as broken. Added
+        # 2026-04-27 after gpt-5.5 + pool=32 produced playlist=0 / status
+        # =error, hiding what was actually correct behaviour.
+        _UNDER_FILL_PHRASES = (
+            "no tracks could be verified on spotify",
+            "gpt kept suggesting already-known",
+        )
+        if any(p in error_msg.lower() for p in _UNDER_FILL_PHRASES):
+            logger.info(
+                "[playlist] reclassifying as under_filled (model refused "
+                "to confabulate or exhausted candidate pool): %s", error_msg,
+            )
+            return {"status": "under_filled", "tracks": [],
+                    "warning": error_msg}
         raise RuntimeError(f"run_pipeline returned error: {error_msg}")
     return {"status": "ok", "tracks": tracks}
 
@@ -440,7 +460,17 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
             r = _step_playlist(flask_app, settings["evaluation"]["playlist_size"])
             tracks = r["tracks"]
             result.playlist_track_count = len(tracks)
-            result.playlist_status = "ok" if tracks else "empty"
+            # Reclassified statuses (2026-04-27):
+            #   "ok"           — got at least one verified track
+            #   "under_filled" — anti-confab guard fired honestly (system worked)
+            #   "empty"        — got zero tracks but no warning surfaced (rare)
+            #   "error"        — exception raised (real failure, propagated below)
+            if r.get("status") == "under_filled":
+                result.playlist_status = "under_filled"
+            elif tracks:
+                result.playlist_status = "ok"
+            else:
+                result.playlist_status = "empty"
         except Exception as exc:
             result.playlist_status = "error"
             result.error = f"playlist: {exc}"

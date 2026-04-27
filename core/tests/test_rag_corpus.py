@@ -177,3 +177,68 @@ def test_spotify_genres_are_indexed_alongside_mb_tags(tmp_path):
     assert "rock" in corpus.tag_index
     assert "theatrical rock" in corpus.tag_index
     assert "nerd rock" in corpus.tag_index
+
+
+# ── Track-level grounding (2026-04-27) ────────────────────────────────
+
+
+def test_top_tracks_field_default_empty():
+    """Legacy corpus rows without a top_tracks field load with [] default."""
+    from core.src.rag.corpus import ArtistRow
+    a = ArtistRow(mbid="x", name="X", tags=["rock"])
+    assert a.top_tracks == []
+
+
+def test_top_tracks_field_parsed_from_corpus(tmp_path):
+    """top_tracks in JSONL is read into the ArtistRow."""
+    path = tmp_path / "artists.jsonl.gz"
+    with gzip.open(path, "wt", encoding="utf-8") as fh:
+        fh.write(json.dumps({
+            "mbid": "z1", "name": "Test Band", "tags": ["rock"],
+            "top_tracks": ["Hit One", "Deep Cut", "B-Side"],
+        }) + "\n")
+    corpus = RagCorpus.load(path)
+    row = corpus.artists[0]
+    assert row.top_tracks == ["Hit One", "Deep Cut", "B-Side"]
+
+
+def test_top_tracks_overlay_merges_by_mbid(corpus_file, tmp_path):
+    """Overlay JSON `{mbid: [tracks]}` is merged onto matching rows at load."""
+    overlay = tmp_path / "top_tracks_overlay.json"
+    overlay.write_text(json.dumps({
+        "a1": ["Glass Hour", "Soft Static"],
+        "a3": ["Run It"],
+        "unknown_mbid": ["Should Be Ignored"],
+    }), encoding="utf-8")
+    corpus = RagCorpus.load(corpus_file, top_tracks_overlay_path=overlay)
+    by_mbid = {a.mbid: a for a in corpus.artists}
+    assert by_mbid["a1"].top_tracks == ["Glass Hour", "Soft Static"]
+    assert by_mbid["a3"].top_tracks == ["Run It"]
+    # Artists not in the overlay still default to []
+    assert by_mbid["a2"].top_tracks == []
+
+
+def test_top_tracks_overlay_autodetected_next_to_corpus(corpus_file):
+    """If top_tracks_overlay.json sits next to the corpus, it loads automatically."""
+    overlay = corpus_file.parent / "top_tracks_overlay.json"
+    overlay.write_text(json.dumps({"a1": ["Auto Loaded"]}), encoding="utf-8")
+    corpus = RagCorpus.load(corpus_file)  # no explicit overlay path
+    by_mbid = {a.mbid: a for a in corpus.artists}
+    assert by_mbid["a1"].top_tracks == ["Auto Loaded"]
+
+
+def test_top_tracks_overlay_missing_file_silently_ignored(corpus_file, tmp_path):
+    """Pointing at a missing overlay path does not raise."""
+    corpus = RagCorpus.load(corpus_file,
+                            top_tracks_overlay_path=tmp_path / "nope.json")
+    assert all(a.top_tracks == [] for a in corpus.artists)
+
+
+def test_top_tracks_overlay_malformed_silently_ignored(corpus_file, tmp_path):
+    """An unparseable overlay file does not break corpus load."""
+    bad = tmp_path / "top_tracks_overlay.json"
+    bad.write_text("not json {", encoding="utf-8")
+    corpus = RagCorpus.load(corpus_file, top_tracks_overlay_path=bad)
+    assert all(a.top_tracks == [] for a in corpus.artists)
+
+

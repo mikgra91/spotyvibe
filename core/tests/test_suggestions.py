@@ -492,6 +492,61 @@ class TestNormalizeResponse:
         assert normalized["playlist"][0]["genres"] == []
 
 
+class TestNormalizeResponseSchemaCollapse:
+    """Phase 1 schema-collapse fix (2026-04-27).
+
+    Pin the four invariants of the anti-confabulation guard so a future
+    refactor of normalize_response cannot silently re-open the regression
+    that drove gpt-5.4-mini's Spotify-found rate from 96.8% to 7.7%.
+    """
+
+    def test_drops_track_equals_artist_case_insensitive(self):
+        result = {"playlist": [
+            {"artist": "The Newfangled Four", "track": "the newfangled four"},
+            {"artist": "Bear Ghost", "track": "Necromancin' Dancin'"},
+        ]}
+        normalized = normalize_response(result)
+        assert len(normalized["playlist"]) == 1
+        assert normalized["playlist"][0]["artist"] == "bear ghost"
+        assert normalized["_schema_collapse"]["eq_artist"] == 1
+        assert normalized["_schema_collapse"]["total"] == 1
+
+    def test_drops_placeholder_track_tokens(self):
+        result = {"playlist": [
+            {"artist": "Foo", "track": "untitled"},
+            {"artist": "Bar", "track": "intro"},
+            {"artist": "Baz", "track": "-"},
+            {"artist": "Qux", "track": "Real Title"},
+        ]}
+        normalized = normalize_response(result)
+        assert len(normalized["playlist"]) == 1
+        assert normalized["playlist"][0]["artist"] == "qux"
+        assert normalized["_schema_collapse"]["placeholder_token"] == 3
+
+    def test_drops_duplicate_within_batch(self):
+        result = {"playlist": [
+            {"artist": "Tally Hall", "track": "Good Day"},
+            {"artist": "tally hall", "track": "good day"},  # dup post-norm
+            {"artist": "Tally Hall", "track": "Banana Man"},
+        ]}
+        normalized = normalize_response(result)
+        assert len(normalized["playlist"]) == 2
+        tracks = {e["track"] for e in normalized["playlist"]}
+        assert tracks == {"good day", "banana man"}
+        assert normalized["_schema_collapse"]["dup_in_batch"] == 1
+
+    def test_schema_collapse_meta_zeroed_when_clean(self):
+        result = {"playlist": [
+            {"artist": "Tally Hall", "track": "Good Day"},
+            {"artist": "Bear Ghost", "track": "Necromancin' Dancin'"},
+        ]}
+        normalized = normalize_response(result)
+        assert len(normalized["playlist"]) == 2
+        sc = normalized["_schema_collapse"]
+        assert sc == {"eq_artist": 0, "placeholder_token": 0,
+                      "dup_in_batch": 0, "total": 0}
+
+
 class TestStripGptAnnotation:
     _WORDS = {"different", "excluded", "forbidden", "not in",
               "due to", "see above", "alternate version",
@@ -940,4 +995,139 @@ class TestSelectTracks:
         assert components["deny_set"] == 0  # no deny list in Stage 3
         assert components["profile"] == 0   # no full profile JSON
 
+    def test_approved_top_tracks_reach_llm_user_message(self):
+        """End-to-end plumbing: when approved_top_tracks is supplied,
+        the rendered known: lines must appear in the user message that
+        is actually sent to the LLM. Guards against future refactors
+        that silently drop the overlay parameter on the floor.
+        """
+        from core.src.suggestions import select_tracks
+        import json
+        from unittest.mock import patch
 
+        captured = {}
+
+        def _fake_create(**kw):
+            captured["messages"] = kw.get("messages")
+            return {"choices": [{"message": {"content": json.dumps(self._GOOD_RESULT)}}],
+                    "usage": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}}
+
+        overlay = {
+            "good band": ["great song", "another hit"],
+            "obscure act": ["only known release"],
+        }
+        with patch("core.src.suggestions.chat_completions_create", side_effect=_fake_create):
+            with patch("core.src.suggestions.extract_chat_content",
+                       side_effect=lambda r: r["choices"][0]["message"]["content"]):
+                select_tracks(
+                    ["Good Band", "Obscure Act"], "Must: hooks.", 10,
+                    self._make_profile(),
+                    approved_top_tracks=overlay,
+                )
+
+        assert captured.get("messages"), "LLM was never called"
+        user_msg = next(m["content"] for m in captured["messages"] if m["role"] == "user")
+        # Both overlay entries must be rendered as known: lines.
+        assert 'known: "great song", "another hit"' in user_msg
+        assert 'known: "only known release"' in user_msg
+
+    def test_missing_overlay_renders_no_examples_marker(self):
+        """When approved_top_tracks is supplied but doesn't cover an
+        artist, that artist must get the explicit
+        ``(no track examples available — …)`` marker so the prompt's
+        anti-confab clause can fire on it. Pre-fix, the artist would
+        appear as a bare name and the model would freely invent titles.
+        """
+        from core.src.suggestions import select_tracks
+        import json
+        from unittest.mock import patch
+
+        captured = {}
+
+        def _fake_create(**kw):
+            captured["messages"] = kw.get("messages")
+            return {"choices": [{"message": {"content": json.dumps(self._GOOD_RESULT)}}],
+                    "usage": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}}
+
+        with patch("core.src.suggestions.chat_completions_create", side_effect=_fake_create):
+            with patch("core.src.suggestions.extract_chat_content",
+                       side_effect=lambda r: r["choices"][0]["message"]["content"]):
+                select_tracks(
+                    ["Covered Artist", "Uncovered Artist"], "Must: hooks.", 10,
+                    self._make_profile(),
+                    approved_top_tracks={"covered artist": ["one", "two"]},
+                )
+
+        user_msg = next(m["content"] for m in captured["messages"] if m["role"] == "user")
+        assert 'known: "one", "two"' in user_msg
+        assert "no track examples available" in user_msg
+
+
+class TestFormatApprovedArtistsBlock:
+    """Track-level grounding (2026-04-27 follow-up).
+
+    The APPROVED_ARTISTS block is the load-bearing change that gives
+    Stage 3 real `(artist, track)` literals to anchor against. Pin the
+    rendering shape so a future prompt refactor cannot silently strip
+    the `known:` lines and reintroduce hallucination.
+    """
+
+    def test_bare_names_when_no_overlay(self):
+        from core.src.suggestions import _format_approved_artists_block
+        out = _format_approved_artists_block(["Foo", "Bar"], None)
+        assert out == "- Foo\n- Bar"
+
+    def test_bare_names_when_overlay_empty(self):
+        from core.src.suggestions import _format_approved_artists_block
+        out = _format_approved_artists_block(["Foo", "Bar"], {})
+        assert out == "- Foo\n- Bar"
+
+    def test_known_block_rendered_when_overlay_has_tracks(self):
+        from core.src.suggestions import _format_approved_artists_block
+        overlay = {
+            "tally hall": ["good day", "banana man"],
+            "bear ghost": ["necromancin' dancin'"],
+        }
+        out = _format_approved_artists_block(
+            ["Tally Hall", "Bear Ghost"], overlay
+        )
+        assert "- Tally Hall" in out
+        assert '    known: "good day", "banana man"' in out
+        assert "- Bear Ghost" in out
+        assert "    known: \"necromancin' dancin'\"" in out
+
+    def test_max_5_tracks_per_artist(self):
+        from core.src.suggestions import _format_approved_artists_block
+        overlay = {"foo": [f"track {i}" for i in range(10)]}
+        out = _format_approved_artists_block(["Foo"], overlay)
+        # Count quoted titles
+        import re
+        quoted = re.findall(r'"[^"]+"', out)
+        assert len(quoted) == 5
+
+    def test_artist_with_no_overlay_entry_marked_when_overlay_active(self):
+        """When the overlay is in use but a specific artist has no entry,
+        the prompt explicitly says no examples are available so the
+        anti-confab clause kicks in for that artist."""
+        from core.src.suggestions import _format_approved_artists_block
+        overlay = {"tally hall": ["good day"]}
+        out = _format_approved_artists_block(
+            ["Tally Hall", "Niflhel"], overlay
+        )
+        assert "- Niflhel" in out
+        assert "no track examples available" in out
+
+    def test_lookup_is_case_insensitive(self):
+        """Overlay keys are lowercase; APPROVED_ARTISTS comes through
+        with whatever casing Stage 1 produced. Lookup must match either way."""
+        from core.src.suggestions import _format_approved_artists_block
+        overlay = {"foo": ["A", "B"]}
+        out = _format_approved_artists_block(["Foo"], overlay)
+        assert "- Foo" in out
+        assert '    known: "A", "B"' in out
+
+    def test_empty_track_strings_filtered(self):
+        from core.src.suggestions import _format_approved_artists_block
+        overlay = {"foo": ["", "  ", "real"]}
+        out = _format_approved_artists_block(["Foo"], overlay)
+        assert '    known: "real"' in out

@@ -66,8 +66,16 @@ MAX_SONG_LIST_SIZE = 100
 # the loop is broken and the playlist is created with whatever was found.
 MAX_CONSECUTIVE_EMPTY_BATCHES = 3
 
-# Hard cost guardrails — max GPT calls per single /api/run invocation
-MAX_GPT_CALLS_PER_RUN = 20
+# Hard cost guardrails — max GPT calls per single /api/run invocation.
+# 2026-04-27: lowered from 20 → 4 during the Phase 1 quality investigation.
+# When the model is misbehaving, retry-loops just multiply the bill without
+# improving the playlist (proven by gpt-5.5 today: 4 batches → only 4/30
+# verified, would have ground through 16 more wasted calls). 4 means: the
+# first batch + up to 3 fill-up retries; if the playlist isn't full by then
+# the underlying problem is upstream of the loop and another retry won't
+# help. Bump back to 20 once the canonical seed reliably hits ≥ 80 %
+# Spotify-found on the first 1-2 batches.
+MAX_GPT_CALLS_PER_RUN = 4
 
 # Default minimum percentage of suggestions that must come from artists not
 # yet present in suggested_artists history (1–100).
@@ -84,7 +92,15 @@ STAGE2_MODEL = "gpt-5.4-mini"
 # Number of candidate artists retrieved by Stage 1 code-side retrieval (P1.1).
 # Intentionally larger than a single batch so Stage 2 + Stage 3 have room to
 # be selective without starving the playlist.
-RETRIEVE_CANDIDATES_SIZE = 50
+#
+# 2026-04-27: pool=32 is the production value after the P2.0 retrieval fix
+# (stop-word expansion + min-frequency floor in _apply_aliases).
+# Pre-fix: pool=32 gave 22% on-genre (singleton noise tags dominated scoring).
+# Post-fix: pool=32 gives 93% on-genre — sufficient for all 3 models.
+# Pool=200 was a temporary workaround that masked the upstream bug and bloated
+# the prompt to ~22 K tokens (breaks the 8 K local-LLM context floor).
+# See result-improvement.md §P2.0 for the full diagnosis and empirical data.
+RETRIEVE_CANDIDATES_SIZE = 32
 
 # Curated list of known-good OpenAI model IDs for chat completions.
 # Order determines display order in the Settings dropdown.
@@ -584,7 +600,7 @@ def save_credentials(credentials):
     load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
     # Re-overlay keyring so os.environ has the real values
     if _KEYRING_AVAILABLE:
-        for key in CREDENTIAL_KEYS:
+        for key in CREDENTIALS_KEYS:
             try:
                 val = _keyring.get_password(_KEYRING_SERVICE, key)
                 if val:
