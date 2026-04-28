@@ -108,7 +108,7 @@ Every GPU-second is billed from the first second.
 - **Multi-tenancy rewrite required.** Today the app assumes one user per process: [config.py](config.py), `.credentials`, `.spotify-cache`, `personalized_music_profile.json` are all on the local filesystem. A hosted version must move per-user state to a DB (Firestore, Postgres via Cloud SQL) and scope it by Spotify user ID.
 - **OpenAI key management.** Either (a) each user brings their own key (current model — works, but the whole point of hosting is to reduce user overhead) or (b) you pay for all users' OpenAI calls (cost goes up linearly with adoption — could be unbounded).
 - **Spotify OAuth redirect URI** must be registered for the public domain; users still authenticate to their own Spotify account.
-- **Premium-only constraint still applies** ([project_premium_only.md](C:/Users/micha/.claude/projects/c--git-spotyvibe/memory/project_premium_only.md)).
+- **Premium-only constraint still applies** (see `SKILL.md` § "Development Mode restrictions").
 
 **Cost estimate — 10 active users, ~50 requests each / month**
 - ~500 requests/mo → **1500x under the free request limit**.

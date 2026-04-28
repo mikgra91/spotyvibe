@@ -37,12 +37,17 @@ def _aggregate_slice(unique_tracks: list, profile: dict | None = None) -> dict:
             if genre:
                 genre_counts[genre.lower().strip()] += 1
 
-    # Supplement with profile genre data if tracks had no genres
+    # Supplement with profile genre data if tracks had no genres.
+    # NOTE (2026-04-28 fix): must_have / soft_preferences live under
+    # profile["preferences"], not at the top level. The previous code
+    # also gated on ``isinstance(prefs, str)`` which is never true for
+    # the actual dict-shaped preferences block, so this branch was a
+    # silent no-op.
     if not genre_counts and profile:
-        prefs = profile.get("preferences", "")
-        if isinstance(prefs, str):
+        prefs = profile.get("preferences") or {}
+        if isinstance(prefs, dict):
             for section_key in ("must_have", "soft_preferences"):
-                for item in (profile.get(section_key) or []):
+                for item in (prefs.get(section_key) or []):
                     if isinstance(item, str) and item.strip():
                         genre_counts[item.strip().lower()] += 1
 

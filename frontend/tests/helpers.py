@@ -91,8 +91,10 @@ def open_burger_menu(page: Page):
     page.locator('button[aria-label="Menu"]').click()
     try:
         expect(page.locator("#settingsDropdown")).to_have_class(re.compile(r"open"), timeout=5_000)
-    except (AssertionError, Exception):
+    except (AssertionError, PlaywrightTimeoutError):
         # Fallback: click again — handler may have attached just after first click.
+        # Catching only Playwright timeouts (not bare ``Exception``) so real
+        # test bugs aren't silently retried away.
         page.wait_for_timeout(200)
         page.locator('button[aria-label="Menu"]').click()
         expect(page.locator("#settingsDropdown")).to_have_class(re.compile(r"open"), timeout=10_000)

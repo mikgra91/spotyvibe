@@ -89,6 +89,10 @@ class TestQuickstartOpenAIWorkflow:
             localStorage.removeItem('spotyvibe-quickstart-openai-dismissed');
             localStorage.removeItem('spotyvibe-quickstart-spotify-dismissed');
         })()""")
-        page.wait_for_timeout(300)
+        # "Should not happen" assertion: poll for a longer window so we
+        # are confident the modal would have appeared if the auto-open
+        # regression came back. The previous 300 ms fixed sleep would
+        # silently pass if the modal opened at 301 ms.
+        page.wait_for_timeout(1500)
         expect(page.locator("#quickstartModal")).to_be_hidden()
 

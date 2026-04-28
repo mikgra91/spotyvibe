@@ -99,6 +99,8 @@
   "feedback.delete_from_playlist": "Aus Playlist löschen",
   "feedback.open_panel": "Feedback",
   "feedback.delete": "Löschen",
+  "feedback.button_aria": "Feedback-Bereich für diesen Track öffnen",
+  "feedback.delete_aria": "Diesen Track aus der Playlist entfernen",
   "feedback.submit_like": "Gefällt mir",
   "feedback.submit_dislike": "Gefällt nicht",
   "feedback.quick_liked_toast": "👍 Gefällt: {track}",

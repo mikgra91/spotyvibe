@@ -37,7 +37,7 @@ import unicodedata
 from collections import defaultdict
 from pathlib import Path
 from config import (BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD,
-                    get_model, get_gpt_language, get_stage2_model)
+                    get_model, get_gpt_language, get_stage2_model, get_debug_mode)
 from .utils import strip_code_fences, debug_log
 from .openai_http import chat_completions_create, extract_chat_content
 from .rag import score_artists, score_artists_stratified, format_candidate_pool_block
@@ -1328,20 +1328,17 @@ def select_tracks(
     debug_log("Stage 3 Track Selection", messages, raw_content)
 
     # ── Diagnostic logging (2026-04-27, Phase 1 quality investigation) ──
-    # During the active investigation we want the full prompt + raw model
-    # response visible at INFO level, not buried in debug.log. Cost is
-    # cheap (a few KB per batch) and the alternative — fishing through
-    # debug.log line by line per run — burns far more time. Remove or
-    # gate behind an env var once Phase 1 is closed and ranking + prompt
-    # guardrails have settled.
+    # The full prompt + raw response contain user-tied data (taste
+    # summary, anchor artists, recent feedback). Keep them off the INFO
+    # channel so they don't end up in shipped log files / bug reports;
+    # gate behind debug mode (2026-04-28).
     logger.info(
         "[Stage 3 prompt] system=%d chars, user=%d chars, model=%s",
         len(system_prompt), len(user_message), get_model(),
     )
-    logger.info("[Stage 3 user message] vvvvvvvvvvvvvvvvvvvv\n%s\n^^^^^^^^^^^^^^^^^^^^",
-                user_message)
-    logger.info("[Stage 3 raw response] vvvvvvvvvvvvvvvvvvvv\n%s\n^^^^^^^^^^^^^^^^^^^^",
-                raw_content)
+    if get_debug_mode():
+        debug_log("Stage 3 user message", [], user_message)
+        debug_log("Stage 3 raw response", [], raw_content)
 
     usage = response.get("usage") if isinstance(response, dict) else None
     meta = {"usage": usage, "latency_s": latency_s}

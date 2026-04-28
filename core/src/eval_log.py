@@ -606,8 +606,11 @@ def _profile_section_sizes(profile: dict | None) -> dict:
         "must_have_count": _len_list(prefs.get("must_have")),
         "soft_preferences_count": _len_list(prefs.get("soft_preferences")),
         "avoid_count": _len_list(prefs.get("avoid")),
+        # NOTE (2026-04-28 fix): meta.goal is not currently populated;
+        # core_description lives under preferences, not meta. Read both
+        # from their actual locations so OPEN-5 telemetry reflects reality.
         "meta_goal_chars": _len_str(meta.get("goal")),
-        "core_description_chars": _len_str(meta.get("core_description")),
+        "core_description_chars": _len_str(prefs.get("core_description")),
     }
 
 

@@ -17,21 +17,35 @@ spotyvibe/
 ├── pyproject.toml                 # Python wheel build config (hatchling)
 ├── start.sh                       # macOS/Linux launcher wrapper (thin → build-tools/start.sh)
 ├── SpotyVibe.command              # macOS Finder launcher wrapper (thin → build-tools/start.sh)
-├── .gitattributes                 # LF line endings for .sh/.command files
+├── spotyvibe.spec                 # PyInstaller spec (folder build)
+├── spotyvibe_onefile.spec         # PyInstaller spec (single-file build)
 ├── pytest.ini                     # Excludes screenshot tests (-m "not screenshots")
+├── README.md                      # Developer overview
+├── CLAUDE.md, AGENTS.md           # Project-level AI agent rules
+├── RULES.md, SKILL.md             # On-demand convention + Spotify-API references
+├── analysis.md                    # Cross-cutting analysis notes (historical)
+├── result-improvement.md          # Phase status dashboard + retro
 ├── core/src/                      # Backend logic (Python)
-│   ├── openai_http.py             # OpenAI HTTP client (no SDK)
+│   ├── openai_http.py             # OpenAI HTTP client (no SDK; local-LLM-friendly)
 │   ├── profile.py                 # Taste-profile I/O + GPT training
-│   ├── suggestions.py             # GPT suggestion engine + dedup
+│   ├── suggestions.py             # GPT suggestion engine + dedup (3-stage pipeline)
 │   ├── playlist.py                # Spotify playlist CRUD & OAuth
 │   ├── feedback.py                # Like/dislike recording
 │   ├── history.py                 # Run history persistence
 │   ├── analysis.py                # Band/artist analysis
-│   ├── spotify_metadata.py        # Spotify metadata enrichment
+│   ├── spotify_metadata.py        # Spotify metadata enrichment (client-credentials path)
 │   ├── taste.py                   # Taste aggregation for dashboard
 │   ├── localised_docs.py          # Language-aware Markdown resolver (en/de/jp fallback)
-│   └── utils.py                   # Shared utilities
+│   ├── eval_log.py                # Per-batch / per-run eval telemetry rows
+│   ├── utils.py                   # Shared utilities
+│   └── rag/                       # Retrieval-augmented generation pool
+│       ├── corpus.py              # RAG corpus loader
+│       ├── retrieval.py           # Artist scoring + selection
+│       ├── prompt.py              # Candidate-pool block formatting
+│       └── distribution.py        # Cloud-Run / HTTP corpus distribution
 ├── core/tests/                    # Unit tests — one per core module
+│   ├── test_i18n_parity.py        # Asserts en/de/jp.json key sets match
+│   └── …                          # ~620 tests (~3s)
 ├── frontend/templates/            # Jinja2 HTML
 │   ├── base.html                  # Main layout (loads all partials)
 │   ├── macros.html                # Shared Jinja macros
@@ -55,70 +69,54 @@ spotyvibe/
 │       └── setup_guide_overlay.html # Full-screen setup guide detail overlay
 ├── frontend/static/favicon.ico    # Browser favicon
 ├── frontend/static/css/           # Modular CSS (no bundler)
-│   ├── base.css                   # Design tokens (incl. --ui-scale), reset, body, scrollbar
-│   ├── layout.css                 # Container, typography, sr-only, focus
-│   ├── utilities.css              # Utility classes
-│   ├── buttons.css                # All .btn-* variants
-│   ├── forms.css                  # Form rows, inputs, selects, checkboxes
-│   ├── components.css             # Glass panels, toast, tooltip, spinner, accordion
-│   ├── tracks.css                 # Track list, items, covers, feedback
-│   ├── modals.css                 # Modal overlay, help modal, lightbox
-│   ├── quickstart.css             # Quickstart guide (qs-*/qd-* prefixes)
-│   ├── sections.css               # Profile, analysis, providers, metadata
-│   ├── preview.css                # Spotify preview overlay + SDK player
-│   ├── onboarding.css             # Onboarding wizard shell + step styles
-│   ├── setup_guide.css            # Setup guide overlay + privacy table styles
-│   ├── completeness.css           # Profile completeness meter styling
-│   ├── exploration_slider.css     # 5-notch exploration slider
-│   ├── presets.css                # Preset dropdown + manager modal
-│   ├── playlist_seed.css          # Playlist seed modal + draft banner
-│   ├── rationale_chips.css        # Rationale chip styling
-│   ├── taste_dashboard.css        # Taste dashboard charts
-│   ├── tips.css                   # Feature discovery tip toasts
-│   ├── provider.css               # Provider dropdown + credential rows
-│   ├── cost_estimate.css          # Cost-estimate card + footnote
-│   ├── voice.css                  # Microphone button states
-│   ├── getting_started.css        # Floating "Getting Started" checklist card
-│   └── responsive.css             # All @media queries
-├── frontend/static/js/modules/   # JS feature modules
-│   ├── state.js                   # Central app state
-│   ├── dom.js                     # Shared DOM helpers
-│   ├── ui.js, auth.js, profile.js, pipeline.js, playlist-mode.js
-│   ├── review.js, feedback.js, preview.js, tracklist.js
-│   ├── history.js, analysis.js, audio-filters.js
-│   ├── modals.js, i18n.js, warnings.js, provider-pills.js
-│   ├── quickstart-demo.js, quickstart-tour.js, tabs.js
-│   ├── onboarding.js              # Wizard state, navigation, language toggle
-│   ├── setup_guide.js             # Detail overlay open/close, copy, keyboard
-│   ├── completeness.js            # Profile completeness meter calculator
-│   ├── exploration.js             # Exploration slider state + bidirectional sync
-│   ├── presets.js                 # Preset CRUD, built-in catalogue, import/export
-│   ├── quick_advanced.js          # Generate-panel mode toggle + control sync
-│   ├── playlist_seed.js           # Playlist-seeded profile flow
-│   ├── rationale.js               # Rationale chip rendering
-│   ├── taste_dashboard.js         # SVG taste visualisation dashboard
-│   ├── tips.js                    # Feature discovery tip toasts
-│   ├── provider.js                # Custom LLM endpoint management
-│   ├── cost_estimate.js           # Token & cost estimator widget
-│   ├── voice.js                   # Web Speech API voice input
-│   ├── getting-started.js         # Floating checklist card (binds /api/onboarding/progress)
-│   ├── ui-scale.js                # Display-size radiogroup → --ui-scale on :root
-│   ├── spotify-sdk.js             # Web Playback SDK lifecycle (Premium preview player)
-│   └── theme-switcher.js, theme-equalizer.js, theme-pulse.js,
-│       theme-spectrum.js, theme-starfield.js, theme-calm.js
-├── frontend/static/i18n/          # en.json + de.json + jp.json
-├── frontend/tests/                # Playwright tests
-│   ├── test_frontend.py           # Main frontend integration tests
-│   └── test_profile_integration.py # Profile switch/create/delete state reset tests
-├── prompts/                       # AI prompt templates
-├── build-tools/                   # build_exe.sh, build_dist.sh, start.sh
-├── documentation/                 # UserManual, TechnicalManual, help.en.md, help.de.md
+│   └── …                          # See `documentation/TechnicalManual.md` § "Frontend"
+├── frontend/static/js/modules/    # JS feature modules (vanilla ES modules)
+│   ├── core: state.js, dom.js, ui.js, tabs.js, modals.js, i18n.js, warnings.js
+│   ├── auth: auth.js, provider.js, provider-pills.js
+│   ├── feature: profile.js, pipeline.js, playlist-mode.js, review.js,
+│   │           feedback.js, feedback-api.js, preview.js, tracklist.js,
+│   │           history.js, analysis.js, audio-filters.js, completeness.js,
+│   │           exploration.js, presets.js, quick_advanced.js, playlist_seed.js,
+│   │           rationale.js, taste_dashboard.js, tips.js, cost_estimate.js,
+│   │           voice.js, getting-started.js, ui-scale.js, spotify-sdk.js,
+│   │           rag_update_prompt.js
+│   ├── onboarding: onboarding.js, setup_guide.js, quickstart-demo.js, quickstart-tour.js
+│   └── theme: theme-switcher.js, theme-equalizer.js, theme-pulse.js,
+│              theme-spectrum.js, theme-starfield.js, theme-calm.js
+├── frontend/static/i18n/          # en.json + de.json + jp.json (key sets must match)
+├── frontend/tests/                # Playwright tests (~233; 3 parallel groups)
+│   ├── conftest.py, helpers.py, helpers_integration.py
+│   ├── test_page_load.py, test_navigation.py, test_modals.py
+│   ├── test_profile.py, test_generation.py, test_edge_cases.py,
+│   │   test_onboarding.py, test_profile_integration.py
+│   ├── test_wf_*.py               # 7 workflow files
+│   └── test_documentation_screenshots.py  # gated by `screenshots` marker — never run automatically
+├── prompts/                       # AI prompt templates (3-stage pipeline)
+│   ├── system_prompt.txt, prompt_template.txt   # legacy / fallback
+│   ├── avoid_check_system.txt                   # Stage 2
+│   ├── track_select_system.txt, track_select_system_local.txt,
+│   │   track_select_user.txt                    # Stage 3
+│   ├── analysis_prompt.txt                      # Band/song analysis
+│   ├── profile_seed_from_playlist.txt
+│   └── profile_training_prompt.txt
+├── build-tools/                   # build_exe.sh, build_dist.sh, run_tests*.sh, start.sh, …
+├── build_assets/                  # spotyvibe.ico (PyInstaller icon)
+├── documentation/                 # User & technical docs
+│   ├── UserManual.md, TechnicalManual.md, ProjectLayout.md
+│   ├── ModelRecommendations.md, MCPServers.md
+│   ├── help.en.md, help.de.md, help.jp.md      # in-app help (must stay in sync)
 │   ├── guides/                    # Setup guide markdown (openai, spotify)
-│   └── assets/guides/             # Guide screenshot placeholders
+│   ├── prompts/                   # Documentation prompts
+│   └── assets/                    # Screenshots & guide assets
+├── evaluation/                    # Quality / cost / latency eval harness
+│   ├── run_evaluation.py, harness.py, scenario.py, reporting.py,
+│   ├── README.md, settings.ini.example
+│   └── results/, sandbox/
 ├── spotyvibe/                     # Python package (wheel entry point)
 │   ├── __init__.py, __main__.py
-│   └── cli.py                     # Console entry point (spotyvibe command)
-└── data/                          # music_profile.json template
+│   └── cli.py                     # Console entry point (`spotyvibe` command)
+└── data/                          # music_profile.json template + RAG corpus
+    └── rag_corpus/                # Pre-built corpus shards
 ```
 
 ## Architecture

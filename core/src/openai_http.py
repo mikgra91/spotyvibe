@@ -89,7 +89,8 @@ def _get_api_key() -> str:
             from config import llm_api_key_required
             if not llm_api_key_required():
                 return "not-needed"  # placeholder for Authorization header
-        except (ImportError, Exception):
+        except ImportError:
+            # Stand-alone test harness with no ``config`` module on the path.
             pass
         raise OpenAIConfigError(
             "OpenAI API key is not configured. "

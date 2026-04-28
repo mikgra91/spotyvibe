@@ -31,8 +31,8 @@ pip install build && python -m build --wheel         # Python wheel for macOS/Li
 
 | Command | Runs |
 |---|---|
-| `python -m pytest core/tests/ -v` | Core unit tests (~539 tests, ~3s) |
-| `bash build-tools/run_frontend_tests.sh` | Frontend tests in 3 parallel groups (~237 tests) |
+| `python -m pytest core/tests/ -v` | Core unit tests (~620 tests, ~3s) |
+| `bash build-tools/run_frontend_tests.sh` | Frontend tests in 3 parallel groups (~233 tests) |
 | `bash build-tools/run_tests.sh` | Core + frontend in parallel (4 groups) |
 | `bash build-tools/run_tests.sh core` \| `frontend` | Scope to one side |
 | `bash build-tools/run_tests_podman.sh` | All tests in Podman containers (CI) |

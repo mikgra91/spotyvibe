@@ -907,11 +907,19 @@ def fetch_playlist_items_for_seed(playlist_id):
     """
     sp = get_spotify_client()
 
-    # Get playlist metadata
-    playlist_info = sp.playlist(playlist_id, fields="name,owner(display_name),tracks(total)")
+    # Get playlist metadata.
+    # Defensive: the Feb-2026 Spotify rename added an ``items`` key
+    # alongside the legacy ``tracks`` key on some endpoints. Request both
+    # and read whichever is present (mirrors the pattern in
+    # ``fetch_user_playlists``).
+    playlist_info = sp.playlist(
+        playlist_id,
+        fields="name,owner(display_name),items(total),tracks(total)",
+    )
     name = playlist_info.get("name", "")
     owner = (playlist_info.get("owner") or {}).get("display_name", "")
-    total = (playlist_info.get("tracks") or {}).get("total", 0)
+    items_or_tracks = playlist_info.get("items") or playlist_info.get("tracks") or {}
+    total = items_or_tracks.get("total", 0)
 
     # Fetch items (up to 100 for seed — enough for a good profile)
     results = sp.playlist_items(playlist_id, limit=100,

@@ -99,6 +99,8 @@
   "feedback.delete_from_playlist": "Delete from playlist",
   "feedback.open_panel": "Feedback",
   "feedback.delete": "Delete",
+  "feedback.button_aria": "Open feedback panel for this track",
+  "feedback.delete_aria": "Remove this track from the playlist",
   "feedback.submit_like": "Like",
   "feedback.submit_dislike": "Dislike",
   "feedback.quick_liked_toast": "👍 Liked: {track}",

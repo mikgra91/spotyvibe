@@ -62,7 +62,7 @@ If your AI tooling supports MCP (Model Context Protocol), the following servers 
 
 1. All Spotify API calls in `core/src/playlist.py` only.
 2. All OpenAI calls through `core/src/openai_http.py` only.
-3. All user-facing text must use i18n (`en.json` + `de.json`).
+3. All user-facing text must use i18n (`en.json` + `de.json` + `jp.json` — all three must stay in sync; enforced by `core/tests/test_i18n_parity.py`).
 4. Run `python -m pytest core/tests/ frontend/tests/ -v` before completing changes.
 5. Feature changes require updates to all 4 documentation files (see `RULES.md`).
 6. No destructive git commands. No hardcoded secrets. **🔴 NEVER run `git commit` or `git push` unless the user has explicitly instructed you to in the current message. Permission is one-time only — once the operation completes, permission is revoked.**
@@ -73,8 +73,8 @@ If your AI tooling supports MCP (Model Context Protocol), the following servers 
 
 | Command | What it runs |
 |---|---|
-| `python -m pytest core/tests/ -v` | Core unit tests only (~458 tests, ~3s) |
-| `bash build-tools/run_frontend_tests.sh` | **All frontend tests in 3 parallel groups** (~237 tests) |
+| `python -m pytest core/tests/ -v` | Core unit tests only (~620 tests, ~3s) |
+| `bash build-tools/run_frontend_tests.sh` | **All frontend tests in 3 parallel groups** (~233 tests) |
 | `bash build-tools/run_frontend_tests.sh --screenshots` | Frontend tests + documentation screenshot refresh |
 | `bash build-tools/run_tests.sh` | Core + frontend in parallel (4 groups) |
 | `bash build-tools/run_tests.sh core` | Core only |

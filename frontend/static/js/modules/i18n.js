@@ -76,7 +76,9 @@ export async function initI18n() {
     if (!saved) saved = localStorage.getItem('svLang');
     if (!saved) {
         const browserLang = (navigator.language || '').split('-')[0].toLowerCase();
-        saved = (browserLang === 'de') ? 'de' : 'en';
+        if (browserLang === 'de') saved = 'de';
+        else if (browserLang === 'ja') saved = 'jp';
+        else saved = 'en';
     }
     localStorage.setItem('svLang', saved);
     _syncToggle(saved);

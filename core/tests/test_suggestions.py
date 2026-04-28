@@ -1,6 +1,8 @@
 import json
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from core.src.suggestions import (
     _build_deny_set_json,
     _migrate_suggested_tracks,
@@ -701,11 +703,8 @@ class TestLoadTextFile:
         assert content == "hello world"
 
     def test_raises_for_missing_file(self, tmp_path):
-        try:
+        with pytest.raises(FileNotFoundError):
             load_text_file(str(tmp_path / "nonexistent.txt"))
-            assert False, "Expected FileNotFoundError"
-        except FileNotFoundError:
-            pass
 
 
 class TestNormalizeRationale:

@@ -65,8 +65,8 @@ Secrets are stored in the OS keychain (Windows Credential Manager / macOS Keycha
 | `GPT_HISTORY_LIMIT` | 200 | Max history entries sent to GPT (bounds token usage). |
 | `EXHAUSTED_ARTIST_THRESHOLD` | 4 | Artists with ≥ this many tracks in history are marked `[EXHAUSTED]` in the exclusion block. |
 | `MAX_CONSECUTIVE_EMPTY_BATCHES` | 3 | Breaks the loop after N all-filtered retries. |
-| `MAX_GPT_CALLS_PER_RUN` | 20 | Hard ceiling per generation run. |
-| `DEFAULT_OPENAI_MODEL` | `gpt-5.4-mini` | Fallback model. |
+| `MAX_GPT_CALLS_PER_RUN` | 4 | Hard ceiling per generation run (lowered from 20 → 4 during Phase 2.6 — see comment in `config.py`). |
+| `DEFAULT_OPENAI_MODEL` | `gpt-5.4` | Fallback model. |
 | `PROFILE_IMPORT_MAX_BYTES` | 10 MB | Per-request cap for profile import. |
 | `GENERAL_REQUEST_MAX_BYTES` | 1 MB | Flask `MAX_CONTENT_LENGTH` for all other endpoints. |
 
@@ -556,7 +556,7 @@ print(prompt_sizes.groupby(batches["config_signature"]).mean())
 ## Tests
 
 ```bash
-python -m pytest core/tests/ -v              # ~458 core tests, ~3s
+python -m pytest core/tests/ -v              # ~620 core tests, ~3s
 bash build-tools/run_frontend_tests.sh       # Playwright, 3 parallel groups
 bash build-tools/run_tests.sh                # all tests, 4 groups
 bash build-tools/run_tests_podman.sh         # CI parity

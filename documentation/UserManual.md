@@ -69,7 +69,7 @@ When you open SpotyVibe, a **Getting Started** card appears on the home page wit
 
 ### 2. Pick a model
 
-☰ → **⚙️ Settings**. Default is `gpt-5.4-mini`. Other options: `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`.
+☰ → **⚙️ Settings**. Default is `gpt-5.4`. Other options: `gpt-5.4-mini`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`.
 
 The Settings modal also exposes:
 

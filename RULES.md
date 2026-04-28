@@ -15,8 +15,8 @@ Every frontend change must consider assistive-technology users:
 
 ## i18n Details
 
-- Language files: `frontend/static/i18n/en.json` (English), `de.json` (German). Same keys in both.
-- HTML: `data-i18n="key"` for text, `data-i18n-placeholder="key"` for inputs, `data-i18n-title="key"` for tooltips.
+- Language files: `frontend/static/i18n/en.json` (English), `de.json` (German), `jp.json` (Japanese). All three must contain the **same key set** — enforced by `core/tests/test_i18n_parity.py`.
+- HTML: `data-i18n="key"` for text, `data-i18n-placeholder="key"` for inputs, `data-i18n-title="key"` for tooltips, `data-i18n-attr="attr:key"` for arbitrary attributes (e.g. `aria-label`).
 - JS: `import { i18n } from './i18n.js'` then `i18n('key', 'Fallback')`.
 - Onboarding: uses own `obI18n()` / `obApplyLang()` (no ES modules).
 - Key naming: dot-separated namespaces (`profile.title`, `feedback.like`, `pipeline.cancelled`).
@@ -27,10 +27,10 @@ Every frontend change must consider assistive-technology users:
 |---|---|---|
 | `README.md` | Developers | General overview |
 | `documentation/UserManual.md` | End users | Comprehensive walkthrough |
-| `documentation/help.en.md` + `help.de.md` | In-app users | Served at `/api/help` (UI language selects the file; falls back to English with a banner) |
+| `documentation/help.en.md` + `help.de.md` + `help.jp.md` | In-app users | Served at `/api/help` (UI language selects the file; falls back to English with a banner). All three must stay in sync when content changes. |
 | `documentation/TechnicalManual.md` | Developers | Architecture, API, data flow |
 
-`help.en.md` / `help.de.md`: Markdown with `> **Screenshot placeholder:**` markers. Keep sections self-contained and scannable. Both files must stay in sync when content changes.
+`help.en.md` / `help.de.md` / `help.jp.md`: Markdown with `> **Screenshot placeholder:**` markers. Keep sections self-contained and scannable. All three files must stay in sync when content changes.
 
 ## Spotify API (Quick Reference)
 

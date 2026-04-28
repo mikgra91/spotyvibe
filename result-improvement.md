@@ -344,7 +344,7 @@ This is a known weakness of substring-matching telemetry. Filed as **CF-Telemetr
 
 ## ~~Progress summary — from baseline to current state (2026-04-27)~~ (HISTORICAL — superseded by Phase 2.5 dashboard)
 
-> ⚠️ **Superseded.** This table tracks the journey from baseline → P2.0 (pre-Phase-2.5). For current production metrics, see the [Status dashboard](#-status-dashboard-2026-04-27) at the top. Kept here as historical reference.
+> ⚠️ **Superseded.** This table tracks the journey from baseline → P2.0 (pre-Phase-2.5). For current production metrics, see the [Status dashboard](#-status-dashboard-2026-04-28) at the top. Kept here as historical reference.
 
 This table tracks measurable improvements across the rework phases. All eval runs use the canonical seed profile, `playlist_size=30`, single iteration.
 
@@ -402,7 +402,7 @@ Cost reductions driven by prompt size: 32-artist pool ≈ 3.5 k tokens vs 200-ar
 
 ## ~~Post-Phase-0 measurements (2026-04-26, from eval.jsonl after P0 landed)~~ (HISTORICAL)
 
-> ⚠️ **Historical baseline.** These numbers are from immediately after Phase 0 shipped, before Phase 1 / 2.0 / 2.5. Kept for the chronological record. For current metrics, see the [Status dashboard](#-status-dashboard-2026-04-27).
+> ⚠️ **Historical baseline.** These numbers are from immediately after Phase 0 shipped, before Phase 1 / 2.0 / 2.5. Kept for the chronological record. For current metrics, see the [Status dashboard](#-status-dashboard-2026-04-28).
 
 Two real runs captured immediately after Phase 0 shipped.
 
@@ -428,7 +428,7 @@ Two real runs captured immediately after Phase 0 shipped.
 
 ## ~~Measured baseline (2026-04-24, from eval.jsonl + OpenAI billing)~~ (HISTORICAL — "where we started")
 
-> ⚠️ **Historical baseline — "where we started".** Pre-rework numbers used to motivate the entire plan. Kept as the reference point against which all subsequent improvements were measured. For current metrics, see the [Status dashboard](#-status-dashboard-2026-04-27).
+> ⚠️ **Historical baseline — "where we started".** Pre-rework numbers used to motivate the entire plan. Kept as the reference point against which all subsequent improvements were measured. For current metrics, see the [Status dashboard](#-status-dashboard-2026-04-28).
 
 | Metric | Value | Source |
 |---|---:|---|

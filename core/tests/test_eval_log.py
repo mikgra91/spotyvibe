@@ -490,6 +490,11 @@ def test_must_have_cite_stop_words_ignored(tmp_log):
     assert [r["has_must_have_cite"] for r in rows] == [True, False]
 # ── OPEN-5 (2026-04-28): profile section sizes in profile_update_summary ──
 def test_profile_update_summary_emits_section_sizes(tmp_log):
+    # NOTE (2026-04-28): ``core_description`` is stored under
+    # ``profile["preferences"]`` in ``profile.py:552`` — not under
+    # ``meta``. The previous test (and the matching bug in
+    # ``_profile_section_sizes``) read it from ``meta`` and silently
+    # reported 0 chars. Both have been corrected.
     log_profile_update_summary(
         run_id="r", model="m", profile_id="p",
         profile_before={"preferences": {"must_have": ["x"], "soft_preferences": [], "avoid": []}},
@@ -498,8 +503,9 @@ def test_profile_update_summary_emits_section_sizes(tmp_log):
                 "must_have": ["a", "b"],
                 "soft_preferences": ["c", "d", "e"],
                 "avoid": ["f"],
+                "core_description": "x" * 250,
             },
-            "meta": {"goal": "hello world", "core_description": "x" * 250},
+            "meta": {"goal": "hello world"},
         },
         eval_log_path=tmp_log, debug_mode=True,
         label="train_profile", status="ok",

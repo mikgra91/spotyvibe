@@ -92,9 +92,16 @@ def dislike_track(artist, track=None, reason=None):
                 "reason": reason
             })
         else:
-            # Artist-level dislike — reject the entire artist
-            rejected_names = [r["name"] if isinstance(r, dict) else r for r in profile["artists"]["rejected"]]
-            if artist not in rejected_names:
+            # Artist-level dislike — reject the entire artist.
+            # Compare case-insensitively to avoid duplicate entries that
+            # differ only in casing (e.g. "Boards of Canada" vs
+            # "boards of canada"). Bug fix 2026-04-28.
+            artist_norm = artist.lower().strip()
+            existing_norm = {
+                ((r["name"] if isinstance(r, dict) else r) or "").lower().strip()
+                for r in profile["artists"]["rejected"]
+            }
+            if artist_norm not in existing_norm:
                 profile["artists"]["rejected"].append({
                     "name": artist,
                     "reason": reason

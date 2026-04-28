@@ -276,6 +276,8 @@
   "feedback.delete_from_playlist": "プレイリストから削除",
   "feedback.open_panel": "フィードバック",
   "feedback.delete": "削除",
+  "feedback.button_aria": "このトラックのフィードバックパネルを開く",
+  "feedback.delete_aria": "このトラックをプレイリストから削除",
   "feedback.submit_like": "好き",
   "feedback.submit_dislike": "嫌い",
   "feedback.quick_liked_toast": "👍 高評価: {track}",
