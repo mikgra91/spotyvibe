@@ -69,8 +69,9 @@ MAX_CONSECUTIVE_EMPTY_BATCHES = 3
 # Hard cost guardrails — max GPT calls per single /api/run invocation.
 # 2026-04-27: lowered from 20 → 4 during the Phase 1 quality investigation.
 # When the model is misbehaving, retry-loops just multiply the bill without
-# improving the playlist (proven by gpt-5.5 today: 4 batches → only 4/30
-# verified, would have ground through 16 more wasted calls). 4 means: the
+# improving the playlist (proven during the Phase 2.6 deep-dive: a poorly-fit
+# model produced 4 batches → only 4/30 verified, would have ground through
+# 16 more wasted calls). 4 means: the
 # first batch + up to 3 fill-up retries; if the playlist isn't full by then
 # the underlying problem is upstream of the loop and another retry won't
 # help. Bump back to 20 once the canonical seed reliably hits ≥ 80 %
@@ -81,8 +82,12 @@ MAX_GPT_CALLS_PER_RUN = 4
 # yet present in suggested_artists history (1–100).
 DEFAULT_NEW_ARTIST_PERCENTAGE = 30
 
-# Default OpenAI model used when none is configured
-DEFAULT_OPENAI_MODEL = "gpt-5.5"
+# Default OpenAI model used when none is configured.
+# 2026-04-28: switched from "gpt-5.5" to "gpt-5.4" after Phase 2.6 evaluation
+# classified gpt-5.5 as unfit for this workload (reasoning-tier model, ~9.5×
+# slower and ~9.5× more expensive than gpt-5.4 with worse must-have-cite and
+# Spotify-found rates). See documentation/ModelRecommendations.md.
+DEFAULT_OPENAI_MODEL = "gpt-5.4"
 
 # Stage 2 avoid-compliance checker model (binary classification — cheapest mini).
 # Used by check_avoid_compliance() in suggestions.py. Falls back to get_model()
@@ -93,19 +98,30 @@ STAGE2_MODEL = "gpt-5.4-mini"
 # Intentionally larger than a single batch so Stage 2 + Stage 3 have room to
 # be selective without starving the playlist.
 #
-# 2026-04-27: pool=32 is the production value after the P2.0 retrieval fix
-# (stop-word expansion + min-frequency floor in _apply_aliases).
-# Pre-fix: pool=32 gave 22% on-genre (singleton noise tags dominated scoring).
-# Post-fix: pool=32 gives 93% on-genre — sufficient for all 3 models.
-# Pool=200 was a temporary workaround that masked the upstream bug and bloated
-# the prompt to ~22 K tokens (breaks the 8 K local-LLM context floor).
-# See result-improvement.md §P2.0 for the full diagnosis and empirical data.
-RETRIEVE_CANDIDATES_SIZE = 32
+# 2026-04-27: pool=32 was the production value after the P2.0 retrieval fix
+# (stop-word expansion + min-frequency floor in _apply_aliases). Pre-fix pool=32
+# gave 22% on-genre; post-fix it gave 93%. Pool=200 was a temporary workaround
+# that masked the upstream bug and bloated the prompt to ~22 K tokens (breaks
+# the 8 K local-LLM context floor). See result-improvement.md P2.0.
+#
+# 2026-04-28: bumped to pool=40 after the pool-size sweep (30/40/50 × 2 blocks
+# × 4 models, 24 data points). Findings:
+#   - gpt-5.4 and gpt-5.4-mini are flat across 30/40/50 — pool size doesn't
+#     move them (~95-100% / ~77-80% mean cite-rate respectively).
+#   - gpt-4.1 leans toward pool=40 in the mean (within noise).
+#   - gpt-4.1-mini STRONGLY prefers pool=40: mean cite-rate 36.7%/66.7%/36.7%
+#     for pools 30/40/50, +30 pp robust win at 40 — both blocks agree. Only
+#     model in the sweep with a pool effect that clearly exceeds the noise
+#     floor (~13 pp B1↔B2 variance at n=1).
+#   - Pool=40 is the largest where Stage 2 still approves 100% of candidates
+#     (40/40). At pool=50 Stage 2 starts filtering 2/50; at pool=60, 3/60.
+#   - Cost increase vs pool=32: gpt-4.1-mini +1.8%, gpt-5.4 +15.8%; bounded.
+# See C:\Users\apatecgratzl\Desktop\CoPilot_Reports\pool-sweep-30-40-50.md.
+RETRIEVE_CANDIDATES_SIZE = 40
 
 # Curated list of known-good OpenAI model IDs for chat completions.
 # Order determines display order in the Settings dropdown.
 OPENAI_SUPPORTED_MODELS_JSON = [
-    "gpt-5.5",
     "gpt-5.4",
     "gpt-5.4-mini",
     "gpt-4.1",

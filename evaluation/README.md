@@ -1,6 +1,6 @@
 # Evaluation harness
 
-End-to-end evaluation runs against real OpenAI + real Spotify, used to compare model variants (gpt-5.5, gpt-5.4, gpt-5.4-mini) on cost, latency, and quality.
+End-to-end evaluation runs against real OpenAI + real Spotify, used to compare model variants (gpt-5.4, gpt-5.4-mini, gpt-4.1, gpt-4.1-mini) on cost, latency, and quality. `gpt-5.5` was removed in Phase 2.6 (2026-04-28) — see `documentation/ModelRecommendations.md`.
 
 **Not part of the unit test suite** — never runs on `pytest`. Invoked explicitly:
 
@@ -39,7 +39,7 @@ The production code paths write per-feature telemetry rows to `eval.jsonl` (`bat
    cp evaluation/settings.ini.example evaluation/settings.ini
    ```
    Then fill in `[openai] api_key`, `[spotify] client_id`, `[spotify] client_secret`. `evaluation/settings.ini` is gitignored.
-4. **Add `gpt-5.5` to pricing.json** (CF-Bug-4) so the comparison report shows real $ figures for the default model. The harness logs a warning if the entry is missing and reports `—` for cost in that case.
+4. **Pricing entries in `pricing.json`** — the harness logs a warning if any supported model is missing and reports `—` for cost in that case. (CF-Bug-4 — original gap closed 2026-04-27.)
 
 ## Running
 
@@ -47,7 +47,7 @@ The production code paths write per-feature telemetry rows to `eval.jsonl` (`bat
 python evaluation/run_evaluation.py
 ```
 
-Standard run prints the plan, asks `Continue? [y/N]`, and proceeds. The full matrix takes roughly 15–25 minutes depending on which models you include and how chatty Spotify verification is — gpt-5.5 dominates the time budget.
+Standard run prints the plan, asks `Continue? [y/N]`, and proceeds. The full matrix takes roughly 8–15 minutes depending on which models you include and how chatty Spotify verification is.
 
 Flags:
 
@@ -56,33 +56,76 @@ Flags:
 | `--no-confirm` | Skip the cost prompt. Use in scripts. |
 | `--cleanup-only` | Sweep orphaned `[EVAL] …` playlists from your Spotify account and exit. Useful after a hard kill. |
 
+## Pool-size sweep (multi-config / multi-block runs)
+
+To compare a sequence of `RETRIEVE_CANDIDATES_SIZE` values across multiple repeat blocks (for determinism analysis), use the sweep driver instead of calling the harness directly:
+
+```bash
+bash evaluation/run_pool_sweep.sh
+```
+
+What it does:
+
+1. For each `(block, pool)` in the configured sequence: cooldown → patch `config.py` → run the eval → scan the run log for Spotify `429` errors.
+2. **If any single run logs ≥ `RATE_LIMIT_THRESHOLD` (default 3) `429` errors, the sweep aborts immediately** with a banner telling you to wait ≥ 30 min before retrying. Partial results are still aggregated.
+3. After all runs (or on early abort), aggregates every `eval.jsonl` into `summary.csv` and renders `report.md`.
+
+Everything is written under `evaluation/results/sweep-<UTC-timestamp>/`:
+
+| File | Purpose |
+|---|---|
+| `report.md` | Human-readable comparison — start here. |
+| `summary.csv` | One row per `(block, pool, model)` for further analysis. |
+| `manifest.tsv` | Pointers to the per-run eval directories. |
+| `sweep.log` | High-level timeline. |
+| `run_p<pool>_b<block>.log` | Full per-eval debug output (large). |
+
+Configuration via env vars:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `COOLDOWN` | `300` | Seconds to wait before each eval (Spotify rate-limit safety). |
+| `POOLS` | `"30 40 50"` | Space-separated pool sizes to sweep. |
+| `BLOCKS` | `2` | How many times to repeat the pool sequence (for determinism). |
+| `RATE_LIMIT_THRESHOLD` | `3` | Number of `429` errors in a single run that triggers abort. |
+
+Example: a quick 3-pool single-block run with a 3-min cooldown:
+
+```bash
+COOLDOWN=180 BLOCKS=1 POOLS="32 40 48" bash evaluation/run_pool_sweep.sh
+```
+
+After the sweep completes, point an AI agent at `<sweep-dir>/report.md` and `summary.csv` to drill into per-model patterns or noise floors.
+
 ## Output
 
 ```
 evaluation/results/{ts}/
   harness.log
   comparison.md          ← read this first
-  gpt-5.5-iter1/
+  gpt-5.4-iter1/
     eval.jsonl           ← raw rows for pandas analysis
     summary.json         ← per-run rollup
-  gpt-5.4-iter1/...
   gpt-5.4-mini-iter1/...
+  gpt-4.1-iter1/...
+  gpt-4.1-mini-iter1/...
 ```
 
 `comparison.md` carries: per-run cost / wall-clock / p50 / p95 / Spotify-found rate / must-have-cite rate / Stage 2 status, plus a feature-level cost breakdown (Stage 3 vs Stage 2 vs Profile Update vs Analysis), plus an eval-log row-count sanity check (telemetry must fire for every feature — if a column shows 0 the harness or the production code regressed).
 
 ## Cost
 
-Approximate per full run (3 models, 1 iteration each, playlist_size=30):
+Approximate per full run (4 models, 1 iteration each, playlist_size=15):
 
-| Model        | Per cycle |
+| Model         | Per cycle |
 |---|---:|
-| gpt-5.5      | ~$0.12    |
-| gpt-5.4      | ~$0.10    |
-| gpt-5.4-mini | ~$0.01    |
-| **Total**    | **~$0.30**|
+| gpt-5.4       | ~$0.10    |
+| gpt-5.4-mini  | ~$0.01    |
+| gpt-4.1       | ~$0.04    |
+| gpt-4.1-mini  | ~$0.01    |
+| **Total**     | **~$0.16**|
 
-These are rough, pre-Phase-1-trim numbers; once Phase 1 ships fully the gpt-5.5 line should drop. The harness re-prices from `frontend/static/data/pricing.json` after the run, so the report shows actual usage-based cost — the up-front estimate is a budgeting hint, not the final bill.
+These are rough estimates kept in `_PER_CYCLE_USD` in `run_evaluation.py`. The harness re-prices from `frontend/static/data/pricing.json` after the run, so the report shows actual usage-based cost — the up-front estimate is a budgeting hint, not the final bill.
 
 ## Safety
 
@@ -96,7 +139,7 @@ These are rough, pre-Phase-1-trim numbers; once Phase 1 ships fully the gpt-5.5 
 - **New scenario** — edit `scenario.py`. Keep one canonical scenario per harness invocation; do not branch by model.
 - **New per-feature row kind** — add a new `kind: "<feature>_summary"` writer in `core/src/eval_log.py`, emit it from the production code path, then update `reporting.py::summarise_run` to aggregate it. The comparison table picks up new feature columns automatically as long as they live under `feature_costs_usd` / `feature_latency_s`.
 - **More iterations** — set `[evaluation] iterations = 3` to run each model 3× and average. The reporting layer still produces one row per `(model, iteration)`; you can group by model in pandas.
-- **Different model set** — `[evaluation] models = gpt-5.5,gpt-5.4-mini` to skip a model. List order is preserved in the report.
+- **Different model set** — `[evaluation] models = gpt-5.4,gpt-5.4-mini` to skip a model. List order is preserved in the report.
 
 ## Architecture
 

@@ -902,3 +902,56 @@ class TestProfileIntegration:
         assert reloaded["artists"]["confirmed"] == ["Rush", "Yes"]
         assert reloaded["name"] == "Cycle"
 
+# ── P3.1 mutable-section projection tests (2026-04-27) ───────────────
+def test_project_mutable_sections_returns_only_preferences_and_meta():
+    from core.src.profile import _project_mutable_sections
+    profile = {
+        "preferences": {"must_have": ["punchy guitars"]},
+        "meta": {"primary_reference": "Bear Ghost"},
+        "history": {"suggested_artists": ["a", "b", "c"]},
+        "feedback": {"liked_tracks": [{"artist": "x", "track": "y"}]},
+        "last_updated": "2026-04-27T00:00:00",
+    }
+    projected = _project_mutable_sections(profile)
+    assert set(projected.keys()) == {"preferences", "meta"}
+    assert projected["preferences"]["must_have"] == ["punchy guitars"]
+    assert projected["meta"]["primary_reference"] == "Bear Ghost"
+def test_project_mutable_sections_handles_missing_keys():
+    from core.src.profile import _project_mutable_sections
+    assert _project_mutable_sections({}) == {}
+    assert _project_mutable_sections({"history": {"x": 1}}) == {}
+    # preferences only, no meta
+    out = _project_mutable_sections({"preferences": {"avoid": ["pop"]}})
+    assert out == {"preferences": {"avoid": ["pop"]}}
+def test_project_mutable_sections_handles_non_dict():
+    from core.src.profile import _project_mutable_sections
+    assert _project_mutable_sections(None) == {}
+    assert _project_mutable_sections("not a dict") == {}
+def test_merge_mutable_back_preserves_history_and_feedback():
+    from core.src.profile import _merge_mutable_back
+    original = {
+        "preferences": {"must_have": ["old"]},
+        "history": {"suggested_artists": ["a", "b"]},
+        "feedback": {"liked_tracks": [{"artist": "x", "track": "y"}]},
+        "last_updated": "2026-04-26T00:00:00",
+    }
+    gpt_response = {
+        "preferences": {"must_have": ["new"], "avoid": ["pop"]},
+        # GPT might return extra keys — they must be ignored
+        "history": {"suggested_artists": ["WIPED"]},
+        "feedback": {"liked_tracks": []},
+    }
+    merged = _merge_mutable_back(original, gpt_response)
+    # history + feedback come from original verbatim (NOT GPT)
+    assert merged["history"]["suggested_artists"] == ["a", "b"]
+    assert merged["feedback"]["liked_tracks"] == [{"artist": "x", "track": "y"}]
+    # preferences merged from GPT
+    assert merged["preferences"]["must_have"] == ["new"]
+    assert merged["preferences"]["avoid"] == ["pop"]
+    # other top-level keys preserved
+    assert merged["last_updated"] == "2026-04-26T00:00:00"
+def test_merge_mutable_back_handles_empty_gpt_response():
+    from core.src.profile import _merge_mutable_back
+    original = {"preferences": {"must_have": ["a"]}, "history": {"x": 1}}
+    assert _merge_mutable_back(original, {}) == original
+    assert _merge_mutable_back(original, None) == {"preferences": {"must_have": ["a"]}, "history": {"x": 1}}

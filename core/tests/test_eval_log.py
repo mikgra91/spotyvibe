@@ -438,3 +438,77 @@ def test_batch_summary_appends_alongside_track_rows(tmp_log):
     assert rows[0]["batch_num"] == rows[1]["batch_num"] == 1
     assert rows[0]["config_signature"] == rows[1]["config_signature"] == "sig1"
 
+# ── CF-Telemetry-1 (2026-04-28): tokenised must-have cite matching ──
+def test_must_have_cite_token_match_paraphrase(tmp_log):
+    """A rationale arg that paraphrases a must-have tag (different word
+    order, extra adjectives) should still count as a cite. Pre-fix this
+    was a substring match → false negatives like "uplifting modern
+    production" ≠ "modern production". Post-fix we tokenise and accept
+    if every meaningful token of the must-have appears in the arg."""
+    log_batch_outcome(
+        run_id="r", batch_num=1, model="m",
+        rag_enabled=False, rag_corpus_meta_path=None,
+        candidate_pool_names=None, profile_id="p",
+        profile={"preferences": {"must_have": ["modern production"]}},
+        suggested_playlist=[
+            # Substring match (legacy path) — counts.
+            {"artist": "a", "track": "t1",
+             "rationale": [{"type": "profile_match", "arg": "modern production"}]},
+            # Token-set match (new path) — counts.
+            {"artist": "a", "track": "t2",
+             "rationale": [{"type": "profile_match",
+                            "arg": "uplifting, modern, polished production"}]},
+            # Token-set incomplete — does NOT count (only "modern", no "production").
+            {"artist": "a", "track": "t3",
+             "rationale": [{"type": "profile_match", "arg": "modern feel"}]},
+        ],
+        found_keys=[],
+        eval_log_path=tmp_log, debug_mode=True,
+    )
+    rows = _read_rows(tmp_log)
+    assert [r["has_must_have_cite"] for r in rows] == [True, True, False]
+def test_must_have_cite_stop_words_ignored(tmp_log):
+    """Trivial words ("and", "or", "the") in the must-have tag must NOT
+    cause every rationale arg to look satisfied. "rock and roll" should
+    require both "rock" and "roll" in the arg, not just "and"."""
+    log_batch_outcome(
+        run_id="r", batch_num=1, model="m",
+        rag_enabled=False, rag_corpus_meta_path=None,
+        candidate_pool_names=None, profile_id="p",
+        profile={"preferences": {"must_have": ["rock and roll"]}},
+        suggested_playlist=[
+            # Has both meaningful tokens — counts.
+            {"artist": "a", "track": "t1",
+             "rationale": [{"type": "profile_match", "arg": "classic rock and roll vibe"}]},
+            # Only one meaningful token — does NOT count.
+            {"artist": "a", "track": "t2",
+             "rationale": [{"type": "profile_match", "arg": "rock balladry and emo"}]},
+        ],
+        found_keys=[], eval_log_path=tmp_log, debug_mode=True,
+    )
+    rows = _read_rows(tmp_log)
+    assert [r["has_must_have_cite"] for r in rows] == [True, False]
+# ── OPEN-5 (2026-04-28): profile section sizes in profile_update_summary ──
+def test_profile_update_summary_emits_section_sizes(tmp_log):
+    log_profile_update_summary(
+        run_id="r", model="m", profile_id="p",
+        profile_before={"preferences": {"must_have": ["x"], "soft_preferences": [], "avoid": []}},
+        profile_after={
+            "preferences": {
+                "must_have": ["a", "b"],
+                "soft_preferences": ["c", "d", "e"],
+                "avoid": ["f"],
+            },
+            "meta": {"goal": "hello world", "core_description": "x" * 250},
+        },
+        eval_log_path=tmp_log, debug_mode=True,
+        label="train_profile", status="ok",
+        latency_s=1.0, usage=None,
+    )
+    row = _read_rows(tmp_log)[0]
+    sz = row["section_sizes"]
+    assert sz["must_have_count"] == 2
+    assert sz["soft_preferences_count"] == 3
+    assert sz["avoid_count"] == 1
+    assert sz["meta_goal_chars"] == len("hello world")
+    assert sz["core_description_chars"] == 250

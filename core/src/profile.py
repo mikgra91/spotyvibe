@@ -326,6 +326,46 @@ def _deep_merge(dst, src):
     return dst
 
 
+# P3.1 (2026-04-27): top-level keys that GPT is allowed to read AND write
+# during train_profile / draft_profile_from_playlist. Everything else is
+# preserved verbatim from disk and never sent to the model. The single
+# source of truth shared by _project_mutable_sections and _merge_mutable_back.
+_MUTABLE_TOP_LEVEL_KEYS = ("preferences", "meta")
+
+
+def _project_mutable_sections(profile: dict) -> dict:
+    """Return a shallow copy of *profile* containing only mutable sections.
+
+    Used by train_profile() to send GPT only the parts of the profile it
+    is supposed to evolve. history + feedback can be 10–20 KB on a real
+    user — sending them costs money, breaks the 8 K local-LLM context
+    floor, and risks the model silently mangling them.
+    """
+    if not isinstance(profile, dict):
+        return {}
+    return {k: profile[k] for k in _MUTABLE_TOP_LEVEL_KEYS if k in profile}
+
+
+def _merge_mutable_back(original: dict, mutable_update: dict) -> dict:
+    """Deep-merge GPT's mutable-section response onto the *original* profile.
+
+    Only keys in `_MUTABLE_TOP_LEVEL_KEYS` are merged from
+    *mutable_update*. All other top-level keys (history, feedback,
+    last_updated, audit_id, version, …) are preserved verbatim from
+    *original*. This guarantees GPT cannot silently overwrite or drop
+    immutable state even if it returns extra keys.
+    """
+    if not isinstance(original, dict):
+        original = {}
+    if not isinstance(mutable_update, dict):
+        return dict(original)
+    result = dict(original)
+    for key in _MUTABLE_TOP_LEVEL_KEYS:
+        if key in mutable_update:
+            result[key] = _deep_merge(result.get(key, {}) or {}, mutable_update[key])
+    return result
+
+
 def export_profile_dict():
     """Return the current active profile as a Python dict."""
     return load_profile()
@@ -545,16 +585,20 @@ def train_profile(sections):
 
     How it works:
     1. Loads the current profile and the training system prompt from disk.
-    2. Constructs a user message with the existing profile JSON and the
+    2. **Projects only the mutable sections** (preferences + meta) into the
+       prompt — history and feedback are NEVER sent to GPT (they can be
+       large, are immutable from GPT's perspective, and have always been a
+       source of accidental mangling that the post-call safety merge had
+       to compensate for). This is the P3.1 fix from 2026-04-27.
+    3. Constructs a user message with the projected profile JSON and the
        new user input, structured into labelled sections so GPT can parse
        each one with the correct semantics.
-    3. Calls GPT with `response_format={"type": "json_object"}` — this
+    4. Calls GPT with `response_format={"type": "json_object"}` — this
        enables OpenAI's **Structured Outputs** mode, which constrains the
-       model to return valid JSON. This prevents formatting issues that
-       would otherwise require complex parsing/retry logic.
-    4. Merges the AI-refined profile with the original's history/feedback
-       sections (safety net — GPT might accidentally modify them).
-    5. Stamps the update time and saves.
+       model to return valid JSON.
+    5. Deep-merges the AI-refined mutable sections back onto the original
+       profile (history + feedback retained verbatim from disk).
+    6. Stamps the update time and saves.
 
     Temperature 0.3 is used (low creativity) because profile training
     should faithfully represent user input, not hallucinate preferences.
@@ -566,10 +610,19 @@ def train_profile(sections):
     with open(TRAINING_PROMPT_FILE, "r", encoding="utf-8") as f:
         system_prompt = f.read().replace("{gpt_language}", get_gpt_language())
 
+    # P3.1 (2026-04-27): project ONLY the mutable sections of the profile
+    # into the prompt. history + feedback can be 10-20 KB each on a real
+    # user — sending them costs money, breaks the 8 K local-LLM context
+    # floor, and risks GPT silently mangling them. Mutable = preferences,
+    # meta. The reverse merge below restores history + feedback verbatim.
+    profile_for_prompt = _project_mutable_sections(profile)
+
     # Build a structured user message so GPT knows what each section means
     parts = [
-        "Here is my current music taste profile:\n\n"
-        f"{json.dumps(profile, indent=2)}\n\n"
+        "Here is my current music taste profile (mutable sections only — "
+        "history and feedback are managed elsewhere and should NOT be "
+        "returned in the response):\n\n"
+        f"{json.dumps(profile_for_prompt, indent=2)}\n\n"
         "Here is my updated taste input, broken into sections:\n"
     ]
 
@@ -649,13 +702,18 @@ def train_profile(sections):
             _logger.warning("log_profile_update_summary skipped: %s", _exc)
         raise
 
-    # Start from the template to guarantee all required keys survive,
-    # then deep-merge the GPT output on top (shallow .update() would lose
-    # nested template defaults if GPT omits sub-keys).
-    updated_profile = _load_template()
-    updated_profile = _deep_merge(updated_profile, gpt_profile)
+    # P3.1 (2026-04-27): merge ONLY the mutable sections back. history +
+    # feedback are restored verbatim from the on-disk profile because they
+    # were never sent to GPT. Template defaults still hydrate any missing
+    # keys via _load_template + _deep_merge below.
+    template = _load_template()
+    updated_profile = _deep_merge(template, profile)            # template ← original
+    updated_profile = _merge_mutable_back(updated_profile, gpt_profile)
 
-    # Safety: preserve history + feedback from the original (GPT might mangle them)
+    # Defensive: history + feedback come from the original on-disk profile.
+    # _merge_mutable_back already excludes these keys from the GPT update,
+    # so this is belt-and-braces in case a future schema adds new keys
+    # that should also be immutable.
     for key in ("history", "feedback"):
         if key in profile:
             updated_profile[key] = profile[key]

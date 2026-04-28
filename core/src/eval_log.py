@@ -192,6 +192,40 @@ def log_batch_outcome(
         ((profile or {}).get("preferences", {}) or {}).get("must_have", []) or []
         if str(t).strip()
     ]
+    # CF-Telemetry-1 (2026-04-28): tokenise must-have tags so paraphrases
+    # like "uplifting modern production" satisfy the "modern production"
+    # must-have. Match if every meaningful token of the tag appears in
+    # the rationale arg as a separate word (case-insensitive). Falls
+    # back to the legacy substring contains so existing matches still
+    # count. Stop-words filtered to avoid trivial matches like "and",
+    # "or" forcing every must-have to look satisfied.
+    _MH_STOP = {
+        "a", "an", "the", "and", "or", "of", "with", "to", "in",
+        "on", "for", "is", "are", "be", "by", "at", "as", "but",
+    }
+    must_have_token_sets: list[tuple[str, set[str]]] = []
+    for _mh in must_have_tags:
+        _toks = {
+            "".join(c for c in w.lower() if c.isalnum())
+            for w in _mh.split()
+        }
+        _toks = {t for t in _toks if t and t not in _MH_STOP}
+        if _toks:
+            must_have_token_sets.append((_mh, _toks))
+
+    def _arg_satisfies_must_have(arg: str) -> bool:
+        if not arg:
+            return False
+        _arg_lower = arg.lower()
+        for _mh, _toks in must_have_token_sets:
+            # Legacy contains (preserves prior matches)
+            if _mh.lower() in _arg_lower:
+                return True
+            # Token-set containment: every alnum token of the must-have
+            # appears as a word substring in the rationale arg.
+            if all(_t in _arg_lower for _t in _toks):
+                return True
+        return False
     ts = _now_iso()
 
     eval_log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -230,11 +264,10 @@ def log_batch_outcome(
                     "rationale_count": len(rationale_types),
                     "has_must_have_cite": any(
                         r.get("type") == "profile_match"
-                        and any(mh.lower() in (r.get("arg") or "").lower()
-                                for mh in must_have_tags)
+                        and _arg_satisfies_must_have(r.get("arg") or "")
                         for r in (entry.get("rationale") or [])
                         if isinstance(r, dict)
-                    ) if must_have_tags else None,
+                    ) if must_have_token_sets else None,
                     "effective_batch_size": effective_batch_size,
                     "config_signature": config_signature,
                 }
@@ -540,8 +573,42 @@ def log_profile_update_summary(
         "usage": usage,
         "prompt_chars": prompt_chars,
         "response_chars": response_chars,
+        # OPEN-5 (2026-04-28): instrument profile section sizes so we can
+        # decide whether to build the LLM consolidation step (P3.2). Run
+        # this for ≥ 10 successive AI Profile Updates on a real profile;
+        # if any of {soft_preferences, avoid, must_have} ever exceeds
+        # ~8 entries OR meta.goal exceeds ~600 chars, the consolidation
+        # call earns its keep.
+        "section_sizes": _profile_section_sizes(profile_after or profile_before),
     }
     _write_row(eval_log_path, row, "profile_update_summary")
+
+
+def _profile_section_sizes(profile: dict | None) -> dict:
+    """Return entry counts and char lengths for the mutable profile sections
+    we want to bound under P3.2. Tolerant of missing keys / wrong types."""
+    if not isinstance(profile, dict):
+        return {}
+    prefs = profile.get("preferences") or {}
+    if not isinstance(prefs, dict):
+        prefs = {}
+    meta = profile.get("meta") or {}
+    if not isinstance(meta, dict):
+        meta = {}
+
+    def _len_list(val) -> int:
+        return len(val) if isinstance(val, list) else 0
+
+    def _len_str(val) -> int:
+        return len(val) if isinstance(val, str) else 0
+
+    return {
+        "must_have_count": _len_list(prefs.get("must_have")),
+        "soft_preferences_count": _len_list(prefs.get("soft_preferences")),
+        "avoid_count": _len_list(prefs.get("avoid")),
+        "meta_goal_chars": _len_str(meta.get("goal")),
+        "core_description_chars": _len_str(meta.get("core_description")),
+    }
 
 
 def log_analysis_summary(

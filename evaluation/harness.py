@@ -290,8 +290,10 @@ def _step_playlist(flask_app, playlist_size: int) -> dict[str, Any]:
         # but for eval purposes they are NOT the same: honest under-fill
         # means the system worked AS DESIGNED (anti-hallucination guard
         # fired) and the eval should NOT mark it as broken. Added
-        # 2026-04-27 after gpt-5.5 + pool=32 produced playlist=0 / status
-        # =error, hiding what was actually correct behaviour.
+        # 2026-04-27 after a reasoning-tier model + pool=32 produced
+        # playlist=0 / status=error, hiding what was actually correct
+        # behaviour. (The reasoning-tier model in question — gpt-5.5 —
+        # was removed from the supported list in Phase 2.6.)
         _UNDER_FILL_PHRASES = (
             "no tracks could be verified on spotify",
             "gpt kept suggesting already-known",

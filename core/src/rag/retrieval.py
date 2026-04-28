@@ -536,6 +536,7 @@ def retrieve_candidates(
     deny_keys: Iterable[str] = (),
     target_size: int = 50,
     popularity_penalty: float = 0.4,
+    primary_reference: dict | None = None,
 ) -> list[ArtistRow]:
     """Stage 1 code-side retrieval for the three-stage pipeline (P1.1).
 
@@ -553,6 +554,13 @@ def retrieve_candidates(
     rejected) forwarded to the underlying stratified scorer so already-
     seen artists are excluded before ranking.
 
+    *primary_reference* — optional dict with ``analysis``/``genres``/
+    ``moods`` keys (from the Band/Song Analysis feature). When supplied,
+    the stratified scorer reserves a 15 % facet quota for artists that
+    overlap with the user's north-star reference. Without this, the
+    quota is silently absorbed by the flat-fill fallback (the P2.2
+    fix from 2026-04-27).
+
     Returns an empty list when the corpus is empty or *target_size* ≤ 0.
     """
     if not corpus.artists or target_size <= 0:
@@ -564,6 +572,7 @@ def retrieve_candidates(
         deny_keys=deny_keys,
         pool_size=target_size * 3,
         popularity_penalty=popularity_penalty,
+        primary_reference=primary_reference,
     )
     if not broad:
         return []

@@ -292,3 +292,77 @@ class TestBaseUrlAndLocalProvider:
             with pytest.raises(OpenAIConfigError, match="not configured"):
                 _get_api_key()
 
+# ── OPEN-3 (2026-04-28): json_schema auto-downgrade ──
+class TestJsonSchemaAutoDowngrade:
+    """When the model rejects strict json_schema with a 400, the client
+    should auto-downgrade to json_object once and cache the rejection."""
+    def setup_method(self):
+        # Reset the per-process cache between tests.
+        from core.src import openai_http as _oh
+        _oh._JSON_SCHEMA_UNSUPPORTED.clear()
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"})
+    @patch("core.src.openai_http._request_json")
+    def test_passes_json_schema_through_when_supported(self, mock_req):
+        from core.src.openai_http import chat_completions_create
+        mock_req.return_value = {"choices": [{"message": {"content": "{}"}}]}
+        rf = {"type": "json_schema", "json_schema": {"name": "x", "strict": True, "schema": {}}}
+        chat_completions_create(model="gpt-4.1-mini", messages=[], response_format=rf)
+        # Single call, payload carries the strict schema.
+        assert mock_req.call_count == 1
+        body = mock_req.call_args.kwargs["body"]
+        assert body["response_format"] == rf
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"})
+    @patch("core.src.openai_http._request_json")
+    def test_downgrades_to_json_object_on_400_schema_reject(self, mock_req):
+        from core.src.openai_http import (chat_completions_create,
+                                          OpenAIRequestError,
+                                          _JSON_SCHEMA_UNSUPPORTED)
+        def _side(method, path, body=None, retries=1):
+            if body and body.get("response_format", {}).get("type") == "json_schema":
+                raise OpenAIRequestError(
+                    "bad request",
+                    status_code=400,
+                    response_body=(
+                        '{"error":{"message":"response_format json_schema '
+                        'is not supported for this model"}}'
+                    ),
+                )
+            return {"choices": [{"message": {"content": "{}"}}]}
+        mock_req.side_effect = _side
+        rf = {"type": "json_schema", "json_schema": {"name": "x", "strict": True, "schema": {}}}
+        chat_completions_create(model="gpt-4.1-mini", messages=[], response_format=rf)
+        # Two calls — the first failed, the second succeeded with json_object.
+        assert mock_req.call_count == 2
+        retry_body = mock_req.call_args_list[1].kwargs["body"]
+        assert retry_body["response_format"] == {"type": "json_object"}
+        # Cache is now populated.
+        assert "gpt-4.1-mini" in _JSON_SCHEMA_UNSUPPORTED
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"})
+    @patch("core.src.openai_http._request_json")
+    def test_uses_json_object_directly_when_cached(self, mock_req):
+        from core.src.openai_http import (chat_completions_create,
+                                          _JSON_SCHEMA_UNSUPPORTED)
+        _JSON_SCHEMA_UNSUPPORTED.add("gpt-4.1-mini")
+        mock_req.return_value = {"choices": [{"message": {"content": "{}"}}]}
+        rf = {"type": "json_schema", "json_schema": {"name": "x", "strict": True, "schema": {}}}
+        chat_completions_create(model="gpt-4.1-mini", messages=[], response_format=rf)
+        # Single call, direct json_object — no probing for the schema.
+        assert mock_req.call_count == 1
+        body = mock_req.call_args.kwargs["body"]
+        assert body["response_format"] == {"type": "json_object"}
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"})
+    @patch("core.src.openai_http._request_json")
+    def test_does_not_downgrade_unrelated_400(self, mock_req):
+        from core.src.openai_http import (chat_completions_create,
+                                          OpenAIRequestError,
+                                          _JSON_SCHEMA_UNSUPPORTED)
+        mock_req.side_effect = OpenAIRequestError(
+            "bad messages format",
+            status_code=400,
+            response_body='{"error":{"message":"messages array is empty"}}',
+        )
+        rf = {"type": "json_schema", "json_schema": {"name": "x", "strict": True, "schema": {}}}
+        with pytest.raises(OpenAIRequestError):
+            chat_completions_create(model="gpt-4.1-mini", messages=[], response_format=rf)
+        # No downgrade, no cache pollution.
+        assert "gpt-4.1-mini" not in _JSON_SCHEMA_UNSUPPORTED

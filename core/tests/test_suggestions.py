@@ -748,12 +748,15 @@ class TestNormalizeRationale:
         result = _normalize_rationale(entry)
         assert len(result) == 2
 
-    def test_arg_truncated_to_40_chars(self):
+    def test_arg_truncated_to_80_chars(self):
+        # 2026-04-28: cap bumped 40 → 80 to keep paraphrased args produced
+        # under strict json_schema (OPEN-3) within match range of the
+        # has_must_have_cite metric. UI chip styling wraps long labels.
         from core.src.suggestions import _normalize_rationale
-        long_arg = "a" * 60
+        long_arg = "a" * 100
         entry = {"rationale": [{"type": "profile_match", "arg": long_arg}]}
         result = _normalize_rationale(entry)
-        assert len(result[0]["arg"]) == 40
+        assert len(result[0]["arg"]) == 80
 
     def test_legacy_fallback_from_reason(self):
         from core.src.suggestions import _normalize_rationale

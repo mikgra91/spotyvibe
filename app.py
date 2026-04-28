@@ -792,6 +792,13 @@ def run_pipeline():
             _taste_summary: str = ""
             _avoid_traits: list[str] = []
             _approved_top_tracks: dict = {}
+            # OPEN-4 (2026-04-28): Stage-1 pool widening on POOL_BAD was
+            # implemented and reverted. It cost +1 free Stage-1 + 1 cheap
+            # Stage-2 per run as designed, but downstream the doubled
+            # candidate pool inflated subsequent Stage-3 prompts (~2× user
+            # message size) and Spotify-search volume, contributing to
+            # measured cost regressions and 429 rate-limit cascades during
+            # multi-model evals. Re-enable only with stricter guards.
 
             if _use_staged_pipeline:
                 try:
@@ -812,13 +819,38 @@ def run_pipeline():
                         for a in profile.get("history", {}).get("suggested_artists", [])
                     }
                     _deny_keys = _deny_keys | _history_names
+
+                    # Phase 2.5 (P2.2 fix, 2026-04-27): plumb the user's
+                    # north-star reference into Stage 1 so the 15 % facet
+                    # quota in score_artists_stratified actually fires.
+                    # Pre-fix the quota was silently absorbed by flat-fill.
+                    # Source priorities:
+                    #  1) profile.meta.primary_reference dict (preferred)
+                    #  2) profile.meta.primary_reference string + analysis dict
+                    #  3) latest band/song analysis result if available
+                    _meta = profile.get("meta", {}) if isinstance(profile, dict) else {}
+                    _primary_ref = _meta.get("primary_reference")
+                    if isinstance(_primary_ref, str):
+                        # Legacy string form — wrap as dict so the retrieval
+                        # helper can ingest it. analysis text fallback is
+                        # whatever build_taste_summary already surfaces.
+                        _primary_ref = {"name": _primary_ref, "analysis": _primary_ref}
+                    elif not isinstance(_primary_ref, dict):
+                        _primary_ref = None
+
                     _stage1_candidates = retrieve_candidates(
                         _corpus, profile,
                         deny_keys=_deny_keys,
                         target_size=RETRIEVE_CANDIDATES_SIZE,
                         popularity_penalty=RAG_POPULARITY_PENALTY,
+                        primary_reference=_primary_ref,
                     )
                     set_last_rag_pool_names([a.name for a in _stage1_candidates])
+                    if _primary_ref:
+                        logger.info(
+                            "[Stage 1] primary_reference active: %r",
+                            _primary_ref.get("name") or "(unnamed)",
+                        )
 
                     _avoid_traits = (profile.get("preferences", {}) or {}).get("avoid") or []
                     if isinstance(_avoid_traits, str):
@@ -986,35 +1018,68 @@ def run_pipeline():
                 _batch_latencies.append(_llm_meta.get("latency_s") or 0.0)
                 _gpt_returned_count = len(result.get("playlist", []))
 
-                # ── HC2 violation detector (2026-04-27 diagnostic) ──
-                # Stage 3's HC2 says "ONLY suggest tracks by artists in the
-                # APPROVED_ARTISTS list". When the model violates this we
-                # only used to find out via Spotify-search misses, which
-                # masks the root cause. Surface it directly here so the
-                # log line says "le grand sbam (NOT IN POOL)" rather than
-                # forcing us to cross-reference two systems later.
+                # ── HC2 + HC1 enforcement (2026-04-27) ──
+                # Phase 2.5 hardening: previously these checks only LOGGED
+                # violations. Now they DROP the offending entries from the
+                # playlist so a future prompt regression can't silently ship
+                # out-of-pool tracks or self-titled "track == artist" picks.
+                # HC1: anti-confab — track field MUST NOT equal artist field.
+                # HC2: ONLY tracks by artists in APPROVED_ARTISTS list.
                 if _use_staged_pipeline:
                     _approved_lower = {n.lower().strip() for n in (_approved_names or [])}
                     _stage3_picks = result.get("playlist", []) if isinstance(result, dict) else []
                     _hc2_violations = []
+                    _hc1_violations = []
+                    _kept_picks = []
                     for _entry in _stage3_picks:
                         _a = (_entry.get("artist") or "").lower().strip()
+                        _t = (_entry.get("track") or "").lower().strip()
                         if _a and _a not in _approved_lower:
                             _hc2_violations.append(f"{_a} - {_entry.get('track', '')}")
+                            continue  # DROP — out of pool
+                        if _t and _a and _t == _a:
+                            _hc1_violations.append(f"{_a} - {_entry.get('track', '')}")
+                            continue  # DROP — track == artist (self-titled echo)
+                        _kept_picks.append(_entry)
                     if _hc2_violations:
                         logger.warning(
-                            "[HC2 VIOLATION] Stage 3 returned %d/%d picks "
+                            "[HC2 VIOLATION] DROPPED %d/%d picks "
                             "for artists OUTSIDE the approved pool. "
-                            "Approved pool size=%d. Out-of-pool picks: %s",
+                            "Approved pool size=%d. Dropped picks: %s",
                             len(_hc2_violations), len(_stage3_picks),
                             len(_approved_lower), _hc2_violations[:10],
                         )
-                    else:
+                    if _hc1_violations:
+                        logger.warning(
+                            "[HC1 VIOLATION] DROPPED %d/%d picks where "
+                            "track == artist (self-titled echo). Dropped: %s",
+                            len(_hc1_violations), len(_stage3_picks),
+                            _hc1_violations[:10],
+                        )
+                    if not _hc2_violations and not _hc1_violations:
                         logger.info(
                             "[HC2 OK] Stage 3 returned %d picks, all in "
                             "approved pool (size=%d).",
                             len(_stage3_picks), len(_approved_lower),
                         )
+                    if _hc2_violations or _hc1_violations:
+                        # Mutate result so downstream consumers (filter,
+                        # truncate, profile updates) see the cleaned list.
+                        result["playlist"] = _kept_picks
+                        # Re-derive profile_updates from kept picks only.
+                        if isinstance(result.get("profile_updates"), dict):
+                            _kept_artists = {(e.get("artist") or "").lower().strip() for e in _kept_picks}
+                            result["profile_updates"]["suggested_artists"] = list(_kept_artists)
+                            result["profile_updates"]["suggested_tracks"] = [
+                                {"artist": (e.get("artist") or "").lower().strip(),
+                                 "track": (e.get("track") or "").lower().strip()}
+                                for e in _kept_picks
+                            ]
+                            if "new_artists" in result:
+                                result["new_artists"] = [
+                                    a for a in result.get("new_artists", [])
+                                    if a in _kept_artists
+                                ]
 
                 # ── Check again after the blocking GPT call ──
                 if cancel_event.is_set():

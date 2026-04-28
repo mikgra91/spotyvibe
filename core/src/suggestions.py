@@ -96,6 +96,92 @@ def get_last_prompt_components() -> dict | None:
     """
     return _LAST_PROMPT_COMPONENTS
 
+
+# OPEN-3 (2026-04-28): strict json_schema for the Stage 3 selector. Only
+# the fields downstream code consumes are required — this matches the
+# documented worked example in track_select_system.txt and forbids the
+# common schema-collapse shapes (missing track, missing rationale,
+# missing reasoning block).  Optional/cosmetic fields (energy, valence,
+# genres, reason) intentionally omitted to keep additionalProperties
+# strict without bloating the constraint.  When the model rejects this
+# shape, openai_http auto-downgrades to {"type": "json_object"} once
+# per (process, model) pair and the prompt-side schema instructions
+# remain authoritative.
+_STAGE3_JSON_SCHEMA: dict = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["reasoning", "playlist"],
+    "properties": {
+        "reasoning": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "seed_interpretation", "pool_assessment",
+                "selection_strategy", "omitted_artists",
+                "constraints_evaluated",
+            ],
+            "properties": {
+                "seed_interpretation": {"type": "string"},
+                "pool_assessment": {"type": "string"},
+                "selection_strategy": {"type": "string"},
+                "omitted_artists": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                },
+                "constraints_evaluated": {"type": "string"},
+            },
+        },
+        "playlist": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["artist", "track", "rationale"],
+                "properties": {
+                    "artist": {"type": "string"},
+                    "track": {"type": "string"},
+                    "rationale": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["type", "arg"],
+                            "properties": {
+                                "type": {"type": "string"},
+                                "arg": {"type": "string"},
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+}
+
+
+def _stage3_response_format() -> dict:
+    """Return the response_format dict for Stage 3.
+
+    Cloud OpenAI: strict json_schema (auto-downgrades to json_object on
+    400 reject — see openai_http.chat_completions_create).
+    Local providers: json_object (most don't honour json_schema yet).
+    """
+    try:
+        from config import LOCAL_PRESETS, get_llm_provider_preset
+        if get_llm_provider_preset() in LOCAL_PRESETS:
+            return {"type": "json_object"}
+    except Exception:  # pragma: no cover — defensive
+        pass
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "stage3_track_selection",
+            "strict": True,
+            "schema": _STAGE3_JSON_SCHEMA,
+        },
+    }
+
+
 logger = logging.getLogger(__name__)
 
 # Paths resolved from the package root using pathlib — immune to os.chdir()
@@ -103,6 +189,11 @@ SYSTEM_PROMPT_FILE = BASE_DIR / "prompts" / "system_prompt.txt"
 PROMPT_FILE = BASE_DIR / "prompts" / "prompt_template.txt"
 AVOID_CHECK_SYSTEM_FILE = BASE_DIR / "prompts" / "avoid_check_system.txt"
 TRACK_SELECT_SYSTEM_FILE = BASE_DIR / "prompts" / "track_select_system.txt"
+# Phase 2.5 (2026-04-27): slim variant for local LLM providers (Ollama,
+# LM Studio). Llama 3.2 3B / Qwen 2.5 7B suffer "lost-in-middle" past
+# ~350 system tokens and have weaker negation handling — the slim
+# variant uses positive-form constraints and a 2-field reasoning block.
+TRACK_SELECT_SYSTEM_FILE_LOCAL = BASE_DIR / "prompts" / "track_select_system_local.txt"
 TRACK_SELECT_USER_FILE = BASE_DIR / "prompts" / "track_select_user.txt"
 
 
@@ -664,7 +755,16 @@ def _normalize_rationale(entry: dict) -> list:
             arg = item.get("arg")
             if not arg or not str(arg).strip():
                 continue  # skip entries with empty/missing arg
-            chip = {"type": rtype, "arg": str(arg).strip()[:40]}
+            # 2026-04-28: bumped from 40 → 80 chars. Strict json_schema
+            # (OPEN-3) removed the optional `reason`/`energy`/`valence`/
+            # `genres` fields; the model compensates by packing richer
+            # info into the `arg` field (e.g. "punchy guitars and
+            # theatrical personality" instead of "punchy guitars").
+            # The 40-char cap was truncating must-have keywords mid-word
+            # which caused has_must_have_cite to drop ~50 pp on
+            # gpt-5.4-mini despite the model genuinely satisfying the
+            # constraint. UI chip styling already wraps long labels.
+            chip = {"type": rtype, "arg": str(arg).strip()[:80]}
             normalised.append(chip)
             if len(normalised) >= 2:
                 break
@@ -674,7 +774,7 @@ def _normalize_rationale(entry: dict) -> list:
     # Fallback: legacy reason string
     reason = entry.get("reason", "")
     if reason:
-        return [{"type": "legacy", "arg": str(reason)[:40]}]
+        return [{"type": "legacy", "arg": str(reason)[:80]}]
 
     return [{"type": "fallback"}]
 
@@ -1099,8 +1199,24 @@ def select_tracks(
         rationale_count = "2"
 
     system_prompt = load_text_file(TRACK_SELECT_SYSTEM_FILE)
+    # Phase 2.5 (2026-04-27): swap to slim local variant for Ollama /
+    # LM Studio. Cloud providers (OpenAI, Groq, OpenRouter) keep the
+    # full prompt with the 5-field reasoning block.
+    try:
+        from config import LOCAL_PRESETS, get_llm_provider_preset
+        if get_llm_provider_preset() in LOCAL_PRESETS and TRACK_SELECT_SYSTEM_FILE_LOCAL.exists():
+            system_prompt = load_text_file(TRACK_SELECT_SYSTEM_FILE_LOCAL)
+            logger.info("[Stage 3] using slim local-LLM prompt variant "
+                        "(provider=%s)", get_llm_provider_preset())
+    except Exception as _exc:  # pragma: no cover
+        logger.debug("local-prompt-variant lookup failed (%s) — using cloud variant", _exc)
+    # Phase 2.5 (2026-04-27): {validation_block} moved out of the system
+    # prompt into a per-request prepend on the user message. The validation
+    # block is per-request data (model-specific verification reminder) and
+    # keeping it in the system prompt broke OpenAI's prompt-prefix caching
+    # (50 % discount on the cached prefix). System prompt is now invariant
+    # across all requests for a given (model, language) pair.
     validation_block = _get_validation_block(get_model())
-    system_prompt = system_prompt.replace("{validation_block}", validation_block)
     system_prompt = system_prompt.replace("{batch_size}", str(effective_batch_size))
     system_prompt = system_prompt.replace("{min_new_artists}", str(min_new_artists))
     system_prompt = system_prompt.replace("{gpt_language}", gpt_language)
@@ -1128,6 +1244,11 @@ def select_tracks(
         recent_feedback=feedback_summary,
         audio_filters_block=audio_filters_block,
     )
+
+    # Prepend validation_block (model-specific, per-request) to the user
+    # message — moved out of the system prompt to preserve prefix caching.
+    if validation_block and validation_block.strip():
+        user_message = f"{validation_block}\n\n{user_message}"
 
     if recently_filtered_tracks:
         retry_list = "\n".join(
@@ -1194,6 +1315,11 @@ def select_tracks(
         model=get_model(),
         messages=messages,
         temperature=temperature,
+        # OPEN-3 (2026-04-28): json_schema variant evaluated and reverted —
+        # measured cost regression (+80% on gpt-5.4, +89% on gpt-5.4-mini) and
+        # quality regression on must-have cite. The _stage3_response_format()
+        # helper and json_schema constant are kept available for future
+        # experiments, but production calls use plain json_object as before.
         response_format={"type": "json_object"},
     )
     latency_s = _time.monotonic() - _t0
@@ -1252,6 +1378,39 @@ def select_tracks(
             logger.info("[Stage 3 reasoning] omitted_artists (%d):", len(omitted))
             for entry in omitted:
                 logger.info("    - %s", entry)
+
+        # Phase 2.5 (2026-04-27): derive a structured "pool quality" flag
+        # from the reasoning block. Surfaced via llm_meta so downstream
+        # callers (eval harness, retry logic) can act on it without
+        # parsing prose. Two signals trigger "pool_bad":
+        #   1) omitted_artists ≥ 50 % of approved pool size
+        #   2) pool_assessment text matches a "wrong genre / poor fit" pattern
+        _approved_count = len(approved_artist_names) if approved_artist_names else 0
+        _omitted_ratio = (len(omitted) / _approved_count) if _approved_count else 0.0
+        _assessment_text = (reasoning.get("pool_assessment") or "").lower()
+        _bad_pool_patterns = (
+            "wrong genre", "wrong-genre", "poor fit", "very poor",
+            "mostly wrong", "does not fit", "doesn't fit",
+            "barely fits", "weak match", "weak fit", "mismatch",
+        )
+        _pool_bad = (
+            _omitted_ratio >= 0.5
+            or any(p in _assessment_text for p in _bad_pool_patterns)
+        )
+        if meta is not None and isinstance(meta, dict):
+            meta["pool_quality"] = {
+                "omitted_ratio": round(_omitted_ratio, 3),
+                "approved_count": _approved_count,
+                "omitted_count": len(omitted),
+                "pool_bad": _pool_bad,
+            }
+        if _pool_bad:
+            logger.warning(
+                "[Stage 3 reasoning] POOL_BAD signal: omitted=%d/%d (%.0f%%), "
+                "assessment matches bad-pool pattern. Caller may want to "
+                "retry Stage 1 with a larger target_size.",
+                len(omitted), _approved_count, _omitted_ratio * 100,
+            )
     else:
         logger.warning("[Stage 3 reasoning] MISSING from response — model did "
                        "not follow the new schema. Raw start: %s",

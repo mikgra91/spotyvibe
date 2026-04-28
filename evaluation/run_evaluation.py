@@ -19,9 +19,9 @@ What this script does:
   7. Writes ``evaluation/results/{ts}/comparison.md`` plus per-run
      ``eval.jsonl`` + ``summary.json`` slices.
 
-Cost: ~$0.30 per full evaluation at Phase-1 prompt sizes (3 models,
-1 iteration each). gpt-5.5 dominates. Re-running is intentionally
-billable — that is the point.
+Cost: roughly $0.10–$0.20 per full evaluation at current prompt sizes
+(4 models, 1 iteration each — gpt-5.4, gpt-5.4-mini, gpt-4.1, gpt-4.1-mini).
+Re-running is intentionally billable — that is the point.
 
 Safety: cleanup deletes the Spotify playlist and sandbox profile
 in a ``finally`` block so partial failures never leave orphans.
@@ -130,12 +130,14 @@ def load_settings() -> dict:
 
 # ── Cost estimate ────────────────────────────────────────────────────
 
-# Rough per-cycle estimates at Phase-1 prompt sizes. Conservative — gpt-5.5
-# dominates because of its higher token rate AND larger Stage 3 footprint.
+# Rough per-cycle estimates at current prompt sizes. Conservative.
+# gpt-5.5 was removed in Phase 2.6 (2026-04-28) — see
+# documentation/ModelRecommendations.md.
 _PER_CYCLE_USD = {
-    "gpt-5.5": 0.12,
     "gpt-5.4": 0.10,
     "gpt-5.4-mini": 0.01,
+    "gpt-4.1": 0.04,
+    "gpt-4.1-mini": 0.01,
 }
 
 
@@ -311,8 +313,19 @@ def main() -> int:
     # ── Run the matrix ────────────────────────────────────────────
     summaries = []
     overall_t0 = time.monotonic()
+    # Inter-model cooldown: prevents Spotify search 429-cascade between
+    # consecutive iterations. Spotify enforces a sliding-window quota per
+    # user token; back-to-back model runs that fan out many parallel
+    # searches can exhaust it and cause the next model to record 0 %
+    # Spotify-found purely as a side effect. 60 s is enough for the rolling
+    # window to drain in practice (raised from 15 s in Phase 2.6).
+    INTER_MODEL_COOLDOWN_S = 60
     try:
-        for model in models:
+        for model_idx, model in enumerate(models):
+            if model_idx > 0:
+                logger.info("Cooling down %ds before next model to let Spotify rate-limit window drain…",
+                            INTER_MODEL_COOLDOWN_S)
+                time.sleep(INTER_MODEL_COOLDOWN_S)
             for iteration in range(1, iterations + 1):
                 logger.info("─── %s iteration %d/%d ───", model, iteration, iterations)
                 result = run_for_model(

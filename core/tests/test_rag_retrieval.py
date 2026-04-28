@@ -425,3 +425,45 @@ def test_min_frequency_floor_disabled_for_tiny_corpora(tmp_path):
     assert "niche-tag-y" in result, (
         "tiny-corpus auto-disable failed: n=1 tag dropped when it shouldn't be"
     )
+# ── P2.2 primary_reference plumbing test (2026-04-27) ────────────────
+def test_retrieve_candidates_accepts_primary_reference(tmp_path):
+    """retrieve_candidates must forward primary_reference to the scorer.
+    Pre-fix the parameter was missing entirely; the 15 % facet quota was
+    silently absorbed by flat-fill. This test pins that the parameter
+    exists, is accepted, and does not crash.
+    """
+    import inspect
+    from core.src.rag.retrieval import retrieve_candidates
+    sig = inspect.signature(retrieve_candidates)
+    assert "primary_reference" in sig.parameters, (
+        "retrieve_candidates must accept primary_reference parameter "
+        "(P2.2 fix). Without it, score_artists_stratified's 15 % facet "
+        "quota is dead code."
+    )
+    # Build a tiny corpus and verify the call works end-to-end.
+    corpus_path = tmp_path / "tiny.jsonl.gz"
+    import gzip, json as _json
+    with gzip.open(corpus_path, "wt", encoding="utf-8") as f:
+        for i in range(5):
+            f.write(_json.dumps({
+                "name": f"artist-{i}",
+                "tags": ["pop", "rock"],
+                "popularity": 0.5,
+            }) + "\n")
+    from core.src.rag.corpus import RagCorpus
+    corpus = RagCorpus.load(corpus_path)
+    profile = {"preferences": {"must_have": ["pop rock"]}}
+    # Without primary_reference (existing behavior must still work)
+    result_a = retrieve_candidates(corpus, profile, target_size=3)
+    assert len(result_a) <= 3
+    # With primary_reference dict (new behavior must not crash)
+    result_b = retrieve_candidates(
+        corpus, profile, target_size=3,
+        primary_reference={"name": "ref-artist", "genres": ["pop"], "moods": ["energetic"]},
+    )
+    assert len(result_b) <= 3
+    # With primary_reference=None explicitly
+    result_c = retrieve_candidates(
+        corpus, profile, target_size=3, primary_reference=None,
+    )
+    assert len(result_c) <= 3

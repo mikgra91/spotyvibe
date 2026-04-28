@@ -521,7 +521,13 @@ def search_tracks(tracks, on_progress=None):
         return [], [f"{t['artist']} - {t['track']}" for t in unique_tracks]
     access_token = token_info["access_token"]
 
-    pool_size = min(10, len(unique_tracks)) or 1
+    # Cap concurrency at 5 (down from 10) — Spotify's per-user search
+    # rate limit is tight enough that 10 simultaneous in-flight requests
+    # routinely trigger 429 cascades, especially when callers run
+    # back-to-back (e.g. evaluation harness, multi-batch generation).
+    # 5 still gives most of the parallelism speed-up while leaving
+    # headroom for the rolling-window quota.
+    pool_size = min(5, len(unique_tracks)) or 1
     shared_session = _make_pooled_session(pool_size)
 
     # Single shared client: pre-fetched token + pooled session.
@@ -535,17 +541,22 @@ def search_tracks(tracks, on_progress=None):
     def search_one(t):
         query = _build_track_artist_query(t["artist"], t["track"])
 
-        # Retry once on 429 (rate limit) using Retry-After header,
-        # mirroring the pattern in spotify_metadata.py.
+        # Retry on 429 (rate limit) with exponential backoff, honouring
+        # the Retry-After header when present. Up to 4 attempts: a single
+        # retry is not enough when many concurrent searches all hit the
+        # quota at the same moment (observed in evaluation harness with
+        # multi-model runs). Cap each sleep at 30 s to bound total wait.
         res = None
-        for attempt in range(2):
+        for attempt in range(4):
             try:
                 res = shared_sp.search(q=query, type="track", limit=1, market="from_token")
                 break
             except SpotifyException as e:
-                if e.http_status == 429 and attempt == 0:
+                if e.http_status == 429 and attempt < 3:
                     retry_after = int(e.headers.get("Retry-After", 1))
-                    time.sleep(min(retry_after, 10))
+                    # Exponential backoff floor: 1s, 2s, 4s (doubles each attempt)
+                    backoff_floor = 2 ** attempt
+                    time.sleep(min(max(retry_after, backoff_floor), 30))
                     continue
                 raise
 
