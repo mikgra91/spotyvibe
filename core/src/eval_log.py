@@ -368,6 +368,21 @@ def log_batch_summary(
             "type_distribution": type_counter,
         }
 
+    # L16 (2026-04-29): hoist cached_tokens out of usage.prompt_tokens_details
+    # to a top-level field so the aggregator can compute the prefix-cache hit
+    # rate without descending into the (provider-specific) usage subtree.
+    # OpenAI populates usage.prompt_tokens_details.cached_tokens when the
+    # request hits the automatic 50% prompt-prefix discount tier; local
+    # providers typically omit this field entirely. None means "provider did
+    # not report" (treat as 0 for ratios but distinguish in audits).
+    cached_tokens = None
+    if isinstance(usage, dict):
+        details = usage.get("prompt_tokens_details")
+        if isinstance(details, dict):
+            ct = details.get("cached_tokens")
+            if isinstance(ct, int):
+                cached_tokens = ct
+
     row = {
         "kind": "batch_summary",
         "ts": _now_iso(),
@@ -385,6 +400,7 @@ def log_batch_summary(
         "rag_stratified": rag_stratified,
         "prompt_components": prompt_components or {},
         "usage": usage,
+        "cached_tokens": cached_tokens,
         "latency_s": round(latency_s, 3) if latency_s is not None else None,
         "gpt_returned_count": gpt_returned_count,
         "after_filter_count": after_filter_count,
@@ -605,11 +621,10 @@ def _profile_section_sizes(profile: dict | None) -> dict:
     return {
         "must_have_count": _len_list(prefs.get("must_have")),
         "soft_preferences_count": _len_list(prefs.get("soft_preferences")),
-        "avoid_count": _len_list(prefs.get("avoid")),
         # NOTE (2026-04-28 fix): meta.goal is not currently populated;
         # core_description lives under preferences, not meta. Read both
         # from their actual locations so OPEN-5 telemetry reflects reality.
-        "meta_goal_chars": _len_str(meta.get("goal")),
+        "avoid_count": _len_list(prefs.get("avoid")),
         "core_description_chars": _len_str(prefs.get("core_description")),
     }
 

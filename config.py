@@ -49,6 +49,15 @@ BASE_DIR = _get_base_dir()
 # How many tracks GPT generates per single request
 BATCH_SIZE = 10
 
+# L11 (2026-04-29): Stage 3 over-request buffer added on top of BATCH_SIZE so
+# the playlist still fills if a few suggestions get filtered post-LLM (Spotify
+# not-found, dedup, avoid violations). Was +5; reduced to +2 after the
+# 5-block sweep (`evaluation/results/sweep-merged-5blocks/`) showed
+# Spotify-found = 100% on 58/60 rows — the +5 was tuned for the pre-Phase-1
+# regime where Spotify-found was 7.7%. Saves ~30% of Stage 3 output tokens
+# (~$3-4 per 1000 playlists). See `cost-speed-research.md` lever L11.
+STAGE3_OVER_REQUEST = 2
+
 # Default total playlist size — can be overridden via Settings UI
 DEFAULT_PLAYLIST_SIZE = 10
 
@@ -87,7 +96,16 @@ DEFAULT_NEW_ARTIST_PERCENTAGE = 30
 # classified gpt-5.5 as unfit for this workload (reasoning-tier model, ~9.5×
 # slower and ~9.5× more expensive than gpt-5.4 with worse must-have-cite and
 # Spotify-found rates). See documentation/ModelRecommendations.md.
-DEFAULT_OPENAI_MODEL = "gpt-5.4"
+# 2026-04-29: switched from "gpt-5.4" to "gpt-5.4-mini" after the 5-block
+# pool-size sweep (5 × 3 pools × 4 models = 60 data points). gpt-5.4-mini
+# at pool=50 hits 88.0% mean must-have-cite at $0.0288/playlist (~4× cheaper
+# than gpt-5.4) with ~42 s wall-clock. gpt-5.4 remains the highest-quality
+# option (98.7% mean cite at pool=50, the only model × pool with stable
+# B1↔B2 determinism Δ 0.0 pp), but the cost premium isn't worth it as a
+# default. Users who want top quality can switch to gpt-5.4 explicitly via
+# the per-profile OPENAI_MODEL setting. See ModelRecommendations.md and
+# evaluation/results/sweep-merged-5blocks/report.md.
+DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
 
 # Stage 2 avoid-compliance checker model (binary classification — cheapest mini).
 # Used by check_avoid_compliance() in suggestions.py. Falls back to get_model()
@@ -104,20 +122,22 @@ STAGE2_MODEL = "gpt-5.4-mini"
 # that masked the upstream bug and bloated the prompt to ~22 K tokens (breaks
 # the 8 K local-LLM context floor). See result-improvement.md P2.0.
 #
-# 2026-04-28: bumped to pool=40 after the pool-size sweep (30/40/50 × 2 blocks
-# × 4 models, 24 data points). Findings:
-#   - gpt-5.4 and gpt-5.4-mini are flat across 30/40/50 — pool size doesn't
-#     move them (~95-100% / ~77-80% mean cite-rate respectively).
-#   - gpt-4.1 leans toward pool=40 in the mean (within noise).
-#   - gpt-4.1-mini STRONGLY prefers pool=40: mean cite-rate 36.7%/66.7%/36.7%
-#     for pools 30/40/50, +30 pp robust win at 40 — both blocks agree. Only
-#     model in the sweep with a pool effect that clearly exceeds the noise
-#     floor (~13 pp B1↔B2 variance at n=1).
-#   - Pool=40 is the largest where Stage 2 still approves 100% of candidates
-#     (40/40). At pool=50 Stage 2 starts filtering 2/50; at pool=60, 3/60.
-#   - Cost increase vs pool=32: gpt-4.1-mini +1.8%, gpt-5.4 +15.8%; bounded.
-# See C:\Users\apatecgratzl\Desktop\CoPilot_Reports\pool-sweep-30-40-50.md.
-RETRIEVE_CANDIDATES_SIZE = 40
+# 2026-04-29: confirmed pool=50 after the 5-block pool-size sweep
+# (5 blocks × 3 pools × 4 models = 60 data points; pool 30 had a 1300-hit
+# Spotify 429 cascade — flagged but cite-rates trustworthy). Findings:
+#   - gpt-5.4 @ pool=50: 98.7% mean cite, the ONLY model × pool combo with
+#     stable B1↔B2 determinism (Δ 0.0 pp). Pool=50 wins on quality.
+#   - gpt-5.4-mini @ pool=50: 88.0% mean cite at $0.0288 (4× cheaper than
+#     gpt-5.4); the new project default. Pool=50 also best for this model.
+#   - gpt-4.1-mini @ pool=50: 82.7% mean cite at $0.0125 (cheapest viable).
+#   - gpt-4.1 (full): 60-73% mean across all pools — worse than gpt-4.1-mini,
+#     do not recommend.
+#   - Pool 30 carries operational risk: ALL 4 × 1300-hit Spotify rate-limit
+#     cascades in the sweep happened on pool 30 (smaller pool → more
+#     candidate cycles → more Spotify calls per pick). Pool 50 is safer.
+#   - Stage 2 starts filtering at pool=50 (48/50 approved); still acceptable.
+# See evaluation/results/sweep-merged-5blocks/report.md for raw numbers.
+RETRIEVE_CANDIDATES_SIZE = 50
 
 # Curated list of known-good OpenAI model IDs for chat completions.
 # Order determines display order in the Settings dropdown.

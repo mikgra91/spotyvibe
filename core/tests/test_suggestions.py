@@ -887,6 +887,39 @@ class TestCheckAvoidCompliance:
         assert approved2 == names
         assert meta2["status"] == "skipped_no_avoid"
 
+    def test_skipped_no_overlap_when_stage1_already_filtered(self):
+        """L1 (2026-04-29): when Stage 1 reports pool_avoid_overlap=0 the LLM
+        call must be skipped — Stage 1's tag filter already removed every
+        candidate matching an avoid trait. Ship-blocker for the cost-saving
+        path; keep this assertion strict."""
+        from core.src.suggestions import check_avoid_compliance
+        names = ["Artist A", "Artist B"]
+        approved, meta = check_avoid_compliance(
+            names, ["classic rock"], pool_avoid_overlap=0,
+        )
+        assert approved == names
+        assert meta["status"] == "skipped_no_overlap"
+        assert meta["latency_s"] is None  # no LLM call → no latency
+        assert meta["prompt_chars"] == 0  # no LLM call → no prompt built
+
+    def test_overlap_nonzero_still_calls_llm(self):
+        """When Stage 1 reports residual avoid-tag overlap (e.g. filter was
+        bypassed for being too aggressive), the LLM check must still run."""
+        names = ["Artist A", "Classic Rock Band"]
+        response = '{"approved": ["Artist A"]}'
+        from core.src.suggestions import check_avoid_compliance
+        import json as _json
+        from unittest.mock import patch
+        with patch("core.src.suggestions.chat_completions_create",
+                   side_effect=lambda **kw: {"choices": [{"message": {"content": response}}], "usage": None}):
+            with patch("core.src.suggestions.extract_chat_content",
+                       side_effect=lambda r: r["choices"][0]["message"]["content"]):
+                approved, meta = check_avoid_compliance(
+                    names, ["classic rock"], pool_avoid_overlap=1,
+                )
+        assert approved == ["Artist A"]
+        assert meta["status"] == "ok"
+
     def test_approved_subset_returned(self):
         names = ["Good Band", "Classic Rock Band", "Indie Artist"]
         response = '{"approved": ["Good Band", "Indie Artist"]}'
@@ -996,6 +1029,75 @@ class TestSelectTracks:
         assert components["pool"] > 0   # approved artists block
         assert components["deny_set"] == 0  # no deny list in Stage 3
         assert components["profile"] == 0   # no full profile JSON
+
+    def test_l11_effective_batch_size_uses_stage3_over_request_constant(self):
+        """L11 (2026-04-29): the buffer that turns batch_size=10 into the
+        effective request was reduced from a hardcoded +5 to the configurable
+        STAGE3_OVER_REQUEST constant (default 2). Sweep evidence: Spotify-found
+        was 100% on 58/60 rows so the +5 buffer was wasted output tokens."""
+        from core.src.suggestions import select_tracks
+        from config import STAGE3_OVER_REQUEST
+        from unittest.mock import patch
+        import json as _json
+
+        # The system prompt receives `{batch_size}` substituted with the
+        # effective_batch_size. We capture the rendered prompt and assert
+        # the substitution used batch_size + STAGE3_OVER_REQUEST.
+        captured = {}
+        def _fake_create(**kw):
+            captured["messages"] = kw.get("messages")
+            return {"choices": [{"message": {"content": _json.dumps(self._GOOD_RESULT)}}],
+                    "usage": None}
+
+        with patch("core.src.suggestions.chat_completions_create", side_effect=_fake_create):
+            with patch("core.src.suggestions.extract_chat_content",
+                       side_effect=lambda r: r["choices"][0]["message"]["content"]):
+                select_tracks(["Good Band"], "Must: hooks.", 10, self._make_profile())
+
+        system_msg = captured["messages"][0]["content"]
+        expected = 10 + STAGE3_OVER_REQUEST
+        # The system prompt rendered the effective batch size — assert it
+        # matches the new formula. Search for the integer in context to
+        # avoid false positives on unrelated numbers.
+        assert f"UP TO {expected}" in captured["messages"][1]["content"] or \
+               str(expected) in system_msg, \
+            f"effective_batch_size={expected} not visible in rendered prompt"
+        # Hard guard against accidental revert to the old +5.
+        assert STAGE3_OVER_REQUEST <= 3, \
+            "STAGE3_OVER_REQUEST regressed above 3 — see lever L11"
+
+    def test_l8_recent_feedback_line_dropped_when_empty(self):
+        """L8 (2026-04-29): when the profile has no liked/disliked feedback,
+        build_feedback_summary returns "" and the {recent_feedback}
+        placeholder leaves an empty line in the rendered prompt. select_tracks
+        must strip the placeholder line entirely so we don't pay a token
+        for whitespace nor distract the model with a blank line."""
+        from core.src.suggestions import select_tracks
+        from unittest.mock import patch
+        import json as _json
+
+        captured = {}
+        def _fake_create(**kw):
+            captured["messages"] = kw.get("messages")
+            return {"choices": [{"message": {"content": _json.dumps(self._GOOD_RESULT)}}],
+                    "usage": None}
+
+        # Profile has empty feedback lists → build_feedback_summary returns "".
+        profile = self._make_profile()
+        with patch("core.src.suggestions.chat_completions_create", side_effect=_fake_create):
+            with patch("core.src.suggestions.extract_chat_content",
+                       side_effect=lambda r: r["choices"][0]["message"]["content"]):
+                select_tracks(["Good Band"], "Must: hooks.", 10, profile)
+
+        user_msg = captured["messages"][1]["content"]
+        # The "Recent user feedback" header is build_feedback_summary's
+        # contribution; should not appear when feedback is empty.
+        assert "Recent user feedback" not in user_msg
+        # No double-blank-line collapse from the dropped placeholder
+        # (heuristic: TASTE SUMMARY block flows into the next non-empty
+        # section without an orphaned blank line carrying tokens).
+        assert "\n\n\n" not in user_msg, \
+            "double-blank-line found — {recent_feedback} placeholder not stripped cleanly"
 
     def test_approved_top_tracks_reach_llm_user_message(self):
         """End-to-end plumbing: when approved_top_tracks is supplied,

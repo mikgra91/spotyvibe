@@ -1366,3 +1366,44 @@ The **first tier** (~2.5–3× cheaper) comes purely from architectural changes 
 Latency target both tiers: **≤ 60 s p95** end-to-end on cloud (Goal #3). Time-to-first-batch ≤ 12 s p95 (P5.3). Local LLM bounded by user hardware; we own everything (P5.2 + P5.3).
 
 If only tier 1 lands, the rework still hits Goal #1 (quality) and most of Goal #2 (cost) in the first week of regular use. Tier 2 is upside, not a precondition.
+---
+# Phase 6.0 — Cost reduction bundle (2026-04-29)
+Triggered by user-requested priority flip: **Cost > Speed > Quality non-regression** (was Quality > Price > Speed). Improvements must outweigh regressions 2:1; quality regressions weighted 4:1. Variance-as-regression rule: block-to-block cite Δ ≥ 13 pp → must be validated over ≥ 5 blocks before adoption.
+Source of recommendations: `cost-speed-research.md` (Plan-agent delegation, 26 levers analysed against the 5-block sweep + Phase 0–5 lessons).
+## Shipped this phase (L1 + L8 + L11 + L16 bundle)
+Predicted combined saving: **~$10–11 per 1 000 playlists** (~36 % reduction from $28.80 baseline at `gpt-5.4-mini @ pool=50`), no measured quality regression. Validation eval queued separately.
+| Lever | Change | Files | Lines |
+|---|---|---|---|
+| **L1** Skip Stage 2 LLM call when Stage 1's avoid-tag filter cleared the pool | New `pool_avoid_overlap` flag emitted by `retrieve_candidates`; consumed by `check_avoid_compliance` (new status `skipped_no_overlap`); wired in app.py Stage 2 dispatch | `core/src/rag/retrieval.py`, `core/src/suggestions.py`, `app.py` | ~50 |
+| **L8** Drop empty `{recent_feedback}` line from Stage 3 user prompt | Conditional template-line strip in `select_tracks` when `build_feedback_summary` returns "" (also strips empty `{audio_filters_block}`) | `core/src/suggestions.py` | ~12 |
+| **L11** Stage 3 over-request reduced `+5` → `+2` | New `STAGE3_OVER_REQUEST` config constant (default 2); `effective_batch_size = batch_size + STAGE3_OVER_REQUEST` | `config.py`, `core/src/suggestions.py` | ~5 |
+| **L16** `cached_tokens` telemetry hoisted from `usage.prompt_tokens_details` to top-level `batch_summary` field | Pure-additive eval-log diagnostic — verifies Phase 2.5 §T1.3's prompt-prefix caching is actually delivering its claimed 50 % input-side discount | `core/src/eval_log.py` | ~15 |
+5 new unit tests added, all 1 121 core tests pass.
+## Evidence trail
+- L1: sweep `summary.csv` columns `stage2_in/stage2_out` show Stage 2 never dropped a candidate at pool ≤ 40 across 60 rows (canonical seed has 0 prose-avoid-trait matches that aren't already caught by Stage 1's tag filter). Stage 2's LLM check is therefore dormant capacity on the canonical workload — the new skip path only short-circuits when Stage 1 mathematically guarantees the LLM cannot find anything to reject.
+- L8: `prompts/track_select_user.txt` had `{recent_feedback}` on a dedicated line (no surrounding whitespace handling); empty substitution left a blank line in the rendered prompt. `build_feedback_summary` already returns `""` when both liked and disliked lists are empty.
+- L11: 58 of 60 sweep rows show Spotify-found = 100 %; the +5 buffer was tuned in Phase 1 when Spotify-found was 7.7 %. Saving is output-token-side (~30 % fewer completion tokens per call).
+- L16: `result-improvement.md` Phase 2.5 §T1.3 moved `validation_block` out of the system prompt to enable OpenAI's automatic prefix caching but no telemetry confirmed the discount took effect. The new `cached_tokens` field surfaces it; aggregator can compute hit-rate without descending into provider-specific subtrees.
+## Validation eval (queued)
+Single 5-block sweep at pool=50 across 4 models on canonical seed. Pass criteria:
+- Mean `cite_pct` Δ ≥ −1 pp on every model vs the merged 5-block baseline
+- Spotify-found ≥ 95 % every cell
+- Playlist completion ≥ 95 %
+- Total $/playlist ≈ $0.018 (predicted ~37 % reduction)
+- `cached_tokens / prompt_tokens` ≥ 0.4 in `eval.jsonl` (validates prefix caching is intact after L8 stripped a template line — prefix invariance must survive)
+Run command:
+```bash
+POOLS="50" BLOCKS=5 bash evaluation/run_pool_sweep.sh
+```
+Expected wall-clock ~75 min (5 runs × ~7 min + 8-min cooldowns).
+## Rejected this phase (do not pursue)
+Documented in `cost-speed-research.md` with evidence:
+- **L5** Drop worked-example block — re-creates the Phase 1 hallucination collapse
+- **L9** Trim STYLE GUIDANCE further — saving below noise floor
+- **L14** Split-model per batch — no measurement; eval cost > expected gain
+- **L15** Dynamic escalation on `pool_bad` — OPEN-4 already tried, reverted in Phase 2.6
+- **L18** In-session prompt memoisation — CPU micro-opt, no $ gain
+- **L26** mmap RAG corpus — out of scope (startup, not suggestion pipeline)
+## Investigation queued (🟡)
+- **L13 + L25 combined sweep** — default model `gpt-5.4-mini → gpt-4.1-mini` AND default pool 50 → 30. Both fail the 13 pp variance threshold in the 5-block sweep at n=1 seed; need ≥ 5 blocks × 2 seeds to either confirm or refute under the new variance-as-regression rule. Predicted savings if validated: $13/1 k (L13) + $5–8/1 k (L25). Eval matrix = 4 models × {pool 30, 50} × {seed A, seed B} × 5 blocks = ~5–6 hours wall-clock.
+- **L20 + L21** Spotify reliability bundle — search cache + skip verify for overlay tracks. Targets the 5 200-429 sweep observation. Speed + quota relief, $0 LLM. Scheduled after the L13+L25 verdict.

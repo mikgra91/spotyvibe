@@ -126,6 +126,6 @@ with OUT.open("w", newline="", encoding="utf-8") as f:
     w.writeheader()
     w.writerows(rows)
 
-print(f"Aggregated {len(rows)} rows from {MANIFEST.name} → {OUT}")
+print(f"Aggregated {len(rows)} rows from {MANIFEST.name} -> {OUT}")
 
 

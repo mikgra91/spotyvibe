@@ -857,11 +857,20 @@ def run_pipeline():
                         _avoid_traits = [_avoid_traits]
 
                     if _stage1_candidates:
+                        # L1 (2026-04-29): fetch Stage 1's avoid-overlap flag
+                        # so check_avoid_compliance can short-circuit when
+                        # Stage 1's tag-based avoid filter already cleared
+                        # the pool — saves the LLM call entirely. See
+                        # `cost-speed-research.md` lever L1.
+                        from core.src.rag.retrieval import get_last_retrieval_meta
+                        _retrieval_meta = get_last_retrieval_meta() or {}
+                        _pool_overlap = _retrieval_meta.get("pool_avoid_overlap")
                         yield _sse("progress",
                                    message=f"Stage 2: avoid-compliance check on {len(_stage1_candidates)} candidates…")
                         _approved_names, _stage2_meta = check_avoid_compliance(
                             [a.name for a in _stage1_candidates],
                             _avoid_traits,
+                            pool_avoid_overlap=_pool_overlap,
                         )
                     else:
                         _approved_names = []

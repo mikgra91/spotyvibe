@@ -303,6 +303,50 @@ def test_batch_summary_carries_top_level_latency_and_stage_counts(tmp_log):
     assert "latency_s" not in row["prompt_components"]
 
 
+# ── L16 (2026-04-29): cached_tokens telemetry ──
+
+def test_batch_summary_extracts_cached_tokens_from_usage(tmp_log):
+    """OpenAI returns prompt_tokens_details.cached_tokens when the request hits
+    the automatic 50% prefix-cache discount. The eval log hoists this to a
+    top-level `cached_tokens` field so the aggregator can compute hit rates
+    without descending into provider-specific usage subtrees."""
+    log_batch_summary(
+        run_id="r", batch_num=1, model="gpt-5.4-mini",
+        rag_enabled=True, rag_corpus_meta_path=None,
+        profile_id="p", profile={},
+        eval_log_path=tmp_log, debug_mode=True,
+        effective_batch_size=10, candidate_pool_names=["a"],
+        latency_s=1.0,
+        usage={
+            "prompt_tokens": 1000,
+            "completion_tokens": 200,
+            "total_tokens": 1200,
+            "prompt_tokens_details": {"cached_tokens": 768},
+        },
+    )
+    row = _read_rows(tmp_log)[0]
+    assert row["cached_tokens"] == 768
+    # Original usage subtree is preserved verbatim too.
+    assert row["usage"]["prompt_tokens_details"]["cached_tokens"] == 768
+
+
+def test_batch_summary_cached_tokens_none_when_provider_omits_field(tmp_log):
+    """Local providers (Ollama, llama.cpp) typically don't report cache stats.
+    None means 'provider did not report' — distinguish from 0 (real cache miss)."""
+    log_batch_summary(
+        run_id="r", batch_num=1, model="local-llama",
+        rag_enabled=False, rag_corpus_meta_path=None,
+        profile_id="p", profile={},
+        eval_log_path=tmp_log, debug_mode=True,
+        effective_batch_size=10, candidate_pool_names=["a"],
+        latency_s=1.0,
+        usage={"prompt_tokens": 1000, "completion_tokens": 200,
+               "total_tokens": 1200},  # no prompt_tokens_details
+    )
+    row = _read_rows(tmp_log)[0]
+    assert row["cached_tokens"] is None
+
+
 # ── log_stage2_summary ──
 
 def test_stage2_summary_writes_row(tmp_log):
@@ -516,5 +560,8 @@ def test_profile_update_summary_emits_section_sizes(tmp_log):
     assert sz["must_have_count"] == 2
     assert sz["soft_preferences_count"] == 3
     assert sz["avoid_count"] == 1
-    assert sz["meta_goal_chars"] == len("hello world")
+    # 2026-04-29: meta_goal_chars was dropped from the schema — meta.goal is
+    # not currently populated anywhere, and core_description lives under
+    # preferences (asserted below), not meta. The key is intentionally absent.
+    assert "meta_goal_chars" not in sz
     assert sz["core_description_chars"] == 250

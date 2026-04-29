@@ -21,6 +21,29 @@ logger = logging.getLogger(__name__)
 # Keeps the re-rank step O(small) even if a tag has a huge posting list.
 _RERANK_POOL = 200
 
+# L1 (2026-04-29): per-call retrieval metadata exposed for the Stage 2
+# dispatcher in app.py to decide whether the avoid-compliance LLM call can
+# be skipped. Populated at the end of every `retrieve_candidates` call;
+# read via `get_last_retrieval_meta()`. Keys:
+#   - avoid_tags_count: int — how many distinct avoid tags Stage 1 derived
+#   - avoid_filter_applied: bool — True iff the tag-based avoid filter ran
+#     successfully (didn't bypass due to over-aggressive shrinkage)
+#   - pool_avoid_overlap: int — count of returned candidates that still
+#     match any avoid tag (always 0 when avoid_filter_applied is True)
+#   - candidates_returned: int — len(result)
+_LAST_RETRIEVAL_META: dict | None = None
+
+
+def get_last_retrieval_meta() -> dict | None:
+    """Return the most recent `retrieve_candidates` metadata, or None.
+
+    Used by app.py's Stage 2 dispatcher to decide whether the LLM avoid-check
+    can be skipped (lever L1 in `cost-speed-research.md`). Returns a fresh
+    snapshot per call; not thread-safe — same single-flight assumption as
+    the rest of the suggestion pipeline.
+    """
+    return dict(_LAST_RETRIEVAL_META) if _LAST_RETRIEVAL_META else None
+
 
 # Common English stop words that pollute the query if a user writes prose
 # like "art-pop or J-pop crossover" or "punchy guitars and strong hooks".
@@ -579,6 +602,7 @@ def retrieve_candidates(
 
     # Hard filter 1: avoid tags — drop artists matching any avoid trait.
     avoid_tags = _build_avoid_tags(corpus, profile)
+    avoid_filter_applied = False
     if avoid_tags:
         filtered = [a for a in broad if not _artist_has_any_tag(a, avoid_tags)]
         # Threshold scales with target_size so the floor is not binding for
@@ -587,6 +611,7 @@ def retrieve_candidates(
         threshold = max(min(10, target_size), target_size // 3)
         if len(filtered) >= threshold:
             broad = filtered
+            avoid_filter_applied = True
         else:
             logger.debug(
                 "retrieve_candidates: avoid filter too aggressive (%d→%d), skipping",
@@ -604,9 +629,28 @@ def retrieve_candidates(
         )
 
     result = broad[:target_size]
+    # L1 (2026-04-29): post-hoc sanity check — count surviving candidates
+    # that still match any avoid tag. When `avoid_filter_applied` is True the
+    # filter ran successfully and this MUST be 0 by construction; we surface
+    # the count anyway so app.py can defensively re-verify before deciding
+    # to skip the Stage 2 LLM call. When the filter was bypassed (too
+    # aggressive) or there were no avoid_tags to begin with, the count is
+    # over the unfiltered surviving set and may be > 0.
+    pool_avoid_overlap = (
+        sum(1 for a in result if _artist_has_any_tag(a, avoid_tags))
+        if avoid_tags else 0
+    )
+    global _LAST_RETRIEVAL_META
+    _LAST_RETRIEVAL_META = {
+        "avoid_tags_count": len(avoid_tags),
+        "avoid_filter_applied": avoid_filter_applied,
+        "pool_avoid_overlap": pool_avoid_overlap,
+        "candidates_returned": len(result),
+    }
     logger.debug(
-        "retrieve_candidates: %d candidates selected (avoid_tags=%d)",
-        len(result), len(avoid_tags),
+        "retrieve_candidates: %d candidates selected (avoid_tags=%d, "
+        "filter_applied=%s, pool_overlap=%d)",
+        len(result), len(avoid_tags), avoid_filter_applied, pool_avoid_overlap,
     )
     return result
 

@@ -27,7 +27,6 @@ Technologies & patterns used:
 - **math.ceil**: Calculates the minimum number of new-artist slots from
   a percentage, ensuring at least one new artist even at low percentages.
 """
-
 import copy
 import json
 import logging
@@ -37,6 +36,7 @@ import unicodedata
 from collections import defaultdict
 from pathlib import Path
 from config import (BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD,
+                    STAGE3_OVER_REQUEST,
                     get_model, get_gpt_language, get_stage2_model, get_debug_mode)
 from .utils import strip_code_fences, debug_log
 from .openai_http import chat_completions_create, extract_chat_content
@@ -1027,6 +1027,7 @@ def build_taste_summary(profile: dict) -> str:
 def check_avoid_compliance(
     artist_names: list[str],
     avoid_traits: list[str] | None,
+    pool_avoid_overlap: int | None = None,
 ) -> tuple[list[str], dict]:
     """Stage 2: mini-LLM avoid-compliance filter (P1.2).
 
@@ -1038,7 +1039,10 @@ def check_avoid_compliance(
       ``"empty_response"`` (LLM returned empty / invalid JSON — fell back
       to passthrough), ``"error"`` (LLM call raised — fell back to
       passthrough), ``"skipped_empty_input"`` (no artists supplied),
-      ``"skipped_no_avoid"`` (caller had no avoid traits).
+      ``"skipped_no_avoid"`` (caller had no avoid traits),
+      ``"skipped_no_overlap"`` (L1: Stage 1's avoid-tag filter already
+      removed every candidate that matched an avoid trait, so the LLM
+      check would be a no-op).
     - ``latency_s``: wall-clock for the LLM call (None on skipped paths).
     - ``usage``: provider usage dict, when supplied.
     - ``model``: which model was actually used.
@@ -1048,7 +1052,13 @@ def check_avoid_compliance(
     full candidate list. Telemetry callers can see the failure via
     ``status != "ok"``.
 
-    Cost: ~$0.0008 per call at gpt-5.4-mini rates.
+    Cost: ~$0.0008 per call at gpt-5.4-mini rates (zero on skipped paths).
+
+    L1 (2026-04-29): when the caller passes ``pool_avoid_overlap=0`` AND
+    ``avoid_traits`` is non-empty, the LLM call is skipped — Stage 1's
+    tag-based filter has already removed every candidate matching an
+    avoid trait, making the LLM verification redundant. See lever L1 in
+    `cost-speed-research.md`. Saves ~$6.40 per 1000 playlists.
     """
     import time as _time
 
@@ -1058,6 +1068,15 @@ def check_avoid_compliance(
                     "prompt_chars": 0}
     if not avoid_traits:
         return list(artist_names), {"status": "skipped_no_avoid",
+                                    "latency_s": None, "usage": None,
+                                    "model": get_stage2_model(),
+                                    "prompt_chars": 0}
+    # L1: Stage 1 already filtered out every candidate matching an avoid
+    # tag — no LLM verification needed. We trust the caller's flag (it
+    # comes from `retrieval.get_last_retrieval_meta()` which counts
+    # surviving overlap by construction).
+    if pool_avoid_overlap == 0:
+        return list(artist_names), {"status": "skipped_no_overlap",
                                     "latency_s": None, "usage": None,
                                     "model": get_stage2_model(),
                                     "prompt_chars": 0}
@@ -1179,10 +1198,14 @@ def select_tracks(
     """
     import time as _time
 
-    # Stage 3 is gated to non-emerging runs in app.py; the +5 buffer is the
-    # only one reachable here. emerging_only is still threaded through so the
-    # function stays reusable if/when staged emerging support lands.
-    effective_batch_size = batch_size + 5
+    # Stage 3 is gated to non-emerging runs in app.py; the over-request
+    # buffer is the only one reachable here. emerging_only is still threaded
+    # through so the function stays reusable if/when staged emerging support
+    # lands.
+    # L11 (2026-04-29): buffer reduced from hardcoded +5 to STAGE3_OVER_REQUEST
+    # (config.py default = 2) — sweep showed Spotify-found = 100% on 58/60
+    # rows, the old +5 was tuned for a regime that no longer exists.
+    effective_batch_size = batch_size + STAGE3_OVER_REQUEST
     min_new_artists = math.ceil(effective_batch_size * new_artist_percentage / 100)
 
     gpt_language = get_gpt_language()
@@ -1237,7 +1260,24 @@ def select_tracks(
     feedback_summary = build_feedback_summary(profile)
     audio_filters_block = _format_audio_filters(audio_filters or {})
 
-    user_message = user_template.format(
+    # L8 (2026-04-29): when the user has no liked/disliked feedback yet,
+    # `feedback_summary` is "" and the `{recent_feedback}` placeholder leaves
+    # an empty line in the rendered prompt. Strip the entire placeholder line
+    # (including its trailing newline) in that case so we don't pay the input
+    # token + a blank-line attention distraction. Same treatment for an empty
+    # audio_filters_block — both placeholders sit on dedicated lines in
+    # `prompts/track_select_user.txt`.
+    _user_template_for_render = user_template
+    if not feedback_summary:
+        _user_template_for_render = _user_template_for_render.replace(
+            "{recent_feedback}\n", "", 1
+        )
+    if not audio_filters_block:
+        _user_template_for_render = _user_template_for_render.replace(
+            "{audio_filters_block}\n", "", 1
+        )
+
+    user_message = _user_template_for_render.format(
         approved_artists=artists_str,
         taste_summary=taste_summary,
         batch_size=effective_batch_size,

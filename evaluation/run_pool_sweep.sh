@@ -28,6 +28,12 @@
 #   COOLDOWN=180 bash evaluation/run_pool_sweep.sh    # shorter cooldown (use with care)
 #   POOLS="30 50" BLOCKS=3 bash evaluation/run_pool_sweep.sh   # custom sequence
 #
+#   # Resume after a partial sweep — e.g., block 1 done, block 2 only had
+#   # pool 30 done, blocks 3-5 still pending. Run blocks 2-5 where block 2
+#   # only fills the missing pools (40, 50):
+#   START_BLOCK=2 BLOCKS=5 FIRST_BLOCK_POOLS="40 50" \
+#       bash evaluation/run_pool_sweep.sh
+#
 # Exit codes:
 #   0 — sweep complete, all runs OK
 #   1 — sweep aborted due to Spotify 429 cascade
@@ -38,9 +44,12 @@ cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 
 # ── Configuration (env-overridable) ──────────────────────────────────────────
-COOLDOWN="${COOLDOWN:-300}"                # seconds between runs (5 min default)
+COOLDOWN="${COOLDOWN:-480}"                # seconds between runs (8 min default)
 POOLS="${POOLS:-30 40 50}"                 # space-separated pool sizes
-BLOCKS="${BLOCKS:-2}"                      # how many times to repeat the pool sequence
+BLOCKS="${BLOCKS:-2}"                      # last block number to run (inclusive)
+START_BLOCK="${START_BLOCK:-1}"            # first block number to run (resume support)
+FIRST_BLOCK_POOLS="${FIRST_BLOCK_POOLS:-}" # if set, override POOLS for the *first* block only
+                                           # (used when resuming a partially-completed block)
 RATE_LIMIT_THRESHOLD="${RATE_LIMIT_THRESHOLD:-3}"   # >= this many 429s in one run → abort
 
 SWEEP_TS="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -63,33 +72,57 @@ log() {
 
 set_pool() {
     # Patch config.py so the next eval invocation picks up the new pool size.
+    # Idempotent: if the file already declares the requested value, log and
+    # return success rather than raising "no replacement made" — the previous
+    # sweep run may have left it in the desired state.
     local pool=$1
-    python -c "
+    local out
+    out=$(python -c "
 import re, sys, pathlib
 p = pathlib.Path('config.py')
 src = p.read_text(encoding='utf-8')
+m = re.search(r'^RETRIEVE_CANDIDATES_SIZE = (\d+)', src, flags=re.M)
+if not m:
+    print('ERROR: RETRIEVE_CANDIDATES_SIZE line not found in config.py', file=sys.stderr)
+    sys.exit(1)
+current = int(m.group(1))
+if current == $pool:
+    print(f'config.py: RETRIEVE_CANDIDATES_SIZE already = $pool (no change needed)')
+    sys.exit(0)
 new = re.sub(r'^RETRIEVE_CANDIDATES_SIZE = \d+',
              'RETRIEVE_CANDIDATES_SIZE = $pool', src, count=1, flags=re.M)
-if new == src:
-    print('ERROR: no replacement made in config.py', file=sys.stderr); sys.exit(1)
 p.write_text(new, encoding='utf-8')
-print(f'config.py: RETRIEVE_CANDIDATES_SIZE = $pool')
-" 2>&1 | tee -a "$LOG"
+print(f'config.py: RETRIEVE_CANDIDATES_SIZE = $pool (was {current})')
+" 2>&1)
+    local rc=$?
+    # Mirror python output to terminal AND log, but preserve python's exit
+    # code (a `tee` pipe would have masked it as 0 — that was the original bug).
+    echo "$out" | tee -a "$LOG"
+    return $rc
 }
 
 count_rate_limits() {
     # Count distinct 429 hits in a per-run log. Used to detect the start of a
     # rate-limit cascade. We grep for the spotipy error signature, which
     # appears once per failed search.
+    # `grep -c` always prints a count (0 if no matches) but exits 1 when the
+    # count is zero. The previous `|| echo 0` therefore appended a *second* "0"
+    # line on the no-match path, producing multi-line output like "0\n0" that
+    # broke the `[ "$n_429" -ge ... ]` integer test downstream. Swallow the
+    # exit code with `|| true` so the single number grep already printed is
+    # the only thing we emit.
     local run_log=$1
-    grep -c "Too many requests" "$run_log" 2>/dev/null || echo 0
+    grep -c "Too many requests" "$run_log" 2>/dev/null || true
 }
 
 # ── User-facing banner ──────────────────────────────────────────────────────
 log "════════════════════════════════════════════════════════════════════"
 log " Pool-size sweep starting"
 log "   Pools     : $POOLS"
-log "   Blocks    : $BLOCKS"
+log "   Blocks    : $START_BLOCK..$BLOCKS"
+if [ -n "$FIRST_BLOCK_POOLS" ]; then
+    log "   First-block pool override: $FIRST_BLOCK_POOLS (only block $START_BLOCK)"
+fi
 log "   Cooldown  : ${COOLDOWN}s between runs"
 log "   429 abort : if any single run logs >= $RATE_LIMIT_THRESHOLD '429' errors"
 log "   Output    : $SWEEP_DIR"
@@ -98,8 +131,26 @@ log "═════════════════════════
 TOTAL_RUNS=0
 SWEEP_STATUS="ok"
 
-for block in $(seq 1 "$BLOCKS"); do
-    for pool in $POOLS; do
+# Pre-compute total planned runs so the abort message is accurate even when
+# FIRST_BLOCK_POOLS overrides the first block's pool list.
+n_pools_default=$(echo $POOLS | wc -w)
+n_blocks_total=$((BLOCKS - START_BLOCK + 1))
+if [ -n "$FIRST_BLOCK_POOLS" ]; then
+    n_first=$(echo $FIRST_BLOCK_POOLS | wc -w)
+    PLANNED_RUNS=$((n_first + (n_blocks_total - 1) * n_pools_default))
+else
+    PLANNED_RUNS=$((n_blocks_total * n_pools_default))
+fi
+
+for block in $(seq "$START_BLOCK" "$BLOCKS"); do
+    # On the first block of a resumed sweep, the user can override which pools
+    # run (e.g., to fill in just the cells that were missing from a prior run).
+    if [ "$block" = "$START_BLOCK" ] && [ -n "$FIRST_BLOCK_POOLS" ]; then
+        block_pools="$FIRST_BLOCK_POOLS"
+    else
+        block_pools="$POOLS"
+    fi
+    for pool in $block_pools; do
         TOTAL_RUNS=$((TOTAL_RUNS+1))
 
         # ── Cooldown ────────────────────────────────────────────────────
@@ -143,7 +194,7 @@ for block in $(seq 1 "$BLOCKS"); do
             log "🛑    block=$block pool=$pool produced $n_429 '429 Too many requests' errors"
             log "🛑    (threshold = $RATE_LIMIT_THRESHOLD)"
             log "🛑"
-            log "🛑  $((TOTAL_RUNS-1)) of $((BLOCKS * $(echo $POOLS | wc -w))) planned runs completed before abort."
+            log "🛑  $((TOTAL_RUNS-1)) of $PLANNED_RUNS planned runs completed before abort."
             log "🛑  Wait at least 30 minutes before re-starting the sweep."
             log "🛑  The partial results so far are still aggregated below."
             log "🛑 ════════════════════════════════════════════════════════════════"

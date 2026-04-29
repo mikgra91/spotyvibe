@@ -10,22 +10,46 @@ This document records measured model behaviour on the canonical evaluation scena
 
 | Model | Verdict | When to pick it |
 |---|---|---|
-| `gpt-5.4` | ✅ **Best quality** | Default for users who care most about cite rate / Spotify-found accuracy. |
-| `gpt-5.4-mini` | ✅ **Best value** | Default for cost/speed-sensitive users. ~3-4× cheaper than 5.4 with only modest quality drop. |
-| `gpt-4.1` | ⚠️ Acceptable fallback | Use if `gpt-5.4` quota is unavailable. Older but follows instructions reliably. |
-| `gpt-4.1-mini` | ⚠️ Acceptable fallback | Use if `gpt-5.4-mini` quota is unavailable. Cheap and fast. |
+| `gpt-5.4-mini` | ✅ **Project default (best value)** | The default since 2026-04-29. 88.0% mean must-have-cite at $0.0288/playlist (~4× cheaper than `gpt-5.4`) and ~42 s wall-clock. Best price/quality ratio. |
+| `gpt-5.4` | ✅ **Best quality** | Switch to this when cite-rate accuracy matters more than cost. 98.7% mean cite at pool=50 — the only model × pool combo with stable B1↔B2 determinism (Δ 0.0 pp) across the 5-block sweep. ~4× the cost of `gpt-5.4-mini`. |
+| `gpt-4.1-mini` | ⚠️ Cheapest viable | $0.0125/playlist, 82.7% mean cite. Use only if cost is the single hard constraint — quality is noisy block-to-block (one block dropped to 40%). |
+| `gpt-4.1` (full) | ❌ **Not recommended** | 60-73% mean cite across all pools — measurably *worse* than its own mini variant. Stop using. |
 | `gpt-5.5` | ❌ **Not recommended** | Reasoning-tier model — wrong tool for this workload. See "Why not gpt-5.5" below. |
 | Other reasoning-tier models (o-series) | ❌ Avoid for the same reason | — |
 
-## Measured baseline (run `20260428-062909`, pre-Phase-2 code)
+## Measured baseline — 5-block pool-size sweep (2026-04-29)
+
+Source: `evaluation/results/sweep-merged-5blocks/report.md` (60 rows = 5 blocks × 3 pools × 4 models). All numbers are means over the 5 blocks at the recommended pool size (`RETRIEVE_CANDIDATES_SIZE=50`).
+
+| Model | Pool | Mean cite % | Mean cost $ | Mean wall s | Stage 2 approved | B1↔B2 determinism |
+|---|---:|---:|---:|---:|---|---|
+| `gpt-5.4` | 50 | **98.7 %** | $0.1190 | 94.0 s | 48/50 | ✅ stable (Δ 0.0 pp) |
+| `gpt-5.4-mini` | **50** | **88.0 %** | **$0.0288** | 41.8 s | 48/50 | 🔴 noisy (Δ 13.4 pp) |
+| `gpt-4.1-mini` | 50 | 82.7 % | $0.0125 | 86.6 s | 48/50 | 🔴 noisy (Δ 26.6 pp) |
+| `gpt-4.1` | 30 | 73.0 % | $0.0654 | 197.1 s\* | 30/30 | 🔴 noisy (Δ 21.7 pp) |
+
+\* `gpt-4.1 @ pool=30` wall-time is inflated by a 1300-hit Spotify rate-limit cascade in block 2; other blocks ran in ~50 s. Cost numbers per cell are still trustworthy.
+
+### Why `gpt-5.4-mini` is the project default
+
+`gpt-5.4` is the highest-quality model and the *only* combination in the sweep with stable run-to-run determinism, but the 4× cost premium over `gpt-5.4-mini` does not justify itself for the average user. `gpt-5.4-mini` clears the 85 %-cite quality bar at one quarter of the price and three quarters of the latency. Users for whom cite-rate is critical (e.g., curators, content creators) should switch explicitly via `Settings → Model`.
+
+### Caveats from the 5-block sweep
+
+1. **Pool 30 carries operational risk:** all 4 × 1300-hit Spotify 429 cascades in the sweep happened on pool 30 (smaller pool → more candidate cycles → more Spotify calls per pick). Pool 50 is operationally safer.
+2. **Metric noise floor is ≈13 pp** (≈2 of 15 tracks). Cite-% deltas ≤ 13 pp between configurations are noise.
+3. **`gpt-5.4-mini`'s noisiness is real**: block-to-block cite varies 73 %–93 %. The 88.0 % mean is correct, but individual playlists may fluctuate. If consistent quality matters more than cost, switch to `gpt-5.4`.
+
+### Historical baseline (run `20260428-062909`, pre-Phase-2 code, n=1)
+
+Kept for trend reference. Superseded by the 5-block sweep above.
 
 | Model | Cost | Wall | Tracks | Spotify-found | Must-have cite | Notes |
 |---|---:|---:|---:|---:|---:|---|
-| `gpt-5.4` | $0.0951 | 68.9 s | 15/15 | 100 % | **93.3 %** | Top quality. |
-| `gpt-5.4-mini` | $0.0278 | 29.7 s | 15/15 | 100 % | **86.7 %** | Best $/quality ratio. |
+| `gpt-5.4` | $0.0951 | 68.9 s | 15/15 | 100 % | 93.3 % | Top quality. |
+| `gpt-5.4-mini` | $0.0278 | 29.7 s | 15/15 | 100 % | 86.7 % | Best $/quality ratio. |
 | `gpt-5.5` | $0.0263 | – | – | – | – | **HTTP read-timeout on batch 1** — never finished. |
 
-> The 4.1 row will be added once the next eval run completes (Spotify rate-limit cooldown in progress at time of writing). Update this file with the measured numbers — do not leave it blank.
 
 ## Why not `gpt-5.5`?
 
