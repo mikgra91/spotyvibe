@@ -30,6 +30,13 @@ _RERANK_POOL = 200
 #     successfully (didn't bypass due to over-aggressive shrinkage)
 #   - pool_avoid_overlap: int — count of returned candidates that still
 #     match any avoid tag (always 0 when avoid_filter_applied is True)
+#   - avoid_traits_total: int — count of prose entries in
+#     preferences.avoid the user wrote
+#   - avoid_traits_covered: int — how many of those produced ≥1
+#     corpus-resolved tag (i.e. were enforceable by tag filtering)
+#   - avoid_traits_fully_covered: bool — True iff every avoid prose
+#     entry produced ≥1 corpus-resolved tag. Required before the
+#     Stage-2 skip is safe (F3, 2026-05-01).
 #   - candidates_returned: int — len(result)
 _LAST_RETRIEVAL_META: dict | None = None
 
@@ -501,45 +508,60 @@ def score_artists_stratified(corpus: RagCorpus,
 # ── Stage 1: code-side candidate retrieval (Phase 1 pipeline) ────────
 
 
-def _build_avoid_tags(corpus: RagCorpus, profile: dict) -> set[str]:
-    """Extract avoid tags from ``profile.preferences.avoid`` as a canonical tag set.
+def _avoid_traits_coverage(
+    corpus: RagCorpus, profile: dict
+) -> tuple[set[str], int, int]:
+    """Build the canonical avoid-tag set + per-trait coverage stats.
 
-    Tokenises prose avoid text (same tokeniser as build_query_tags), then
-    maps through the corpus alias table so the result is directly comparable
-    to artist.tags keys.
+    Returns ``(avoid_tags, traits_total, traits_covered)``:
+
+    - *avoid_tags* — canonical tags (corpus-resolved) covering the avoid
+      prose; directly comparable to ``artist.tags`` keys.
+    - *traits_total* — count of distinct prose entries the user wrote
+      under ``preferences.avoid``.
+    - *traits_covered* — how many of those entries produced at least one
+      corpus-recognised tag (i.e. could be enforced by tag-based
+      filtering at all).
+
+    F3 fix (2026-05-01): the L1 Stage-2 skip is only safe when
+    ``traits_total == traits_covered``. For semantic prose like
+    "American artists" / "80s production style" / "Songs that are not
+    uplifting" the tokeniser produces zero corpus-resolved tags, so the
+    code-side avoid filter is silently a no-op and the LLM semantic
+    check is the only remaining gate. Reporting coverage lets the
+    Stage 2 dispatcher decide whether the skip is safe.
     """
     prefs = (profile or {}).get("preferences", {}) or {}
     avoid_source = prefs.get("avoid")
     if not avoid_source:
-        return set()
+        return set(), 0, 0
 
-    raw: set[str] = set()
+    if isinstance(avoid_source, str):
+        items: list[str] = [avoid_source]
+    elif isinstance(avoid_source, list):
+        items = [s for s in avoid_source if isinstance(s, str) and s.strip()]
+    else:
+        return set(), 0, 0
 
-    def _ingest(source) -> None:
-        if isinstance(source, list):
-            for item in source:
-                if isinstance(item, str):
-                    for tok in _extract_text_tokens(item):
-                        n = normalise_tag(tok)
-                        if n:
-                            raw.add(n)
-        elif isinstance(source, str):
-            for tok in _extract_text_tokens(source):
-                n = normalise_tag(tok)
-                if n:
-                    raw.add(n)
+    avoid_tags: set[str] = set()
+    covered = 0
+    for item in items:
+        item_tags: set[str] = set()
+        for tok in _extract_text_tokens(item):
+            n = normalise_tag(tok)
+            if not n:
+                continue
+            canon = corpus.resolve_alias(n)
+            # Only include tags the corpus actually indexes — unindexed
+            # tokens cannot match any artist and would silently exclude
+            # nothing.
+            if canon in corpus.tag_index:
+                item_tags.add(canon)
+        if item_tags:
+            covered += 1
+            avoid_tags.update(item_tags)
 
-    _ingest(avoid_source)
-
-    # Map through corpus alias table to canonical forms
-    mapped: set[str] = set()
-    for tag in raw:
-        canon = corpus.resolve_alias(tag)
-        # Include only tags the corpus actually indexes — unindexed tokens
-        # cannot match any artist and would silently exclude nothing.
-        if canon in corpus.tag_index:
-            mapped.add(canon)
-    return mapped
+    return avoid_tags, len(items), covered
 
 
 def _artist_has_any_tag(artist: ArtistRow, tag_set: set[str]) -> bool:
@@ -601,7 +623,9 @@ def retrieve_candidates(
         return []
 
     # Hard filter 1: avoid tags — drop artists matching any avoid trait.
-    avoid_tags = _build_avoid_tags(corpus, profile)
+    avoid_tags, avoid_traits_total, avoid_traits_covered = (
+        _avoid_traits_coverage(corpus, profile)
+    )
     avoid_filter_applied = False
     if avoid_tags:
         filtered = [a for a in broad if not _artist_has_any_tag(a, avoid_tags)]
@@ -640,17 +664,28 @@ def retrieve_candidates(
         sum(1 for a in result if _artist_has_any_tag(a, avoid_tags))
         if avoid_tags else 0
     )
+    # F3 (2026-05-01): the L1 Stage-2 skip downstream MUST also check
+    # that every avoid prose entry produced ≥1 corpus-resolved tag —
+    # otherwise the `pool_avoid_overlap == 0` signal is meaningless
+    # (zero overlap because the filter had nothing to filter on).
+    avoid_traits_fully_covered = (
+        avoid_traits_total > 0 and avoid_traits_total == avoid_traits_covered
+    )
     global _LAST_RETRIEVAL_META
     _LAST_RETRIEVAL_META = {
         "avoid_tags_count": len(avoid_tags),
         "avoid_filter_applied": avoid_filter_applied,
         "pool_avoid_overlap": pool_avoid_overlap,
+        "avoid_traits_total": avoid_traits_total,
+        "avoid_traits_covered": avoid_traits_covered,
+        "avoid_traits_fully_covered": avoid_traits_fully_covered,
         "candidates_returned": len(result),
     }
     logger.debug(
         "retrieve_candidates: %d candidates selected (avoid_tags=%d, "
-        "filter_applied=%s, pool_overlap=%d)",
+        "filter_applied=%s, pool_overlap=%d, traits=%d/%d covered)",
         len(result), len(avoid_tags), avoid_filter_applied, pool_avoid_overlap,
+        avoid_traits_covered, avoid_traits_total,
     )
     return result
 

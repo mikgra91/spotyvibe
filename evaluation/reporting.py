@@ -207,6 +207,14 @@ def write_comparison_report(results_dir: Path, repo_root: Path) -> Path:
         agg["refine_train_status"] = meta.get("refine_train_status")
         agg["cleanup_status"] = meta.get("cleanup_status")
         agg["playlist_track_count"] = meta.get("playlist_track_count")
+        # F8 (2026-05-01): playlist-B + leakage are the load-bearing
+        # quality signal — surface them at the top of the report.
+        agg["playlist_b_status"] = meta.get("playlist_b_status")
+        agg["playlist_b_track_count"] = meta.get("playlist_b_track_count") or 0
+        agg["leakage_status"] = meta.get("leakage_status")
+        agg["leakage"] = meta.get("leakage") or {}
+        agg["fit_status"] = meta.get("fit_status")
+        agg["fit"] = meta.get("fit") or {}
         rows.append(agg)
 
     if not rows:
@@ -217,11 +225,104 @@ def write_comparison_report(results_dir: Path, repo_root: Path) -> Path:
     out = ["# Evaluation comparison",
            "",
            f"Generated: {results_dir.name}",
-           "",
-           "## Per-run rollup",
-           "",
-           "| Model | Iter | Cost ($) | Wall (s) | p50 (s) | p95 (s) | Tracks | Spotify-found | Must-have cite | Stage2 | Status | Cleanup |",
-           "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|"]
+           ""]
+
+    # F8 (2026-05-01): leakage is the primary quality gate — show it
+    # first so a regression jumps out before the cost/latency tables
+    # below distract from it. A row that says `pass / 0` is the only
+    # acceptable outcome; anything else means production failed to
+    # respect prior feedback when generating the second playlist.
+    out += ["## Quality gate — playlist-B leakage",
+            "",
+            "After feedback (likes + dislikes + refine train) the harness "
+            "generates a SECOND playlist on the same profile. Any leak "
+            "below means the production pipeline ignored an earlier signal.",
+            "",
+            "| Model | Iter | Tracks B | Leak status | Total leaks | Rejected artist | Disliked track | Dislike pattern |",
+            "|---|---:|---:|---|---:|---:|---:|---:|"]
+    for r in rows:
+        leak = r.get("leakage") or {}
+        out.append(
+            f"| {r['model']} | {r['iteration']} "
+            f"| {r.get('playlist_b_track_count') or '—'} "
+            f"| {r.get('leakage_status') or '—'} "
+            f"| {leak.get('total_leaks', '—')} "
+            f"| {leak.get('rejected_artist_count', '—')} "
+            f"| {leak.get('disliked_track_count', '—')} "
+            f"| {leak.get('dislike_pattern_count', '—')} |"
+        )
+
+    # F8.3 (2026-05-01): deterministic per-track fit-check pass rate.
+    # Independent of leakage — fit catches profile drift on tracks the
+    # user has never seen / disliked before.
+    out += ["",
+            "## Quality gate — playlist-B fit-check",
+            "",
+            "Deterministic per-track checks (currently `decade_avoid` "
+            "via Spotify `release_year`). `no_checks_applied` means the "
+            "scenario's profile mentions no decade in its avoid prose.",
+            "",
+            "| Model | Iter | Tracks B | Fit status | Total fails | Decade avoid | Checks applied |",
+            "|---|---:|---:|---|---:|---:|---|"]
+    for r in rows:
+        fit = r.get("fit") or {}
+        applied = fit.get("checks_applied") or []
+        out.append(
+            f"| {r['model']} | {r['iteration']} "
+            f"| {r.get('playlist_b_track_count') or '—'} "
+            f"| {r.get('fit_status') or '—'} "
+            f"| {fit.get('total_fails', '—')} "
+            f"| {fit.get('decade_avoid_count', '—')} "
+            f"| {', '.join(applied) if applied else '—'} |"
+        )
+
+    # Per-run fit-check hits — only print sections for rows that failed.
+    fit_failed_rows = [r for r in rows if (r.get("fit_status") == "fail")]
+    if fit_failed_rows:
+        out += ["", "### Fit-check hits (per run)", ""]
+        for r in fit_failed_rows:
+            hits = (r.get("fit") or {}).get("hits") or []
+            if not hits:
+                continue
+            out.append(f"**{r['model']} iter {r['iteration']}**")
+            out.append("")
+            out.append("| Rule | Artist | Track | Detail |")
+            out.append("|---|---|---|---|")
+            for h in hits[:20]:
+                out.append(
+                    f"| {h.get('rule', '—')} "
+                    f"| {h.get('artist', '—')} "
+                    f"| {h.get('track', '—')} "
+                    f"| {h.get('detail', '—')} |"
+                )
+            out.append("")
+
+    # Per-run leakage hits — only print sections for rows that failed.
+    failed_rows = [r for r in rows if (r.get("leakage_status") == "fail")]
+    if failed_rows:
+        out += ["", "### Leakage hits (per run)", ""]
+        for r in failed_rows:
+            hits = (r.get("leakage") or {}).get("hits") or []
+            if not hits:
+                continue
+            out.append(f"**{r['model']} iter {r['iteration']}**")
+            out.append("")
+            out.append("| Rule | Artist | Track | Detail |")
+            out.append("|---|---|---|---|")
+            for h in hits[:20]:  # cap so the report stays readable
+                out.append(
+                    f"| {h.get('rule', '—')} "
+                    f"| {h.get('artist', '—')} "
+                    f"| {h.get('track', '—')} "
+                    f"| {h.get('detail', '—')} |"
+                )
+            out.append("")
+
+    out += ["",
+            "## Per-run rollup",
+            "",
+            "| Model | Iter | Cost ($) | Wall (s) | p50 (s) | p95 (s) | Tracks | Spotify-found | Must-have cite | Stage2 | Status | Cleanup |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|"]
     for r in rows:
         s2 = r["stage2"]
         s2_label = (

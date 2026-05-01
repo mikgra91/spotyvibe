@@ -865,12 +865,16 @@ def run_pipeline():
                         from core.src.rag.retrieval import get_last_retrieval_meta
                         _retrieval_meta = get_last_retrieval_meta() or {}
                         _pool_overlap = _retrieval_meta.get("pool_avoid_overlap")
+                        _traits_fully_covered = bool(
+                            _retrieval_meta.get("avoid_traits_fully_covered")
+                        )
                         yield _sse("progress",
                                    message=f"Stage 2: avoid-compliance check on {len(_stage1_candidates)} candidates…")
                         _approved_names, _stage2_meta = check_avoid_compliance(
                             [a.name for a in _stage1_candidates],
                             _avoid_traits,
                             pool_avoid_overlap=_pool_overlap,
+                            avoid_traits_fully_covered=_traits_fully_covered,
                         )
                     else:
                         _approved_names = []

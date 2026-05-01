@@ -124,6 +124,9 @@ def load_settings() -> dict:
             "iterations": cfg.getint("evaluation", "iterations", fallback=1),
             "playlist_size": cfg.getint("evaluation", "playlist_size", fallback=30),
             "stage2_model": cfg.get("evaluation", "stage2_model", fallback="").strip() or None,
+            # F8.2 (2026-05-01): selects which scenario from
+            # evaluation/scenario.py to run. Empty/missing → "default".
+            "scenario": cfg.get("evaluation", "scenario", fallback="").strip() or "default",
         },
     }
 
@@ -267,6 +270,16 @@ def main() -> int:
     settings = load_settings()
     models = settings["evaluation"]["models"]
     iterations = settings["evaluation"]["iterations"]
+    scenario_name = settings["evaluation"].get("scenario", "default")
+
+    # Validate the scenario name now (loud failure on typo) before
+    # spending any OpenAI/Spotify quota.
+    from evaluation.scenario import get_scenario
+    try:
+        active_scenario = get_scenario(scenario_name)
+    except KeyError as exc:
+        print(f"\n  ❌ {exc}\n", file=sys.stderr)
+        return 5
 
     estimate = estimate_cost(models, iterations)
     confirm_or_exit(estimate, models, iterations, args.no_confirm)
@@ -310,6 +323,8 @@ def main() -> int:
     logger.info("Sandbox ready at %s", sandbox_dir)
     logger.info("Results will land in %s", results_dir)
     logger.info("Evaluating models: %s", ", ".join(models))
+    logger.info("Scenario: %s — %s", active_scenario.name,
+                active_scenario.description)
 
     # ── Run the matrix ────────────────────────────────────────────
     summaries = []
@@ -340,6 +355,7 @@ def main() -> int:
                     analysis_mod=analysis_mod,
                     playlist_mod=playlist_mod,
                     feedback_mod=feedback_mod,
+                    scn=active_scenario,
                 )
                 summaries.append(result)
                 logger.info(

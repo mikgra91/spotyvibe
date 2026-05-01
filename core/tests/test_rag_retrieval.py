@@ -293,6 +293,46 @@ def test_retrieve_candidates_avoid_filter(retrieve_corpus):
     assert "Good Fit" in names
 
 
+def test_retrieve_meta_traits_fully_covered_when_all_resolve(retrieve_corpus):
+    """F3 (2026-05-01): when every avoid prose entry produces ≥1
+    corpus-resolved tag, meta reports avoid_traits_fully_covered=True
+    so the Stage-2 skip is safe."""
+    from core.src.rag.retrieval import get_last_retrieval_meta
+    profile = {
+        "preferences": {
+            "must_have": ["indie rock"],
+            "avoid": ["classic rock"],
+        }
+    }
+    retrieve_candidates(retrieve_corpus, profile, target_size=10)
+    meta = get_last_retrieval_meta()
+    assert meta is not None
+    assert meta["avoid_traits_total"] == 1
+    assert meta["avoid_traits_covered"] == 1
+    assert meta["avoid_traits_fully_covered"] is True
+
+
+def test_retrieve_meta_traits_not_fully_covered_when_semantic(retrieve_corpus):
+    """F3 (2026-05-01): when an avoid prose entry produces zero
+    corpus-resolved tags (e.g. "American artists"), meta reports
+    avoid_traits_fully_covered=False — Stage-2 skip would be unsafe.
+    Regression guard for the production failure documented in
+    `context/claudeAnalyse.md` F2/F3."""
+    from core.src.rag.retrieval import get_last_retrieval_meta
+    profile = {
+        "preferences": {
+            "must_have": ["indie rock"],
+            "avoid": ["classic rock", "American artists"],
+        }
+    }
+    retrieve_candidates(retrieve_corpus, profile, target_size=10)
+    meta = get_last_retrieval_meta()
+    assert meta is not None
+    assert meta["avoid_traits_total"] == 2
+    assert meta["avoid_traits_covered"] == 1  # only "classic rock" resolves
+    assert meta["avoid_traits_fully_covered"] is False
+
+
 def test_retrieve_candidates_popularity_band(retrieve_corpus):
     profile = {"preferences": {"must_have": ["indie rock"], "avoid": []}}
     # Use target_size=4: in-band threshold = 4//2 = 2. Four artists are in-band

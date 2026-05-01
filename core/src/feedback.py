@@ -27,6 +27,14 @@ from .utils import sanitize_text
 
 logger = logging.getLogger(__name__)
 
+# F4 (2026-05-01): once the user has track-disliked this many distinct
+# tracks by the same artist, the next dislike auto-promotes the artist
+# to ``artists.rejected``. The threshold is conservative — three distinct
+# track-dislikes is a clear signal the user does not want this artist
+# at all. Suggestion-pipeline code reads ``artists.rejected`` as a hard
+# exclusion, so the next playlist run will not surface that artist again.
+DISLIKE_AUTO_REJECT_THRESHOLD = 3
+
 
 def like_track(artist, track=None, reason=None):
     """Record a positive signal for a track or artist.
@@ -103,6 +111,59 @@ def dislike_track(artist, track=None, reason=None):
                     "track": track,
                     "reason": reason
                 })
+
+            # F4 (2026-05-01): auto-escalate to artist-rejection once the
+            # user has track-disliked DISLIKE_AUTO_REJECT_THRESHOLD
+            # distinct tracks by this artist. Without this, the user has
+            # to manually click "exclude artist" — and as observed in
+            # production (49 disliked_tracks, only 5 manually rejected
+            # artists, 9 disliked DREAMS COME TRUE / 4 Dreamcatcher
+            # tracks) that step rarely happens, so the artist keeps
+            # being re-suggested. See `context/claudeAnalyse.md` F4.
+            distinct_tracks_for_artist = {
+                (e.get("track") or "").lower().strip()
+                for e in profile["feedback"]["disliked_tracks"]
+                if isinstance(e, dict)
+                and (e.get("artist") or "").lower().strip() == artist_norm
+                and (e.get("track") or "").strip()
+            }
+            if len(distinct_tracks_for_artist) >= DISLIKE_AUTO_REJECT_THRESHOLD:
+                rejected = profile["artists"]["rejected"]
+                rejected_norm = {
+                    ((r["name"] if isinstance(r, dict) else r) or "")
+                    .lower().strip()
+                    for r in rejected
+                }
+                if artist_norm not in rejected_norm:
+                    # Concatenate up to 3 distinct dislike reasons for
+                    # context — train_profile (F5) consumes this when
+                    # promoting recurring reasons into avoid prose.
+                    reasons_seen: list[str] = []
+                    for e in profile["feedback"]["disliked_tracks"]:
+                        if not isinstance(e, dict):
+                            continue
+                        if (e.get("artist") or "").lower().strip() != artist_norm:
+                            continue
+                        r = (e.get("reason") or "").strip()
+                        if r and r not in reasons_seen:
+                            reasons_seen.append(r)
+                        if len(reasons_seen) >= 3:
+                            break
+                    auto_reason = (
+                        f"auto-rejected after "
+                        f"{len(distinct_tracks_for_artist)} disliked tracks"
+                    )
+                    if reasons_seen:
+                        auto_reason += " — " + "; ".join(reasons_seen)
+                    rejected.append({
+                        "name": artist,
+                        "reason": auto_reason,
+                        "auto": True,
+                    })
+                    logger.info(
+                        "[AUTO-EXCLUDED] %s after %d disliked tracks (%s)",
+                        artist, len(distinct_tracks_for_artist), auto_reason,
+                    )
         else:
             # Artist-level dislike — reject the entire artist.
             # Compare case-insensitively to avoid duplicate entries that

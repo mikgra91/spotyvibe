@@ -36,3 +36,12 @@ playlist_size = 30
 # Stage 2 model — overrides STAGE2_MODEL from config.py for the duration
 # of the evaluation. Leave commented out to use config.py's default.
 # stage2_model = gpt-5.4-mini
+
+# Which canonical scenario from evaluation/scenario.py to run. F8.2
+# (2026-05-01) added a regression scenario that reproduces the
+# production failure documented in `context/claudeAnalyse.md` —
+# semantic avoid traits the legacy tokeniser cannot enforce + a hard
+# must-have phrase. Use it to verify F1/F2/F5 close the leakage gap.
+#   default                          — broad theatrical-pop-rock taste
+#   regression_japanese_theatrical   — the failure-mode reproducer
+scenario = default

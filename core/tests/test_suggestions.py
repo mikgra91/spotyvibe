@@ -888,19 +888,55 @@ class TestCheckAvoidCompliance:
         assert meta2["status"] == "skipped_no_avoid"
 
     def test_skipped_no_overlap_when_stage1_already_filtered(self):
-        """L1 (2026-04-29): when Stage 1 reports pool_avoid_overlap=0 the LLM
-        call must be skipped — Stage 1's tag filter already removed every
-        candidate matching an avoid trait. Ship-blocker for the cost-saving
-        path; keep this assertion strict."""
+        """L1 (2026-04-29): when Stage 1 reports pool_avoid_overlap=0 AND
+        every avoid trait was tag-covered (F3, 2026-05-01) the LLM call
+        must be skipped — Stage 1's tag filter already removed every
+        candidate matching an avoid trait. Ship-blocker for the
+        cost-saving path; keep this assertion strict."""
         from core.src.suggestions import check_avoid_compliance
         names = ["Artist A", "Artist B"]
         approved, meta = check_avoid_compliance(
-            names, ["classic rock"], pool_avoid_overlap=0,
+            names, ["classic rock"],
+            pool_avoid_overlap=0,
+            avoid_traits_fully_covered=True,
         )
         assert approved == names
         assert meta["status"] == "skipped_no_overlap"
         assert meta["latency_s"] is None  # no LLM call → no latency
         assert meta["prompt_chars"] == 0  # no LLM call → no prompt built
+
+    def test_skip_suppressed_when_traits_not_fully_covered(self):
+        """F3 (2026-05-01): pool_avoid_overlap=0 alone is not enough to
+        skip — when at least one avoid prose entry produced zero
+        corpus-resolved tags (e.g. "American artists", "80s production
+        style") the zero-overlap signal is meaningless and the LLM
+        semantic check MUST run. Regression guard for the production
+        failure documented in `context/claudeAnalyse.md` F3."""
+        names = ["American Rock Band"]
+        response = '{"approved": []}'  # LLM rejects the American artist
+        from core.src.suggestions import check_avoid_compliance
+        from unittest.mock import patch
+        with patch(
+            "core.src.suggestions.chat_completions_create",
+            side_effect=lambda **kw: {
+                "choices": [{"message": {"content": response}}],
+                "usage": None,
+            },
+        ):
+            with patch(
+                "core.src.suggestions.extract_chat_content",
+                side_effect=lambda r: r["choices"][0]["message"]["content"],
+            ):
+                approved, meta = check_avoid_compliance(
+                    names,
+                    ["American artists", "80s production style"],
+                    pool_avoid_overlap=0,
+                    avoid_traits_fully_covered=False,
+                )
+        assert approved == []  # LLM filtered the unsafe artist
+        assert meta["status"] == "ok"  # LLM was called, not skipped
+        assert meta["latency_s"] is not None
+        assert meta["prompt_chars"] > 0
 
     def test_overlap_nonzero_still_calls_llm(self):
         """When Stage 1 reports residual avoid-tag overlap (e.g. filter was
@@ -954,6 +990,52 @@ class TestCheckAvoidCompliance:
         # Falls through except branch — JSONDecodeError is an Exception
         assert approved == names
         assert meta["status"] == "error"
+
+
+# ── F7 (2026-05-01): _filter_diversity_hints ─────────────────────────
+
+class TestFilterDiversityHints:
+    """Diversity hints that contradict the user's avoid prose are dropped
+    so the model never sees "Focus on 1970s-1980s artists" alongside an
+    avoid entry of "80s production style". See `context/claudeAnalyse.md`
+    F7 for the production failure that motivated this."""
+
+    _HINTS = [
+        "Focus on artists from the 1970s-1980s that match the profile.",
+        "Explore Japanese, Korean, or Scandinavian artists matching the profile.",
+        "Look for artists who released their first album after 2020.",
+        "Consider solo projects or side projects of artists similar to the anchors.",
+        "Explore soundtrack and compilation albums for hidden gems.",
+    ]
+
+    def test_no_avoid_passthrough(self):
+        from core.src.suggestions import _filter_diversity_hints
+        assert _filter_diversity_hints(self._HINTS, None) == self._HINTS
+        assert _filter_diversity_hints(self._HINTS, []) == self._HINTS
+
+    def test_drops_decade_conflict_short_form(self):
+        from core.src.suggestions import _filter_diversity_hints
+        out = _filter_diversity_hints(self._HINTS, ["80s production style"])
+        assert "Focus on artists from the 1970s-1980s that match the profile." not in out
+        assert len(out) == len(self._HINTS) - 1
+
+    def test_drops_decade_conflict_long_form(self):
+        from core.src.suggestions import _filter_diversity_hints
+        out = _filter_diversity_hints(self._HINTS, ["Avoid 1980s synth-pop"])
+        assert all("1970s-1980s" not in h for h in out)
+
+    def test_keeps_unrelated_hints(self):
+        from core.src.suggestions import _filter_diversity_hints
+        out = _filter_diversity_hints(self._HINTS, ["Excessive synthesizers"])
+        # No decade conflict; "synthesizers" doesn't appear in any hint
+        assert out == self._HINTS
+
+    def test_drops_keyword_conflict(self):
+        from core.src.suggestions import _filter_diversity_hints
+        out = _filter_diversity_hints(
+            self._HINTS, ["No soundtrack-style instrumentals please"],
+        )
+        assert all("soundtrack" not in h.lower() for h in out)
 
 
 # ── Phase 1: select_tracks ───────────────────────────────────────────

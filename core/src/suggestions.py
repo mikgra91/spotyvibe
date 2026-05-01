@@ -632,10 +632,20 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
             "Consider solo projects or side projects of artists similar to the confirmed list.",
             "Explore soundtrack and compilation albums for hidden gems.",
         ]
-        hint = diversity_hints[batch_num % len(diversity_hints)]
-        diversity_block = f"\n\nDiversity guidance: {hint}"
-        user_message += diversity_block
-        components["diversity_hint"] = len(diversity_block)
+        # F7 (2026-05-01): drop any hint that contradicts the user's
+        # avoid prose (e.g. "1970s-1980s focus" vs. "avoid 80s
+        # production style"). Without this filter the model receives
+        # contradictory instructions and tends to follow the explicit
+        # diversity hint over the soft "Avoid: …" string.
+        avoid_traits = (profile.get("preferences") or {}).get("avoid")
+        if isinstance(avoid_traits, str):
+            avoid_traits = [avoid_traits]
+        diversity_hints = _filter_diversity_hints(diversity_hints, avoid_traits)
+        if diversity_hints:
+            hint = diversity_hints[batch_num % len(diversity_hints)]
+            diversity_block = f"\n\nDiversity guidance: {hint}"
+            user_message += diversity_block
+            components["diversity_hint"] = len(diversity_block)
 
     components["user_total"] = len(user_message)
     global _LAST_PROMPT_COMPONENTS
@@ -648,6 +658,61 @@ def build_messages(profile, accepted_tracks=None, batch_size=None,
 
 
 _ALLOWED_RATIONALE_TYPES = {"profile_match", "artist_match", "recency", "novelty", "audio_match"}
+
+
+# Decade aliases so the diversity-hint conflict check treats "80s" and
+# "1980s" as the same concept regardless of which form the profile or
+# the hint uses.
+_DECADE_ALIASES = (
+    ("70s", "1970s"),
+    ("80s", "1980s"),
+    ("90s", "1990s"),
+    ("00s", "2000s"),
+    ("10s", "2010s"),
+    ("20s", "2020s"),
+)
+
+
+def _filter_diversity_hints(
+    hints: list[str], avoid_traits: list[str] | None
+) -> list[str]:
+    """Drop diversity hints that conflict with the user's avoid prose.
+
+    F7 fix (2026-05-01): the static hint cycle includes "Focus on
+    artists from the 1970s-1980s …", which contradicts an avoid entry
+    like "80s production style". Without this filter the model receives
+    contradictory instructions and tends to follow the explicit
+    diversity hint over the soft "Avoid: …" string.
+
+    Conflict rules:
+    - Decade strings (``70s``…``20s`` or ``1970s``…``2020s``) collide
+      across short/long forms.
+    - Any 5+ letter alphabetic token that appears in both the avoid
+      prose and the hint counts as a conflict.
+
+    Returns hints in original order with conflicting entries removed.
+    Empty *avoid_traits* returns *hints* unchanged.
+    """
+    if not avoid_traits:
+        return list(hints)
+    avoid_l = " | ".join(
+        t.lower() for t in avoid_traits if isinstance(t, str)
+    )
+    if not avoid_l.strip():
+        return list(hints)
+    avoid_tokens = set(re.findall(r"[a-z]{5,}", avoid_l))
+
+    def _conflicts(hint: str) -> bool:
+        h_l = hint.lower()
+        for short, long in _DECADE_ALIASES:
+            avoid_has_decade = short in avoid_l or long in avoid_l
+            hint_has_decade = short in h_l or long in h_l
+            if avoid_has_decade and hint_has_decade:
+                return True
+        hint_tokens = set(re.findall(r"[a-z]{5,}", h_l))
+        return bool(avoid_tokens & hint_tokens)
+
+    return [h for h in hints if not _conflicts(h)]
 
 
 def _normalize_rationale(entry: dict) -> list:
@@ -943,6 +1008,7 @@ def check_avoid_compliance(
     artist_names: list[str],
     avoid_traits: list[str] | None,
     pool_avoid_overlap: int | None = None,
+    avoid_traits_fully_covered: bool = False,
 ) -> tuple[list[str], dict]:
     """Stage 2: mini-LLM avoid-compliance filter (P1.2).
 
@@ -974,6 +1040,14 @@ def check_avoid_compliance(
     tag-based filter has already removed every candidate matching an
     avoid trait, making the LLM verification redundant. See lever L1 in
     `cost-speed-research.md`. Saves ~$6.40 per 1000 playlists.
+
+    F3 (2026-05-01): the L1 skip is ALSO gated on
+    ``avoid_traits_fully_covered=True``. For semantic prose like
+    "American artists" / "80s production style" / "Songs that are not
+    uplifting" the Stage-1 tokeniser produces zero corpus-resolved tags,
+    so ``pool_avoid_overlap`` is trivially 0 even though the avoid
+    traits were never actually enforced. Without this guard the skip
+    fires precisely when the LLM check is the only remaining gate.
     """
     import time as _time
 
@@ -989,8 +1063,10 @@ def check_avoid_compliance(
     # L1: Stage 1 already filtered out every candidate matching an avoid
     # tag — no LLM verification needed. We trust the caller's flag (it
     # comes from `retrieval.get_last_retrieval_meta()` which counts
-    # surviving overlap by construction).
-    if pool_avoid_overlap == 0:
+    # surviving overlap by construction). F3: only safe when every
+    # avoid prose entry was reducible to ≥1 corpus tag — otherwise the
+    # zero-overlap signal is meaningless and the LLM is the only gate.
+    if pool_avoid_overlap == 0 and avoid_traits_fully_covered:
         return list(artist_names), {"status": "skipped_no_overlap",
                                     "latency_s": None, "usage": None,
                                     "model": get_stage2_model(),
@@ -1237,8 +1313,15 @@ def select_tracks(
             "Consider solo projects or side projects of artists similar to the anchors.",
             "Explore soundtrack and compilation albums for hidden gems.",
         ]
-        hint = diversity_hints[batch_num % len(diversity_hints)]
-        user_message += f"\n\nDiversity guidance: {hint}"
+        # F7 (2026-05-01): drop hints that contradict the user's avoid
+        # prose. See _filter_diversity_hints for the conflict rules.
+        _avoid_traits = prefs.get("avoid")
+        if isinstance(_avoid_traits, str):
+            _avoid_traits = [_avoid_traits]
+        diversity_hints = _filter_diversity_hints(diversity_hints, _avoid_traits)
+        if diversity_hints:
+            hint = diversity_hints[batch_num % len(diversity_hints)]
+            user_message += f"\n\nDiversity guidance: {hint}"
 
     messages = [
         {"role": "system", "content": system_prompt},

@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Any
 
 from . import scenario
+from .scenario import DEFAULT_SCENARIO, Scenario
 
 logger = logging.getLogger(__name__)
 
@@ -53,18 +54,28 @@ class ModelRunResult:
     model: str
     iteration: int
     started_at: str
+    scenario_name: str = "default"
     finished_at: str | None = None
     duration_s: float | None = None
 
     profile_id: str | None = None
     playlist_id: str | None = None
     playlist_url: str | None = None
+    # F8 (2026-05-01): a SECOND playlist generated on the post-feedback
+    # profile is the load-bearing regression signal. Tracked separately
+    # so the report can show "playlist A had X tracks, playlist B had Y
+    # tracks, leakage = Z" at a glance.
+    playlist_b_id: str | None = None
+    playlist_b_url: str | None = None
 
     seed_train_status: str = "skipped"
     analysis_status: str = "skipped"
     playlist_status: str = "skipped"
     feedback_status: str = "skipped"
     refine_train_status: str = "skipped"
+    playlist_b_status: str = "skipped"
+    leakage_status: str = "skipped"
+    fit_status: str = "skipped"
     cleanup_status: str = "skipped"
 
     # Raw result snapshots — kept terse so summary.json stays readable.
@@ -75,6 +86,16 @@ class ModelRunResult:
     likes_applied: int = 0
     dislikes_applied: int = 0
     refine_train_chars: int | None = None
+
+    # F8 — playlist-B leakage report (full LeakageReport.to_json() shape
+    # so the comparison renderer can inspect individual hits without
+    # re-loading the eval-log slice).
+    playlist_b_track_count: int = 0
+    leakage: dict | None = None
+    # F8.3 — deterministic per-track fit-check report (decade-avoid for
+    # now; future checks slot in via evaluation/fit_checks.py without
+    # changing this field's contract).
+    fit: dict | None = None
 
     error: str | None = None
     eval_log_lines: int = 0
@@ -196,18 +217,18 @@ def _slice_eval_log(eval_log: Path, start_pos: int, dest: Path) -> int:
 
 # ── Per-step runners — thin wrappers around production functions ─────
 
-def _step_seed_train(profile_mod) -> dict[str, Any]:
+def _step_seed_train(profile_mod, scn: Scenario) -> dict[str, Any]:
     """Run the seed train_profile call. Returns a small status dict."""
-    updated = profile_mod.train_profile(scenario.SEED_SECTIONS)
+    updated = profile_mod.train_profile(scn.seed_sections)
     return {
         "status": "ok",
         "profile_chars": len(json.dumps(updated, ensure_ascii=False)),
     }
 
 
-def _step_analysis(analysis_mod) -> dict[str, Any]:
+def _step_analysis(analysis_mod, scn: Scenario) -> dict[str, Any]:
     result = analysis_mod.analyze_band_song(
-        scenario.ANALYSIS_ARTIST, scenario.ANALYSIS_TRACK,
+        scn.analysis_artist, scn.analysis_track,
     )
     return {
         "status": "ok",
@@ -329,30 +350,31 @@ def _step_push_to_spotify(playlist_mod, tracks: list[dict],
     }
 
 
-def _step_feedback(feedback_mod, tracks: list[dict]) -> dict[str, Any]:
-    """Apply the deterministic like/dislike rule from ``scenario.py``.
+def _step_feedback(feedback_mod, tracks: list[dict],
+                    scn: Scenario) -> dict[str, Any]:
+    """Apply the deterministic like/dislike rule from ``scenario``.
 
     Skips out-of-range indices silently — a short playlist (e.g. one
     where Spotify verify dropped a lot) just gets fewer feedback signals.
     """
     likes = 0
     dislikes = 0
-    for i in scenario.LIKE_INDICES:
+    for i in scn.like_indices:
         if i < len(tracks):
             t = tracks[i]
-            feedback_mod.like_track(t["artist"], t["track"], scenario.LIKE_REASON)
+            feedback_mod.like_track(t["artist"], t["track"], scn.like_reason)
             likes += 1
-    for i in scenario.DISLIKE_INDICES:
+    for i in scn.dislike_indices:
         if i < len(tracks):
             t = tracks[i]
-            feedback_mod.dislike_track(t["artist"], t["track"], scenario.DISLIKE_REASON)
+            feedback_mod.dislike_track(t["artist"], t["track"], scn.dislike_reason)
             dislikes += 1
     return {"status": "ok", "likes": likes, "dislikes": dislikes}
 
 
-def _step_refine_train(profile_mod) -> dict[str, Any]:
+def _step_refine_train(profile_mod, scn: Scenario) -> dict[str, Any]:
     """Run the second train_profile call (post-feedback absorption)."""
-    updated = profile_mod.train_profile(scenario.REFINE_SECTIONS)
+    updated = profile_mod.train_profile(scn.refine_sections)
     return {
         "status": "ok",
         "profile_chars": len(json.dumps(updated, ensure_ascii=False)),
@@ -362,21 +384,28 @@ def _step_refine_train(profile_mod) -> dict[str, Any]:
 # ── Cleanup ──────────────────────────────────────────────────────────
 
 def _cleanup(playlist_id: str | None, profile_id: str | None,
-             playlist_mod, profile_mod) -> str:
+             playlist_mod, profile_mod,
+             playlist_b_id: str | None = None) -> str:
     """Best-effort cleanup. Returns ``ok``, ``partial`` or ``error``.
 
     Runs in ``finally`` even if upstream raised — partial cleanup is
-    better than none. Each step is logged.
+    better than none. Each step is logged. F8 (2026-05-01): also
+    deletes playlist B (post-feedback regression playlist) when present.
     """
     issues: list[str] = []
 
-    if playlist_id:
+    for label, pl_id in (("A", playlist_id), ("B", playlist_b_id)):
+        if not pl_id:
+            continue
         try:
-            playlist_mod.delete_playlist(playlist_id)
-            logger.info("Cleanup: deleted playlist %s", playlist_id)
+            playlist_mod.delete_playlist(pl_id)
+            logger.info("Cleanup: deleted playlist %s (%s)", pl_id, label)
         except Exception as exc:
-            issues.append(f"playlist {playlist_id}: {exc}")
-            logger.warning("Cleanup: failed to delete playlist %s — %s", playlist_id, exc)
+            issues.append(f"playlist {pl_id} ({label}): {exc}")
+            logger.warning(
+                "Cleanup: failed to delete playlist %s (%s) — %s",
+                pl_id, label, exc,
+            )
 
     if profile_id:
         try:
@@ -386,9 +415,10 @@ def _cleanup(playlist_id: str | None, profile_id: str | None,
             issues.append(f"profile {profile_id}: {exc}")
             logger.warning("Cleanup: failed to delete profile %s — %s", profile_id, exc)
 
+    any_target = bool(playlist_id or playlist_b_id or profile_id)
     if not issues:
-        return "ok"
-    return "partial" if (playlist_id or profile_id) else "error"
+        return "ok" if any_target else "skipped"
+    return "partial" if any_target else "error"
 
 
 # ── Main per-model entry point ───────────────────────────────────────
@@ -396,7 +426,8 @@ def _cleanup(playlist_id: str | None, profile_id: str | None,
 def run_for_model(*, model: str, iteration: int, settings: dict,
                    sandbox_dir: Path, results_dir: Path,
                    flask_app, profile_mod, analysis_mod,
-                   playlist_mod, feedback_mod) -> ModelRunResult:
+                   playlist_mod, feedback_mod,
+                   scn: Scenario | None = None) -> ModelRunResult:
     """Run one full evaluation cycle for one model.
 
     Caller is responsible for:
@@ -405,9 +436,14 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
         is reused across model runs in the same invocation)
       - Switching ``OPENAI_MODEL`` env var before each call
 
+    *scn* selects the named scenario from ``evaluation.scenario``. When
+    omitted, falls back to :data:`DEFAULT_SCENARIO` for back-compat.
+
     Always returns a ``ModelRunResult`` — never raises. Errors are
     reported via the ``error`` field and the per-step status fields.
     """
+    if scn is None:
+        scn = DEFAULT_SCENARIO
     started = time.monotonic()
     started_at = datetime.now(timezone.utc).isoformat()
 
@@ -416,6 +452,7 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
 
     result = ModelRunResult(
         model=model, iteration=iteration, started_at=started_at,
+        scenario_name=scn.name,
     )
 
     # Switch the model for every production call below via env.
@@ -425,6 +462,7 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
 
     profile_id: str | None = None
     playlist_id: str | None = None
+    playlist_b_id: str | None = None
     tracks: list[dict] = []
 
     try:
@@ -438,7 +476,7 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
 
         # ── 1. Seed train ────────────────────────────────────────
         try:
-            r = _step_seed_train(profile_mod)
+            r = _step_seed_train(profile_mod, scn)
             result.seed_train_status = r["status"]
             result.seed_train_chars = r["profile_chars"]
         except Exception as exc:
@@ -448,7 +486,7 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
 
         # ── 2. Band/Song Analysis ────────────────────────────────
         try:
-            r = _step_analysis(analysis_mod)
+            r = _step_analysis(analysis_mod, scn)
             result.analysis_status = r["status"]
             result.analysis_genre_count = r["genre_count"]
             result.analysis_style_tag_count = r["style_tag_count"]
@@ -493,7 +531,7 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
         # ── 4. Feedback ──────────────────────────────────────────
         if tracks:
             try:
-                r = _step_feedback(feedback_mod, tracks)
+                r = _step_feedback(feedback_mod, tracks, scn)
                 result.feedback_status = r["status"]
                 result.likes_applied = r["likes"]
                 result.dislikes_applied = r["dislikes"]
@@ -503,12 +541,116 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
 
         # ── 5. Refine train (absorb feedback) ────────────────────
         try:
-            r = _step_refine_train(profile_mod)
+            r = _step_refine_train(profile_mod, scn)
             result.refine_train_status = r["status"]
             result.refine_train_chars = r["profile_chars"]
         except Exception as exc:
             result.refine_train_status = "error"
             logger.warning("Refine train failed: %s — continuing", exc)
+
+        # ── 6. Playlist B — same profile, post-feedback (F8) ─────
+        # The single highest-leverage harness change: this is the only
+        # step that exercises the production code's ability to RESPECT
+        # prior feedback when generating fresh suggestions. Without it
+        # rejected/disliked-artist leakage stays invisible to the eval.
+        # See `context/claudeAnalyse.md` F8.
+        if tracks:  # only meaningful if playlist A produced something
+            try:
+                r = _step_playlist(flask_app, settings["evaluation"]["playlist_size"])
+                tracks_b = r["tracks"]
+                result.playlist_b_track_count = len(tracks_b)
+                if r.get("status") == "under_filled":
+                    result.playlist_b_status = "under_filled"
+                elif tracks_b:
+                    result.playlist_b_status = "ok"
+                else:
+                    result.playlist_b_status = "empty"
+            except Exception as exc:
+                result.playlist_b_status = "error"
+                tracks_b = []
+                logger.warning("Playlist B step failed: %s — continuing", exc)
+
+            # Push playlist B to Spotify under a tagged name so the
+            # user can audit it manually if leakage flags something
+            # unexpected. Cleanup deletes both at the end.
+            if tracks_b:
+                try:
+                    pl_b_name = f"[EVAL] {model} {ts} — B"
+                    profile = profile_mod.load_profile()
+                    push_b = _step_push_to_spotify(
+                        playlist_mod, tracks_b, pl_b_name, profile,
+                    )
+                    playlist_b_id = push_b["playlist_id"]
+                    result.playlist_b_id = playlist_b_id
+                    result.playlist_b_url = push_b["playlist_url"]
+                except Exception as exc:
+                    logger.warning(
+                        "Spotify push (playlist B) failed: %s — continuing",
+                        exc,
+                    )
+
+            # ── 7. Leakage audit ─────────────────────────────────
+            # Read the (post-feedback) profile fresh — the scenario's
+            # like/dislike rule may have changed it since the analysis
+            # snapshot above.
+            try:
+                from .leakage import compute_leakage  # local import
+                profile_post = profile_mod.load_profile()
+                report = compute_leakage(tracks_b, profile_post)
+                result.leakage = report.to_json()
+                result.leakage_status = "pass" if report.passed else "fail"
+                if not report.passed:
+                    logger.warning(
+                        "[leakage] %s iter %d: %d total leaks "
+                        "(rejected=%d, disliked=%d, pattern=%d)",
+                        model, iteration, report.total_leaks,
+                        report.rejected_artist_count,
+                        report.disliked_track_count,
+                        report.dislike_pattern_count,
+                    )
+                    for hit in report.hits[:10]:  # cap log volume
+                        logger.warning(
+                            "[leakage] %s — %s — %s — %s",
+                            hit.rule, hit.artist, hit.track, hit.detail,
+                        )
+            except Exception as exc:
+                result.leakage_status = "error"
+                logger.warning("Leakage audit failed: %s — continuing", exc)
+
+            # ── 8. Deterministic fit-check (F8.3) ────────────────
+            # Independent of leakage: leakage answers "did production
+            # respect prior feedback?", fit answers "does each track
+            # honour profile constraints expressible from track
+            # metadata?". Currently only `decade_avoid` ships — uses
+            # Spotify-returned release_year on each track; corpus-
+            # independent so it works regardless of corpus quality.
+            try:
+                from .fit_checks import compute_fit  # local import
+                profile_post = profile_mod.load_profile()
+                fit_report = compute_fit(tracks_b, profile_post)
+                result.fit = fit_report.to_json()
+                if not fit_report.checks_applied:
+                    result.fit_status = "no_checks_applied"
+                else:
+                    result.fit_status = (
+                        "pass" if fit_report.passed else "fail"
+                    )
+                if not fit_report.passed:
+                    logger.warning(
+                        "[fit] %s iter %d: %d total fails "
+                        "(decade_avoid=%d, checks=%s)",
+                        model, iteration, fit_report.total_fails,
+                        fit_report.decade_avoid_count,
+                        ", ".join(fit_report.checks_applied),
+                    )
+                    for hit in fit_report.hits[:10]:
+                        logger.warning(
+                            "[fit] %s — %s — %s — %s",
+                            hit.rule, hit.artist, hit.track, hit.detail,
+                        )
+            except Exception as exc:
+                result.fit_status = "error"
+                logger.warning("Fit-check failed: %s — continuing", exc)
 
     except Exception as exc:
         if not result.error:
@@ -519,6 +661,7 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
         # ── Cleanup — ALWAYS runs ────────────────────────────────
         result.cleanup_status = _cleanup(
             playlist_id, profile_id, playlist_mod, profile_mod,
+            playlist_b_id=playlist_b_id,
         )
 
         # Snapshot the eval-log slice for this run BEFORE other model
