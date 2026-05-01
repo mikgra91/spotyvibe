@@ -10,6 +10,7 @@ INPUT SECTIONS:
 - MUST HAVE: Non-negotiable requirements → "preferences.must_have". Highest-priority filter.
 - SOFT PREFERENCES: Nice-to-haves → "preferences.soft_preferences".
 - AVOID: Absolute disqualifiers → "preferences.avoid". One match = rejection.
+- RECENT DISLIKES (optional): Recently disliked tracks with the user's reason text. Mine these for recurring patterns and PROMOTE recurring avoid signals into "preferences.avoid". Example: 5 dislikes with reasons like "too 80s", "sounds 80s", "old production" → add "80s production style" to avoid. Be conservative — require a reason to recur ≥ 2 times before promoting it. Do NOT echo the dislikes back; they live in feedback.disliked_tracks already and the user does not need them duplicated in the profile.
 
 Make entries specific enough for a recommendation engine to filter on.
 

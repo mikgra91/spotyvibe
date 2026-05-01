@@ -312,6 +312,7 @@ PROFILE_HISTORY_FILE = _APP_DIR / "personalized_music_profile.history.json"
 DEBUG_LOG_FILE = _APP_DIR / "debug.log"       # Backend application log
 PROMPT_LOG_FILE = _APP_DIR / "prompt.log"      # GPT request/response log (was debug.log)
 EVAL_LOG_FILE = _APP_DIR / "eval.jsonl"        # One JSONL row per suggested track for offline analysis
+DEBUG_TRACE_DIR = _APP_DIR / "debug"            # F9 (2026-05-01): per-run trace bundles (<run_id>/trace.json)
 
 # Secret keys — stored in .credentials
 CREDENTIALS_KEYS = ["OPENAI_API_KEY", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET"]

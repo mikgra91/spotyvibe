@@ -56,6 +56,13 @@ from .eval_log import log_profile_update_summary
 TEMPLATE_FILE = BASE_DIR / "data" / "music_profile.json"
 TRAINING_PROMPT_FILE = BASE_DIR / "prompts" / "profile_training_prompt.txt"
 
+# F5 (2026-05-01): how many most-recent dislikes to surface to the
+# train_profile LLM. Older dislikes are skipped — recurring patterns
+# in the recent window are what should drive avoid promotion. Cap
+# keeps prompt cost bounded regardless of how long feedback has
+# accumulated.
+RECENT_DISLIKES_FOR_TRAIN_N = 20
+
 # Guards all read-modify-write cycles on profile files so concurrent
 # requests (e.g. feedback during generation) cannot silently overwrite
 # each other's changes.
@@ -545,6 +552,60 @@ def get_profile_status():
 
 # ── Manual save ──────────────────────────────────────────────────────
 
+def _format_recent_dislikes(profile: dict, n: int | None = None) -> str:
+    """Format the ``RECENT DISLIKES`` block for the train_profile prompt.
+
+    F5 (2026-05-01): pulls the last *n* entries (default
+    :data:`RECENT_DISLIKES_FOR_TRAIN_N`) from
+    ``profile.feedback.disliked_tracks``, formats them as a bulleted
+    list with each dislike's reason, and returns the section as a
+    single string ready to append to the user message.
+
+    Returns an empty string when there are no dislikes — caller can
+    cheaply guard with ``if recent_dislikes_block:``.
+
+    Entries without a reason field are skipped: a dislike with no
+    reason carries no avoid signal the LLM could mine, and including
+    bare ``(artist - track)`` lines tempts the LLM to repeat them
+    (which is exactly what the prompt instructs against).
+    """
+    if n is None:
+        n = RECENT_DISLIKES_FOR_TRAIN_N
+    feedback = (profile or {}).get("feedback") or {}
+    disliked = feedback.get("disliked_tracks") or []
+    if not isinstance(disliked, list):
+        return ""
+
+    lines: list[str] = []
+    for entry in disliked[-n:]:
+        if not isinstance(entry, dict):
+            continue
+        reason = (entry.get("reason") or "").strip()
+        if not reason or reason == "user feedback":
+            # "user feedback" is the default placeholder when the user
+            # didn't supply a reason — no avoid signal there.
+            continue
+        artist = (entry.get("artist") or "").strip()
+        track = (entry.get("track") or "").strip()
+        if not artist:
+            continue
+        if track:
+            lines.append(f"- {artist} — {track}: \"{reason}\"")
+        else:
+            lines.append(f"- {artist}: \"{reason}\"")
+
+    if not lines:
+        return ""
+
+    return (
+        f"\n## RECENT DISLIKES (last {len(lines)} with user-supplied reasons "
+        "— mine recurring patterns and PROMOTE them into avoid; do not "
+        "echo these entries back in the response):\n"
+        + "\n".join(lines)
+        + "\n"
+    )
+
+
 def save_profile_sections(sections):
     """Update the profile preferences directly from user input (no AI).
 
@@ -675,6 +736,15 @@ def train_profile(sections):
             f"\n## AVOID (absolute disqualifiers — any match removes a track immediately):\n"
             f"{sections['avoid']}\n"
         )
+
+    # F5 (2026-05-01): surface recent dislike reasons so the LLM can
+    # mine recurring avoid signals and promote them into avoid prose.
+    # Without this, ``feedback.disliked_tracks[*].reason`` is rich avoid
+    # signal that never reaches the profile schema. See
+    # ``context/claudeAnalyse.md`` F5 for the production failure mode.
+    recent_dislikes_block = _format_recent_dislikes(profile)
+    if recent_dislikes_block:
+        parts.append(recent_dislikes_block)
 
     parts.append(
         "\nUpdate the profile based on my input. Merge with existing data — "

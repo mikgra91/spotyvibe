@@ -1100,6 +1100,26 @@ def check_avoid_compliance(
         if isinstance(response, dict):
             meta["usage"] = response.get("usage")
         raw = extract_chat_content(response)
+        # F9 (2026-05-01): capture Stage 2 prompt + raw response so a
+        # diagnosis can answer "why did Stage 2 approve / reject artist
+        # X?" without re-running the LLM call.
+        try:
+            from core.src import trace
+            if trace.is_active():
+                trace.record("stage2_prompt", {
+                    "model": stage2_model,
+                    "system": system_prompt,
+                    "user": user_message,
+                    "candidates_in": list(artist_names),
+                    "avoid_traits": list(avoid_traits),
+                })
+                trace.record("stage2_response", {
+                    "raw": raw,
+                    "latency_s": meta.get("latency_s"),
+                    "usage": meta.get("usage"),
+                })
+        except Exception as _trace_exc:  # pragma: no cover
+            logger.debug("trace capture (stage2) failed: %s", _trace_exc)
         data = json.loads(strip_code_fences(raw))
         approved = data.get("approved", [])
         if isinstance(approved, list):
@@ -1362,6 +1382,26 @@ def select_tracks(
 
     raw_content = extract_chat_content(response)
     debug_log("Stage 3 Track Selection", messages, raw_content)
+
+    # F9 (2026-05-01): per-batch Stage 3 capture. Multiple batches
+    # accumulate via trace.append so a diagnosis can walk batch-by-batch.
+    try:
+        from core.src import trace
+        if trace.is_active():
+            trace.append("stage3_batches", {
+                "batch_num": batch_num,
+                "model": get_model(),
+                "system": system_prompt,
+                "user": user_message,
+                "approved_artists": list(approved_artist_names),
+                "raw_response": raw_content,
+                "latency_s": latency_s,
+                "usage": (response or {}).get("usage") if isinstance(response, dict) else None,
+                "temperature": temperature,
+                "effective_batch_size": effective_batch_size,
+            })
+    except Exception as _trace_exc:  # pragma: no cover
+        logger.debug("trace capture (stage3) failed: %s", _trace_exc)
 
     # ── Diagnostic logging (2026-04-27, Phase 1 quality investigation) ──
     # The full prompt + raw response contain user-tied data (taste

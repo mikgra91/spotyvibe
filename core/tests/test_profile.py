@@ -277,6 +277,155 @@ class TestTrainProfile:
         assert result["feedback"] == original_profile["feedback"]
 
 
+class TestFormatRecentDislikes:
+    """F5 (2026-05-01): pin RECENT DISLIKES block formatting so a future
+    prompt-engineering tweak cannot silently break the avoid-mining
+    signal. See `context/claudeAnalyse.md` F5."""
+
+    def test_empty_profile_returns_empty(self):
+        from core.src.profile import _format_recent_dislikes
+        assert _format_recent_dislikes({}) == ""
+        assert _format_recent_dislikes({"feedback": {}}) == ""
+        assert _format_recent_dislikes({"feedback": {"disliked_tracks": []}}) == ""
+
+    def test_skips_dislikes_without_reason(self):
+        from core.src.profile import _format_recent_dislikes
+        # No reason → no avoid signal to mine.
+        block = _format_recent_dislikes({
+            "feedback": {"disliked_tracks": [
+                {"artist": "X", "track": "Y"},
+                {"artist": "X", "track": "Y", "reason": ""},
+                {"artist": "X", "track": "Y", "reason": "user feedback"},
+            ]}
+        })
+        assert block == ""
+
+    def test_includes_dislikes_with_real_reasons(self):
+        from core.src.profile import _format_recent_dislikes
+        block = _format_recent_dislikes({
+            "feedback": {"disliked_tracks": [
+                {"artist": "Spammy Band", "track": "One", "reason": "too 80s"},
+                {"artist": "Spammy Band", "track": "Two", "reason": "old production"},
+                {"artist": "Other", "track": "X", "reason": "not Japanese"},
+            ]}
+        })
+        assert "RECENT DISLIKES" in block
+        assert "Spammy Band — One" in block
+        assert "too 80s" in block
+        assert "old production" in block
+        assert "not Japanese" in block
+
+    def test_caps_at_n_most_recent(self):
+        from core.src.profile import _format_recent_dislikes
+        dislikes = [
+            {"artist": f"A{i}", "track": f"T{i}", "reason": f"reason{i}"}
+            for i in range(50)
+        ]
+        block = _format_recent_dislikes({"feedback": {"disliked_tracks": dislikes}}, n=5)
+        # Should contain only the 5 most recent (A45-A49)
+        for i in range(5, 45):
+            assert f"reason{i}" not in block
+        for i in range(45, 50):
+            assert f"reason{i}" in block
+
+    def test_handles_malformed_entries(self):
+        from core.src.profile import _format_recent_dislikes
+        block = _format_recent_dislikes({
+            "feedback": {"disliked_tracks": [
+                None,
+                "string",
+                {"artist": "", "reason": "anything"},  # empty artist → skip
+                {"artist": "Real", "track": "Song", "reason": "valid"},
+            ]}
+        })
+        assert "Real — Song" in block
+        assert '"valid"' in block
+
+    def test_artist_only_entry_no_track(self):
+        from core.src.profile import _format_recent_dislikes
+        block = _format_recent_dislikes({
+            "feedback": {"disliked_tracks": [
+                {"artist": "ArtistOnly", "reason": "always too generic"},
+            ]}
+        })
+        assert "ArtistOnly:" in block
+        assert "always too generic" in block
+
+
+class TestTrainProfileFeedsRecentDislikes:
+    """F5 (2026-05-01): integration check — the user message handed to
+    the LLM must contain the RECENT DISLIKES block when the profile
+    has dislikes with reasons. Regression guard for the production
+    failure where train_profile silently ignored feedback."""
+
+    @patch("core.src.profile.save_profile")
+    @patch("core.src.profile.call_gpt_json_with_meta")
+    @patch("core.src.profile.load_profile")
+    def test_recent_dislikes_reach_user_message(
+        self, mock_load, mock_gpt, mock_save,
+    ):
+        from core.src.profile import train_profile
+        mock_load.return_value = {
+            "last_updated": None,
+            "meta": {"goal": ""},
+            "preferences": {"core_description": "", "must_have": [],
+                            "soft_preferences": [], "avoid": []},
+            "artists": {"confirmed": [], "moderate": [], "rejected": []},
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {"liked_tracks": [], "disliked_tracks": [
+                {"artist": "Spammy Band", "track": "One",
+                 "reason": "too 80s production"},
+                {"artist": "Spammy Band", "track": "Two",
+                 "reason": "still 80s feel"},
+            ]},
+            "taste_rules": {"primary_driver": "", "dealbreaker_priority": []},
+        }
+        mock_gpt.return_value = (
+            {"preferences": {"avoid": ["80s production style"]}},
+            _GPT_META_STUB,
+        )
+
+        train_profile({"core_description": "", "must_have": "",
+                       "soft_preferences": "", "avoid": ""})
+
+        # The user message handed to call_gpt_json_with_meta must
+        # include the dislike reasons so the LLM can mine recurring
+        # avoid patterns.
+        called_messages = mock_gpt.call_args[0][0]
+        user_msg = next(m["content"] for m in called_messages
+                         if m["role"] == "user")
+        assert "RECENT DISLIKES" in user_msg
+        assert "too 80s production" in user_msg
+        assert "still 80s feel" in user_msg
+
+    @patch("core.src.profile.save_profile")
+    @patch("core.src.profile.call_gpt_json_with_meta")
+    @patch("core.src.profile.load_profile")
+    def test_no_dislikes_omits_section(
+        self, mock_load, mock_gpt, mock_save,
+    ):
+        from core.src.profile import train_profile
+        mock_load.return_value = {
+            "last_updated": None, "meta": {"goal": ""},
+            "preferences": {"core_description": "", "must_have": [],
+                            "soft_preferences": [], "avoid": []},
+            "artists": {"confirmed": [], "moderate": [], "rejected": []},
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {"liked_tracks": [], "disliked_tracks": []},
+            "taste_rules": {"primary_driver": "", "dealbreaker_priority": []},
+        }
+        mock_gpt.return_value = ({"preferences": {}}, _GPT_META_STUB)
+
+        train_profile({"core_description": "x", "must_have": "",
+                       "soft_preferences": "", "avoid": ""})
+
+        called_messages = mock_gpt.call_args[0][0]
+        user_msg = next(m["content"] for m in called_messages
+                         if m["role"] == "user")
+        # No dislikes → section must not appear (saves prompt cost)
+        assert "RECENT DISLIKES" not in user_msg
+
+
 class TestSaveProfileSections:
     @patch("core.src.profile.save_profile")
     @patch("core.src.profile.load_profile")

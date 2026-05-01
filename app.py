@@ -656,6 +656,18 @@ def run_pipeline():
             profile = load_profile()
             normalize_history(profile)
 
+            # F9 (2026-05-01): start the per-run trace bundle. No-op
+            # when DEBUG_MODE is off. Captures profile snapshot now so
+            # downstream feedback writes during generation don't
+            # contaminate the snapshot. Finalised in the `finally`
+            # below so partial runs / cancellations still produce a
+            # diagnostic trace.
+            try:
+                from core.src import trace as _trace
+                _trace.start_trace(run_id, profile=profile)
+            except Exception as _exc:
+                app_log(f"trace.start_trace failed: {_exc}")
+
             # Two-pass mode: when history is large, boost new-artist pressure
             # after the first half of the playlist is filled to break recycling loops.
             _history_len = len(profile.get("history", {}).get("suggested_tracks", []))
@@ -1394,6 +1406,14 @@ def run_pipeline():
         finally:
             with _runs_lock:
                 _runs.pop(run_id, None)
+            # F9: write the trace bundle. Always runs — partial runs
+            # and cancellations should still leave a diagnostic
+            # artifact. No-op when DEBUG_MODE was off.
+            try:
+                from core.src import trace as _trace
+                _trace.finalize_trace()
+            except Exception as _exc:
+                app_log(f"trace.finalize_trace failed: {_exc}")
 
     return Response(
         stream_with_context(generate()),

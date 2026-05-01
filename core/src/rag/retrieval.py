@@ -687,5 +687,41 @@ def retrieve_candidates(
         len(result), len(avoid_tags), avoid_filter_applied, pool_avoid_overlap,
         avoid_traits_covered, avoid_traits_total,
     )
+
+    # F9 (2026-05-01): per-run trace capture. No-op when DEBUG_MODE off.
+    # Captures the query tags + weights, avoid tag set + coverage, and
+    # the returned candidate list with the data needed to debug "why
+    # did artist X appear?" deterministically.
+    try:
+        from core.src import trace
+        if trace.is_active():
+            query_tags = build_query_tags(profile, primary_reference=primary_reference)
+            trace.record("stage1_query", {
+                "tags": dict(query_tags),
+                "target_size": target_size,
+                "popularity_penalty": popularity_penalty,
+                "primary_reference_name": (primary_reference or {}).get("name"),
+            })
+            trace.record("stage1_avoid", {
+                "tags": sorted(avoid_tags),
+                "filter_applied": avoid_filter_applied,
+                "pool_avoid_overlap": pool_avoid_overlap,
+                "traits_total": avoid_traits_total,
+                "traits_covered": avoid_traits_covered,
+                "traits_fully_covered": avoid_traits_fully_covered,
+            })
+            trace.record("stage1_candidates", [
+                {
+                    "name": a.name,
+                    "mbid": getattr(a, "mbid", None),
+                    "tags": list(a.tags)[:10],
+                    "spotify_genres": list(getattr(a, "spotify_genres", []) or [])[:10],
+                    "listener_popularity": getattr(a, "listener_popularity", None),
+                }
+                for a in result
+            ])
+    except Exception as exc:  # pragma: no cover — trace must never break a run
+        logger.debug("trace capture (stage1) failed: %s", exc)
+
     return result
 
