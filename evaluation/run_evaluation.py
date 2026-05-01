@@ -138,6 +138,7 @@ _PER_CYCLE_USD = {
     "gpt-5.4-mini": 0.01,
     "gpt-4.1": 0.04,
     "gpt-4.1-mini": 0.01,
+    "gpt-4o": 0.05,  # candidate; ~25% pricier than gpt-4.1 ($2.50/$10.00 vs $2.00/$8.00).
 }
 
 

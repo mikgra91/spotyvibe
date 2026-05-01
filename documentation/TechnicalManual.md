@@ -226,7 +226,7 @@ See [../SKILL.md](../SKILL.md) for the full reference. Summary:
 - `GET /me/playlists` renamed the summary field from `"tracks"` to `"items"` — code falls back to either.
 - Playlist creation uses `current_user_playlist_create()` (`POST /v1/me/playlists`).
 - Search `limit` max is 10; SpotyVibe uses `limit=1`.
-- `popularity`, `followers`, `audio_features` endpoints are gone — `core/src/spotify_metadata.py` is retained but no longer exposed.
+- `popularity`, `followers`, `audio_features` endpoints are gone (the obsolete `spotify_metadata.py` helper module that wrapped them was removed 2026-04-30).
 
 On 403 during playlist writes, `add_to_playlist()` calls `disconnect_spotify()` so the UI shows the reconnect banner.
 
@@ -260,7 +260,7 @@ The suggestion pipeline can inject a pre-ranked pool of ~20 artists retrieved fr
 | File | Role |
 |---|---|
 | `corpus.py` | `RagCorpus` dataclass — loads `artists.jsonl.gz` into in-memory rows + inverted tag index + TF-IDF idf vector. Slimmed schema (only `mbid`, `name`, `begin_year`, `tags`, `tag_weights`, `listener_popularity` — `sort_name`/`country`/`end_year` and the unused `by_mbid`/`by_name_normalised` indexes were dropped in 2026-04 — see §"RAG design reference" → Per-artist schema). ~150 MB resident for 350K artists, ~210 MB for 500K. |
-| `retrieval.py` | `score_artists` (flat) + **`score_artists_stratified` (default)** — TF-IDF over artist-tag postings with bigram/hyphen compound boost (×3) and a popularity re-rank penalty. Stratified mode runs the retriever once per profile facet (`must_have`, `soft_preferences`, `primary_reference`, `tags`) with per-facet quotas so eclectic profiles don't get one strong facet starving the others. Returns up to `RAG_POOL_SIZE` rows (default 100). |
+| `retrieval.py` | `score_artists` (flat) + **`score_artists_stratified` (default)** — TF-IDF over artist-tag postings with bigram/hyphen compound boost (×3) and a popularity re-rank penalty. Stratified mode runs the retriever once per profile facet (`must_have`, `soft_preferences`, `primary_reference`, `tags`) with per-facet quotas so eclectic profiles don't get one strong facet starving the others. Returns up to `RAG_POOL_SIZE` rows (default 60). |
 | `prompt.py` | Formats retrieved rows as the `CANDIDATE_POOL` prompt block appended to the suggestions user-message. |
 | `distribution.py` | Manifest fetch, update check, streaming sha256-verified download. Pure stdlib `urllib`. |
 
@@ -274,19 +274,18 @@ The suggestion pipeline can inject a pre-ranked pool of ~20 artists retrieved fr
 |---|---|---|
 | `RAG_ENABLED` | persisted in `settings.conf`; `DEFAULT_RAG_ENABLED = True` when unset and corpus present | Master toggle; UI-exposed in Settings → Candidate pool (RAG). Disabling persists explicit `false` so the new default doesn't silently re-enable. |
 | `RAG_CORPUS_PATH` | `<app_dir>/rag_corpus/artists.jsonl.gz` (under the user's app dir, e.g. `%LOCALAPPDATA%/spotyvibe/`) | Corpus location. Survives across PyInstaller-EXE launches. |
-| `RAG_POOL_SIZE` | `100` | Candidates injected per batch. Bumped from 20 → 100 in 2026-04 after the eval log showed only ~19% of GPT picks came from a 20-slot pool — i.e. the pool was too narrow to anchor for eclectic profiles. See `spotyvibe-decisions-2026-04-21.md`. |
+| `RAG_POOL_SIZE` | `60` | Candidates injected per batch. Bumped from 20 in 2026-04 after the eval log showed only ~19% of GPT picks came from a 20-slot pool — i.e. the pool was too narrow to anchor for eclectic profiles. Tuned to 60 (down from a brief stint at 100) once the stratified split per facet started carrying its weight. See `spotyvibe-decisions-2026-04-21.md`. |
 | `RAG_POPULARITY_PENALTY` | `0.4` | Anti-popularity-bias re-rank coefficient (0 = pure TF-IDF, 1 = strong obscurity bias). |
 | `RAG_STRATIFIED` | `True` | When true, use `score_artists_stratified` so each facet of the profile (must_have, soft_preferences, primary_reference, tags) gets a guaranteed quota of the pool. |
 | `RAG_FACET_WEIGHTS` | `{must_have: 0.50, soft_preferences: 0.25, primary_reference: 0.15, tags: 0.10}` | Per-facet share of `RAG_POOL_SIZE`. Remainder fills from a flat pass. |
 | `RAG_MANIFEST_URL` | `https://storage.googleapis.com/spotivibe-rag-corpus/manifest.json` | Override via env var for staging. Points to the public GCS bucket populated by the weekly Cloud Run Job. |
 
-**Per-call batch size shrinks under RAG (Apr-2026, "Option A")** — when RAG is enabled, each LLM call inflates by ~1.2 k tokens (the 100-slot pool). To keep the full conversation under the ~8 k-token context window of small local LLMs (Llama 3 8B, Gemma 9B, Mistral 7B), `config.get_effective_batch_size()` returns **`BATCH_SIZE_WITH_RAG = 5`** when RAG is on and **`BATCH_SIZE = 10`** when off. The pipeline simply runs more, smaller LLM calls — total user-visible playlist size is unchanged. The `MAX_GPT_CALLS_PER_RUN = 20` guardrail accommodates the doubled call count for a 10–20 track playlist.
+**Prompt grows under RAG** — with RAG on, each LLM call carries an extra ~700 tokens (the 60-slot pool). The full conversation typically lands at 4–6 k tokens (system + profile + history + pool + JSON output) on cloud models. `BATCH_SIZE = 10` is unchanged regardless of the RAG state.
 
-> **⚠ RAG limitations on small local LLMs.** Even with the smaller per-call batch, a RAG-enabled prompt can run 6–9 k tokens (system + profile + history + 100-slot pool + JSON output). If you point SpotyVibe at a local model with a hard 4 k or 8 k context window the pool will be truncated and quality drops sharply. Mitigations:
+> **⚠ RAG limitations on small local LLMs.** A RAG-enabled prompt can run 4–6 k tokens. If you point SpotyVibe at a local model with a hard 4 k or 8 k context window the pool may be truncated and quality drops sharply. Mitigations:
 >
-> - **Disable RAG** in Settings → Candidate pool. The model falls back to its parametric music knowledge (lower hallucination resistance, but the prompt drops to ~3–4 k tokens).
+> - **Disable RAG** in Settings → Candidate pool. The model falls back to its parametric music knowledge (lower hallucination resistance, but the prompt drops to ~3 k tokens).
 > - **Lower `RAG_POOL_SIZE`** (e.g. 40 or 20) — see the trade-off table in §"RAG design reference" → Pool size sweet-spot data.
-> - **Lower `BATCH_SIZE_WITH_RAG`** further (3 or 4) for very small windows; the cost is more LLM calls per playlist.
 > - **Use a 16 k+ context model** (most cloud APIs and any `*-128k` local model). This is the recommended path — RAG was designed against GPT-4-class models with 32 k+ contexts.
 >
 > Self-hosting a smaller open-weight model on Cloud Run **as a drop-in OpenAI replacement** was evaluated and rejected (April 2026): see `analysis.md` § Scenario B — the cost is comparable but the recommendation quality gap is the disqualifier. Use OpenAI / a hosted GPT-4-class model for the suggestion engine and reserve local LLMs for users who explicitly accept the quality trade-off.

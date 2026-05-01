@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# WARNING: do NOT edit this script while a sweep is running. Bash re-reads
+# the file on loop exit; line-offset shifts cause "syntax error near unexpected
+# token" failures during post-processing. Apply edits between sweeps only.
+#
 # evaluation/run_pool_sweep.sh — End-to-end pool-size sweep driver.
 #
 # What it does:

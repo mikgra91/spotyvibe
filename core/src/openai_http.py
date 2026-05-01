@@ -279,17 +279,14 @@ def chat_completions_create(
             )
 
     # Some reasoning-tier models only accept the default temperature and
-    # reject any explicit value, even if it equals the default. The set was
-    # populated for "gpt-5.5" historically; gpt-5.5 was removed from the
-    # supported model list in Phase 2.6 (2026-04-28) so the set is currently
-    # empty. Kept as a future-proof hook: when a new reasoning-tier model is
-    # added to the supported list, add its name here.
-    _NO_TEMPERATURE_MODELS: set[str] = set()
+    # reject any explicit value. Configured in config.OPENAI_NO_TEMPERATURE_MODELS
+    # so the next reasoning-tier model can be onboarded without code changes here.
+    from config import OPENAI_NO_TEMPERATURE_MODELS
     payload: dict = {
         "model": model,
         "messages": messages,
     }
-    if model not in _NO_TEMPERATURE_MODELS:
+    if model not in OPENAI_NO_TEMPERATURE_MODELS:
         payload["temperature"] = temperature
 
     # OPEN-3: auto-downgrade strict json_schema for models that reject it.

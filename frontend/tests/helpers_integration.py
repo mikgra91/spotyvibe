@@ -78,31 +78,10 @@ def expand_dashboard(page: Page):
 #  Mock data
 # ═══════════════════════════════════════════════════════════════════════
 
-EMPTY_PROFILE = {
-    "meta": {},
-    "preferences": {
-        "core_description": "",
-        "must_have": [],
-        "soft_preferences": [],
-        "avoid": [],
-    },
-    "artists": {"confirmed": [], "moderate": [], "rejected": []},
-    "taste_rules": {},
-    "feedback": {"liked_tracks": [], "disliked_tracks": [], "disliked_artists": []},
-    "suggested_artists": [],
-    "suggested_tracks": [],
-}
-
-TRAINED_PROFILE = {
-    **EMPTY_PROFILE,
-    "preferences": {
-        "core_description": "Upbeat theatrical rock with strong melodies",
-        "must_have": ["high energy", "strong melodies"],
-        "soft_preferences": ["slight prog influence"],
-        "avoid": ["electronic production"],
-    },
-    "last_updated": "2025-01-01T00:00:00",
-}
+# EMPTY_PROFILE / TRAINED_PROFILE live in _shared.py to keep this module and
+# helpers.py from drifting apart. Re-exported here so existing
+# `from helpers_integration import EMPTY_PROFILE` imports keep working.
+from _shared import EMPTY_PROFILE, TRAINED_PROFILE  # noqa: F401
 
 GENERATED_TRACKS_CREATE = [
     {"artist": "Muse", "track": "Uprising", "reason": "High energy theatrical rock",

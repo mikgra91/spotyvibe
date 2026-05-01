@@ -593,8 +593,7 @@ def log_profile_update_summary(
         # decide whether to build the LLM consolidation step (P3.2). Run
         # this for ≥ 10 successive AI Profile Updates on a real profile;
         # if any of {soft_preferences, avoid, must_have} ever exceeds
-        # ~8 entries OR meta.goal exceeds ~600 chars, the consolidation
-        # call earns its keep.
+        # ~8 entries, the consolidation call earns its keep.
         "section_sizes": _profile_section_sizes(profile_after or profile_before),
     }
     _write_row(eval_log_path, row, "profile_update_summary")
@@ -621,9 +620,6 @@ def _profile_section_sizes(profile: dict | None) -> dict:
     return {
         "must_have_count": _len_list(prefs.get("must_have")),
         "soft_preferences_count": _len_list(prefs.get("soft_preferences")),
-        # NOTE (2026-04-28 fix): meta.goal is not currently populated;
-        # core_description lives under preferences, not meta. Read both
-        # from their actual locations so OPEN-5 telemetry reflects reality.
         "avoid_count": _len_list(prefs.get("avoid")),
         "core_description_chars": _len_str(prefs.get("core_description")),
     }

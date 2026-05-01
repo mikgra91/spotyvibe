@@ -609,7 +609,7 @@ Im Erweitert-Modus ermöglicht ein **Voreinstellung**-Dropdown oben das Speicher
 
 > **Hinweis zur Künstlerabdeckung:** Der Offline-Künstler-Korpus von SpotyVibe (der optionale **Candidate pool (RAG)** in den Einstellungen) enthält nur Acts, die ab den **1960er Jahren** aktiv wurden. Musik vor den 1960ern ist bewusst ausgeschlossen — der Anteil im typischen Hörverhalten ist gering und das Auslassen hält den Index schlank. Derselbe Hinweis erscheint als Tooltip (ⓘ) neben dem Schalter in den Einstellungen.
 
-> **Hinweis zu lokalen LLMs:** Mit aktiviertem RAG wächst der Prompt auf ~6–9 k Tokens. SpotyVibe halbiert die Batch-Größe pro Aufruf automatisch (5 statt 10), damit das Gespräch in die meisten lokalen Kontextfenster passt — entsprechend siehst du etwa doppelt so viele „Batch N…"-Fortschrittsmeldungen pro Lauf. Verwendest du ein lokales Modell mit kleinem Kontext (4 k oder 8 k Tokens) und die Qualität fällt ab, deaktiviere RAG in den Einstellungen oder wechsle auf ein Modell mit ≥ 16 k Kontext. RAG wurde für gehostete GPT-4-Klasse-Modelle entworfen.
+> **Hinweis zu lokalen LLMs:** Mit aktiviertem RAG wächst der Prompt typischerweise auf ~4–6 k Tokens (60-Slot-Pool + Profil + Verlauf + JSON-Ausgabe). Verwendest du ein lokales Modell mit kleinem Kontext (4 k oder 8 k Tokens) und die Qualität fällt ab, deaktiviere RAG in den Einstellungen, verringere `RAG_POOL_SIZE` oder wechsle auf ein Modell mit ≥ 16 k Kontext. RAG wurde für gehostete GPT-4-Klasse-Modelle entworfen.
 
 ---
 

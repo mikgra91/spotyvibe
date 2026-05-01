@@ -1,4 +1,4 @@
-# TODO — Deferred Code-Review Items (2026-04-28)
+# TODO — Deferred Code-Review Items (2026-04-28; refreshed 2026-04-30 PM)
 
 Items identified during the code-review pass but deferred. Pick these up in a future session.
 
@@ -8,42 +8,15 @@ Items identified during the code-review pass but deferred. Pick these up in a fu
 
 Context: 5-block pool-size sweep landed (`evaluation/results/sweep-merged-5blocks/report.md`).
 The L1+L8+L11+L16 cost-reduction bundle was implemented and unit-tested (1121 / 1121 core
-tests pass), but the **validation eval was not run** before the session ended.
-Full lever analysis lives in `cost-speed-research.md` (26 levers scored).
-Phase summary in `result-improvement.md` §"Phase 6.0".
-
-### P6-EVAL — Bundle validation eval (REQUIRED before any further L-work)
-
-**What:** confirm L1+L8+L11+L16 didn't regress quality on the canonical seed.
-
-**Run:**
-```bash
-cd /c/git/spotyvibe/evaluation
-POOLS="50" BLOCKS=5 bash run_pool_sweep.sh
-```
-Expected wall-clock: ~75 min (5 runs × ~7 min eval + 8-min cooldowns). Produces a new
-`evaluation/results/sweep-<UTC-ts>/` with `report.md` + `summary.csv`.
-
-**Pass criteria** (compare against `sweep-merged-5blocks/summary.csv` for `gpt-5.4-mini @ pool=50`):
-- Mean `cite_pct` Δ ≥ −1 pp on every model (baseline: gpt-5.4-mini 88.0%, gpt-5.4 98.7%, gpt-4.1-mini 82.7%, gpt-4.1 62.7%)
-- `found_pct` ≥ 95% every cell (baseline: 100% on 58/60 rows)
-- Playlist completion ≥ 95% of `playlist_size` (15)
-- Total `cost` $/playlist ≈ $0.018 for `gpt-5.4-mini @ pool 50` (baseline $0.0288, predicted ~37% reduction)
-- New `cached_tokens / prompt_tokens` ≥ 0.4 in `eval.jsonl` for cloud models (validates Phase 2.5 §T1.3 prefix caching survived L8's template-line strip)
-
-**Fail handling:**
-- If cite-rate drops > 1 pp on any model → check L8 first (template strip may have broken prefix-cache invariance — `cached_tokens` will be < expected).
-- If completion < 95% → revert L11 by setting `STAGE3_OVER_REQUEST = 5` in `config.py:51` and re-run.
-- If Stage 2 starts approving fewer artists → check `app.py:862` is correctly passing `pool_avoid_overlap`; in `eval.jsonl` look for rows with `kind: "stage2_summary"` and `status: "skipped_no_overlap"` (should appear on every run).
-
-**Where the bundle changes are** (for revert if needed):
-- `core/src/eval_log.py` — L16 `cached_tokens` extraction (~line 372)
-- `core/src/suggestions.py` — L8 template-line strip (~line 1235), L11 `STAGE3_OVER_REQUEST` (~line 1185), L1 `skipped_no_overlap` status (~line 1058)
-- `core/src/rag/retrieval.py` — L1 `_LAST_RETRIEVAL_META` + `get_last_retrieval_meta()` (top + ~line 605)
-- `app.py` — L1 wires `pool_avoid_overlap` into `check_avoid_compliance` (~line 862)
-- `config.py:51` — L11 `STAGE3_OVER_REQUEST = 2`
+tests pass). **Validation eval was attempted on 2026-04-30 but failed before producing
+data** — see "Needs user action / decision" section at the bottom of this file for what
+is blocked and why. Full lever analysis lives in `cost-speed-research.md` (26 levers
+scored). Phase summary in `result-improvement.md` §"Phase 6.0".
 
 ### P6-INV13-25 — L13 + L25 combined investigation sweep (queued 🟡)
+
+**Blocked on:** P6-EVAL (must validate the bundle before queuing further L-work) AND
+on a working Spotify auth in `evaluation/`. See user-action section.
 
 **What:** verify the variance-failed levers under the new variance-as-regression rule
 (block-to-block cite Δ ≥ 13 pp = "must be measured over ≥ 5 blocks × 2 seeds before adoption").
@@ -116,90 +89,34 @@ but no caching — these two levers attack the root cause.
 trigger 429s without cache, then with cache). Pass = (a) `cache_hit_rate > 0.8` after
 warmup, (b) zero 429s in the warmed run.
 
-### P6-FRONTEND-CORRUPTION — Restore broken frontend test files
-
-Two files are still in a corrupted state from a previous AI session (orphan paste +
-inter-method line scrambling — same pattern that broke `suggestions.py` and
-`eval_log.py`, but those were fixed surgically). Diff stats prove it's working-tree
-garbage that doesn't parse:
-
-| File | Diff size | Status |
-|---|---|---|
-| `frontend/tests/test_edge_cases.py` | 59 lines changed | does not parse |
-| `frontend/tests/test_page_load.py` | 55 lines changed | does not parse |
-
-**Fix (one command):**
-```bash
-git checkout HEAD -- frontend/tests/test_edge_cases.py frontend/tests/test_page_load.py
-```
-
-**Why deferred from session 2026-04-29:** project rule forbids destructive git
-commands (`restore`, `checkout --`, `reset`, `clean`) without per-message permission.
-The user must execute or explicitly authorise.
-
-**After fix:** run `bash build-tools/run_frontend_tests.sh` to confirm; expected
-~233 tests pass (matching `bash build-tools/run_tests.sh frontend` baseline).
-
-### P6-DOC-SCRIPT-MIDRUN-EDIT — Don't edit `run_pool_sweep.sh` while a sweep is running
-
-**Lesson learned 2026-04-29:** mid-run edits to `evaluation/run_pool_sweep.sh` cause the
-running bash process to misread byte offsets when control returns to the loop end (bash
-reads the script lazily for some constructs). This crashed an otherwise-successful sweep
-right before the post-processing step.
-
-**Fix:** add a one-line note to the top of `evaluation/run_pool_sweep.sh`:
-```
-# WARNING: do NOT edit this script while a sweep is running. Bash re-reads
-# the file on loop exit; line-offset shifts cause "syntax error near unexpected
-# token" failures during post-processing. Apply edits between sweeps only.
-```
-
-### P6-DOC-RECOVERY — Document the manifest-merge recovery procedure
-
-The session recovered an aborted sweep by hand-merging two `manifest.tsv` files into
-`evaluation/results/sweep-merged-5blocks/manifest.tsv`, then re-running the existing
-aggregator/renderer. This is a recoverable pattern that's currently undocumented.
-
-**Add to `evaluation/README.md`:** a 10-line "Recovering from an aborted sweep" section
-showing the awk-filter command (`awk -F'\t' 'NR>1 && NF==7 {print}'` for the older
-"0\n0" bug), header preservation, and the two-step aggregate+render commands. Reference
-implementation: see git log for `evaluation/results/sweep-merged-5blocks/` creation.
-
----
-
-## 🔴 Needs a decision before fixing
-
-### D1 — `spotify_metadata.py` violates "Spotify in playlist.py only"
-**Rule:** `AGENTS.md` / `CLAUDE.md` both mandate all Spotify API calls in `core/src/playlist.py` only.
-`core/src/spotify_metadata.py` hits `https://accounts.spotify.com/api/token` and
-`https://api.spotify.com/v1/...` via `urllib` independently.
-
-**Options:**
-- Move the module's public helpers (`search_*`, `get_*_metadata`, `get_client_credentials_token`)
-  into `playlist.py` (or an explicitly allowed sibling). ← recommended
-- Document the deviation as an authorised exception in `CLAUDE.md` / `AGENTS.md`.
-
----
-
-### D2 — `TechnicalManual.md` + `UserManual.md` describe removed RAG config constants
-Several docs claim config constants that do **not** exist in `config.py`:
-`RAG_ENABLED`, `RAG_CORPUS_PATH`, `RAG_POOL_SIZE`, `RAG_POPULARITY_PENALTY`,
-`RAG_STRATIFIED`, `RAG_FACET_WEIGHTS`, `RAG_MANIFEST_URL`, `BATCH_SIZE_WITH_RAG`,
-`get_effective_batch_size()`.
-
-The same false claim appears in:
-- `documentation/TechnicalManual.md` lines ~254–292 ("RAG candidate-pool feature" section)
-- `documentation/UserManual.md` lines 174–178 ("Local LLM note")
-- `documentation/help.en.md` line ~607
-- `documentation/help.de.md` line ~610
-
-**Question:** Were these constants intentionally removed (docs are wrong → rewrite to match
-staged-pipeline reality) or accidentally lost (code is wrong → restore constants)?
-Only `RETRIEVE_CANDIDATES_SIZE = 40` survives in `config.py`.
-
 ---
 
 ## 🟡 Should-fix — no decision needed, just work
+
+### S14 — "Connect to Spotify" should clear stale cache before OAuth round (2026-04-30)
+`get_spotify_auth_url()` / the callback handler (`core/src/playlist.py:267-279`) do
+not call `disconnect_spotify()` before kicking off a new OAuth flow. If a stale
+`.spotify-cache` exists (e.g. minted under a different client_id, or a revoked
+refresh_token), spotipy reads it and prefers `grant_type=refresh_token` over
+exchanging the new `authorization_code` — Spotify returns `400 invalid_client`
+and the user sees "Authentication Failed" with no recovery path short of
+manually deleting `%LOCALAPPDATA%/spotyvibe/.spotify-cache`.
+
+Observed 2026-04-30 after a client_id change: every "Connect to Spotify" click
+silently swallowed the fresh auth code because the old cache shadowed it.
+
+**Fix:** call `CACHE_FILE.unlink(missing_ok=True)` at the top of
+`get_spotify_auth_url()` (or expose a "Reconnect" path in the UI that wraps
+`disconnect_spotify()` + `get_spotify_auth_url()`). Add a unit test that
+constructs a fake stale cache, triggers the auth URL, and asserts the cache
+is gone.
+
+**Also fix in code-review pass that introduced this:** `save_credentials()`
+in `config.py` had an undetected `NameError` on the keychain-reload branch
+(line 652: `CREDENTIALS_KEYS` typo, since renamed). The keychain branch had
+zero test coverage. Add a test that calls `save_credentials({"OPENAI_API_KEY":
+"sk-x"})` with `_KEYRING_AVAILABLE=True` and a mocked `_keyring` to exercise
+lines 651-658.
 
 ### S1 — Pre-existing frontend test flake: `ragUpdateTip` toast intercepts pointer events
 Several modal tests fail non-deterministically because the "New artist database available"
@@ -228,11 +145,6 @@ not completing before the `to_be_hidden` assertion. Add a CSS transition overrid
 in `conftest.py` (`page.add_style_tag(content="* { transition: none !important; animation: none !important; }")`)
 or wait for the animation to complete before asserting.
 
-### S3 — `eval_log.py`: `_profile_section_sizes` — `meta.goal` never populated
-`meta_goal_chars` will always be 0 because nothing in the codebase sets `meta.goal`.
-Either remove the field from the telemetry row, or implement the `meta.goal` concept
-(requires a product decision on what "goal" means).
-
 ### S4 — Hardcoded English error strings raised to the UI (i18n sweep)
 Backend exceptions whose messages surface directly in the UI:
 - `playlist.py:840` — 403 reconnect message
@@ -243,21 +155,6 @@ Backend exceptions whose messages surface directly in the UI:
 These should carry an i18n key so the frontend can translate them.
 Pattern: raise a structured error with a `key` attribute + English fallback;
 frontend looks up `i18n(error.key, error.message)`.
-
-### S5 — `dislike_track`: track-level duplicate check missing (only artist-level was fixed)
-Track-level dislikes (`profile["feedback"]["disliked_tracks"]`) have no dedup guard;
-a user can press "dislike" on the same track multiple times and get N identical entries.
-Add the same case-insensitive normalisation used for artist-level rejections.
-
-### S6 — `openai_http.py`: `_NO_TEMPERATURE_MODELS` set is empty — dead branch
-`core/src/openai_http.py` lines ~286–292: the set is always empty (noted in comment).
-The branch is unreachable code. Either remove or move to config so it can actually
-be populated when the next reasoning-tier model arrives.
-
-### S7 — `suggestions.py`: 80-line `_STAGE3_JSON_SCHEMA` is dead code
-Lines ~100–183: the json_schema variant was reverted; the schema and
-`_stage3_response_format()` helper are unreachable. Either delete (use git history
-to retrieve) or add a unit test proving consistency with the live prompt.
 
 ### S8 — Cover the local-LLM auto-downgrade path with a direct unit test
 `openai_http._looks_like_schema_rejection` + `_JSON_SCHEMA_UNSUPPORTED` cache is
@@ -280,24 +177,9 @@ Lines ~295–305: three sequential `rename` calls. If the process is killed betw
 step 2 and step 3, the backup copy is unrecoverable. Add a startup recovery path
 that detects an orphan `*.swap.tmp` and either restores it or warns the user.
 
-### S12 — `_migrate_flat_profiles` runs on every `load_profile` call
-`core/src/profile.py` lines ~76–146: `ensure_profile()` is called on every request;
-it calls `_migrate_flat_profiles()` which globs all `PROFILES_DIR/*.json` each time.
-Add a module-level "already migrated this process" flag.
-
-### S13 — Consolidate `EMPTY_PROFILE` / `TRAINED_PROFILE` constants into one shared module
-`frontend/tests/helpers.py:174–198` and `helpers_integration.py:81–105` define these
-twice with subtle drift risk. Move to `frontend/tests/_shared.py`.
-
 ---
 
 ## 🟢 Nice-to-have / polish
-
-### N1 — `_auth_status_cache` doesn't cache the negative result
-`core/src/playlist.py` lines ~198–204: on failure the cache slot is set to `None`,
-so every failed status poll re-validates the token. With 1 req/sec polling from the
-frontend this is unnecessary network traffic. Cache `"not_authenticated"` with the
-same TTL.
 
 ### N2 — JS `addEventListener` leak in `quickstart-demo.js`
 `frontend/static/js/modules/quickstart-demo.js`: `_openLightbox` adds a `keydown`
@@ -315,14 +197,118 @@ uses `#erste-schritte` while the UI may request `#getting-started`. Normalise al
 three files to use English anchors for stable cross-language deep-linking (`help.jp.md`
 already does this correctly).
 
-### N5 — `analysis.md` is pre-rework (2026-04-21) and superseded by `result-improvement.md`
-Add a one-line banner at the top of `analysis.md`:
-> _Status (2026-04-28): superseded by `result-improvement.md` Phase 2.6 / Scenario decisions. Kept as historical reference._
+---
 
-### N6 — `evaluation/README.md` line 20 says "30-track playlist" but baseline is 15 tracks
-Update to: "Generates a 15-track playlist (configurable via `evaluation/scenario.py`)."
+## 🟠 Needs user action / decision (skip during agent runs — escalate to user)
 
-### N7 — `SKILL.md` `SKILL: git-commit-and-push` section should note the no-auto-commit rule
-Add a prefix: "This procedure is invoked **only** when the user explicitly says 'commit and push'.
-The agent must never initiate it autonomously."
+These items cannot be progressed by the agent alone: they require either a credentials
+action only the user can perform, or a product-level call between two equally-valid
+options. The agent should **not** pick a default; surface them and wait.
 
+### P6-EVAL — Bundle validation eval — BLOCKED on Spotify reconnect & settings.ini update
+
+**Status (2026-04-30):** Eval was run via `POOLS="50" BLOCKS=5 bash run_pool_sweep.sh`
+and produced `evaluation/results/sweep-20260430T112359Z/`, but **every block produced
+0 tracks** — see `report.md` (all `cite_pct = 0`, all `tracks = 0`). Root causes:
+
+1. **Spotify auth is broken.** Every block log (`run_p50_b*.log`) shows
+   `POST /api/token HTTP/1.1 400` with `{error: invalid_client, "Failed to get client"}`
+   followed by `RuntimeError: run_pipeline returned error: Spotify is not connected`.
+   The harness shares the user's real `.spotify-cache`; the refresh token has expired
+   or the client_id/secret pair is no longer accepted.
+2. **`evaluation/settings.ini` is stale.** It still lists
+   `models = gpt-5.5,gpt-5.4,gpt-5.4-mini`. `gpt-5.5` was removed from the supported
+   model list in Phase 2.6 (2026-04-28) and now raises `OpenAIUnsupportedModelError`.
+   The pass criteria below mention 4 models; the current config only attempts 3 and
+   never gpt-4.1 / gpt-4.1-mini.
+
+**Required user actions before re-running:**
+
+1. **Reconnect Spotify.** Run `python app.py`, click "Connect to Spotify",
+   complete the OAuth handshake. This refreshes `%LOCALAPPDATA%/spotyvibe/.spotify-cache`
+   which the eval harness reuses. (See `evaluation/README.md` § "First-run prerequisites".)
+2. **Decide the model set for this validation run** and update
+   `evaluation/settings.ini` `[evaluation] models = ...` accordingly. The pass criteria
+   below assume **4 models**: `gpt-5.4,gpt-5.4-mini,gpt-4.1,gpt-4.1-mini` (drop gpt-5.5).
+
+After both, re-run the validation:
+```bash
+cd /c/git/spotyvibe/evaluation
+POOLS="50" BLOCKS=5 bash run_pool_sweep.sh
+```
+Expected wall-clock: ~75 min (5 runs × ~7 min eval + 8-min cooldowns).
+
+**Pass criteria** (compare against `sweep-merged-5blocks/summary.csv` for `gpt-5.4-mini @ pool=50`):
+- Mean `cite_pct` Δ ≥ −1 pp on every model (baseline: gpt-5.4-mini 88.0%, gpt-5.4 98.7%, gpt-4.1-mini 82.7%, gpt-4.1 62.7%)
+- `found_pct` ≥ 95% every cell (baseline: 100% on 58/60 rows)
+- Playlist completion ≥ 95% of `playlist_size` (15)
+- Total `cost` $/playlist ≈ $0.018 for `gpt-5.4-mini @ pool 50` (baseline $0.0288, predicted ~37% reduction)
+- New `cached_tokens / prompt_tokens` ≥ 0.4 in `eval.jsonl` for cloud models (validates Phase 2.5 §T1.3 prefix caching survived L8's template-line strip)
+
+**Fail handling:**
+- If cite-rate drops > 1 pp on any model → check L8 first (template strip may have broken prefix-cache invariance — `cached_tokens` will be < expected).
+- If completion < 95% → revert L11 by setting `STAGE3_OVER_REQUEST = 5` in `config.py:51` and re-run.
+- If Stage 2 starts approving fewer artists → check `app.py:862` is correctly passing `pool_avoid_overlap`; in `eval.jsonl` look for rows with `kind: "stage2_summary"` and `status: "skipped_no_overlap"` (should appear on every run).
+
+**Where the bundle changes are** (for revert if needed):
+- `core/src/eval_log.py` — L16 `cached_tokens` extraction (~line 372)
+- `core/src/suggestions.py` — L8 template-line strip (~line 1235), L11 `STAGE3_OVER_REQUEST` (~line 1185), L1 `skipped_no_overlap` status (~line 1058)
+- `core/src/rag/retrieval.py` — L1 `_LAST_RETRIEVAL_META` + `get_last_retrieval_meta()` (top + ~line 605)
+- `app.py` — L1 wires `pool_avoid_overlap` into `check_avoid_compliance` (~line 862)
+- `config.py:51` — L11 `STAGE3_OVER_REQUEST = 2`
+
+---
+
+## ✅ Completed in session 2026-04-30
+
+- **D1** — deleted `core/src/spotify_metadata.py` (~470 LOC) and `core/tests/test_spotify_metadata.py` (~330 LOC) after confirming zero production callers. Cleaned the two doc references in `TechnicalManual.md:229` and `ProjectLayout.md:36`. Test count drops from 626 → 597 (29 spotify_metadata tests removed). Restores the single-chokepoint rule (all live Spotify calls now go through `core/src/playlist.py`).
+- **P6-FRONTEND-CORRUPTION** — verified: `test_edge_cases.py` and `test_page_load.py` already match `HEAD` and parse cleanly. Likely fixed in a prior session; no checkout needed.
+- **D2** — investigation found the original TODO was inaccurate: most listed constants (`RAG_ENABLED`, `RAG_CORPUS_PATH`, `RAG_POOL_SIZE`, `RAG_POPULARITY_PENALTY`, `RAG_STRATIFIED`, `RAG_FACET_WEIGHTS`, `RAG_MANIFEST_URL`) DO exist in `config.py` and are used; only `BATCH_SIZE_WITH_RAG` and `get_effective_batch_size()` are truly dead (per `result-improvement.md` they were never shipped). Removed dead-name references and fixed `RAG_POOL_SIZE` value drift (docs claimed 100, code has 60) across `TechnicalManual.md`, `UserManual.md`, `help.en.md`, `help.de.md`, `help.jp.md`.
+- **S3** — judgement call: `meta.goal` IS populated end-to-end (the LLM training prompt instructs the model to set it; `profile.py:440` validates it as a string). The `meta_goal_chars` telemetry was already correctly removed in the 2026-04-28 fix. Cleaned up stale comments in `eval_log.py` that still implied the field was broken.
+- **S7** — removed the dead `_STAGE3_JSON_SCHEMA` constant (~50 LOC) and `_stage3_response_format()` helper from `core/src/suggestions.py`; tightened the call-site comment. Updated `result-improvement.md` to note the removal (recover via git history if a future experiment needs them).
+- **P6-DOC-SCRIPT-MIDRUN-EDIT** — added warning header to `evaluation/run_pool_sweep.sh`.
+- **P6-DOC-RECOVERY** — added "Recovering from an aborted sweep" section to `evaluation/README.md`.
+- **N5** — superseded banner added to `analysis.md`.
+- **N6** — `evaluation/README.md` 30-track → 15-track fix.
+- **N7** — `SKILL.md` git-commit-and-push: prefixed with no-auto-commit reminder.
+- **S5** — `dislike_track`: case-insensitive (artist, track) dedup on track-level dislike.
+- **S6** — `_NO_TEMPERATURE_MODELS` moved to `config.OPENAI_NO_TEMPERATURE_MODELS`.
+- **S12** — `_migrate_flat_profiles`: path-keyed `_MIGRATED_DIRS` cache; one glob per process per profiles dir.
+- **S13** — `EMPTY_PROFILE` / `TRAINED_PROFILE` consolidated into `frontend/tests/_shared.py`; helpers re-export.
+- **N1** — `_auth_status_cache` now caches negative results (`not_configured`, `not_authenticated`) with the same TTL.
+
+
+## A1. User feedback of current implementation state
+
+Results are unacceptable. Multiple improvement iterations failed. See C:\Users\micha\AppData\Local\spotyvibe\debug. Hitrate is abysmal. A full rework is required.
+
+RAG severely degraded recommendation quality. Prompt changes and prompt engineering did not fix it. Evaluation benchmarks are misleading. OpenAI GPT-5.4-mini scored best in tests but failed in production: only 5 songs returned, poor profile matching, multiple instructions ignored.
+
+Current quality is not viable. We invested significant time and effort and the system still fails at a fundamental level.
+
+Removing RAG, Cloud Run, and the entire current infrastructure/workflow must be considered. If quality and cost remain at this level, the product is unusable and should be scrapped. The current system has no viable future.
+
+The provided folder contains:
+
+- user profile
+- prompts
+- disliked tracks
+
+More than 99% of recommendations failed to match the profile or user taste. After profile updates, the next run still recommended previously disliked bands. This is a critical failure in memory, filtering, or retrieval logic.
+
+We need a complete diagnosis of the pipeline:
+
+- retrieval
+- ranking
+- profile handling
+- memory updates
+- prompt injection flow
+- filtering
+- instruction adherence
+
+Collect more data. Add full tracing and observability. Log every stage of the pipeline. Identify exactly where degradation occurs. If possible, capture reasoning/traces from model clients to understand why outputs are failing so severely.
+
+## found bugs
+
+- [] playback stuck. Removed track, but it keeps playing. Other tracks cannot be played because of that. 
+- [] clicking the save button in the settings sometimes takes a while. But the user has no indication that something is happening. Provoking multiple clicks on Save due to that. 

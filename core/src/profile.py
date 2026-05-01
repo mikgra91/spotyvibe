@@ -72,6 +72,12 @@ _UUID_DIR_RE = _re.compile(
     r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
 )
 
+# Set of resolved PROFILES_DIR paths whose flat→subdirectory migration has
+# already completed in this process. Path-keyed (not a single bool) so the
+# eval harness sandbox and pytest tmp_path fixtures — which swap PROFILES_DIR
+# — still trigger migration on first touch of a fresh directory.
+_MIGRATED_DIRS: set[str] = set()
+
 
 def _migrate_flat_profiles():
     """One-time migration: move flat profile files into per-profile subdirectories.
@@ -93,12 +99,20 @@ def _migrate_flat_profiles():
     if not PROFILES_DIR.exists():
         return
 
+    # Skip if we've already swept this directory in this process. ensure_profile()
+    # is called on every request; without this guard we glob PROFILES_DIR/*.json
+    # on every load_profile() / list_profiles() call.
+    dir_key = str(PROFILES_DIR.resolve())
+    if dir_key in _MIGRATED_DIRS:
+        return
+
     # Collect flat profile files (UUID.json, not inside a subdirectory)
     flat_profiles = [
         p for p in PROFILES_DIR.glob("*.json")
         if p.is_file() and _UUID_DIR_RE.match(p.stem)
     ]
     if not flat_profiles:
+        _MIGRATED_DIRS.add(dir_key)
         return
 
     migrated_ids = set()
@@ -144,6 +158,8 @@ def _migrate_flat_profiles():
 
     if migrated_ids:
         _logger.info("Migrated %d profile(s) to subdirectory layout", len(migrated_ids))
+
+    _MIGRATED_DIRS.add(dir_key)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────

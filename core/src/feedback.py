@@ -85,12 +85,24 @@ def dislike_track(artist, track=None, reason=None):
         profile = load_fn()
 
         if track:
-            # Track-level dislike — only record the track, don't reject the whole artist
-            profile["feedback"]["disliked_tracks"].append({
-                "artist": artist,
-                "track": track,
-                "reason": reason
-            })
+            # Track-level dislike — only record the track, don't reject the whole artist.
+            # Compare case-insensitively to avoid duplicate entries from
+            # rapid double-clicks or case-variant artist names. Mirrors the
+            # artist-level dedup pattern below.
+            artist_norm = artist.lower().strip()
+            track_norm = track.lower().strip()
+            existing = {
+                ((e.get("artist") or "").lower().strip(),
+                 (e.get("track") or "").lower().strip())
+                for e in profile["feedback"]["disliked_tracks"]
+                if isinstance(e, dict)
+            }
+            if (artist_norm, track_norm) not in existing:
+                profile["feedback"]["disliked_tracks"].append({
+                    "artist": artist,
+                    "track": track,
+                    "reason": reason
+                })
         else:
             # Artist-level dislike — reject the entire artist.
             # Compare case-insensitively to avoid duplicate entries that

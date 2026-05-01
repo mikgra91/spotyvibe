@@ -151,6 +151,8 @@ git --no-pager show HEAD
 
 ## SKILL: git-commit-and-push
 
+This procedure is invoked **only** when the user explicitly says "commit and push" (or equivalent) in the current message. The agent must never initiate it autonomously — see the absolute rule at the top of `CLAUDE.md`.
+
 When committing and pushing changes, follow this procedure in order:
 
 1. Stage the relevant changed files

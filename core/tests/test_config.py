@@ -236,7 +236,7 @@ class TestEnsureEnv:
         assert settings_file.exists()
         cred_content = cred_file.read_text()
         settings_content = settings_file.read_text()
-        for key in config.CREDENTIAL_KEYS:
+        for key in config.CREDENTIALS_KEYS:
             assert f"{key}=" in cred_content
         for key in config.SETTINGS_KEYS:
             assert f"{key}=" in settings_content

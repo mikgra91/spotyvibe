@@ -151,7 +151,20 @@ OPENAI_SUPPORTED_MODELS_JSON = [
 
 # Optional additional model IDs beyond the curated list.
 # Extend this list to allow custom or preview model IDs.
-OPENAI_EXTRA_ALLOWED_MODELS: list[str] = []
+# `gpt-4o` is tracked here (not in the curated list) as an evaluation
+# candidate — see documentation/ModelRecommendations.md for the canonical
+# 4-model recommendation set.
+OPENAI_EXTRA_ALLOWED_MODELS: list[str] = ["gpt-4o"]
+
+# Reasoning-tier models that reject any explicit `temperature` parameter
+# (even one equal to the default). When such a model is added to
+# OPENAI_SUPPORTED_MODELS_JSON, also add its ID here so chat_completions_create()
+# omits `temperature` from the request payload.
+# Was populated for "gpt-5.5" historically; gpt-5.5 was removed from the
+# supported model list in Phase 2.6 (2026-04-28). Currently empty — kept as a
+# future-proof hook so the next reasoning-tier model can be onboarded
+# without re-discovering this constraint.
+OPENAI_NO_TEMPERATURE_MODELS: set[str] = set()
 
 # Default language for GPT communication (prompts and responses)
 DEFAULT_GPT_LANGUAGE = "English"
@@ -301,7 +314,7 @@ PROMPT_LOG_FILE = _APP_DIR / "prompt.log"      # GPT request/response log (was d
 EVAL_LOG_FILE = _APP_DIR / "eval.jsonl"        # One JSONL row per suggested track for offline analysis
 
 # Secret keys — stored in .credentials
-CREDENTIAL_KEYS = ["OPENAI_API_KEY", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET"]
+CREDENTIALS_KEYS = ["OPENAI_API_KEY", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET"]
 
 # Non-secret keys — stored in settings.conf
 SETTINGS_KEYS = ["OPENAI_MODEL", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE", "GPT_LANGUAGE", "ONBOARDING_COMPLETED", "ACTIVE_PROFILE_ID", "UI_LANGUAGE", "LLM_BASE_URL", "PROVIDER_PRESET", "RAG_ENABLED"]
@@ -310,7 +323,7 @@ SETTINGS_KEYS = ["OPENAI_MODEL", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERC
 MAX_PROFILE_NAME_LEN = 40
 
 # Combined list for backward compatibility
-USER_KEYS = CREDENTIAL_KEYS + SETTINGS_KEYS
+USER_KEYS = CREDENTIALS_KEYS + SETTINGS_KEYS
 
 # Default LLM provider configuration (Wave 4)
 DEFAULT_LLM_BASE_URL = 'https://api.openai.com/v1'
@@ -386,7 +399,7 @@ def ensure_env():
     if _OLD_ENV_FILE.exists() and not CREDENTIALS_FILE.exists():
         _OLD_ENV_FILE.rename(CREDENTIALS_FILE)
 
-    _ensure_file(CREDENTIALS_FILE, CREDENTIAL_KEYS)
+    _ensure_file(CREDENTIALS_FILE, CREDENTIALS_KEYS)
     _ensure_file(SETTINGS_FILE, SETTINGS_KEYS)
 
     # One-time migration: move settings keys from .credentials to settings.conf
@@ -404,7 +417,7 @@ def _migrate_credentials_to_keyring():
     raw = dotenv_values(str(CREDENTIALS_FILE))
     migrated_any = False
 
-    for key in CREDENTIAL_KEYS:
+    for key in CREDENTIALS_KEYS:
         file_val = (raw.get(key) or "").strip()
         if not file_val:
             continue  # nothing to migrate
@@ -455,7 +468,7 @@ def load_config():
 
     # Overlay keyring values — these take precedence over dotenv
     if _KEYRING_AVAILABLE:
-        for key in CREDENTIAL_KEYS:
+        for key in CREDENTIALS_KEYS:
             try:
                 val = _keyring.get_password(_KEYRING_SERVICE, key)
                 if val:
@@ -566,7 +579,7 @@ def get_credentials():
     raw = dotenv_values(str(CREDENTIALS_FILE))
 
     result = {}
-    for key in CREDENTIAL_KEYS:
+    for key in CREDENTIALS_KEYS:
         # Try keyring first, then dotenv
         value = ""
         if _KEYRING_AVAILABLE:
@@ -612,7 +625,7 @@ def save_credentials(credentials):
     _ensure_trailing_newline(CREDENTIALS_FILE)
 
     for key, value in credentials.items():
-        if key in CREDENTIAL_KEYS and value is not None:
+        if key in CREDENTIALS_KEYS and value is not None:
             stored_in_keyring = False
             if _KEYRING_AVAILABLE:
                 try:

@@ -184,12 +184,16 @@ def get_spotify_auth_status():
     client_secret = os.getenv("SPOTIPY_CLIENT_SECRET")
 
     if not client_id or not client_secret:
+        _auth_status_cache["status"] = "not_configured"
+        _auth_status_cache["expires"] = now + _AUTH_STATUS_TTL
         return "not_configured"
 
     try:
         oauth = get_spotify_oauth()
         token = oauth.validate_token(oauth.cache_handler.get_cached_token())
         if not token:
+            _auth_status_cache["status"] = "not_authenticated"
+            _auth_status_cache["expires"] = now + _AUTH_STATUS_TTL
             return "not_authenticated"
 
         # Validate via auth_manager so expired tokens are auto-refreshed
@@ -200,7 +204,8 @@ def get_spotify_auth_status():
         return "authenticated"
     except Exception as e:
         logger.warning("Spotify auth check failed: %s", e)
-        _auth_status_cache["status"] = None
+        _auth_status_cache["status"] = "not_authenticated"
+        _auth_status_cache["expires"] = now + _AUTH_STATUS_TTL
         return "not_authenticated"
 
 

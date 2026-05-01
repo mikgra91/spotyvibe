@@ -33,7 +33,6 @@ spotyvibe/
 │   ├── feedback.py                # Like/dislike recording
 │   ├── history.py                 # Run history persistence
 │   ├── analysis.py                # Band/artist analysis
-│   ├── spotify_metadata.py        # Spotify metadata enrichment (client-credentials path)
 │   ├── taste.py                   # Taste aggregation for dashboard
 │   ├── localised_docs.py          # Language-aware Markdown resolver (en/de/jp fallback)
 │   ├── eval_log.py                # Per-batch / per-run eval telemetry rows

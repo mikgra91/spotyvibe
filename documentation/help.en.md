@@ -606,7 +606,7 @@ In Advanced mode, a **Preset** dropdown at the top lets you save and recall comp
 
 > **Artist coverage note:** SpotyVibe's offline artist corpus (the optional **Candidate pool (RAG)** in Settings) only includes acts that started in the **1960s or later**. Pre-1960s music is intentionally excluded — its share of typical SpotyVibe listening is small and dropping it keeps the index lean. The same note appears as a tooltip (ⓘ) next to the toggle in Settings.
 
-> **Local LLM note:** With RAG enabled the prompt grows to ~6–9 k tokens. SpotyVibe automatically halves the per-call batch (5 instead of 10) so the conversation fits most local-model context windows, which means roughly twice as many "Batch N…" progress lines per run. If you use a small-context local model (4 k or 8 k tokens) and quality drops, disable RAG in Settings or switch to a 16 k+ context model — RAG was designed for hosted GPT-4-class models.
+> **Local LLM note:** With RAG enabled the prompt typically grows to ~4–6 k tokens (60-slot pool + profile + history + JSON output). If you use a small-context local model (4 k or 8 k tokens) and quality drops, disable RAG in Settings, lower `RAG_POOL_SIZE`, or switch to a 16 k+ context model — RAG was designed for hosted GPT-4-class models.
 
 ---
 

@@ -1,5 +1,7 @@
 # Cloud Run × SpotyVibe — Synergy & Cost Analysis
 
+> _Status (2026-04-28): superseded by `result-improvement.md` Phase 2.6 / Scenario decisions. Kept as historical reference._
+
 **Date:** 2026-04-21
 **Source domain:** `cloud.run` → redirects to `cloud.google.com/run/` (it *is* Google Cloud Run)
 **Scope:** Evaluate whether Cloud Run could host (a) the Flask backend, (b) a self-hosted LLM, or (c) auxiliary backend services for SpotyVibe, and what that would cost.

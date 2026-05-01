@@ -173,9 +173,8 @@ SpotyVibe's offline artist corpus (the optional **Candidate pool (RAG)** in Sett
 
 If you point SpotyVibe at a **local LLM** (Ollama, LM Studio, …) with a small context window (4 k or 8 k tokens), keep these limits in mind:
 
-- The candidate pool adds ~1.2 k tokens to every prompt. With a 100-slot pool, profile, history and JSON output the conversation typically lands at **6–9 k tokens**.
-- SpotyVibe automatically shrinks the per-call batch to 5 tracks when RAG is on (versus 10 when RAG is off) so the prompt stays within most local-model windows. You will see **about twice as many "Batch N…" progress messages** during a run with RAG on — this is expected.
-- If your local model still truncates the prompt, **disable RAG** (Settings → Candidate pool) or switch to a 16 k+ context model. The RAG feature was designed for hosted GPT-4-class models; smaller open-weight models also tend to ignore the pool more often, so the quality uplift may not justify the extra tokens.
+- The candidate pool adds ~700 tokens to every prompt. With a 60-slot pool, profile, history and JSON output the conversation typically lands at **4–6 k tokens**.
+- If your local model truncates the prompt, **disable RAG** (Settings → Candidate pool), lower `RAG_POOL_SIZE`, or switch to a 16 k+ context model. The RAG feature was designed for hosted GPT-4-class models; smaller open-weight models also tend to ignore the pool more often, so the quality uplift may not justify the extra tokens.
 
 ### Playlist mode
 

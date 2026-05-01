@@ -17,7 +17,7 @@ For each model in `[evaluation] models` (settings.ini):
 1. Creates a fresh profile in an isolated sandbox app dir.
 2. Trains the profile from the canonical seed in `scenario.py`.
 3. Runs Band/Song Analysis on a fixed target.
-4. Generates a 30-track playlist (Stage 1 retrieval → Stage 2 mini-LLM → Stage 3 selection → Spotify verify).
+4. Generates a 15-track playlist, configurable via `evaluation/scenario.py` (Stage 1 retrieval → Stage 2 mini-LLM → Stage 3 selection → Spotify verify).
 5. Pushes the result to a `[EVAL] {model} {ts}` Spotify playlist.
 6. Applies a deterministic 5-likes / 3-dislikes pattern.
 7. Re-runs `train_profile` to absorb the feedback.
@@ -96,6 +96,29 @@ COOLDOWN=180 BLOCKS=1 POOLS="32 40 48" bash evaluation/run_pool_sweep.sh
 ```
 
 After the sweep completes, point an AI agent at `<sweep-dir>/report.md` and `summary.csv` to drill into per-model patterns or noise floors.
+
+## Recovering from an aborted sweep
+
+If a sweep aborts after some blocks have completed (Spotify 429 cascade, mid-run script edit, hard kill, etc.), the per-run `eval.jsonl` files in `evaluation/results/<run-ts>/` are still good. You can hand-merge two or more sweep `manifest.tsv` files into a single `sweep-merged-*/manifest.tsv` and re-run the aggregator + renderer over the merged set:
+
+```bash
+# 1. Make a fresh merge directory.
+mkdir -p evaluation/results/sweep-merged-Nblocks
+
+# 2. Merge manifests: keep one header, filter out malformed rows
+#    (older harness sometimes wrote literal "0\n0" instead of an int — drop those).
+head -n 1 evaluation/results/sweep-<ts1>/manifest.tsv > evaluation/results/sweep-merged-Nblocks/manifest.tsv
+awk -F'\t' 'NR>1 && NF==7 {print}' \
+  evaluation/results/sweep-<ts1>/manifest.tsv \
+  evaluation/results/sweep-<ts2>/manifest.tsv \
+  >> evaluation/results/sweep-merged-Nblocks/manifest.tsv
+
+# 3. Re-aggregate + re-render against the merged manifest.
+python evaluation/_aggregate_sweep.py evaluation/results/sweep-merged-Nblocks
+python evaluation/_render_sweep_report.py evaluation/results/sweep-merged-Nblocks
+```
+
+Reference implementation: `evaluation/results/sweep-merged-5blocks/` (Phase 6.0, 2026-04-29) was built by hand-merging two earlier 3-block sweeps after a 429 abort. See git log on that directory for the exact merge commands used.
 
 ## Output
 

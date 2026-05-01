@@ -97,91 +97,6 @@ def get_last_prompt_components() -> dict | None:
     return _LAST_PROMPT_COMPONENTS
 
 
-# OPEN-3 (2026-04-28): strict json_schema for the Stage 3 selector. Only
-# the fields downstream code consumes are required — this matches the
-# documented worked example in track_select_system.txt and forbids the
-# common schema-collapse shapes (missing track, missing rationale,
-# missing reasoning block).  Optional/cosmetic fields (energy, valence,
-# genres, reason) intentionally omitted to keep additionalProperties
-# strict without bloating the constraint.  When the model rejects this
-# shape, openai_http auto-downgrades to {"type": "json_object"} once
-# per (process, model) pair and the prompt-side schema instructions
-# remain authoritative.
-_STAGE3_JSON_SCHEMA: dict = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["reasoning", "playlist"],
-    "properties": {
-        "reasoning": {
-            "type": "object",
-            "additionalProperties": False,
-            "required": [
-                "seed_interpretation", "pool_assessment",
-                "selection_strategy", "omitted_artists",
-                "constraints_evaluated",
-            ],
-            "properties": {
-                "seed_interpretation": {"type": "string"},
-                "pool_assessment": {"type": "string"},
-                "selection_strategy": {"type": "string"},
-                "omitted_artists": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                },
-                "constraints_evaluated": {"type": "string"},
-            },
-        },
-        "playlist": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["artist", "track", "rationale"],
-                "properties": {
-                    "artist": {"type": "string"},
-                    "track": {"type": "string"},
-                    "rationale": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "required": ["type", "arg"],
-                            "properties": {
-                                "type": {"type": "string"},
-                                "arg": {"type": "string"},
-                            },
-                        },
-                    },
-                },
-            },
-        },
-    },
-}
-
-
-def _stage3_response_format() -> dict:
-    """Return the response_format dict for Stage 3.
-
-    Cloud OpenAI: strict json_schema (auto-downgrades to json_object on
-    400 reject — see openai_http.chat_completions_create).
-    Local providers: json_object (most don't honour json_schema yet).
-    """
-    try:
-        from config import LOCAL_PRESETS, get_llm_provider_preset
-        if get_llm_provider_preset() in LOCAL_PRESETS:
-            return {"type": "json_object"}
-    except Exception:  # pragma: no cover — defensive
-        pass
-    return {
-        "type": "json_schema",
-        "json_schema": {
-            "name": "stage3_track_selection",
-            "strict": True,
-            "schema": _STAGE3_JSON_SCHEMA,
-        },
-    }
-
-
 logger = logging.getLogger(__name__)
 
 # Paths resolved from the package root using pathlib — immune to os.chdir()
@@ -1356,10 +1271,8 @@ def select_tracks(
         messages=messages,
         temperature=temperature,
         # OPEN-3 (2026-04-28): json_schema variant evaluated and reverted —
-        # measured cost regression (+80% on gpt-5.4, +89% on gpt-5.4-mini) and
-        # quality regression on must-have cite. The _stage3_response_format()
-        # helper and json_schema constant are kept available for future
-        # experiments, but production calls use plain json_object as before.
+        # measured +80% cost on gpt-5.4, +89% on gpt-5.4-mini, with a
+        # quality regression on must-have cite. Stage 3 uses plain json_object.
         response_format={"type": "json_object"},
     )
     latency_s = _time.monotonic() - _t0

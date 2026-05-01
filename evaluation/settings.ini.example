@@ -21,7 +21,10 @@ redirect_uri = http://127.0.0.1:5000/callback
 [evaluation]
 # Comma-separated list of OpenAI model IDs to evaluate. Each model gets
 # its own profile + playlist + AI Profile Update cycle.
-models = gpt-5.5,gpt-5.4,gpt-5.4-mini
+# The 4 tracked models from documentation/ModelRecommendations.md, plus
+# gpt-4o as a candidate awaiting first measurement.
+# gpt-5.5 was removed in Phase 2.6 (reasoning-tier — wrong tool for this workload).
+models = gpt-5.4,gpt-5.4-mini,gpt-4.1,gpt-4.1-mini,gpt-4o
 
 # Number of full cycles per model. Start with 1; bump to 3+ if you want
 # averaging to smooth out single-run variance.
