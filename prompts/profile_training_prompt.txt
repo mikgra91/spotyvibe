@@ -26,9 +26,50 @@ Ambiguous? Prefer stronger classification (must_have > soft_preferences). Split 
 
 PROFILE SCHEMA:
 - meta.goal: one-sentence summary
-- preferences: core_description, must_have[], soft_preferences[], avoid[]
+- preferences: core_description, must_have[], must_have_tags[], corpus_tag_hints[], soft_preferences[], avoid[]
 - artists: confirmed[], moderate[{name, note}], rejected[{name, reason}]
 - taste_rules: primary_driver (e.g. "melody > energy > style"), dealbreaker_priority[]
+
+MUST_HAVE_TAGS (F1, 2026-05-01): a strict-filter companion to
+must_have. For each must_have entry that expresses a HARD requirement
+(language, country, era constraint), emit one or more lower-case
+short tags drawn from common music-genre / music-attribute
+vocabulary that an artist-tag database would actually carry.
+Examples:
+  must_have entry "Music must be Japanese" → must_have_tags: ["japanese", "j-pop", "j-rock"]
+  must_have entry "Female vocals only"     → must_have_tags: ["female vocals"]
+  must_have entry "Punchy guitars"         → []  (subjective, not a hard tag)
+  must_have entry "Modern production"      → []  (subjective)
+Rules:
+  - Be conservative. Empty list is the right answer when the must_have
+    prose is subjective ("uplifting", "theatrical", "polished") rather
+    than a hard categorical filter.
+  - Tags must be short (1-3 words), lower-case, music-domain.
+  - Multiple tags are fine when the same hard concept has standard
+    aliases (Japanese → japanese, j-pop, j-rock).
+  - Do NOT invent tags for soft_preferences entries.
+
+CORPUS_TAG_HINTS (Bridge, 2026-05-01): a SOFT query-expansion
+companion that bridges the user's subjective vocabulary to the
+artist-tag corpus's actual vocabulary. For every subjective descriptor
+in must_have or soft_preferences (theatrical, uplifting, quirky,
+cinematic, anthemic, melancholic, etc.), emit the closest 2-5
+corpus-vocabulary tags that artists in that style are likely to
+actually carry. Used to BOOST candidate retrieval, not to filter.
+Examples:
+  must_have "modern theatrical pop-rock"  → corpus_tag_hints: ["adventure rock", "progressive rock", "rock opera", "art rock"]
+  soft "anime soundtrack adjacency"       → corpus_tag_hints: ["anime", "anison", "video game music"]
+  soft "cinematic flourishes"             → corpus_tag_hints: ["soundtrack", "score", "orchestral"]
+  must_have "uplifting energy"            → corpus_tag_hints: ["uplifting", "feel-good"]
+Rules:
+  - Tags must be short (1-3 words), lower-case, drawn from common
+    music-genre / scene / mood vocabulary.
+  - Empty list is fine when nothing is subjective (the user already
+    wrote concrete genre names).
+  - Same tag can appear in must_have_tags AND corpus_tag_hints — the
+    retrieval code distinguishes their roles (hard vs soft).
+  - Conservative is better than broad. 5+ tags per descriptor risks
+    diluting the query with generic "rock" / "pop" matches.
 
 DO NOT MODIFY (copy as-is): last_updated, history.*, feedback.*
 

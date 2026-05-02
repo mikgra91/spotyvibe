@@ -120,6 +120,14 @@ _REGRESSION_SEED: dict[str, str] = {
         "Uplifting Japanese theatrical music with harmonized vocals "
         "and modern production. No screaming. Music must be Japanese."
     ),
+    # F1 (2026-05-01): "Music must be Japanese" is the load-bearing
+    # hard constraint. The training LLM is expected to translate this
+    # prose into ``preferences.must_have_tags = ["japanese", "j-pop",
+    # "j-rock"]`` per the MUST_HAVE_TAGS instruction in
+    # prompts/profile_training_prompt.txt; the eval verifies that
+    # translation actually happens by inspecting the post-train
+    # profile and by checking that playlist B contains no American
+    # artists.
     "must_have": (
         "Uplifting music; harmonized vocals; no screaming; "
         "Music must be Japanese"

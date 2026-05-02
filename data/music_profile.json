@@ -7,6 +7,8 @@
   "preferences": {
     "core_description": "",
     "must_have": [],
+    "must_have_tags": [],
+    "corpus_tag_hints": [],
     "soft_preferences": [],
     "avoid": []
   },

@@ -312,6 +312,368 @@ def test_retrieve_meta_traits_fully_covered_when_all_resolve(retrieve_corpus):
     assert meta["avoid_traits_fully_covered"] is True
 
 
+# ── F2 (2026-05-01): avoid tokenizer (era stops, aliases, negation) ─
+
+class TestAvoidTokenizer:
+    """Pin the F2 tokenizer rules so a future refactor cannot
+    silently re-break the avoid pipeline. See `context/claudeAnalyse.md`
+    F2 for the production failure documented here."""
+
+    def test_query_source_drops_era_tokens(self):
+        from core.src.rag.retrieval import _extract_text_tokens
+        # Default source="query" keeps existing behaviour — era stops
+        # are dropped because they pollute must-have prose.
+        toks = _extract_text_tokens("80s production style")
+        assert "80s" not in toks
+        assert "production" not in toks
+
+    def test_avoid_source_preserves_era_tokens(self):
+        from core.src.rag.retrieval import _extract_text_tokens
+        toks = _extract_text_tokens("80s production style", source="avoid")
+        assert "80s" in toks
+        assert "production" in toks
+        assert "style" in toks
+
+    def test_avoid_source_drops_negated_words(self):
+        """`not uplifting` must NOT add `uplifting` to the avoid set —
+        otherwise it collides with a must-have entry of `Uplifting
+        music` the user wrote elsewhere."""
+        from core.src.rag.retrieval import _extract_text_tokens
+        toks = _extract_text_tokens(
+            "Songs that are not uplifting", source="avoid",
+        )
+        assert "uplifting" not in toks
+        # Other words still surface so the avoid prose isn't a no-op
+        # entirely — `songs` is in the stop list, but multi-word
+        # context shouldn't break.
+        assert all("uplifting" != t for t in toks)
+
+    def test_avoid_source_drops_no_prefix_negation(self):
+        from core.src.rag.retrieval import _extract_text_tokens
+        toks = _extract_text_tokens("no screaming", source="avoid")
+        assert "screaming" not in toks
+
+    def test_query_source_keeps_negated_words_as_unigrams(self):
+        """Query path doesn't apply negation — historical behaviour."""
+        from core.src.rag.retrieval import _extract_text_tokens
+        toks = _extract_text_tokens("Songs that are not uplifting")
+        # `uplifting` survives in query path (legacy semantics)
+        assert "uplifting" in toks
+
+
+class TestFallbackAliases:
+    def test_synthesizers_resolves_to_electronic(self, retrieve_corpus):
+        """Corpus has `electronic` (well-tagged); fallback maps the
+        plural form so users writing `excessive synthesizers` reach
+        a real corpus tag."""
+        # retrieve_corpus's _RETRIEVE_ARTISTS doesn't include
+        # `electronic` tag — build a tiny corpus that does.
+        import gzip
+        import tempfile
+        from pathlib import Path
+        from core.src.rag.corpus import RagCorpus
+        from core.src.rag.retrieval import _resolve_with_fallback
+
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "artists.jsonl.gz"
+            with gzip.open(path, "wt", encoding="utf-8") as fh:
+                fh.write(json.dumps({
+                    "mbid": "e1", "name": "Synth Band",
+                    "tags": ["electronic"], "tag_weights": [8],
+                    "listener_popularity": 0.4,
+                }) + "\n")
+            tiny = RagCorpus.load(path)
+            assert _resolve_with_fallback(tiny, "synthesizers") == "electronic"
+            assert _resolve_with_fallback(tiny, "synth") == "electronic"
+            # Unknown token returns the input unchanged.
+            assert _resolve_with_fallback(tiny, "totallymadeupword") == "totallymadeupword"
+
+
+# ── Bridge (2026-05-01): corpus_tag_hints soft-query expansion ───────
+
+class TestCorpusTagHints:
+    """Bridge translates subjective user vocabulary (theatrical,
+    uplifting) to corpus-vocabulary tags (adventure rock, progressive
+    rock) at LLM-train time. Retrieval reads them as weighted query
+    tokens at 1.5 — between must-have (2.0) and soft (1.0). See
+    `corpus_analysis.md` Implementation plan."""
+
+    def test_hints_contribute_weighted_tokens(self):
+        """A profile with subjective must_have prose AND
+        corpus_tag_hints translation must produce a query that
+        carries both. Pin the exact weight so a future re-tune is
+        deliberate."""
+        from core.src.rag.retrieval import build_query_tags
+        profile = {
+            "preferences": {
+                "must_have": ["modern theatrical pop-rock"],
+                "corpus_tag_hints": [
+                    "adventure rock", "progressive rock", "rock opera",
+                ],
+            }
+        }
+        query = build_query_tags(profile)
+        # Hint tokens reach the query
+        assert "adventure rock" in query
+        assert "progressive rock" in query
+        assert "rock opera" in query
+        # Weighted at 1.5 (multi-word compound boost applies on top)
+        assert query["adventure rock"] >= 1.5
+        # Must-have prose still produces its own tokens at 2.0+
+        assert any(k for k, v in query.items() if v >= 2.0)
+
+    def test_hints_below_must_have_weight(self):
+        """A direct must-have token must outrank the same token added
+        only as a hint — pin the weight ordering."""
+        from core.src.rag.retrieval import build_query_tags
+        prof_must_have = {
+            "preferences": {
+                "must_have": ["adventure rock"],
+                "corpus_tag_hints": [],
+            }
+        }
+        prof_hint_only = {
+            "preferences": {
+                "must_have": ["polished rock"],
+                "corpus_tag_hints": ["adventure rock"],
+            }
+        }
+        q1 = build_query_tags(prof_must_have)
+        q2 = build_query_tags(prof_hint_only)
+        assert q1["adventure rock"] > q2["adventure rock"]
+
+    def test_no_hints_disables_bridge(self):
+        """Profile without corpus_tag_hints (back-compat) keeps the
+        legacy query weights."""
+        from core.src.rag.retrieval import build_query_tags
+        profile = {"preferences": {"must_have": ["indie rock"]}}
+        # Should not raise; should not include any non-must-have token
+        # at the hint weight.
+        query = build_query_tags(profile)
+        assert "indie rock" in query
+
+    def test_hints_string_form_accepted(self):
+        """Schema permits list[str] but a single bare string should
+        still ingest cleanly — same convention as must_have/avoid
+        elsewhere in the codebase."""
+        from core.src.rag.retrieval import build_query_tags
+        profile = {
+            "preferences": {
+                "corpus_tag_hints": "adventure rock",
+            }
+        }
+        query = build_query_tags(profile)
+        assert "adventure" in query or "adventure rock" in query
+
+
+# ── F1 (2026-05-01): hard must-have gate ─────────────────────────────
+
+class TestMustHaveGate:
+    """Pin the F1 hard pre-filter so a future schema or retrieval
+    refactor cannot silently regress to soft-scoring-only behaviour
+    the production code had before. See `context/claudeAnalyse.md` F1."""
+
+    def _build_corpus(self, tmp_path):
+        """Mixed-language corpus for hard-filter exercise."""
+        import gzip
+        from core.src.rag.corpus import RagCorpus
+        path = tmp_path / "artists_mh.jsonl.gz"
+        with gzip.open(path, "wt", encoding="utf-8") as fh:
+            for i in range(8):
+                fh.write(json.dumps({
+                    "mbid": f"j{i}", "name": f"J Artist {i}",
+                    "tags": ["japanese", "j-pop"],
+                    "tag_weights": [9, 7],
+                    "listener_popularity": 0.5,
+                }) + "\n")
+            for i in range(4):
+                fh.write(json.dumps({
+                    "mbid": f"a{i}", "name": f"American Artist {i}",
+                    "tags": ["american", "rock"],
+                    "tag_weights": [9, 9],
+                    "listener_popularity": 0.5,
+                }) + "\n")
+        return RagCorpus.load(path)
+
+    def test_resolve_must_have_tags_canonicalises(self, tmp_path):
+        from core.src.rag.retrieval import _resolve_must_have_tags
+        corpus = self._build_corpus(tmp_path)
+        profile = {"preferences": {"must_have_tags": ["japanese", "j-pop"]}}
+        canonical, total, covered = _resolve_must_have_tags(corpus, profile)
+        assert "japanese" in canonical
+        assert "j-pop" in canonical
+        assert total == 2
+        assert covered == 2
+
+    def test_resolve_must_have_tags_fallback_alias(self, tmp_path):
+        """`jpop` (no hyphen) resolves through the F2 fallback alias to
+        the corpus's `j-pop` tag."""
+        from core.src.rag.retrieval import _resolve_must_have_tags
+        corpus = self._build_corpus(tmp_path)
+        profile = {"preferences": {"must_have_tags": ["jpop"]}}
+        canonical, total, covered = _resolve_must_have_tags(corpus, profile)
+        assert canonical == {"j-pop"}
+        assert covered == 1
+
+    def test_resolve_must_have_tags_unindexed_does_not_resolve(self, tmp_path):
+        from core.src.rag.retrieval import _resolve_must_have_tags
+        corpus = self._build_corpus(tmp_path)
+        profile = {"preferences": {"must_have_tags": ["totallymadeup"]}}
+        canonical, total, covered = _resolve_must_have_tags(corpus, profile)
+        assert canonical == set()
+        assert total == 1
+        assert covered == 0
+
+    def test_resolve_must_have_tags_empty_safe(self, tmp_path):
+        from core.src.rag.retrieval import _resolve_must_have_tags
+        corpus = self._build_corpus(tmp_path)
+        for raw in (None, "", [], {"foo": "bar"}):
+            canonical, total, covered = _resolve_must_have_tags(
+                corpus, {"preferences": {"must_have_tags": raw}},
+            )
+            assert canonical == set() and total == 0 and covered == 0
+
+    def test_gate_drops_artists_lacking_must_have_tag(self, tmp_path):
+        """Load-bearing assertion: with must_have_tags=[japanese,j-pop,
+        j-rock], the gate must HARD-drop American artists before
+        scoring, even though they tag-overlap with the soft
+        preferences."""
+        from core.src.rag.retrieval import retrieve_candidates
+        corpus = self._build_corpus(tmp_path)
+        profile = {
+            "preferences": {
+                "must_have": ["Japanese music"],
+                "must_have_tags": ["japanese", "j-pop", "j-rock"],
+                "soft_preferences": ["rock"],
+                "avoid": [],
+            }
+        }
+        result = retrieve_candidates(corpus, profile, target_size=8)
+        names = {a.name for a in result}
+        assert all("American" not in n for n in names)
+        assert any("J Artist" in n for n in names)
+
+    def test_gate_bypasses_when_too_aggressive(self, tmp_path):
+        """When must_have_tags would shrink the pool below threshold,
+        the gate is bypassed with a warning so the run can still
+        produce candidates. Pin the bypass behaviour."""
+        import gzip
+        from core.src.rag.corpus import RagCorpus
+        from core.src.rag.retrieval import retrieve_candidates, get_last_retrieval_meta
+
+        path = tmp_path / "thin.jsonl.gz"
+        with gzip.open(path, "wt", encoding="utf-8") as fh:
+            fh.write(json.dumps({
+                "mbid": "j1", "name": "Lone Japanese",
+                "tags": ["japanese"], "tag_weights": [8],
+                "listener_popularity": 0.5,
+            }) + "\n")
+            for i in range(15):
+                fh.write(json.dumps({
+                    "mbid": f"a{i}", "name": f"Rocker {i}",
+                    "tags": ["rock"], "tag_weights": [8],
+                    "listener_popularity": 0.5,
+                }) + "\n")
+        thin_corpus = RagCorpus.load(path)
+        profile = {
+            "preferences": {
+                "must_have": ["Japanese music"],
+                "must_have_tags": ["japanese"],
+                "soft_preferences": ["rock"],
+                "avoid": [],
+            }
+        }
+        result = retrieve_candidates(thin_corpus, profile, target_size=10)
+        meta = get_last_retrieval_meta()
+        assert meta["must_have_filter_applied"] is False
+        assert len(result) > 1
+
+    def test_meta_reports_must_have_coverage(self, tmp_path):
+        from core.src.rag.retrieval import retrieve_candidates, get_last_retrieval_meta
+        corpus = self._build_corpus(tmp_path)
+        profile = {
+            "preferences": {
+                "must_have_tags": ["japanese", "totallymadeup"],
+                "soft_preferences": ["rock"],
+                "avoid": [],
+            }
+        }
+        retrieve_candidates(corpus, profile, target_size=5)
+        meta = get_last_retrieval_meta()
+        assert meta["must_have_total"] == 2
+        assert meta["must_have_covered"] == 1
+        assert meta["must_have_filter_applied"] is True
+
+    def test_no_must_have_tags_disables_gate(self, retrieve_corpus):
+        """Profiles without `must_have_tags` keep legacy soft-scoring
+        behaviour — back-compat guarantee."""
+        from core.src.rag.retrieval import retrieve_candidates, get_last_retrieval_meta
+        profile = {"preferences": {"must_have": ["indie rock"], "avoid": []}}
+        retrieve_candidates(retrieve_corpus, profile, target_size=5)
+        meta = get_last_retrieval_meta()
+        assert meta["must_have_tags_count"] == 0
+        assert meta["must_have_filter_applied"] is False
+
+
+# ── retrieve_meta integration with F2 ────────────────────────────────
+
+def test_avoid_traits_coverage_finds_era_tag_through_avoid_path(tmp_path):
+    """F2 (2026-05-01): with the avoid-source tokeniser, `80s
+    production style` resolves through the corpus's `80s` tag. Before
+    the F2 fix, era tokens were stripped at the tokeniser and the
+    avoid prose silently produced an empty tag set."""
+    import gzip
+    from core.src.rag.corpus import RagCorpus
+    from core.src.rag.retrieval import _avoid_traits_coverage
+
+    path = tmp_path / "artists.jsonl.gz"
+    with gzip.open(path, "wt", encoding="utf-8") as fh:
+        fh.write(json.dumps({
+            "mbid": "x1", "name": "80s Band",
+            "tags": ["80s", "synth-pop"], "tag_weights": [9, 7],
+            "listener_popularity": 0.4,
+        }) + "\n")
+    corpus = RagCorpus.load(path)
+    profile = {
+        "preferences": {
+            "avoid": ["80s production style"],
+        }
+    }
+    avoid_tags, total, covered = _avoid_traits_coverage(corpus, profile)
+    assert "80s" in avoid_tags
+    assert covered == 1
+    assert total == 1
+
+
+def test_avoid_traits_coverage_skips_negated_must_have_collisions(tmp_path):
+    """F2: `Songs that are not uplifting` must NOT add `uplifting` to
+    the avoid set, even when the corpus has the `uplifting` tag.
+    Otherwise an artist tagged `uplifting` is BOTH must-have-boosted
+    and avoid-filtered when the user has an `uplifting` must-have."""
+    import gzip
+    from core.src.rag.corpus import RagCorpus
+    from core.src.rag.retrieval import _avoid_traits_coverage
+
+    path = tmp_path / "artists.jsonl.gz"
+    with gzip.open(path, "wt", encoding="utf-8") as fh:
+        fh.write(json.dumps({
+            "mbid": "y1", "name": "Bright Band",
+            "tags": ["uplifting", "pop"], "tag_weights": [9, 7],
+            "listener_popularity": 0.4,
+        }) + "\n")
+    corpus = RagCorpus.load(path)
+    profile = {
+        "preferences": {
+            "avoid": ["Songs that are not uplifting"],
+        }
+    }
+    avoid_tags, total, covered = _avoid_traits_coverage(corpus, profile)
+    assert "uplifting" not in avoid_tags
+    # Trait is therefore uncovered — the negation handling correctly
+    # admits this avoid prose is unenforceable as a tag filter.
+    assert covered == 0
+
+
 def test_retrieve_meta_traits_not_fully_covered_when_semantic(retrieve_corpus):
     """F3 (2026-05-01): when an avoid prose entry produces zero
     corpus-resolved tags (e.g. "American artists"), meta reports

@@ -37,6 +37,13 @@ _RERANK_POOL = 200
 #   - avoid_traits_fully_covered: bool — True iff every avoid prose
 #     entry produced ≥1 corpus-resolved tag. Required before the
 #     Stage-2 skip is safe (F3, 2026-05-01).
+#   - must_have_tags_count: int — corpus-resolved must_have_tags count
+#   - must_have_total: int — input must_have_tags count
+#   - must_have_covered: int — count that resolved to corpus-indexed
+#     tags. covered < total means corpus does not represent the
+#     constraint (F1, 2026-05-01).
+#   - must_have_filter_applied: bool — True iff the hard must-have
+#     gate ran without falling back due to over-aggressive shrinkage.
 #   - candidates_returned: int — len(result)
 _LAST_RETRIEVAL_META: dict | None = None
 
@@ -88,7 +95,83 @@ _STOP_TOKENS = frozenset({
 })
 
 
-def _extract_text_tokens(text: str) -> list[str]:
+# F2 (2026-05-01): tokens that ARE stop-listed for the query path
+# but should survive in the avoid path. The query path is right to
+# drop them — `80s` / `production` etc. are noisy in must-have prose
+# (every artist tagged `production` would dominate). The avoid path
+# is the opposite case: when the user says `80s production style`,
+# `80s` is the load-bearing avoid signal and dropping it leaves the
+# avoid filter inert. The corpus has `80s` (124 artists) so the tag
+# is enforceable when surfaced.
+_AVOID_PRESERVED_TOKENS = frozenset({
+    "60s", "70s", "80s", "90s", "00s",
+    "2010", "2020",
+    "production",
+})
+
+# F2 (2026-05-01): hardcoded fallback aliases the production corpus
+# may not carry in `tag_aliases.json`. Applied AFTER the corpus alias
+# resolution so a real corpus alias still wins. Limited to the
+# specific cases documented in `context/claudeAnalyse.md` F2 — keep
+# this list short and deliberate; a sprawling map will produce
+# false positives that the Stage 2 LLM cannot reliably catch.
+_FALLBACK_ALIASES: dict[str, str] = {
+    "synthesizers": "electronic",
+    "synthesizer": "electronic",
+    "synth": "electronic",
+    "synths": "electronic",
+    # J-pop/J-rock single-character `j` is dropped by the length-1
+    # filter, so `j-pop` / `j pop` / `jpop` collapse to `pop`. Keep
+    # them mapped here so the corpus's `j-pop` (1310) and `j-rock`
+    # (362) tags become reachable. See corpus_analysis.md.
+    "jpop": "j-pop",
+    "jrock": "j-rock",
+}
+
+
+def _resolve_with_fallback(corpus: RagCorpus, tag: str) -> str:
+    """Resolve *tag* through corpus aliases, then fallback aliases.
+
+    Order matters: corpus aliases (curated per-deployment) win over
+    the hardcoded fallback so a future corpus refresh can override
+    any mapping we ship in code without a deploy.
+    """
+    canon = corpus.resolve_alias(tag)
+    if canon in corpus.tag_index:
+        return canon
+    fb = _FALLBACK_ALIASES.get(canon)
+    if fb and fb in corpus.tag_index:
+        return fb
+    return canon
+
+
+def _negated_words(text: str) -> set[str]:
+    """Return the set of words that follow ``not``/``no`` in *text*.
+
+    F2 (2026-05-01): user prose like "Songs that are not uplifting"
+    must NOT emit ``uplifting`` as a positive tag — that collides with
+    a must-have entry like "Uplifting music" that the user wrote
+    elsewhere. The simplest correct fix is to detect the negated
+    word in the same sentence and drop it from token emission.
+
+    Conservative scope: only handles single-word negation (``not X``,
+    ``no X``). Compound forms (``not at all uplifting``,
+    ``not particularly Japanese``) fall back to the bare word, which
+    is rarely the load-bearing case.
+    """
+    if not text:
+        return set()
+    negated: set[str] = set()
+    for m in re.finditer(r"\b(?:not|no)\s+(\w+)", text.lower()):
+        word = m.group(1)
+        if len(word) > 1:
+            negated.add(word)
+    return negated
+
+
+def _extract_text_tokens(
+    text: str, *, source: str = "query"
+) -> list[str]:
     """Crude tokeniser used to harvest extra tag hints from free-text fields.
 
     Splits on non-word characters, lowercases, drops 1-char tokens and
@@ -97,13 +180,28 @@ def _extract_text_tokens(text: str) -> list[str]:
     in user prose. Bigrams containing a stop word on either side are
     skipped — a phrase like "strong hooks" survives, but "strong or"
     gets dropped.
+
+    *source* controls which stop-token rules apply. F2 (2026-05-01):
+
+    - ``"query"`` (default) — full ``_STOP_TOKENS`` filter, current
+      behaviour for must-have / soft / analysis prose.
+    - ``"avoid"`` — preserves era and ``production`` tokens (see
+      :data:`_AVOID_PRESERVED_TOKENS`) and drops words that follow
+      ``not``/``no`` so prose like ``Songs that are not uplifting``
+      does NOT add ``uplifting`` to the avoid tag set.
     """
     if not text:
         return []
+    if source == "avoid":
+        stop = _STOP_TOKENS - _AVOID_PRESERVED_TOKENS
+        negated = _negated_words(str(text))
+    else:
+        stop = _STOP_TOKENS
+        negated = set()
     words = [
         w.lower()
         for w in re.split(r"\W+", str(text))
-        if len(w) > 1 and w.lower() not in _STOP_TOKENS
+        if len(w) > 1 and w.lower() not in stop and w.lower() not in negated
     ]
     # Unigrams first, then bigrams — callers weight the second half higher
     # because compound genre names are more specific than their unigrams.
@@ -165,6 +263,13 @@ def build_query_tags(profile: dict,
     _ingest(prefs.get("must_have_tags"), 2.0)
     _ingest(prefs.get("genres"), 1.5)
     _ingest(prefs.get("moods"), 1.5)
+    # Bridge (2026-05-01): LLM-derived corpus-vocabulary tags that
+    # translate subjective user prose ("theatrical", "uplifting") to
+    # corpus-tag form. Weight sits between must-have (2.0) and soft
+    # (1.0) so legitimate must-have matches can still outrank a hint.
+    # See corpus_analysis.md "Implementation plan — surgical bridge"
+    # for the AI<->corpus tag-gap mismatch this addresses.
+    _ingest(prefs.get("corpus_tag_hints"), 1.5)
     _ingest(prefs.get("eras"), 1.2)
     _ingest(prefs.get("soft_preferences"), 1.0)
     _ingest(prefs.get("core_description"), 0.8)
@@ -547,11 +652,15 @@ def _avoid_traits_coverage(
     covered = 0
     for item in items:
         item_tags: set[str] = set()
-        for tok in _extract_text_tokens(item):
+        # F2 (2026-05-01): use the avoid-source tokeniser so era stops
+        # (`80s`/`70s`/...) and `production` survive, and negated
+        # words (`not uplifting`) drop. Resolve through the fallback
+        # alias map so `synthesizers → electronic` reaches the corpus.
+        for tok in _extract_text_tokens(item, source="avoid"):
             n = normalise_tag(tok)
             if not n:
                 continue
-            canon = corpus.resolve_alias(n)
+            canon = _resolve_with_fallback(corpus, n)
             # Only include tags the corpus actually indexes — unindexed
             # tokens cannot match any artist and would silently exclude
             # nothing.
@@ -573,6 +682,59 @@ def _artist_has_any_tag(artist: ArtistRow, tag_set: set[str]) -> bool:
         if normalise_tag(g) in tag_set:
             return True
     return False
+
+
+def _resolve_must_have_tags(
+    corpus: RagCorpus, profile: dict
+) -> tuple[set[str], int, int]:
+    """Resolve ``profile.preferences.must_have_tags`` to canonical corpus tags.
+
+    F1 (2026-05-01): structured hard-filter companion to the prose
+    ``must_have`` field. The training LLM emits ``must_have_tags`` for
+    must_have entries that express a hard categorical filter (language,
+    country, era). Retrieval pre-drops artists that don't carry any of
+    these tags before scoring — without this gate, an American rock
+    artist hitting many soft tokens outscores a Japanese-tagged artist
+    with weaker overlap, and the user's "Music must be Japanese"
+    requirement is silently violated.
+
+    Schema: ``must_have_tags`` is a flat ``list[str]`` interpreted as
+    OR-of-aliases. An artist passes the gate when they carry ≥1 of the
+    listed tags. Multi-concept hard filters (Japanese AND female-fronted)
+    are not yet supported by the schema; they would require nested
+    OR-groups, deferred until a real use case appears.
+
+    Returns ``(canonical_tags, input_total, resolved_covered)``:
+      - *canonical_tags* — corpus-resolved tag set ready to feed
+        :func:`_artist_has_any_tag`.
+      - *input_total* — count of distinct entries the user/LLM wrote.
+      - *resolved_covered* — how many of those entries map to ≥1
+        corpus-indexed tag. When ``resolved_covered < input_total``
+        the gate would silently under-filter; the dispatcher can use
+        this to flag "corpus does not represent the must-have" cases.
+    """
+    prefs = (profile or {}).get("preferences", {}) or {}
+    raw = prefs.get("must_have_tags")
+    if not raw:
+        return set(), 0, 0
+    if isinstance(raw, str):
+        items: list[str] = [raw]
+    elif isinstance(raw, list):
+        items = [s for s in raw if isinstance(s, str) and s.strip()]
+    else:
+        return set(), 0, 0
+
+    canonical: set[str] = set()
+    covered = 0
+    for item in items:
+        n = normalise_tag(item)
+        if not n:
+            continue
+        canon = _resolve_with_fallback(corpus, n)
+        if canon in corpus.tag_index:
+            canonical.add(canon)
+            covered += 1
+    return canonical, len(items), covered
 
 
 def retrieve_candidates(
@@ -622,7 +784,34 @@ def retrieve_candidates(
     if not broad:
         return []
 
-    # Hard filter 1: avoid tags — drop artists matching any avoid trait.
+    # F1 (2026-05-01): hard must-have gate. When the profile carries
+    # `preferences.must_have_tags` (a structured list of corpus-tag
+    # aliases for hard categorical constraints), drop any artist that
+    # carries NONE of them BEFORE the scorer's soft-token weights can
+    # surface drift candidates. Same safety threshold as the avoid
+    # filter: if the gate would shrink the pool below the threshold
+    # the gate is bypassed (with logging) so the run can still
+    # complete — typically signals corpus coverage is too thin for
+    # this constraint, which the eval preflight catches separately.
+    must_have_tags, must_have_total, must_have_covered = (
+        _resolve_must_have_tags(corpus, profile)
+    )
+    must_have_filter_applied = False
+    if must_have_tags:
+        filtered = [a for a in broad if _artist_has_any_tag(a, must_have_tags)]
+        threshold = max(min(10, target_size), target_size // 3)
+        if len(filtered) >= threshold:
+            broad = filtered
+            must_have_filter_applied = True
+        else:
+            logger.warning(
+                "retrieve_candidates: must-have gate too aggressive "
+                "(%d→%d, threshold=%d), bypassing — corpus may not "
+                "represent the must-have constraint",
+                len(broad), len(filtered), threshold,
+            )
+
+    # Hard filter 2: avoid tags — drop artists matching any avoid trait.
     avoid_tags, avoid_traits_total, avoid_traits_covered = (
         _avoid_traits_coverage(corpus, profile)
     )
@@ -679,6 +868,11 @@ def retrieve_candidates(
         "avoid_traits_total": avoid_traits_total,
         "avoid_traits_covered": avoid_traits_covered,
         "avoid_traits_fully_covered": avoid_traits_fully_covered,
+        # F1 (2026-05-01): hard must-have gate stats
+        "must_have_tags_count": len(must_have_tags),
+        "must_have_total": must_have_total,
+        "must_have_covered": must_have_covered,
+        "must_have_filter_applied": must_have_filter_applied,
         "candidates_returned": len(result),
     }
     logger.debug(
@@ -709,6 +903,12 @@ def retrieve_candidates(
                 "traits_total": avoid_traits_total,
                 "traits_covered": avoid_traits_covered,
                 "traits_fully_covered": avoid_traits_fully_covered,
+            })
+            trace.record("stage1_must_have", {
+                "tags": sorted(must_have_tags),
+                "input_total": must_have_total,
+                "covered": must_have_covered,
+                "filter_applied": must_have_filter_applied,
             })
             trace.record("stage1_candidates", [
                 {

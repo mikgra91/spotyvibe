@@ -451,7 +451,8 @@ def validate_profile_schema(data):
         prefs = data["preferences"]
         if not isinstance(prefs, dict):
             raise ValueError("'preferences' must be an object.")
-        for field in ("core_description", "must_have", "soft_preferences", "avoid"):
+        for field in ("core_description", "must_have", "must_have_tags",
+                      "corpus_tag_hints", "soft_preferences", "avoid"):
             if field in prefs:
                 if field == "core_description":
                     _validate_str_field(prefs[field], f"preferences.{field}")
