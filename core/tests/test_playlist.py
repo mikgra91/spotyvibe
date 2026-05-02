@@ -83,6 +83,26 @@ class TestGetSpotifyAuthUrl:
         url = get_spotify_auth_url()
         assert url.startswith("https://")
 
+    @patch("core.src.playlist.get_spotify_oauth")
+    def test_clears_stale_cache_before_authorize(self, mock_oauth, tmp_path):
+        # A stale cache from a previous OAuth round must be removed before
+        # generating the authorize URL — otherwise spotipy reuses the old
+        # client_id at callback exchange and Spotify returns invalid_client.
+        cache = tmp_path / ".spotify-cache"
+        cache.write_text('{"access_token": "stale"}')
+        mock_oauth.return_value.get_authorize_url.return_value = "https://accounts.spotify.com/authorize?..."
+        with patch("core.src.playlist.CACHE_FILE", cache):
+            get_spotify_auth_url()
+        assert not cache.exists()
+
+    @patch("core.src.playlist.get_spotify_oauth")
+    def test_no_cache_does_not_raise(self, mock_oauth, tmp_path):
+        cache = tmp_path / ".spotify-cache"  # never created
+        mock_oauth.return_value.get_authorize_url.return_value = "https://accounts.spotify.com/authorize?..."
+        with patch("core.src.playlist.CACHE_FILE", cache):
+            url = get_spotify_auth_url()
+        assert url.startswith("https://")
+
 
 class TestHandleSpotifyCallback:
     @patch("core.src.playlist.get_spotify_oauth")

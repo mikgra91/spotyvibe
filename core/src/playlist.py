@@ -265,7 +265,14 @@ def disconnect_spotify():
 
 
 def get_spotify_auth_url():
-    """Return the Spotify authorization URL the user must visit."""
+    """Return the Spotify authorization URL the user must visit.
+
+    Clears any stale ``.spotify-cache`` first. A leftover cache from a
+    previous OAuth round (e.g. after credentials rotation or a revoked
+    token) makes spotipy reuse the old client_id when exchanging the
+    callback code, producing ``400 invalid_client`` on every reconnect.
+    """
+    CACHE_FILE.unlink(missing_ok=True)
     return get_spotify_oauth().get_authorize_url()
 
 

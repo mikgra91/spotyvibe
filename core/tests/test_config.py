@@ -179,6 +179,67 @@ class TestSaveCredentials:
         config.save_credentials({"UNKNOWN_KEY": "value"})
         mock_set_key.assert_not_called()
 
+    @patch("config._KEYRING_AVAILABLE", True)
+    @patch("config._keyring")
+    @patch("config.load_dotenv")
+    @patch("config.set_key")
+    @patch("config.ensure_env")
+    @patch("builtins.open", mock_open(read_data="OPENAI_API_KEY=\n"))
+    def test_keyring_branch_stores_secret_and_writes_empty_placeholder(
+        self, mock_ensure, mock_set_key, mock_load, mock_keyring
+    ):
+        # Non-empty secret with keyring available: secret goes to OS keychain,
+        # .credentials gets an empty placeholder so plaintext never lands on disk.
+        mock_keyring.get_password.return_value = "sk-new"
+        config.save_credentials({"OPENAI_API_KEY": "sk-new"})
+        mock_keyring.set_password.assert_called_once_with(
+            config._KEYRING_SERVICE, "OPENAI_API_KEY", "sk-new"
+        )
+        mock_keyring.delete_password.assert_not_called()
+        mock_set_key.assert_called_once_with(
+            str(config.CREDENTIALS_FILE), "OPENAI_API_KEY", ""
+        )
+        assert os.environ["OPENAI_API_KEY"] == "sk-new"
+
+    @patch("config._KEYRING_AVAILABLE", True)
+    @patch("config._keyring")
+    @patch("config.load_dotenv")
+    @patch("config.set_key")
+    @patch("config.ensure_env")
+    @patch("builtins.open", mock_open(read_data="OPENAI_API_KEY=\n"))
+    def test_keyring_branch_deletes_on_empty_value(
+        self, mock_ensure, mock_set_key, mock_load, mock_keyring
+    ):
+        # Empty string explicitly clears the secret — keyring entry deleted,
+        # dotenv placeholder still emptied.
+        mock_keyring.get_password.return_value = None
+        config.save_credentials({"OPENAI_API_KEY": ""})
+        mock_keyring.delete_password.assert_called_once_with(
+            config._KEYRING_SERVICE, "OPENAI_API_KEY"
+        )
+        mock_keyring.set_password.assert_not_called()
+        mock_set_key.assert_called_once_with(
+            str(config.CREDENTIALS_FILE), "OPENAI_API_KEY", ""
+        )
+
+    @patch("config._KEYRING_AVAILABLE", True)
+    @patch("config._keyring")
+    @patch("config.load_dotenv")
+    @patch("config.set_key")
+    @patch("config.ensure_env")
+    @patch("builtins.open", mock_open(read_data="OPENAI_API_KEY=\n"))
+    def test_keyring_failure_falls_back_to_dotenv(
+        self, mock_ensure, mock_set_key, mock_load, mock_keyring
+    ):
+        # Keyring write failure must fall back to plaintext .credentials so
+        # the user is not silently locked out.
+        mock_keyring.set_password.side_effect = Exception("keychain locked")
+        mock_keyring.get_password.return_value = None
+        config.save_credentials({"OPENAI_API_KEY": "sk-new"})
+        mock_set_key.assert_called_once_with(
+            str(config.CREDENTIALS_FILE), "OPENAI_API_KEY", "sk-new"
+        )
+
 
 class TestSaveSettings:
     @patch("config.load_dotenv")
