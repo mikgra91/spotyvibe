@@ -8,7 +8,7 @@ import { renderTracks } from './tracklist.js';
 import { loadHistory } from './history.js';
 import { populateReviewPlaylistPicker } from './review.js';
 import { resetDashboard } from './taste_dashboard.js';
-import { i18n } from './i18n.js';
+import { i18n, localizedError } from './i18n.js';
 import { el } from './dom.js';
 import { estimate as estimateCost, recordRunSpend } from './cost_estimate.js';
 
@@ -375,8 +375,13 @@ export function handleStreamEvent(event) {
             }
             break;
         }
-        case 'error':
-            showStatus('❌ ' + event.message, 'error');
+        case 'error': {
+            const localized = localizedError(
+                { error: event.message, error_key: event.error_key, error_params: event.error_params },
+                event.message
+            );
+            showStatus('❌ ' + localized, 'error');
             break;
+        }
     }
 }

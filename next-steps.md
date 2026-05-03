@@ -141,9 +141,49 @@ single biggest reason "evals pass while production fails" per
 
 ### 🟡 P2 — Phase B+ enrichment (after Phase A validates)
 
-8. **Phase B — Last.fm enrichment** ([rag_enrichment_plan.md §B](documentation/rag_enrichment_plan.md)).
-   Biggest single quality lever; replaces dropped Spotify popularity +
-   adds weighted tags + `getSimilar` graph. Gate behind `LASTFM_API_KEY`.
+8. ~~**Phase B — Last.fm enrichment**~~ ✅ Code shipped 2026-05-03 (data
+   refresh pending the next Cloud Run job execution).
+   New [build-tools/lastfm_enrichment/client.py](build-tools/lastfm_enrichment/client.py)
+   `LastfmClient` w/ `get_artist_info(mbid)` + `get_top_tags(mbid)` +
+   exp-backoff + budget abort + dedicated `LastfmAuthError` /
+   `LastfmRateLimitedError` exception types. New driver
+   [build-tools/enrich_with_lastfm.py](build-tools/enrich_with_lastfm.py)
+   adds `lastfm_listeners` / `lastfm_playcount` /
+   `lastfm_tags: list[[name, weight]]` (weight ≥ 30 default cutoff)
+   to each row, sorted by MB proxy popularity, with passthrough
+   when `LASTFM_API_KEY` is unset or `DISABLE_LASTFM_ENRICHMENT=1`.
+   Distinct exit codes: 43 (rate-limit → halt.flag) / 44 (auth-error
+   → loud fail, no halt). `ArtistRow` in
+   [core/src/rag/corpus.py](core/src/rag/corpus.py) gained
+   `lastfm_listeners`, `lastfm_playcount`, `lastfm_tags`,
+   `lastfm_tag_weights` fields; `_build_indices` now indexes Last.fm
+   tags into `tag_index` alongside MB tags + Spotify genres.
+   Retrieval helpers in [core/src/rag/retrieval.py](core/src/rag/retrieval.py):
+   `_artist_tag_weight()` reads Last.fm 0-100 weights; new
+   `_lastfm_popularity()` log10-scales raw listeners to 0..1 and
+   `_artist_popularity()` prefers it over the MB proxy.
+   Cloud Run integration: new `LASTFM_API_KEY` secret bound to the
+   `spotivibe-rag-builder` job (Secret Manager → env var) on
+   2026-05-03; [cloud_run_publish.py](build-tools/cloud_run_publish.py)
+   runs `enrich_with_lastfm.py` between the Spotify enrichment step
+   and the manifest assembly, wiring rate-limit (43) and auth-error
+   (44) exits back to the circuit breaker. Dockerfile updated to
+   COPY the new package + driver. **Out of scope this PR:**
+   `getSimilar` similarity facet (deferred until Phase B data is
+   validated in production), the runtime-time eval validation
+   (gated on the next Cloud Run rebuild + new manifest).
+   Tests: 19-test [test_lastfm_enrichment.py](core/tests/test_lastfm_enrichment.py)
+   covers client init, both endpoints, 429 / 5xx / Retry-After
+   safety cap / cumulative-budget abort, single-tag-dict
+   normalisation, weight clamping, error-code routing.
+   10-test [test_enrich_with_lastfm.py](core/tests/test_enrich_with_lastfm.py)
+   covers the driver: passthrough on no key / DISABLE flag,
+   max-enrich slicing, min-popularity skip, min-tag-weight CLI
+   override, all three exit-code paths (rate-limit, budget, auth).
+   Extended `test_rag_corpus.py` (4 tests) +
+   `test_rag_retrieval.py` (4 tests) for the new fields +
+   popularity precedence + tag-weight passthrough. 780 core tests
+   green (was 723).
 9. **Phase D — Wikidata structured facts** ([rag_enrichment_plan.md §D](documentation/rag_enrichment_plan.md)).
    Highest-value next layer because it directly fixes the F1 must-have
    gate failure for "Japanese music" / "American artists" documented in
@@ -167,9 +207,37 @@ From [TODO.md](TODO.md):
     corrupt profile dir never blocks boot. 5 unit tests cover step-1
     rollback, step-2 completion, ambiguous, no-op, and
     missing-PROFILES_DIR. 691 core tests green.
-12. **S4 — i18n sweep on backend errors** surfacing in UI
-    (`playlist.py:840`, `openai_http.py`, `suggestions.py`,
-    `analysis.py`). Use structured-error keys.
+12. ~~**S4 — i18n sweep on backend errors**~~ ✅ Done 2026-05-03.
+    New [core/src/errors.py](core/src/errors.py) with
+    `TranslatableError(key, message, *, params, status_code)` +
+    `as_response_payload(exc)` helper that builds
+    `{error, error_key, error_params}` JSON. `OpenAIConfigError` /
+    `OpenAIUnsupportedModelError` in
+    [core/src/openai_http.py](core/src/openai_http.py) gained class-level
+    `key` attrs so the existing exception types route through the same
+    payload helper without behaviour change. Refactored sites:
+    [core/src/playlist.py:849-859](core/src/playlist.py#L849-L859) 403
+    reconnect path raises `TranslatableError("error.spotify.reconnect_required")`,
+    [core/src/analysis.py:39-43](core/src/analysis.py#L39-L43) raises
+    `TranslatableError("error.analysis.artist_required")`. Flask plumbing in
+    [app.py](app.py): new `_sse_error()` helper + `as_response_payload`
+    wired into `/api/run` SSE error events (5 keyed sites:
+    `error.profile.not_trained`, `error.spotify.not_connected`,
+    `error.run.gpt_exhausted`, `error.run.no_tracks_verified`, plus
+    catch-all via `_sse_error`), `/api/analyze` and `/api/feedback`
+    handlers. Frontend: new `localizedError(data, fallback)` helper in
+    [frontend/static/js/modules/i18n.js](frontend/static/js/modules/i18n.js)
+    that returns `i18n(error_key, error)` with `{name}` param
+    interpolation; threaded through
+    [analysis.js](frontend/static/js/modules/analysis.js#L66),
+    [review.js](frontend/static/js/modules/review.js#L60),
+    [pipeline.js](frontend/static/js/modules/pipeline.js) SSE error
+    handler. 9 new i18n keys added across en/de/jp; parity test green.
+    Tests: 7-test [test_errors.py](core/tests/test_errors.py) covers the
+    helper happy-path, params propagation, plain-exception passthrough,
+    OpenAI subclass key attrs, and blank-key omission;
+    `test_analysis.py` + `test_playlist.py` updated to assert the new
+    `TranslatableError` types and keys. 723 core tests green (was 716).
 13. ~~**S10 — i18n on hardcoded ARIA labels with interpolated artist/track
     names**~~ ✅ Done 2026-05-02.
     Added the missing `data-i18n-attr` applier in
@@ -234,6 +302,70 @@ From [TODO.md](TODO.md):
     on click; a `finally` block restores the previous label + enables
     the button on success, error, and network failure. New i18n key
     `btn.saving` added to en/de/jp; `test_i18n_parity` green.
+
+## 🚀 Phase B Cloud Run / operational state — 2026-05-03
+
+First Phase B-enriched corpus build was kicked off on 2026-05-03 ~21:15 Vienna. Steady-state operational config:
+
+**Cloud Run Job — `spotivibe-rag-builder` (region us-central1):**
+- Image: rebuilt from `build-tools/cloud-run-job/Dockerfile` on 2026-05-03 (digest `sha256:53274668…99a5a5`).
+- `--task-timeout=24h` (was 4h — needed for the longer Phase B pass).
+- Env vars now set on the job spec:
+  - `GCS_BUCKET=spotivibe-rag-corpus`
+  - `CORPUS_TOP_N=350000`
+  - `MIN_REBUILD_DAYS=1` (was 6 — daily cadence; the gate still skips reruns within 24h to stop a failed-and-retry loop from double-publishing)
+  - `LASTFM_MAX_ENRICH=30000` (steady-state, ~3.5h Last.fm pass; the in-flight first run is at 50000 via execution-level override)
+- Secrets bound via Secret Manager → env vars:
+  - `SPOTIFY_CLIENT_ID` ← `spotify-client-id:latest`
+  - `SPOTIFY_CLIENT_SECRET` ← `spotify-client-secret:latest`
+  - `LASTFM_API_KEY` ← `lastfm-api-key:latest` (NEW 2026-05-03)
+
+**Cloud Scheduler — `spotivibe-rag-weekly`:**
+- Schedule: `0 23 * * *` Europe/Vienna (was `0 */2 * * *`). Runs daily at 23:00 Vienna so the corpus is fresh for morning use.
+- Target: `spotivibe-rag-builder` Cloud Run job.
+
+**First-run execution (in flight):**
+- Execution name: `spotivibe-rag-builder-x4v5b`.
+- Started 2026-05-03 ~21:15 Vienna; estimated finish ~07:00 Vienna 2026-05-04.
+- Slice: top-50000 by MB proxy popularity (one-off override; future runs use 30k).
+
+### Verifying the first Phase B corpus tomorrow morning
+
+```bash
+# 1. Did the execution complete?
+gcloud run jobs executions describe spotivibe-rag-builder-x4v5b \
+  --region=us-central1 \
+  --format='value(status.completionTime,status.conditions[0].type,status.conditions[0].message)'
+
+# 2. New manifest?  built_at should be 2026-05-04, sha256 different from
+#    the 2026-04-28 baseline (41f67df93d8a7…).
+gcloud storage cat gs://spotivibe-rag-corpus/manifest.json
+
+# 3. Halt flag clean?  (rate-limit aborts write halt.flag with reason
+#    "lastfm_rate_limited" or "spotify_rate_limited".)
+gcloud storage ls gs://spotivibe-rag-corpus/halt.flag  # should NotFound
+
+# 4. Spot-check the corpus carries Last.fm fields. The tail-of-output
+#    should contain at least one row with lastfm_listeners + lastfm_tags.
+gcloud storage cp gs://spotivibe-rag-corpus/artists.jsonl.gz /tmp/c.jsonl.gz
+zcat /tmp/c.jsonl.gz | head -100 | grep -c '"lastfm_listeners"'   # > 0 expected
+zcat /tmp/c.jsonl.gz | head -100 | grep -c '"lastfm_tags"'         # > 0 expected
+```
+
+### If the first run fails
+
+Most likely failure modes and what each implies:
+
+| Symptom in execution log | Meaning | Resume path |
+|---|---|---|
+| `enrich_with_lastfm.py` exit 43 + halt.flag written, reason `lastfm_rate_limited` | Last.fm Retry-After exceeded the 300s cap or cumulative-backoff budget exhausted (~5 min). Either Last.fm temp-banned the key, or the `_MIN_INTER_REQUEST_SEC` throttle is too aggressive. | Investigate Last.fm key in Last.fm dashboard, then `gcloud storage rm gs://spotivibe-rag-corpus/halt.flag`; rerun. |
+| `enrich_with_lastfm.py` exit 44 (no halt flag) | API key invalid / suspended. | Rotate `lastfm-api-key` secret (`gcloud secrets versions add lastfm-api-key …`); rerun. |
+| `enrich_with_spotify.py` exit 42 + halt.flag (reason `spotify_rate_limited`) | Pre-existing Spotify circuit breaker, unrelated to Phase B. | Per the existing playbook in [`documentation/guides/cloud-run-rag-setup.md`](documentation/guides/cloud-run-rag-setup.md) §9.5. |
+| Execution killed at ~24h with no upload | Slice too large or throttle too slow. | Lower `LASTFM_MAX_ENRICH` (e.g. 20000) on the job or as `--update-env-vars` on the next execution. |
+
+### Steady-state daily cadence
+
+Once the first run lands and the corpus is verified, no further action is needed — the scheduler will fire daily at 23:00 Vienna, the job will rebuild + enrich + upload, and the desktop app will pick up the new corpus on its next manifest poll. To pause: disable the scheduler (`gcloud scheduler jobs pause spotivibe-rag-weekly --location=us-central1`).
 
 ## Further research required (gated on enrichment outcome)
 

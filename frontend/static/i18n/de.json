@@ -828,5 +828,13 @@
   "getting_started.item_spotify": "Mit Spotify verbinden",
   "getting_started.item_profile": "Musikprofil erstellen",
   "getting_started.item_playlist": "Erste Playlist generieren",
-  "getting_started.item_feedback": "Mindestens 3 Tracks liken oder disliken"
+  "getting_started.item_feedback": "Mindestens 3 Tracks liken oder disliken",
+  "error.spotify.reconnect_required": "Die Spotify-Sitzung ist abgelaufen oder die Berechtigungen wurden widerrufen. Öffne ⚙️ Einstellungen → 🔌 Spotify trennen und verbinde Spotify dann neu.",
+  "error.spotify.not_connected": "Spotify ist nicht verbunden. Öffne ⚙️ Einstellungen, um zu verbinden.",
+  "error.openai.config_missing": "Der OpenAI-API-Schlüssel ist nicht konfiguriert. Öffne ⚙️ Einstellungen → Zugangsdaten, um ihn zu setzen.",
+  "error.openai.unsupported_model": "Das gewählte Modell ist nicht in der unterstützten Liste. Wähle ein unterstütztes Modell in ⚙️ Einstellungen.",
+  "error.analysis.artist_required": "Künstlername ist erforderlich.",
+  "error.profile.not_trained": "Trainiere zuerst dein Geschmacksprofil.",
+  "error.run.gpt_exhausted": "GPT hat weiterhin bereits bekannte Tracks vorgeschlagen und konnte keine neuen erzeugen. Aktualisiere dein Geschmacksprofil mit neuen Vorlieben oder verringere die Playlist-Größe.",
+  "error.run.no_tracks_verified": "Auf Spotify konnten keine Tracks verifiziert werden."
 }

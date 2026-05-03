@@ -51,6 +51,7 @@ from spotipy.exceptions import SpotifyException
 # access + refresh tokens, and caches them locally.
 from spotipy.oauth2 import SpotifyOAuth, CacheFileHandler
 from config import CACHE_FILE
+from .errors import TranslatableError
 from .utils import app_log
 
 logger = logging.getLogger(__name__)
@@ -849,10 +850,12 @@ def add_to_playlist(verified_tracks, mode="default", playlist_id=None,
     except SpotifyException as e:
         if e.http_status == 403:
             disconnect_spotify()
-            raise RuntimeError(
+            raise TranslatableError(
+                "error.spotify.reconnect_required",
                 "Spotify returned 403 Forbidden. Your session has expired or "
                 "permissions were revoked. Please reconnect via "
-                "⚙️ Settings → 🔌 Disconnect Spotify, then Connect to Spotify."
+                "⚙️ Settings → 🔌 Disconnect Spotify, then Connect to Spotify.",
+                status_code=403,
             ) from e
         raise
 

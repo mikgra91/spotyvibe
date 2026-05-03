@@ -828,5 +828,13 @@
   "getting_started.item_spotify": "Spotifyに接続",
   "getting_started.item_profile": "音楽プロファイルを作成",
   "getting_started.item_playlist": "最初のプレイリストを生成",
-  "getting_started.item_feedback": "3曲以上にいいね/よくないねを付ける"
+  "getting_started.item_feedback": "3曲以上にいいね/よくないねを付ける",
+  "error.spotify.reconnect_required": "Spotify セッションの有効期限が切れたか、権限が取り消されました。⚙️ 設定 → 🔌 Spotify を切断 を開いてから、もう一度 Spotify に接続してください。",
+  "error.spotify.not_connected": "Spotify が接続されていません。⚙️ 設定 から接続してください。",
+  "error.openai.config_missing": "OpenAI API キーが未設定です。⚙️ 設定 → 認証情報 で設定してください。",
+  "error.openai.unsupported_model": "選択したモデルはサポート対象外です。⚙️ 設定 でサポートされているモデルを選んでください。",
+  "error.analysis.artist_required": "アーティスト名が必要です。",
+  "error.profile.not_trained": "先に好みプロファイルをトレーニングしてください。",
+  "error.run.gpt_exhausted": "GPT が既知のトラックばかり提案し、新しいものを生成できませんでした。プロファイルを更新するか、プレイリストのサイズを小さくしてください。",
+  "error.run.no_tracks_verified": "Spotify でトラックを検証できませんでした。"
 }

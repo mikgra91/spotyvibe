@@ -377,19 +377,30 @@ def score_artists(corpus: RagCorpus,
 # ── Per-artist scoring helpers (Phase 2) ─────────────────────────────
 
 def _artist_tag_weight(artist: ArtistRow, qtag: str) -> int:
-    """Resolve the per-artist weight for *qtag* against MB tags + Spotify genres.
+    """Resolve the per-artist weight for *qtag* across all tag sources.
 
-    MB community tags carry their explicit ``tag_weights`` count. Spotify
-    genres don't have per-artist weights — Spotify just lists them — so
-    we treat them as constant weight 2 (slightly above an average MB tag,
-    reflecting that Spotify-curated genres are higher signal than raw
-    community tags). Falls back to 1 if no match — defensive, should be
-    unreachable since the index only points us at artists that have the
-    tag somewhere.
+    MB community tags carry their explicit ``tag_weights`` count.
+    Spotify genres don't have per-artist weights so we treat them as
+    constant weight 2 (slightly above an average MB tag, reflecting
+    that Spotify-curated genres are higher signal than raw community
+    tags). Last.fm tags carry a 0-100 community-popularity weight
+    which we pass through directly — empirically it lines up well
+    with MB tag-count magnitudes. Falls back to 1 if no match —
+    defensive, should be unreachable since the index only points us
+    at artists that have the tag somewhere.
     """
     try:
         pos = artist.tags.index(qtag)
         return artist.tag_weights[pos] if pos < len(artist.tag_weights) else 1
+    except ValueError:
+        pass
+    # Last.fm tags are stored normalised already (driver lowercases),
+    # so a direct equality is enough — and faster than a per-tag
+    # normalise call for the spotify_genres branch below.
+    try:
+        pos = artist.lastfm_tags.index(qtag)
+        return (artist.lastfm_tag_weights[pos]
+                if pos < len(artist.lastfm_tag_weights) else 1)
     except ValueError:
         pass
     # Check Spotify genres (normalised match — corpus stores them raw).
@@ -399,13 +410,36 @@ def _artist_tag_weight(artist: ArtistRow, qtag: str) -> int:
     return 1
 
 
-def _artist_popularity(artist: ArtistRow) -> float:
-    """Return a 0..1 popularity score from the MB-derived proxy.
+# Last.fm listener counts span ~100 (long-tail) to ~10M (top artists).
+# log10(listeners) ranges roughly 2.0 to 7.0 across that band. Mapping
+# (log10 - 2.0) / 5.0 puts the long tail near 0 and the top of the
+# distribution near 1. Anchored on log10 so a 10× change in listeners
+# moves popularity by 0.2 — same shape the MB ``listener_popularity``
+# proxy targets.
+_LASTFM_LOG_FLOOR = 2.0
+_LASTFM_LOG_RANGE = 5.0
 
-    Spotify removed real popularity/followers from artist objects in
-    Feb 2026; until Phase B (Last.fm) lands, only the MB-derived
-    ``listener_popularity`` proxy is available.
+
+def _lastfm_popularity(listeners: int) -> float:
+    """Map a raw Last.fm ``listeners`` count to the 0..1 popularity scale."""
+    if listeners <= 0:
+        return 0.0
+    import math as _math
+    log_l = _math.log10(listeners)
+    return max(0.0, min(1.0, (log_l - _LASTFM_LOG_FLOOR) / _LASTFM_LOG_RANGE))
+
+
+def _artist_popularity(artist: ArtistRow) -> float:
+    """Return a 0..1 popularity score.
+
+    Phase B (Last.fm) takes priority when present — ``lastfm_listeners``
+    is the only post-2026 first-party source for real listener counts.
+    Falls back to the MB-derived ``listener_popularity`` proxy when the
+    Last.fm signal is missing (legacy corpus rows or artists Last.fm
+    doesn't know).
     """
+    if artist.lastfm_listeners is not None and artist.lastfm_listeners > 0:
+        return _lastfm_popularity(artist.lastfm_listeners)
     return max(0.0, min(1.0, artist.listener_popularity))
 
 

@@ -418,8 +418,11 @@ class TestAddToPlaylist:
         sp.current_user_playlist_create.side_effect = SpotifyException(
             http_status=403, code=-1, msg="Forbidden"
         )
-        with pytest.raises(RuntimeError, match="403"):
+        from core.src.errors import TranslatableError
+        with pytest.raises(TranslatableError, match="403") as exc:
             add_to_playlist([{"artist": "a", "track": "b", "uri": "spotify:track:1"}])
+        assert exc.value.key == "error.spotify.reconnect_required"
+        assert exc.value.status_code == 403
         mock_disconnect.assert_called_once()
 
 

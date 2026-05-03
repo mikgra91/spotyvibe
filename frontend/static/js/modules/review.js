@@ -1,7 +1,7 @@
 import * as State from './state.js';
 import { buildTrackCardHtml } from './feedback.js';
 import { showToast, showAlert, showConfirm } from './ui.js';
-import { i18n } from './i18n.js';
+import { i18n, localizedError } from './i18n.js';
 import { refreshDiscoverPlaylistPicker } from './playlist-mode.js';
 import { resetDashboard } from './taste_dashboard.js';
 import { el } from './dom.js';
@@ -57,7 +57,7 @@ export async function loadPlaylistTracks() {
         if (data.error) {
             const errP = document.createElement('p');
             errP.style.color = 'var(--error)';
-            errP.textContent = data.error;
+            errP.textContent = localizedError(data);
             listEl.innerHTML = '';
             listEl.appendChild(errP);
             return;
@@ -283,7 +283,7 @@ export async function deleteSelectedPlaylist(pickerId) {
         const resp = await fetch(`/api/playlist/${encodeURIComponent(playlistId)}`, { method: 'DELETE' });
         const data = await resp.json();
         if (!resp.ok || data.error) {
-            showToast(data.error || i18n('playlist.delete_failed', 'Failed to delete playlist.'), 'error');
+            showToast(localizedError(data, i18n('playlist.delete_failed', 'Failed to delete playlist.')), 'error');
             return;
         }
         showToast(i18n('playlist.deleted', 'Playlist deleted.'), 'success');

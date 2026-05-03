@@ -52,6 +52,14 @@ class ArtistRow:
     # grounding available — Stage 3 must rely on parametric memory or
     # drop the artist (anti-confab clause).
     top_tracks: list[str] = field(default_factory=list)
+    # ── Last.fm enrichment (Phase B / 2026-05). All optional so legacy
+    # corpus files load cleanly. ``lastfm_tags`` and
+    # ``lastfm_tag_weights`` are aligned lists (weight is 0-100 from
+    # the Last.fm community-tag popularity score).
+    lastfm_listeners: int | None = None
+    lastfm_playcount: int | None = None
+    lastfm_tags: list[str] = field(default_factory=list)
+    lastfm_tag_weights: list[int] = field(default_factory=list)
 
 
 def normalise_tag(tag: str) -> str:
@@ -122,6 +130,15 @@ class RagCorpus:
                     continue
                 seen_tags.add(ng)
                 self.tag_index.setdefault(ng, []).append(idx)
+            # Phase B: index Last.fm tags. They carry their own 0-100
+            # weight (read in _artist_tag_weight) and dominate community
+            # consensus where MB community tags are sparse.
+            for lt in a.lastfm_tags:
+                nlt = normalise_tag(lt)
+                if not nlt or nlt in seen_tags:
+                    continue
+                seen_tags.add(nlt)
+                self.tag_index.setdefault(nlt, []).append(idx)
             for nt in seen_tags:
                 doc_freq[nt] = doc_freq.get(nt, 0) + 1
 
@@ -224,6 +241,23 @@ class RagCorpus:
                 weights = raw.get("tag_weights") or []
                 if len(weights) < len(tags):
                     weights = list(weights) + [1] * (len(tags) - len(weights))
+                # Last.fm tags arrive as [[name, weight], ...]. Split into
+                # parallel lists so the retrieval helpers can do an O(1)
+                # weight lookup the same way they do for MB tags.
+                lastfm_tag_pairs = raw.get("lastfm_tags") or []
+                lastfm_names: list[str] = []
+                lastfm_weights: list[int] = []
+                for entry in lastfm_tag_pairs:
+                    if isinstance(entry, (list, tuple)) and len(entry) >= 2:
+                        name, weight = entry[0], entry[1]
+                        if not name:
+                            continue
+                        try:
+                            w_int = int(weight)
+                        except (TypeError, ValueError):
+                            w_int = 1
+                        lastfm_names.append(str(name))
+                        lastfm_weights.append(w_int)
                 yield ArtistRow(
                     mbid=str(raw["mbid"]),
                     name=str(raw["name"]),
@@ -237,6 +271,12 @@ class RagCorpus:
                     spotify_id=(str(raw["spotify_id"]) if raw.get("spotify_id") else None),
                     spotify_genres=[str(g) for g in (raw.get("spotify_genres") or [])],
                     top_tracks=[str(t) for t in (raw.get("top_tracks") or []) if t],
+                    lastfm_listeners=(int(raw["lastfm_listeners"])
+                                       if raw.get("lastfm_listeners") is not None else None),
+                    lastfm_playcount=(int(raw["lastfm_playcount"])
+                                       if raw.get("lastfm_playcount") is not None else None),
+                    lastfm_tags=lastfm_names,
+                    lastfm_tag_weights=lastfm_weights,
                 )
 
     # ── lookup helpers ──────────────────────────────────────────────

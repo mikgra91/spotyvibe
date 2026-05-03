@@ -12,6 +12,7 @@ from pathlib import Path
 
 from config import (BASE_DIR, EVAL_LOG_FILE, get_active_profile_id,
                     get_debug_mode, get_gpt_language, get_model)
+from .errors import TranslatableError
 from .openai_http import call_gpt_json_with_meta
 from .eval_log import log_analysis_summary
 
@@ -35,7 +36,10 @@ def analyze_band_song(artist: str, track: str = "") -> dict:
     Analysis can be compared across model A/B variants.
     """
     if not artist or not artist.strip():
-        raise ValueError("Artist name is required.")
+        raise TranslatableError(
+            "error.analysis.artist_required",
+            "Artist name is required.",
+        )
 
     with open(ANALYSIS_PROMPT_FILE, "r", encoding="utf-8") as f:
         system_prompt = f.read().replace("{gpt_language}", get_gpt_language())

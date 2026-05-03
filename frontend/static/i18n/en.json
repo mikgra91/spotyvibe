@@ -828,5 +828,13 @@
   "getting_started.item_spotify": "Connect to Spotify",
   "getting_started.item_profile": "Create a music profile",
   "getting_started.item_playlist": "Generate your first playlist",
-  "getting_started.item_feedback": "Like or dislike at least 3 tracks"
+  "getting_started.item_feedback": "Like or dislike at least 3 tracks",
+  "error.spotify.reconnect_required": "Spotify session has expired or permissions were revoked. Open ⚙️ Settings → 🔌 Disconnect Spotify, then Connect to Spotify again.",
+  "error.spotify.not_connected": "Spotify is not connected. Open ⚙️ Settings to connect first.",
+  "error.openai.config_missing": "OpenAI API key is not configured. Open ⚙️ Settings → Credentials to set it.",
+  "error.openai.unsupported_model": "The selected model is not in the supported list. Pick a supported model in ⚙️ Settings.",
+  "error.analysis.artist_required": "Artist name is required.",
+  "error.profile.not_trained": "Train your taste profile first.",
+  "error.run.gpt_exhausted": "GPT kept suggesting already-known tracks and could not produce any new ones. Update your taste profile with new preferences, or reduce the playlist size.",
+  "error.run.no_tracks_verified": "No tracks could be verified on Spotify."
 }

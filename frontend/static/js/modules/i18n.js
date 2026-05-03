@@ -71,6 +71,30 @@ export function i18n(key, fallback) {
     return _i18nStrings[key] !== undefined ? _i18nStrings[key] : (fallback || key);
 }
 
+/**
+ * Localise an error payload returned by the backend.
+ *
+ * Accepts the parsed JSON body (or any object with `error_key` / `error`)
+ * and returns a translated string, falling back to the English `error`
+ * field. If `error_params` is present, `{name}` placeholders in the
+ * translation are interpolated.
+ */
+export function localizedError(data, fallback) {
+    if (!data || typeof data !== 'object') return fallback || '';
+    const fallbackText = data.error || fallback || '';
+    if (!data.error_key) return fallbackText;
+    let text = i18n(data.error_key, fallbackText);
+    const params = data.error_params;
+    if (params && typeof params === 'object') {
+        for (const k of Object.keys(params)) {
+            text = text.replace('{' + k + '}', String(params[k]));
+        }
+    }
+    return text;
+}
+
+window._localizedError = localizedError;
+
 // Expose for non-module scripts (e.g. setup_guide.js)
 window._i18n = i18n;
 

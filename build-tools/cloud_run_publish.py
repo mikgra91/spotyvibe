@@ -7,6 +7,8 @@ Reads its configuration from env vars set in the Job spec:
     SPOTIFY_CLIENT_ID           — (optional) enables Phase 2 Spotify enrichment
     SPOTIFY_CLIENT_SECRET       — (optional) enables Phase 2 Spotify enrichment
     DISABLE_SPOTIFY_ENRICHMENT  — "1" to force-skip enrichment even if creds set
+    LASTFM_API_KEY              — (optional) enables Phase B Last.fm enrichment
+    DISABLE_LASTFM_ENRICHMENT   — "1" to force-skip Last.fm even if key set
     MIN_REBUILD_DAYS            — skip the run if a build was published within
                                   this many days (default 6). Set to 0 to force.
     FORCE_REBUILD               — "1" to ignore both the halt flag and the
@@ -60,6 +62,9 @@ WORK_DIR = ROOT / "build-tools" / ".rag-cache"
 
 # Must match enrich_with_spotify.RATE_LIMIT_EXIT_CODE.
 RATE_LIMIT_EXIT_CODE = 42
+# Must match enrich_with_lastfm.{RATE_LIMIT,AUTH_ERROR}_EXIT_CODE.
+LASTFM_RATE_LIMIT_EXIT_CODE = 43
+LASTFM_AUTH_ERROR_EXIT_CODE = 44
 
 HALT_FLAG_BLOB = "halt.flag"
 MANIFEST_BLOB = "manifest.json"
@@ -286,6 +291,41 @@ def main() -> int:
             print("Spotify enrichment disabled by DISABLE_SPOTIFY_ENRICHMENT=1", flush=True)
         else:
             print("Spotify creds not set — skipping Phase 2 enrichment", flush=True)
+
+    # 2b. Phase B: enrich with Last.fm metadata. The driver itself
+    # passes through unchanged when LASTFM_API_KEY is not set or
+    # DISABLE_LASTFM_ENRICHMENT=1, so it is safe to invoke unconditionally
+    # — but we still wire the rate-limit (43) and auth-error (44) exits
+    # back to the circuit breaker.
+    lastfm_path = CORPUS_PATH.with_name("artists.lastfm.jsonl.gz")
+    print("Phase B: enriching corpus with Last.fm metadata …", flush=True)
+    rc = _run_allow_exit_codes(
+        [
+            sys.executable, "build-tools/enrich_with_lastfm.py",
+            "--input", str(CORPUS_PATH),
+            "--output", str(lastfm_path),
+        ],
+        allowed={LASTFM_RATE_LIMIT_EXIT_CODE, LASTFM_AUTH_ERROR_EXIT_CODE},
+    )
+    if rc == LASTFM_RATE_LIMIT_EXIT_CODE:
+        _set_halt_flag(
+            bucket,
+            reason="lastfm_rate_limited",
+            detail=("enrich_with_lastfm.py exited 43 (rate-limited). "
+                    "Wait, investigate, then delete halt.flag to resume."),
+        )
+        print("ABORT: Last.fm rate-limit detected. Halt flag set, no upload.",
+              file=sys.stderr, flush=True)
+        return 1
+    if rc == LASTFM_AUTH_ERROR_EXIT_CODE:
+        # Auth error = bad key. Fail loudly but DO NOT set the halt flag —
+        # the user can rotate the secret without needing to clear a flag.
+        print("ABORT: Last.fm API key invalid/suspended. Fix LASTFM_API_KEY secret.",
+              file=sys.stderr, flush=True)
+        return 1
+    if lastfm_path.exists():
+        lastfm_path.replace(CORPUS_PATH)
+        print(f"Last.fm-enriched corpus replaces {CORPUS_PATH}", flush=True)
 
     # 3. Compute hash + assemble manifest.
     sha = _sha256(CORPUS_PATH)

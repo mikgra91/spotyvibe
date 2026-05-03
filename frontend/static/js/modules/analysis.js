@@ -1,5 +1,5 @@
 import { showToast, esc, escHtml } from './ui.js';
-import { i18n } from './i18n.js';
+import { i18n, localizedError } from './i18n.js';
 import { el } from './dom.js';
 
 export function toggleAnalysisBody() {
@@ -63,7 +63,7 @@ export async function runAnalysis() {
         });
         const data = await resp.json();
         if (!resp.ok) {
-            resultDiv.innerHTML = '<p style="color:var(--error)">' + escHtml(data.error || i18n('msg.error_prefix', 'Error')) + '</p>';
+            resultDiv.innerHTML = '<p style="color:var(--error)">' + escHtml(localizedError(data, i18n('msg.error_prefix', 'Error'))) + '</p>';
             return;
         }
         resultDiv.innerHTML = renderAnalysisResult(data);

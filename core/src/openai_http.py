@@ -23,6 +23,8 @@ class OpenAIError(Exception):
 class OpenAIConfigError(OpenAIError):
     """API key or configuration is missing or invalid."""
 
+    key = "error.openai.config_missing"
+
 
 class OpenAIRequestError(OpenAIError):
     """HTTP error returned by the OpenAI API."""
@@ -51,6 +53,8 @@ class OpenAIResponseError(OpenAIError):
 
 class OpenAIUnsupportedModelError(OpenAIError):
     """Model is locally blocked or was rejected by the API (400)."""
+
+    key = "error.openai.unsupported_model"
 
 
 # ── Configuration ────────────────────────────────────────────────────

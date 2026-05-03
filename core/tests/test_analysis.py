@@ -2,6 +2,7 @@
 from unittest.mock import patch, mock_open
 import pytest
 from core.src.analysis import analyze_band_song
+from core.src.errors import TranslatableError
 
 
 def _meta(latency_s=0.5, prompt_tokens=200, completion_tokens=100):
@@ -36,12 +37,14 @@ class TestAnalyzeBandSong:
         assert len(result["profile_suggestions"]) > 0
 
     def test_raises_on_empty_artist(self):
-        with pytest.raises(ValueError, match="Artist name is required"):
+        with pytest.raises(TranslatableError, match="Artist name is required") as exc:
             analyze_band_song("")
+        assert exc.value.key == "error.analysis.artist_required"
 
     def test_raises_on_blank_artist(self):
-        with pytest.raises(ValueError, match="Artist name is required"):
+        with pytest.raises(TranslatableError, match="Artist name is required") as exc:
             analyze_band_song("   ")
+        assert exc.value.key == "error.analysis.artist_required"
 
     @patch("core.src.analysis.call_gpt_json_with_meta")
     @patch("core.src.analysis.get_gpt_language", return_value="English")

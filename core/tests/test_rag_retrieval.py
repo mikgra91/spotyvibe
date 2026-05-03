@@ -208,6 +208,58 @@ def test_mixed_legacy_and_enriched_corpus(tmp_path):
     assert names == {"Legacy", "Enriched"}
 
 
+# ── Phase B (Last.fm) ────────────────────────────────────────────────
+
+
+def test_lastfm_listeners_overrides_mb_proxy():
+    """Phase B: when ``lastfm_listeners`` is present it takes priority
+    over the MB ``listener_popularity`` proxy."""
+    from core.src.rag.corpus import ArtistRow
+    from core.src.rag.retrieval import _artist_popularity, _lastfm_popularity
+
+    a = ArtistRow(mbid="x", name="X", tags=["rock"],
+                  listener_popularity=0.1,
+                  lastfm_listeners=1_000_000)  # log10 = 6 → (6-2)/5 = 0.8
+    assert _artist_popularity(a) == pytest.approx(0.8, abs=0.01)
+    assert _lastfm_popularity(1_000_000) == pytest.approx(0.8, abs=0.01)
+
+
+def test_lastfm_zero_listeners_falls_back_to_mb_proxy():
+    from core.src.rag.corpus import ArtistRow
+    from core.src.rag.retrieval import _artist_popularity
+
+    a = ArtistRow(mbid="x", name="X", tags=["rock"],
+                  listener_popularity=0.42,
+                  lastfm_listeners=0)
+    assert _artist_popularity(a) == pytest.approx(0.42)
+
+
+def test_lastfm_missing_falls_back_to_mb_proxy():
+    from core.src.rag.corpus import ArtistRow
+    from core.src.rag.retrieval import _artist_popularity
+
+    a = ArtistRow(mbid="x", name="X", tags=["rock"],
+                  listener_popularity=0.33)
+    assert _artist_popularity(a) == pytest.approx(0.33)
+
+
+def test_lastfm_tag_weight_passes_through():
+    """Per-artist tag-weight resolution honours Last.fm 0-100 weights."""
+    from core.src.rag.corpus import ArtistRow
+    from core.src.rag.retrieval import _artist_tag_weight
+
+    a = ArtistRow(
+        mbid="x", name="X",
+        tags=["rock"], tag_weights=[3],
+        lastfm_tags=["alternative", "indie"],
+        lastfm_tag_weights=[80, 30],
+    )
+    assert _artist_tag_weight(a, "rock") == 3            # MB
+    assert _artist_tag_weight(a, "alternative") == 80   # Last.fm 80
+    assert _artist_tag_weight(a, "indie") == 30          # Last.fm 30
+    assert _artist_tag_weight(a, "unknown") == 1         # fallback
+
+
 # ── retrieve_candidates (Phase 1 Stage 1) ────────────────────────────
 
 _RETRIEVE_ARTISTS = [

@@ -237,3 +237,61 @@ def test_top_tracks_overlay_malformed_silently_ignored(corpus_file, tmp_path):
     assert all(a.top_tracks == [] for a in corpus.artists)
 
 
+# ── Last.fm enrichment (Phase B / 2026-05) ─────────────────────────────
+
+
+def test_lastfm_fields_default_empty_for_legacy_rows():
+    from core.src.rag.corpus import ArtistRow
+    a = ArtistRow(mbid="x", name="X", tags=["rock"])
+    assert a.lastfm_listeners is None
+    assert a.lastfm_playcount is None
+    assert a.lastfm_tags == []
+    assert a.lastfm_tag_weights == []
+
+
+def test_lastfm_fields_parsed_from_corpus(tmp_path):
+    path = tmp_path / "artists.jsonl"
+    path.write_text(json.dumps({
+        "mbid": "z1", "name": "Test", "tags": ["rock"],
+        "lastfm_listeners": 1234567, "lastfm_playcount": 9876543,
+        "lastfm_tags": [["rock", 100], ["alternative", 54], ["indie", 24]],
+    }) + "\n", encoding="utf-8")
+    corpus = RagCorpus.load(path)
+    row = corpus.artists[0]
+    assert row.lastfm_listeners == 1234567
+    assert row.lastfm_playcount == 9876543
+    assert row.lastfm_tags == ["rock", "alternative", "indie"]
+    assert row.lastfm_tag_weights == [100, 54, 24]
+
+
+def test_lastfm_tags_indexed_alongside_mb_tags(tmp_path):
+    rows = [
+        {"mbid": "x", "name": "X", "tags": ["rock"], "tag_weights": [3],
+         "lastfm_tags": [["alternative rock", 80], ["psychedelic", 50]]},
+    ]
+    path = tmp_path / "artists.jsonl"
+    path.write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    corpus = RagCorpus.load(path)
+    assert "rock" in corpus.tag_index
+    assert "alternative rock" in corpus.tag_index
+    assert "psychedelic" in corpus.tag_index
+
+
+def test_lastfm_malformed_tags_skipped(tmp_path):
+    rows = [
+        {"mbid": "x", "name": "X", "tags": ["rock"],
+         "lastfm_tags": [
+             ["valid", 70],     # ok
+             [None, 40],        # missing name → skipped
+             ["weight-bad", "abc"],  # weight coerced to 1
+             "not a pair",      # bad shape → skipped
+         ]},
+    ]
+    path = tmp_path / "artists.jsonl"
+    path.write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+    corpus = RagCorpus.load(path)
+    row = corpus.artists[0]
+    assert row.lastfm_tags == ["valid", "weight-bad"]
+    assert row.lastfm_tag_weights == [70, 1]
+
+

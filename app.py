@@ -109,6 +109,7 @@ from core.src.eval_log import (log_batch_outcome, log_batch_summary,
                                 compute_config_signature, log_stage2_summary)
 from core.src.rag import retrieve_candidates
 from core.src.openai_http import OpenAIConfigError, OpenAIError
+from core.src.errors import TranslatableError, as_response_payload
 from core.src.playlist import (
     search_tracks, add_to_playlist, remove_from_playlist, delete_playlist,
     get_spotify_auth_status, get_spotify_auth_url, handle_spotify_callback,
@@ -593,6 +594,24 @@ def _sse(event_type, **data):
     return f"data: {json.dumps({'type': event_type, **data})}\n\n"
 
 
+def _sse_error(exc_or_message):
+    """Emit an SSE ``error`` event with i18n-aware payload.
+
+    Accepts either a :class:`TranslatableError` (or any exception with a
+    ``key`` attribute) or a plain string. Sends ``message`` for backwards
+    compatibility plus ``error_key`` / ``error_params`` when available.
+    """
+    if isinstance(exc_or_message, BaseException):
+        payload = as_response_payload(exc_or_message)
+        kwargs = {"message": payload["error"]}
+        if "error_key" in payload:
+            kwargs["error_key"] = payload["error_key"]
+        if "error_params" in payload:
+            kwargs["error_params"] = payload["error_params"]
+        return _sse("error", **kwargs)
+    return _sse("error", message=str(exc_or_message))
+
+
 @app.route("/api/run", methods=["POST"])
 def run_pipeline():
     """Generate suggestions via OpenAI in batches of BATCH_SIZE, verify on
@@ -637,13 +656,21 @@ def run_pipeline():
     def generate():
         try:
             if not is_profile_trained():
-                yield _sse("error", message="Please train your taste profile first.")
+                yield _sse(
+                    "error",
+                    message="Please train your taste profile first.",
+                    error_key="error.profile.not_trained",
+                )
                 return
 
             # Verify Spotify is connected before starting the expensive GPT pipeline
             spotify_status = get_spotify_auth_status()
             if spotify_status != "authenticated":
-                yield _sse("error", message="Spotify is not connected. Please connect via ⚙️ Settings first.")
+                yield _sse(
+                    "error",
+                    message="Spotify is not connected. Please connect via ⚙️ Settings first.",
+                    error_key="error.spotify.not_connected",
+                )
                 return
 
             # Clear debug log at the start of each run so it only
@@ -1337,13 +1364,18 @@ def run_pipeline():
                         "any new ones. Try updating your taste profile with new preferences, "
                         "or reduce the playlist size."
                     ),
+                    error_key="error.run.gpt_exhausted",
                 )
                 return
             # gpt_exhausted with some verified_tracks → fall through to create
             # playlist with what was found (same as "Use X tracks now")
 
             if not verified_tracks:
-                yield _sse("error", message="No tracks could be verified on Spotify.")
+                yield _sse(
+                    "error",
+                    message="No tracks could be verified on Spotify.",
+                    error_key="error.run.no_tracks_verified",
+                )
                 return
 
             # Persist accumulated profile updates (history) once after all batches
@@ -1409,7 +1441,7 @@ def run_pipeline():
 
         except Exception as e:
             traceback.print_exc()
-            yield _sse("error", message=str(e))
+            yield _sse_error(e)
         finally:
             with _runs_lock:
                 _runs.pop(run_id, None)
@@ -1519,8 +1551,10 @@ def submit_feedback():
             response["removal"] = removal
         return jsonify(response)
 
+    except TranslatableError as e:
+        return jsonify(as_response_payload(e)), e.status_code
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify(as_response_payload(e)), 500
 
 
 @app.route("/api/feedback/dislike-artist", methods=["POST"])
@@ -1832,10 +1866,12 @@ def analyze_endpoint():
     try:
         result = analyze_band_song(artist, track)
         return jsonify(result)
+    except TranslatableError as e:
+        return jsonify(as_response_payload(e)), e.status_code
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify(as_response_payload(e)), 500
 
 
 # ── Multi-profile CRUD ──────────────────────────────────────────────
