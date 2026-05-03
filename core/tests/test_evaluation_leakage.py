@@ -1,9 +1,9 @@
 """Unit tests for ``evaluation.leakage``.
 
 These pin the post-feedback leakage detection rules so the eval
-harness's primary quality signal cannot silently regress. See
-``context/claudeAnalyse.md`` F8 for the production failure that
-motivated this.
+harness's primary quality signal cannot silently regress (F8
+production failure: rejected/disliked artists reappearing in the
+next playlist).
 """
 from __future__ import annotations
 

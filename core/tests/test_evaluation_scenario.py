@@ -75,9 +75,8 @@ def test_default_scenario_back_compat_aliases_match():
 
 def test_regression_scenario_mirrors_production_failure():
     """Pin the F8.2 reproducer's load-bearing prose so a future scenario
-    edit cannot silently neuter the regression fixture. See
-    `context/claudeAnalyse.md` F1/F2/F3 for the failure modes encoded
-    in this scenario."""
+    edit cannot silently neuter the regression fixture (F1/F2/F3 failure
+    modes)."""
     from evaluation.scenario import REGRESSION_JAPANESE_SCENARIO
     avoid = REGRESSION_JAPANESE_SCENARIO.seed_sections["avoid"].lower()
     must_have = REGRESSION_JAPANESE_SCENARIO.seed_sections["must_have"].lower()

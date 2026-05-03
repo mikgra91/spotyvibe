@@ -119,7 +119,7 @@ def dislike_track(artist, track=None, reason=None):
             # production (49 disliked_tracks, only 5 manually rejected
             # artists, 9 disliked DREAMS COME TRUE / 4 Dreamcatcher
             # tracks) that step rarely happens, so the artist keeps
-            # being re-suggested. See `context/claudeAnalyse.md` F4.
+            # being re-suggested. (F4 auto-escalation, 2026-05-01.)
             distinct_tracks_for_artist = {
                 (e.get("track") or "").lower().strip()
                 for e in profile["feedback"]["disliked_tracks"]

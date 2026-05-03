@@ -280,7 +280,7 @@ class TestTrainProfile:
 class TestFormatRecentDislikes:
     """F5 (2026-05-01): pin RECENT DISLIKES block formatting so a future
     prompt-engineering tweak cannot silently break the avoid-mining
-    signal. See `context/claudeAnalyse.md` F5."""
+    signal (F5)."""
 
     def test_empty_profile_returns_empty(self):
         from core.src.profile import _format_recent_dislikes

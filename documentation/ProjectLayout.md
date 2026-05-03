@@ -23,7 +23,6 @@ spotyvibe/
 ├── README.md                      # Developer overview
 ├── CLAUDE.md, AGENTS.md           # Project-level AI agent rules
 ├── RULES.md, SKILL.md             # On-demand convention + Spotify-API references
-├── analysis.md                    # Cross-cutting analysis notes (historical)
 ├── result-improvement.md          # Phase status dashboard + retro
 ├── core/src/                      # Backend logic (Python)
 │   ├── openai_http.py             # OpenAI HTTP client (no SDK; local-LLM-friendly)

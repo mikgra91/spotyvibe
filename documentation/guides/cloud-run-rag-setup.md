@@ -8,8 +8,8 @@
 > **Audience**: the maintainer who currently runs `refresh_rag_corpus.py` +
 > `publish_rag_corpus.py` by hand on a personal machine.
 >
-> **Out of scope**: hosting the LLM (rejected — see `analysis.md` § Scenario B
-> and `documentation/TechnicalManual.md` § RAG limitations) and multi-tenant
+> **Out of scope**: hosting the LLM (rejected — quality gap vs hosted GPT-4-class
+> models; see `documentation/TechnicalManual.md` § RAG limitations) and multi-tenant
 > Flask hosting (deferred — see `result-improvement.md` § CF-Rat-6).
 
 > **Deployed status (2026-04-22):** Infrastructure is live.
@@ -664,7 +664,7 @@ Rolling back:
 
 To keep the scope honest:
 
-- **No LLM hosting.** Suggestions still go to OpenAI (or whatever the user's `LLM_BASE_URL` points at). See `analysis.md` § Scenario B for why we rejected hosting an LLM here.
+- **No LLM hosting.** Suggestions still go to OpenAI (or whatever the user's `LLM_BASE_URL` points at). Self-hosting a smaller open-weight model on Cloud Run GPU was rejected: cost-comparable but quality gap vs GPT-4-class is the disqualifier (see `documentation/TechnicalManual.md` § RAG limitations).
 - **No remote retrieval / no RAG-as-a-service.** This setup just makes the corpus *file* easier to publish. The TF-IDF scoring still runs locally on the user's machine via `core/src/rag/retrieval.py`. A future Scenario C.2 (remote `POST /api/rag/score_artists`) would need a Cloud Run **Service** alongside this Job — see `result-improvement.md` § CF-Rat-6.
 - **No user accounts / no auth.** Bucket is public read. If you need per-user quota, switch to signed URLs and a Cloud Run Service that mints them — out of scope here.
 - **No write-back from clients.** Eval-log shipping (`spotyvibe_with_rag/eval.jsonl` etc.) is not implemented in this setup. The bucket explicitly does not grant write to anyone except the builder SA.

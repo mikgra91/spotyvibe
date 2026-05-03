@@ -111,10 +111,9 @@ _AVOID_PRESERVED_TOKENS = frozenset({
 
 # F2 (2026-05-01): hardcoded fallback aliases the production corpus
 # may not carry in `tag_aliases.json`. Applied AFTER the corpus alias
-# resolution so a real corpus alias still wins. Limited to the
-# specific cases documented in `context/claudeAnalyse.md` F2 — keep
-# this list short and deliberate; a sprawling map will produce
-# false positives that the Stage 2 LLM cannot reliably catch.
+# resolution so a real corpus alias still wins. Keep this list short
+# and deliberate; a sprawling map will produce false positives that
+# the Stage 2 LLM cannot reliably catch.
 _FALLBACK_ALIASES: dict[str, str] = {
     "synthesizers": "electronic",
     "synthesizer": "electronic",

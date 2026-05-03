@@ -910,8 +910,8 @@ class TestCheckAvoidCompliance:
         skip — when at least one avoid prose entry produced zero
         corpus-resolved tags (e.g. "American artists", "80s production
         style") the zero-overlap signal is meaningless and the LLM
-        semantic check MUST run. Regression guard for the production
-        failure documented in `context/claudeAnalyse.md` F3."""
+        semantic check MUST run. Regression guard for the F3
+        production failure."""
         names = ["American Rock Band"]
         response = '{"approved": []}'  # LLM rejects the American artist
         from core.src.suggestions import check_avoid_compliance
@@ -997,8 +997,7 @@ class TestCheckAvoidCompliance:
 class TestFilterDiversityHints:
     """Diversity hints that contradict the user's avoid prose are dropped
     so the model never sees "Focus on 1970s-1980s artists" alongside an
-    avoid entry of "80s production style". See `context/claudeAnalyse.md`
-    F7 for the production failure that motivated this."""
+    avoid entry of "80s production style" (F7 production failure)."""
 
     _HINTS = [
         "Focus on artists from the 1970s-1980s that match the profile.",

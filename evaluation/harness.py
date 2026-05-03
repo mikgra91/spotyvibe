@@ -660,7 +660,7 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
         # step that exercises the production code's ability to RESPECT
         # prior feedback when generating fresh suggestions. Without it
         # rejected/disliked-artist leakage stays invisible to the eval.
-        # See `context/claudeAnalyse.md` F8.
+        # (F8.)
         if tracks:  # only meaningful if playlist A produced something
             try:
                 r = _step_playlist(flask_app, settings["evaluation"]["playlist_size"])

@@ -791,8 +791,7 @@ def train_profile(sections):
     # F5 (2026-05-01): surface recent dislike reasons so the LLM can
     # mine recurring avoid signals and promote them into avoid prose.
     # Without this, ``feedback.disliked_tracks[*].reason`` is rich avoid
-    # signal that never reaches the profile schema. See
-    # ``context/claudeAnalyse.md`` F5 for the production failure mode.
+    # signal that never reaches the profile schema (F5).
     recent_dislikes_block = _format_recent_dislikes(profile)
     if recent_dislikes_block:
         parts.append(recent_dislikes_block)

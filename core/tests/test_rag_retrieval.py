@@ -346,8 +346,7 @@ def test_retrieve_meta_traits_fully_covered_when_all_resolve(retrieve_corpus):
 
 class TestAvoidTokenizer:
     """Pin the F2 tokenizer rules so a future refactor cannot
-    silently re-break the avoid pipeline. See `context/claudeAnalyse.md`
-    F2 for the production failure documented here."""
+    silently re-break the avoid pipeline."""
 
     def test_query_source_drops_era_tokens(self):
         from core.src.rag.retrieval import _extract_text_tokens
@@ -501,7 +500,7 @@ class TestCorpusTagHints:
 class TestMustHaveGate:
     """Pin the F1 hard pre-filter so a future schema or retrieval
     refactor cannot silently regress to soft-scoring-only behaviour
-    the production code had before. See `context/claudeAnalyse.md` F1."""
+    the production code had before."""
 
     def _build_corpus(self, tmp_path):
         """Mixed-language corpus for hard-filter exercise."""
@@ -708,8 +707,7 @@ def test_retrieve_meta_traits_not_fully_covered_when_semantic(retrieve_corpus):
     """F3 (2026-05-01): when an avoid prose entry produces zero
     corpus-resolved tags (e.g. "American artists"), meta reports
     avoid_traits_fully_covered=False — Stage-2 skip would be unsafe.
-    Regression guard for the production failure documented in
-    `context/claudeAnalyse.md` F2/F3."""
+    Regression guard for the F2/F3 production failure."""
     from core.src.rag.retrieval import get_last_retrieval_meta
     profile = {
         "preferences": {

@@ -121,9 +121,9 @@ class TestDislikeTrack:
 class TestDislikeAutoEscalation:
     """F4 (2026-05-01): three distinct track-dislikes for the same artist
     auto-promotes that artist to ``artists.rejected`` so the next playlist
-    run treats them as a hard exclusion. See `context/claudeAnalyse.md`
-    F4 — production profile had 9 disliked DREAMS COME TRUE tracks but
-    the artist was still eligible for re-suggestion."""
+    run treats them as a hard exclusion. Production profile had 9 disliked
+    DREAMS COME TRUE tracks but the artist was still eligible for
+    re-suggestion."""
 
     def _stateful_tx(self, profile_data):
         """Mock transaction whose load_fn returns the SAME dict each

@@ -288,7 +288,7 @@ The suggestion pipeline can inject a pre-ranked pool of ~20 artists retrieved fr
 > - **Lower `RAG_POOL_SIZE`** (e.g. 40 or 20) — see the trade-off table in §"RAG design reference" → Pool size sweet-spot data.
 > - **Use a 16 k+ context model** (most cloud APIs and any `*-128k` local model). This is the recommended path — RAG was designed against GPT-4-class models with 32 k+ contexts.
 >
-> Self-hosting a smaller open-weight model on Cloud Run **as a drop-in OpenAI replacement** was evaluated and rejected (April 2026): see `analysis.md` § Scenario B — the cost is comparable but the recommendation quality gap is the disqualifier. Use OpenAI / a hosted GPT-4-class model for the suggestion engine and reserve local LLMs for users who explicitly accept the quality trade-off.
+> Self-hosting a smaller open-weight model on Cloud Run **as a drop-in OpenAI replacement** was evaluated and rejected (April 2026): NVIDIA L4 GPU on Cloud Run runs a few dollars a month at current volume, but Gemma/Llama 4-bit ≪ GPT-4 for creative/nuanced music reasoning, and sporadic use triggers 15–30 s cold starts. Cost is comparable; quality is the disqualifier. Use OpenAI / a hosted GPT-4-class model for the suggestion engine and reserve local LLMs for users who explicitly accept the quality trade-off.
 
 ### RAG corpus — Cloud Run automated pipeline
 

@@ -11,9 +11,6 @@ relevance is now contingent on enrichment results.
 - [cost-speed-research.md](cost-speed-research.md) — 26-lever cost/speed audit
 - [result-improvement.md](result-improvement.md) — phase-by-phase implementation history
 - [TODO.md](TODO.md) — full deferred-items register
-- [context/context_todo.md](context/context_todo.md) — condensed TODO state
-- [context/context_potential-issues.md](context/context_potential-issues.md) — eval-workflow gap analysis
-- [context/context_implementation-state.md](context/context_implementation-state.md) — compressed phase summary
 
 ## Active priorities
 
@@ -65,8 +62,7 @@ These have no enrichment dependency and gate everything else.
 
 ### 🟠 P1 — Eval workflow rework (independent of corpus)
 
-From [context_potential-issues.md](context/context_potential-issues.md):
-current eval does **not** test the production failure path
+Eval gap: current eval does **not** test the production failure path
 (disliked-band re-recommendation after profile update). This is the
 single biggest reason "evals pass while production fails" per
 [TODO.md A1](TODO.md).
@@ -110,8 +106,7 @@ single biggest reason "evals pass while production fails" per
    anonymised production profile can be swapped in without scenario
    changes — file-not-found fails before any OpenAI/Spotify quota is
    burned.
-   Also added six coverage scenarios from
-   [scenarios.md](scenarios.md) in the recommended priority order:
+   Also added six coverage scenarios in the recommended priority order:
    `ambient_instrumental_focus` (S05), `boom_bap_90s` (S04),
    `brazilian_samba_funk` (S03), `club_techno_strict` (S12),
    `original_recordings_only` (S16), `contradictory_profile` (S19).

@@ -41,9 +41,9 @@ playlist_size = 30
 
 # Which canonical scenario from evaluation/scenario.py to run. F8.2
 # (2026-05-01) added a regression scenario that reproduces the
-# production failure documented in `context/claudeAnalyse.md` —
-# semantic avoid traits the legacy tokeniser cannot enforce + a hard
-# must-have phrase. Use it to verify F1/F2/F5 close the leakage gap.
+# production failure: semantic avoid traits the legacy tokeniser
+# cannot enforce + a hard must-have phrase. Use it to verify
+# F1/F2/F5 close the leakage gap.
 #   default                          — broad theatrical-pop-rock taste
 #   regression_japanese_theatrical   — the failure-mode reproducer
 scenario = default

@@ -6,7 +6,7 @@ rows: counts, statuses, token totals) but no per-run record of
 *which* avoid traits Stage 2 was given, or *what* Stage 3 actually
 saw in its prompt. That gap blocks every diagnosis the moment it
 moves past "the counts look wrong" and into "why did artist X
-appear / not appear?". See ``context/claudeAnalyse.md`` F9.
+appear / not appear?".
 
 This module fixes that with a thin singleton that the production
 pipeline writes into during a generation run and serialises to a

@@ -185,11 +185,11 @@ class TestSeedProfileFixture:
             _step_seed_profile(_FakeProfileMod, scn)
 
 
-# ── P1 #6: new coverage scenarios from scenarios.md ──────────────────
+# ── P1 #6: new coverage scenarios ────────────────────────────────────
 
 class TestCoverageScenarios:
-    """Scenario registry must include the six scenarios.md fixtures
-    so a typo in a scenario name fails loud at the get_scenario step."""
+    """Scenario registry must include the six coverage fixtures so a typo
+    in a scenario name fails loud at the get_scenario step."""
 
     def test_registry_includes_six_new_scenarios(self):
         from evaluation.scenario import SCENARIOS

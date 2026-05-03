@@ -1,7 +1,7 @@
 """Post-feedback leakage detection for the eval harness.
 
 Replaces text-based ``has_must_have_cite`` as the primary quality signal
-(F8 in ``context/claudeAnalyse.md``). After the harness applies likes and
+(F8). After the harness applies likes and
 dislikes and re-trains the profile, it generates a SECOND playlist on
 the same profile state. ``compute_leakage`` then audits that playlist
 against the profile's hard exclusion lists:

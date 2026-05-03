@@ -114,8 +114,8 @@ DEFAULT_SCENARIO = Scenario(
 
 # ── Regression scenario — production-failure reproducer ─────────────
 #
-# Mirrors the `japanese_Theatrical_music` profile documented in
-# `context/claudeAnalyse.md`. Three failure-mode signals encoded:
+# Mirrors the `japanese_Theatrical_music` production-failure profile.
+# Three failure-mode signals encoded:
 #
 #   1. Hard must-have prose ("Music must be Japanese") that the legacy
 #      tokeniser folds into a noisy bag-of-words rather than enforcing.
@@ -174,10 +174,10 @@ _REGRESSION_REFINE: dict[str, str] = {
 
 REGRESSION_JAPANESE_SCENARIO = Scenario(
     name="regression_japanese_theatrical",
-    description="Reproduces the production failure documented in "
-                "`context/claudeAnalyse.md`: semantic avoid traits the "
-                "legacy tokeniser cannot enforce + a hard must-have "
-                "phrase. Used to verify F1/F2/F5 close the leakage gap.",
+    description="Reproduces the production failure: semantic avoid "
+                "traits the legacy tokeniser cannot enforce + a hard "
+                "must-have phrase. Used to verify F1/F2/F5 close the "
+                "leakage gap.",
     seed_sections=_REGRESSION_SEED,
     refine_sections=_REGRESSION_REFINE,
     # Pick a Japanese band the major models recognise, so the analysis
@@ -193,9 +193,9 @@ REGRESSION_JAPANESE_SCENARIO = Scenario(
 )
 
 
-# ── Coverage scenarios (scenarios.md, recommended order) ────────────
+# ── Coverage scenarios (recommended order) ──────────────────────────
 #
-# Each one targets a blind spot identified in scenarios.md. Definitions
+# Each one targets a blind spot in retrieval/avoid coverage. Definitions
 # are pure data: prose seed + deterministic feedback rule + analysis
 # anchor known to exist on Spotify. Scoring relies on the existing
 # leakage + fit gates; per-scenario oracle checks (geo, language,
