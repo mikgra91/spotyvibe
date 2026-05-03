@@ -51,6 +51,7 @@
   "profile.menu_delete": "Profil löschen",
   "btn.ai_profile_update": "KI-Profil aktualisieren",
   "btn.save": "Speichern",
+  "btn.saving": "⏳ Speichern…",
   "btn.save_no_ai": "Speichern ohne KI",
   "btn.show": "Anzeigen",
   "btn.hide": "Ausblenden",

@@ -366,3 +366,61 @@ class TestJsonSchemaAutoDowngrade:
             chat_completions_create(model="gpt-4.1-mini", messages=[], response_format=rf)
         # No downgrade, no cache pollution.
         assert "gpt-4.1-mini" not in _JSON_SCHEMA_UNSUPPORTED
+
+
+# ── S8: direct unit tests for the rejection heuristic ──
+class TestLooksLikeSchemaRejection:
+    """Direct coverage of the heuristic itself, independent of the
+    chat_completions_create wrapper. Local-LLM compatibility regressions
+    here would silently break every Ollama / LM Studio / Groq user, so
+    the rule deserves its own pinned test surface."""
+
+    def test_empty_body_returns_false(self):
+        from core.src.openai_http import _looks_like_schema_rejection
+        assert _looks_like_schema_rejection("") is False
+        assert _looks_like_schema_rejection(None) is False  # type: ignore[arg-type]
+
+    def test_openai_style_unsupported_message_matches(self):
+        from core.src.openai_http import _looks_like_schema_rejection
+        assert _looks_like_schema_rejection(
+            '{"error":{"message":"response_format json_schema is not supported '
+            'for this model"}}'
+        ) is True
+
+    def test_lm_studio_style_unsupported_matches(self):
+        from core.src.openai_http import _looks_like_schema_rejection
+        assert _looks_like_schema_rejection(
+            "model does not support json_schema response_format"
+        ) is True
+
+    def test_invalid_response_format_matches(self):
+        from core.src.openai_http import _looks_like_schema_rejection
+        assert _looks_like_schema_rejection(
+            "invalid response_format: must be one of text|json_object"
+        ) is True
+
+    def test_case_insensitive(self):
+        from core.src.openai_http import _looks_like_schema_rejection
+        assert _looks_like_schema_rejection(
+            "RESPONSE_FORMAT JSON_SCHEMA NOT SUPPORTED"
+        ) is True
+
+    def test_unrelated_400_returns_false(self):
+        from core.src.openai_http import _looks_like_schema_rejection
+        assert _looks_like_schema_rejection(
+            '{"error":{"message":"messages array is empty"}}'
+        ) is False
+        assert _looks_like_schema_rejection(
+            '{"error":{"message":"context length exceeded"}}'
+        ) is False
+        assert _looks_like_schema_rejection(
+            '{"error":{"message":"rate limit reached"}}'
+        ) is False
+
+    def test_signal_word_alone_does_not_match(self):
+        """Bare 'invalid' or 'unsupported' without any schema/format keyword
+        must not flip the heuristic — that's how genuine 400s leak into
+        the auto-downgrade path."""
+        from core.src.openai_http import _looks_like_schema_rejection
+        assert _looks_like_schema_rejection("invalid model id") is False
+        assert _looks_like_schema_rejection("model unsupported") is False

@@ -5,7 +5,7 @@ scopes). Designed for the Cloud Run build job — single process, no
 concurrency, simple exponential backoff on 429 / 5xx.
 
 Why not Spotipy?
-  - We only need 2 endpoints (search artists, get-artists batch).
+  - We only need 2 endpoints (search artists, get-artist by id).
   - Spotipy pulls in an OAuth dance that's not needed here.
   - Keeping the build container tiny matters for cold-start cost.
 """
@@ -25,9 +25,6 @@ logger = logging.getLogger("spotify_enrichment.client")
 
 _TOKEN_URL = "https://accounts.spotify.com/api/token"
 _API_BASE = "https://api.spotify.com/v1"
-
-# Spotify allows up to 50 IDs per /artists batch call.
-_MAX_ARTISTS_PER_BATCH = 50
 
 # Per-request timeout. Spotify is usually <500ms; 15 s is generous.
 _REQUEST_TIMEOUT = 15.0
@@ -70,11 +67,14 @@ class SpotifyBackoffBudgetExhausted(RuntimeError):
 
 @dataclass
 class SpotifyArtist:
-    """Subset of Spotify artist fields used by the enrichment pipeline."""
+    """Subset of Spotify artist fields used by the enrichment pipeline.
+
+    Note: Spotify removed ``popularity`` and ``followers`` from artist
+    objects in Feb 2026. ``genres`` is the only field still worth
+    keeping; ``id`` is retained for future top-tracks overlay lookups.
+    """
     id: str
     name: str
-    popularity: int          # 0-100
-    followers: int
     genres: list[str]
 
 
@@ -210,26 +210,28 @@ class SpotifyClient:
         return (data.get("artists") or {}).get("items") or []
 
     def get_artists(self, ids: Iterable[str]) -> list[SpotifyArtist]:
-        """Bulk-fetch artist details, batched 50 at a time."""
+        """Fetch artist details one at a time via ``GET /artists/{id}``.
+
+        Spotify removed the batch ``GET /artists?ids=…`` endpoint in
+        Feb 2026; per-id calls are the supported replacement. Throughput
+        is ~4.7 req/s with the throttle, which still fits inside the
+        Cloud Run job budget for the enrichment slice.
+        """
         out: list[SpotifyArtist] = []
         ids_list = [i for i in ids if i]
-        for i in range(0, len(ids_list), _MAX_ARTISTS_PER_BATCH):
-            batch = ids_list[i: i + _MAX_ARTISTS_PER_BATCH]
+        for sp_id in ids_list:
             try:
-                data = self._get("/artists", params={"ids": ",".join(batch)})
+                raw = self._get(f"/artists/{urllib.parse.quote(sp_id)}")
             except requests.HTTPError as exc:
-                logger.warning("Spotify get-artists batch failed: %s", exc)
+                logger.warning("Spotify get-artist %s failed: %s", sp_id, exc)
                 continue
-            for raw in (data.get("artists") or []):
-                if not raw:
-                    continue
-                out.append(SpotifyArtist(
-                    id=str(raw.get("id") or ""),
-                    name=str(raw.get("name") or ""),
-                    popularity=int(raw.get("popularity") or 0),
-                    followers=int((raw.get("followers") or {}).get("total") or 0),
-                    genres=[str(g) for g in (raw.get("genres") or [])],
-                ))
+            if not raw:
+                continue
+            out.append(SpotifyArtist(
+                id=str(raw.get("id") or ""),
+                name=str(raw.get("name") or ""),
+                genres=[str(g) for g in (raw.get("genres") or [])],
+            ))
         return out
 
 

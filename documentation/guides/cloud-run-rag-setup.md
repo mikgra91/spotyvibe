@@ -720,10 +720,10 @@ That's it — the next execution (`gcloud run jobs execute spotivibe-rag-builder
 ### 9.4 What enrichment does at runtime
 For each MB artist, the job:
 1. Searches Spotify by name (`/v1/search?q=artist:"<name>"`).
-2. Scores up to 5 candidates with a conservative heuristic (exact name + genre overlap + popularity floor).
+2. Scores up to 5 candidates with a conservative heuristic (exact name + genre overlap).
 3. Accepts the top scorer if confidence ≥ 1.0 (otherwise leaves the artist MB-only).
-4. Bulk-fetches details for matched IDs (50 IDs per call, ~20–25 minutes for 170K artists).
-5. Writes `spotify_id`, `spotify_popularity`, `spotify_followers`, `spotify_genres` into each row.
+4. Fetches details one ID at a time via `GET /artists/{id}` (Spotify removed the batch endpoint Feb 2026; ≈3 h for the top-50k slice at the throttle).
+5. Writes `spotify_id` and `spotify_genres` into each row. (`popularity` and `followers` were also removed from the artist object Feb 2026 and are no longer stored.)
 Estimated match rate: 65–80% of MB artists. Unmatched rows are emitted unchanged — fully backward compatible. The runtime treats unenriched rows as legacy and falls back to the MB proxy popularity.
 ### 9.5 Rotating the Spotify secret
 If you ever need to rotate the Spotify Client Secret (compromised, suspicious activity, periodic hygiene):

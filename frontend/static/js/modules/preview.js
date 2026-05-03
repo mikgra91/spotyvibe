@@ -247,6 +247,45 @@ export function closePreviewOverlay() {
     closePreviewFeedback();
 }
 
+/**
+ * CF-Bug-6: Called by feedback.removeTrack and review.animateReviewRemove
+ * BEFORE they splice the track list, so the preview module can:
+ *   1. stop SDK / iframe playback if the removed track is the one currently
+ *      being previewed (otherwise audio keeps playing and subsequent play
+ *      requests are ignored because the SDK still thinks it owns a track), and
+ *   2. shift currentPreviewIndex when an earlier track is removed so it
+ *      keeps pointing at the same logical track after the splice.
+ *
+ * Source must match the preview's current source; cross-source removals
+ * are independent.
+ */
+export function onExternalTrackRemoved(removedIdx, source = 'discover') {
+    if (source !== currentPreviewSource) return;
+    if (currentPreviewIndex < 0) return;
+
+    if (removedIdx === currentPreviewIndex) {
+        // The currently-previewed track is being removed: stop playback,
+        // clear the iframe src, and close the overlay if it's open. Without
+        // this, audio continues and the SDK's stuck "owns this track" state
+        // blocks subsequent sdkPlayCurrentTrack calls from new previews.
+        if (_playbackMode === 'sdk') {
+            Sdk.getPlayer()?.pause().catch(() => {});
+        }
+        const iframe = el('spotifyPreviewIframe');
+        if (iframe) iframe.src = '';
+        _stopTicker();
+        _sdkAdvanceFiredFor = null;
+        const overlay = el('spotifyPreviewOverlay');
+        if (overlay && overlay.classList.contains('visible')) {
+            closePreviewOverlay();
+        } else {
+            currentPreviewIndex = -1;
+        }
+    } else if (removedIdx < currentPreviewIndex) {
+        currentPreviewIndex -= 1;
+    }
+}
+
 /* ── SDK wiring ──────────────────────────────────────────────────── */
 
 async function fetchSessionInfo() {

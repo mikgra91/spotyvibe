@@ -37,37 +37,37 @@ def test_normalise_empty_inputs():
 def test_score_exact_name_only():
     s = score_candidate(
         mb_name="Bear Ghost", mb_begin_year=2014, mb_tags=["rock"],
-        sp_name="Bear Ghost", sp_popularity=0, sp_genres=[],
+        sp_name="Bear Ghost", sp_genres=[],
     )
-    assert s == 1.0  # name match only, popularity below the +0.2 floor
+    assert s == 1.0  # name match alone clears MIN_MATCH_SCORE
 
 
-def test_score_full_match_includes_year_and_popularity_and_overlap():
+def test_score_full_match_includes_year_and_overlap():
     s = score_candidate(
         mb_name="Bear Ghost", mb_begin_year=2014,
         mb_tags=["progressive rock", "rock"],
-        sp_name="Bear Ghost", sp_popularity=38,
+        sp_name="Bear Ghost",
         sp_genres=["progressive rock", "theatrical rock"],
         sp_first_release_year=2015,
     )
-    # 1.0 (name) + 0.5 (year) + 0.2 (pop≥5) + 0.1 (1 shared genre) = 1.8
-    assert s == pytest.approx(1.8, rel=0.001)
+    # 1.0 (name) + 0.5 (year) + 0.1 (1 shared genre) = 1.6
+    assert s == pytest.approx(1.6, rel=0.001)
 
 
 def test_score_no_name_match_returns_low():
     s = score_candidate(
         mb_name="Bear Ghost", mb_begin_year=2014, mb_tags=["rock"],
-        sp_name="Polar Wolf", sp_popularity=80, sp_genres=["rock"],
+        sp_name="Polar Wolf", sp_genres=["rock"],
     )
-    # Only the popularity (+0.2) and 1 shared tag (+0.1) → 0.3, well below 1.0
-    assert s == pytest.approx(0.3, rel=0.001)
+    # Only 1 shared tag (+0.1) → 0.1, well below 1.0
+    assert s == pytest.approx(0.1, rel=0.001)
 
 
 def test_score_tag_bonus_capped():
     s = score_candidate(
         mb_name="X", mb_begin_year=None,
         mb_tags=["a", "b", "c", "d", "e", "f", "g", "h"],
-        sp_name="X", sp_popularity=0,
+        sp_name="X",
         sp_genres=["a", "b", "c", "d", "e", "f", "g", "h"],
     )
     # 1.0 (name) + min(0.5, 0.1*8) = 1.5 — bonus capped at 0.5
@@ -78,8 +78,8 @@ def test_score_tag_bonus_capped():
 
 def test_pick_best_match_returns_top_scorer_above_threshold():
     candidates = [
-        {"id": "low", "name": "Bear Ghost", "popularity": 0, "genres": []},
-        {"id": "high", "name": "Bear Ghost", "popularity": 50,
+        {"id": "low", "name": "Bear Ghost", "genres": []},
+        {"id": "high", "name": "Bear Ghost",
          "genres": ["progressive rock"]},
     ]
     match = pick_best_match(
@@ -92,8 +92,7 @@ def test_pick_best_match_returns_top_scorer_above_threshold():
 
 def test_pick_best_match_returns_none_below_threshold():
     candidates = [
-        {"id": "wrong", "name": "Polar Wolf", "popularity": 60,
-         "genres": ["pop"]},
+        {"id": "wrong", "name": "Polar Wolf", "genres": ["pop"]},
     ]
     match = pick_best_match(
         mb_name="Bear Ghost", mb_begin_year=2014,
@@ -107,7 +106,7 @@ def test_pick_best_match_tolerates_garbage_entries():
         None,
         "not a dict",
         {},
-        {"id": "ok", "name": "Bear Ghost", "popularity": 30, "genres": []},
+        {"id": "ok", "name": "Bear Ghost", "genres": []},
     ]
     match = pick_best_match(
         mb_name="Bear Ghost", mb_begin_year=None, mb_tags=[],

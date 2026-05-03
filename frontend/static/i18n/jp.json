@@ -51,6 +51,7 @@
   "profile.menu_delete": "プロフィールを削除",
   "btn.ai_profile_update": "AI Profile Update",
   "btn.save": "保存",
+  "btn.saving": "⏳ 保存中…",
   "btn.save_no_ai": "AI なしで保存",
   "btn.show": "表示",
   "btn.hide": "非表示",

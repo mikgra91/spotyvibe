@@ -51,6 +51,7 @@
   "profile.menu_delete": "Delete profile",
   "btn.ai_profile_update": "AI Profile Update",
   "btn.save": "Save",
+  "btn.saving": "⏳ Saving…",
   "btn.save_no_ai": "Save without AI",
   "btn.show": "Show",
   "btn.hide": "Hide",

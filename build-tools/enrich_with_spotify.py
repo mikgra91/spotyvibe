@@ -1,14 +1,15 @@
 """Enrich a MusicBrainz-only RAG corpus with Spotify metadata.
 
 Reads ``--input artists.jsonl[.gz]``, resolves each artist to a Spotify
-artist via search + matching heuristic, then bulk-fetches the matched
-IDs (50 at a time) and writes ``--output enriched.jsonl[.gz]``.
+artist via search + matching heuristic, then fetches each matched ID via
+``GET /artists/{id}`` and writes ``--output enriched.jsonl[.gz]``.
 
 For every artist we attempt to add:
 - ``spotify_id``         (str, ID for future lookups)
-- ``spotify_popularity`` (int 0-100, **real** popularity)
-- ``spotify_followers``  (int)
 - ``spotify_genres``     (list[str], dense Spotify-curated genres)
+
+(``popularity`` and ``followers`` were removed from Spotify artist
+objects in Feb 2026; the only field still worth keeping is ``genres``.)
 
 If matching fails (no candidate clears ``MIN_MATCH_SCORE``), the row is
 emitted **unchanged** — the runtime treats unenriched rows as legacy
@@ -167,10 +168,10 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("Pass 1 done — %d matched, %d unmatched, %d below min-popularity",
                 n_matched, len(skipped) - n_skipped_low_pop, n_skipped_low_pop)
 
-    # Pass 2: bulk-fetch details for matched IDs.
+    # Pass 2: per-id fetch (Spotify removed the batch endpoint Feb 2026).
     sp_by_id: dict[str, object] = {}
     if pending:
-        logger.info("Pass 2: bulk-fetching Spotify details for %d artists …", n_matched)
+        logger.info("Pass 2: per-id Spotify details fetch for %d artists …", n_matched)
         try:
             sp_ids = [sp_id for _, sp_id in pending]
             sp_details = client.get_artists(sp_ids)
@@ -190,8 +191,6 @@ def main(argv: list[str] | None = None) -> int:
             row = dict(mb_row)
             if sp is not None:
                 row["spotify_id"] = sp.id
-                row["spotify_popularity"] = sp.popularity
-                row["spotify_followers"] = sp.followers
                 row["spotify_genres"] = sp.genres
                 n_enriched += 1
             out.write(json.dumps(row, ensure_ascii=False) + "\n")

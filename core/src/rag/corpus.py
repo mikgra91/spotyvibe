@@ -40,11 +40,11 @@ class ArtistRow:
     tags: list[str] = field(default_factory=list)              # normalised tag strings
     tag_weights: list[int] = field(default_factory=list)       # aligned to tags
     listener_popularity: float = 0.0                            # 0..1 normalised
-    # ── Spotify enrichment (Phase 2 / 2026-04). All optional so legacy
-    # corpus files without these fields still load cleanly.
+    # ── Spotify enrichment (Phase 2 / 2026-04). Optional so legacy
+    # corpus files without these fields still load cleanly. Spotify
+    # removed ``popularity`` and ``followers`` from artist objects in
+    # Feb 2026 — only ``id`` + ``genres`` are populated now.
     spotify_id: str | None = None
-    spotify_popularity: int | None = None     # 0..100 from Spotify
-    spotify_followers: int | None = None
     spotify_genres: list[str] = field(default_factory=list)
     # ── Track-level grounding (2026-04-27). Up to ~5 known released
     # tracks per artist, sourced either from corpus build (offline
@@ -235,10 +235,6 @@ class RagCorpus:
                     tag_weights=[int(w) if w is not None else 1 for w in weights[:len(tags)]],
                     listener_popularity=float(raw.get("listener_popularity") or 0.0),
                     spotify_id=(str(raw["spotify_id"]) if raw.get("spotify_id") else None),
-                    spotify_popularity=(int(raw["spotify_popularity"])
-                                        if raw.get("spotify_popularity") is not None else None),
-                    spotify_followers=(int(raw["spotify_followers"])
-                                       if raw.get("spotify_followers") is not None else None),
                     spotify_genres=[str(g) for g in (raw.get("spotify_genres") or [])],
                     top_tracks=[str(t) for t in (raw.get("top_tracks") or []) if t],
                 )

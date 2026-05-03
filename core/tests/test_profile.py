@@ -1104,3 +1104,208 @@ def test_merge_mutable_back_handles_empty_gpt_response():
     original = {"preferences": {"must_have": ["a"]}, "history": {"x": 1}}
     assert _merge_mutable_back(original, {}) == original
     assert _merge_mutable_back(original, None) == {"preferences": {"must_have": ["a"]}, "history": {"x": 1}}
+
+
+# ── S11: orphan swap.tmp recovery ───────────────────────────────────
+
+def _make_profile_dir(tmp_path, pid="pid-1"):
+    d = tmp_path / "profiles" / pid
+    d.mkdir(parents=True, exist_ok=True)
+    return d, d / "profile.json", d / "profile.history.json", d / "profile.json.swap.tmp"
+
+
+def test_recover_orphan_after_step1_rolls_back(tmp_path):
+    """Crash after profile→tmp: profile missing, tmp + history present.
+    Recovery should restore tmp into profile."""
+    from core.src.profile import recover_orphaned_swap_tmps
+    _d, profile_path, history_path, tmp = _make_profile_dir(tmp_path)
+    tmp.write_text('{"v": "old_profile"}')
+    history_path.write_text('{"v": "old_history"}')
+    with patch("core.src.profile.PROFILES_DIR", tmp_path / "profiles"):
+        n = recover_orphaned_swap_tmps()
+    assert n == 1
+    assert not tmp.exists()
+    assert json.loads(profile_path.read_text()) == {"v": "old_profile"}
+    assert json.loads(history_path.read_text()) == {"v": "old_history"}
+
+
+def test_recover_orphan_after_step2_completes_swap(tmp_path):
+    """Crash after history→profile: profile + tmp present, history missing.
+    Recovery should rename tmp into history."""
+    from core.src.profile import recover_orphaned_swap_tmps
+    _d, profile_path, history_path, tmp = _make_profile_dir(tmp_path)
+    profile_path.write_text('{"v": "new_profile"}')
+    tmp.write_text('{"v": "new_history"}')
+    with patch("core.src.profile.PROFILES_DIR", tmp_path / "profiles"):
+        n = recover_orphaned_swap_tmps()
+    assert n == 1
+    assert not tmp.exists()
+    assert json.loads(profile_path.read_text()) == {"v": "new_profile"}
+    assert json.loads(history_path.read_text()) == {"v": "new_history"}
+
+
+def test_recover_orphan_ambiguous_preserves_tmp_as_bak(tmp_path):
+    """Both profile + history present alongside tmp: keep tmp as .bak."""
+    from core.src.profile import recover_orphaned_swap_tmps
+    _d, profile_path, history_path, tmp = _make_profile_dir(tmp_path)
+    profile_path.write_text('{"v": "p"}')
+    history_path.write_text('{"v": "h"}')
+    tmp.write_text('{"v": "t"}')
+    with patch("core.src.profile.PROFILES_DIR", tmp_path / "profiles"):
+        n = recover_orphaned_swap_tmps()
+    assert n == 0
+    assert not tmp.exists()
+    bak = tmp.with_suffix(".bak")
+    assert bak.exists() and json.loads(bak.read_text()) == {"v": "t"}
+
+
+def test_recover_orphan_noop_when_no_tmps(tmp_path):
+    from core.src.profile import recover_orphaned_swap_tmps
+    (tmp_path / "profiles").mkdir()
+    with patch("core.src.profile.PROFILES_DIR", tmp_path / "profiles"):
+        assert recover_orphaned_swap_tmps() == 0
+
+
+def test_recover_orphan_handles_missing_profiles_dir(tmp_path):
+    from core.src.profile import recover_orphaned_swap_tmps
+    with patch("core.src.profile.PROFILES_DIR", tmp_path / "does-not-exist"):
+        assert recover_orphaned_swap_tmps() == 0
+
+
+# ── S9: validate_profile_schema / import_profile_dict ────────────────
+
+class TestValidateProfileSchema:
+    def test_rejects_non_dict(self):
+        from core.src.profile import validate_profile_schema
+        with pytest.raises(ValueError, match="JSON object"):
+            validate_profile_schema(["not", "a", "dict"])  # type: ignore[arg-type]
+
+    def test_strips_unknown_top_level_keys(self):
+        from core.src.profile import validate_profile_schema
+        data = {"preferences": {}, "garbage": 1, "evil_eval": "rm -rf /"}
+        validate_profile_schema(data)
+        assert "garbage" not in data
+        assert "evil_eval" not in data
+        assert "preferences" in data
+
+    def test_meta_must_be_dict(self):
+        from core.src.profile import validate_profile_schema
+        with pytest.raises(ValueError, match="meta"):
+            validate_profile_schema({"meta": "not a dict"})
+
+    def test_meta_goal_string_length_capped(self):
+        from core.src.profile import validate_profile_schema, _MAX_STR_LEN
+        with pytest.raises(ValueError, match="meta.goal"):
+            validate_profile_schema({"meta": {"goal": "x" * (_MAX_STR_LEN + 1)}})
+
+    def test_preferences_must_be_dict(self):
+        from core.src.profile import validate_profile_schema
+        with pytest.raises(ValueError, match="preferences"):
+            validate_profile_schema({"preferences": "nope"})
+
+    def test_preferences_lists_must_be_string_lists(self):
+        from core.src.profile import validate_profile_schema
+        with pytest.raises(ValueError, match=r"preferences\.must_have"):
+            validate_profile_schema({"preferences": {"must_have": [1, 2, 3]}})
+
+    def test_preferences_core_description_string_only(self):
+        from core.src.profile import validate_profile_schema
+        with pytest.raises(ValueError, match="core_description"):
+            validate_profile_schema({"preferences": {"core_description": ["list", "not", "string"]}})
+
+    def test_preferences_list_length_capped(self):
+        from core.src.profile import validate_profile_schema, _MAX_LIST_ITEMS
+        big = ["x"] * (_MAX_LIST_ITEMS + 1)
+        with pytest.raises(ValueError, match="exceeds maximum"):
+            validate_profile_schema({"preferences": {"avoid": big}})
+
+    def test_artists_confirmed_string_list(self):
+        from core.src.profile import validate_profile_schema
+        with pytest.raises(ValueError, match="artists.confirmed"):
+            validate_profile_schema({"artists": {"confirmed": [{"name": "x"}]}})
+
+    def test_artists_moderate_must_be_list(self):
+        from core.src.profile import validate_profile_schema
+        with pytest.raises(ValueError, match="artists.moderate"):
+            validate_profile_schema({"artists": {"moderate": "not a list"}})
+
+    def test_history_long_lists_truncated_in_place(self):
+        from core.src.profile import validate_profile_schema, _MAX_LIST_ITEMS
+        cap = _MAX_LIST_ITEMS * 10
+        big = list(range(cap + 50))
+        data = {"history": {"suggested_artists": big}}
+        validate_profile_schema(data)
+        # Last cap items kept, oldest dropped — silent guard, not an error.
+        assert data["history"]["suggested_artists"] == list(range(50, cap + 50))
+
+    def test_taste_rules_validation(self):
+        from core.src.profile import validate_profile_schema
+        with pytest.raises(ValueError, match="taste_rules"):
+            validate_profile_schema({"taste_rules": "nope"})
+        with pytest.raises(ValueError, match="primary_driver"):
+            validate_profile_schema({"taste_rules": {"primary_driver": ["list"]}})
+        with pytest.raises(ValueError, match="dealbreaker_priority"):
+            validate_profile_schema({"taste_rules": {"dealbreaker_priority": "string"}})
+
+    def test_minimal_valid_profile_passes(self):
+        from core.src.profile import validate_profile_schema
+        data = {"preferences": {"must_have": ["jazz"], "avoid": ["pop"]}}
+        validate_profile_schema(data)  # no raise
+
+
+class TestImportProfileDict:
+    def test_rejects_non_dict(self, tmp_path):
+        from core.src.profile import import_profile_dict
+        with pytest.raises(ValueError, match="JSON object"):
+            import_profile_dict("not a dict")  # type: ignore[arg-type]
+
+    def test_invalid_schema_propagates_value_error(self, tmp_path):
+        from core.src.profile import import_profile_dict
+        p1, p2, p3, p4 = _patch_active_profile(tmp_path)
+        with p1, p2, p3, p4:
+            with pytest.raises(ValueError, match="must_have"):
+                import_profile_dict({"preferences": {"must_have": [1, 2]}})
+
+    def test_round_trip_preserves_known_fields(self, tmp_path):
+        from core.src.profile import import_profile_dict, load_profile
+        p1, p2, p3, p4 = _patch_active_profile(tmp_path)
+        payload = {
+            "preferences": {
+                "core_description": "loves space jazz",
+                "must_have": ["jazz", "ambient"],
+                "avoid": ["edm"],
+            },
+            "meta": {"goal": "discover obscure artists"},
+        }
+        with p1, p2, p3, p4:
+            merged = import_profile_dict(payload)
+            on_disk = load_profile()
+        assert merged["preferences"]["core_description"] == "loves space jazz"
+        assert merged["preferences"]["must_have"] == ["jazz", "ambient"]
+        assert merged["meta"]["goal"] == "discover obscure artists"
+        # Template defaults filled in for missing top-level keys.
+        assert "history" in merged and isinstance(merged["history"], dict)
+        assert "feedback" in merged and isinstance(merged["feedback"], dict)
+        # Persisted to disk.
+        assert on_disk["preferences"]["must_have"] == ["jazz", "ambient"]
+
+    def test_strips_unknown_top_level_keys_on_import(self, tmp_path):
+        from core.src.profile import import_profile_dict
+        p1, p2, p3, p4 = _patch_active_profile(tmp_path)
+        with p1, p2, p3, p4:
+            merged = import_profile_dict({
+                "preferences": {},
+                "evil": {"shell": "rm -rf /"},
+            })
+        assert "evil" not in merged
+
+    def test_sanitises_control_chars_in_strings(self, tmp_path):
+        from core.src.profile import import_profile_dict
+        p1, p2, p3, p4 = _patch_active_profile(tmp_path)
+        with p1, p2, p3, p4:
+            merged = import_profile_dict({
+                "preferences": {"core_description": "loves\x00null bytes\x01"},
+            })
+        # Null + control bytes stripped by sanitize_profile.
+        assert "\x00" not in merged["preferences"]["core_description"]
+        assert "\x01" not in merged["preferences"]["core_description"]

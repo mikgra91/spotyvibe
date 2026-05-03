@@ -5,6 +5,7 @@ import { buildRationaleHtml } from './rationale.js';
 import { resetDashboard } from './taste_dashboard.js';
 import { el } from './dom.js';
 import { postFeedback, postRemove } from './feedback-api.js';
+import { onExternalTrackRemoved } from './preview.js';
 
 /**
  * Build the inner HTML for a track card (shared by discover and review lists).
@@ -276,6 +277,9 @@ export async function removeTrack(idx) {
 export function animateRemove(idx) {
     const node = el(`track-${idx}`);
     if (!node) return;
+    // CF-Bug-6: notify the preview module BEFORE the splice so it can stop
+    // playback / shift its index based on pre-splice positions.
+    onExternalTrackRemoved(idx, 'discover');
     node.style.opacity = '0';
     node.style.transform = 'translateX(40px)';
     setTimeout(() => node.remove(), 300);

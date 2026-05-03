@@ -304,10 +304,10 @@
                         <div class="track-actions">
                             <button class="btn btn-feedback" onclick="toggleFeedback({{ idx }})"
                                     data-i18n-attr="aria-label:feedback.button_aria"
-                                    aria-label="Feedback on {{ track.artist|e }} — {{ track.title|e }}"><span aria-hidden="true">💬</span> <span data-i18n="feedback.open_panel">Feedback</span></button>
+                                    aria-label="Open feedback panel for this track"><span aria-hidden="true">💬</span> <span data-i18n="feedback.open_panel">Feedback</span></button>
                             <button class="btn btn-remove"  onclick="removeTrack({{ idx }})"
                                     data-i18n-attr="aria-label:feedback.delete_aria"
-                                    aria-label="Delete {{ track.artist|e }} — {{ track.title|e }}">🗑</button>
+                                    aria-label="Remove this track from the playlist">🗑</button>
                         </div>
                     </div>
                     <div class="feedback-form" id="form-{{ idx }}">

@@ -307,7 +307,7 @@ The corpus (`artists.jsonl.gz`, ~10 MB) is **not** bundled with the app. It is b
 **Pipeline** — the Cloud Run Job executes `build-tools/cloud_run_publish.py`, which:
 
 1. Runs `refresh_rag_corpus.py` — downloads the latest MusicBrainz JSON dump (~3 GB), **streams** directly from the compressed `.tar.xz` archives (no 33 GB extraction to disk), and invokes `build_rag_corpus.py` to produce the corpus.
-2. **(Phase 2, 2026-04, optional)** Runs `enrich_with_spotify.py` if `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` are set — looks up each MB artist on Spotify (Client Credentials flow), attaches `spotify_id`, `spotify_popularity` (0-100), `spotify_followers`, and `spotify_genres`. Conservative match heuristic skips artists below confidence ≥ 1.0 (≈ 65-80% match rate). Adds ~7-10 MB to the gzipped corpus. See `documentation/guides/cloud-run-rag-setup.md` §9 for setup.
+2. **(Phase 2, 2026-04, optional)** Runs `enrich_with_spotify.py` if `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` are set — looks up each MB artist on Spotify (Client Credentials flow) and attaches `spotify_id` + `spotify_genres`. Spotify removed `popularity` and `followers` from artist objects in Feb 2026 and dropped the batch `GET /artists` endpoint, so the enricher now does a per-id `GET /artists/{id}` and stores genres only. Conservative match heuristic skips artists below confidence ≥ 1.0 (≈ 65-80% match rate). Adds ~7-10 MB to the gzipped corpus. See `documentation/guides/cloud-run-rag-setup.md` §9 for setup.
 3. Computes SHA-256 of the resulting `artists.jsonl.gz`.
 4. Uploads `artists.jsonl.gz` + `manifest.json` to the public GCS bucket.
 5. Wipes the ephemeral working directory.
@@ -384,7 +384,7 @@ This subsection captures the formulas, memory budgets, and design-rationale answ
 | `tags` (list) | MusicBrainz `artist_tag` joined on tag id | Genre / mood matching — main retrieval signal |
 | `tag_weights` (list of ints) | MusicBrainz `artist_tag.count` | Tag relevance ranking |
 | `listener_popularity` (0–1) | Derived: release count + tag total proxy (Option A) | Anti-popularity-bias re-rank |
-| `spotify_id`, `spotify_popularity`, `spotify_followers`, `spotify_genres` | Phase 2 enrichment via Spotify Client Credentials | Optional: real popularity + extra tag vocabulary |
+| `spotify_id`, `spotify_genres` | Phase 2 enrichment via Spotify Client Credentials | Optional: extra tag vocabulary (`popularity` + `followers` removed by Spotify Feb 2026) |
 
 Slimming history (2026-04): `sort_name`, `country`, `end_year` and the in-memory `by_mbid` / `by_name_normalised` indexes were dropped because they were loaded but never read. Net: ~25–30% resident memory reduction. JSONL parser silently ignores extra fields, so older corpora still load.
 

@@ -49,6 +49,17 @@ export async function applyLanguage(lang) {
         const key = el.getAttribute('data-i18n-tooltip');
         if (_i18nStrings[key] !== undefined) el.setAttribute('data-tooltip', _i18nStrings[key]);
     });
+    // data-i18n-attr="attr1:key1,attr2:key2" — generic per-attribute applier,
+    // used for things like `aria-label` where a dedicated handler would be overkill.
+    document.querySelectorAll('[data-i18n-attr]').forEach(el => {
+        const spec = el.getAttribute('data-i18n-attr');
+        if (!spec) return;
+        spec.split(',').forEach(pair => {
+            const [attr, key] = pair.split(':').map(s => s && s.trim());
+            if (!attr || !key) return;
+            if (_i18nStrings[key] !== undefined) el.setAttribute(attr, _i18nStrings[key]);
+        });
+    });
 
     _syncToggle(lang);
 

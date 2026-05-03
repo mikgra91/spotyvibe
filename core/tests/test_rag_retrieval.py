@@ -184,40 +184,18 @@ def test_artist_matched_by_spotify_genres_only(tmp_path):
     names = [a.name for a in pool]
     assert "Theatrical Band" in names
     assert "Polka Group" not in names
-def test_spotify_popularity_overrides_proxy(tmp_path):
-    """When two artists share tags, the one with the lower real Spotify
-    popularity should rank higher (popularity penalty + sweet-spot boost)."""
-    rows = [
-        # Mega-popular: spotify_popularity 95 → no boost, big penalty
-        {"mbid": "mega", "name": "Mega Star",
-         "tags": ["indie rock"], "tag_weights": [5],
-         "listener_popularity": 0.5,  # proxy says mid; Spotify says big
-         "spotify_id": "m", "spotify_popularity": 95,
-         "spotify_followers": 9_000_000, "spotify_genres": ["indie rock"]},
-        # Sweet-spot: 50 → +10% boost, moderate penalty
-        {"mbid": "mid", "name": "Mid Tier",
-         "tags": ["indie rock"], "tag_weights": [5],
-         "listener_popularity": 0.5,
-         "spotify_id": "x", "spotify_popularity": 50,
-         "spotify_followers": 50_000, "spotify_genres": ["indie rock"]},
-    ]
-    path = tmp_path / "artists.jsonl"
-    path.write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
-    corpus = RagCorpus.load(path)
-    profile = {"preferences": {"must_have": ["indie rock"]}}
-    pool = score_artists(corpus, profile, pool_size=2)
-    assert pool[0].name == "Mid Tier"
 def test_mixed_legacy_and_enriched_corpus(tmp_path):
     """A corpus mixing rows with and without Spotify enrichment must
-    score correctly — legacy rows fall back to listener_popularity."""
+    score correctly — both ranks come from the MB listener_popularity
+    proxy now that Spotify dropped popularity from artist objects."""
     rows = [
         # Legacy — popularity proxy 0.4
         {"mbid": "leg", "name": "Legacy", "tags": ["jazz"], "tag_weights": [5],
          "listener_popularity": 0.4},
-        # Enriched, sweet-spot
+        # Enriched (post-Feb-2026 surface: id + genres only).
         {"mbid": "enr", "name": "Enriched", "tags": ["jazz"], "tag_weights": [5],
-         "listener_popularity": 0.99,  # proxy is wrong
-         "spotify_popularity": 45, "spotify_genres": []},
+         "listener_popularity": 0.5,
+         "spotify_id": "abc", "spotify_genres": ["jazz"]},
     ]
     path = tmp_path / "artists.jsonl"
     path.write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")

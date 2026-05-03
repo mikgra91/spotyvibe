@@ -134,8 +134,6 @@ def test_legacy_rows_without_spotify_fields_load(corpus_file):
     assert len(corpus) == 5
     for a in corpus.artists:
         assert a.spotify_id is None
-        assert a.spotify_popularity is None
-        assert a.spotify_followers is None
         assert a.spotify_genres == []
 
 
@@ -144,11 +142,10 @@ def test_enriched_rows_populate_spotify_fields(tmp_path):
         # Legacy row — no spotify_*.
         {"mbid": "leg", "name": "Legacy", "tags": ["rock"], "tag_weights": [3],
          "listener_popularity": 0.4},
-        # Enriched row.
+        # Enriched row (post-Feb-2026 surface: id + genres only).
         {"mbid": "enr", "name": "Enriched", "tags": ["rock"], "tag_weights": [3],
          "listener_popularity": 0.4,
-         "spotify_id": "abc123", "spotify_popularity": 55,
-         "spotify_followers": 12345,
+         "spotify_id": "abc123",
          "spotify_genres": ["progressive rock", "theatrical rock"]},
     ]
     path = tmp_path / "artists.jsonl"
@@ -158,8 +155,6 @@ def test_enriched_rows_populate_spotify_fields(tmp_path):
     enr = corpus.by_mbid["enr"]
     assert corpus.artists[leg].spotify_id is None
     assert corpus.artists[enr].spotify_id == "abc123"
-    assert corpus.artists[enr].spotify_popularity == 55
-    assert corpus.artists[enr].spotify_followers == 12345
     assert corpus.artists[enr].spotify_genres == ["progressive rock", "theatrical rock"]
 
 

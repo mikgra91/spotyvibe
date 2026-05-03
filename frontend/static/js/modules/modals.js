@@ -211,7 +211,16 @@ export async function saveSettings() {
         payload.rag_enabled = ragCheckbox.checked;
     }
 
-
+    // CF-Bug-7: API-key validation + model fetch can take several seconds.
+    // Disable the Save button + swap to a "saving" label so users don't
+    // double-click and submit duplicate saves while the request is in flight.
+    const saveBtn = el('settingsModal').querySelector('.btn-save');
+    const prevLabel = saveBtn?.textContent;
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.setAttribute('aria-busy', 'true');
+        saveBtn.textContent = i18n('btn.saving', '⏳ Saving…');
+    }
 
     try {
         const resp = await fetch('/api/settings', {
@@ -236,6 +245,12 @@ export async function saveSettings() {
         }
     } catch (e) {
         showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.removeAttribute('aria-busy');
+            saveBtn.textContent = prevLabel ?? i18n('btn.save', 'Save');
+        }
     }
 }
 

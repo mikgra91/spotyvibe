@@ -100,6 +100,30 @@ def _reduce_timeouts(page):
         "localStorage.setItem('spotyvibe-quickstart-dismissed', 'true');"
     )
 
+    # S1: hide the RAG-update toast (#ragUpdateTip) for the whole session.
+    # The toast is injected dynamically by rag_update_prompt.js after a
+    # /api/settings fetch resolves to status='update_available' or
+    # 'missing_corpus', so a one-shot DOMContentLoaded hide misses it. A
+    # CSS rule on the id catches the element no matter when it appears,
+    # and prevents it from intercepting pointer events on modal buttons.
+    # S2: disable CSS transitions + animations. Toggle tests (e.g.
+    # test_toggle_opens_and_closes_editor) assert visibility right after
+    # the click, but the slide animation can still be running at the
+    # assertion point. Forcing transition/animation off makes UI state
+    # changes synchronous from the test's perspective.
+    page.add_init_script(
+        "document.addEventListener('DOMContentLoaded', () => {"
+        "  const style = document.createElement('style');"
+        "  style.setAttribute('data-test-overrides', '1');"
+        "  style.textContent = '"
+        "#ragUpdateTip { display: none !important; pointer-events: none !important; } "
+        "*, *::before, *::after { "
+        "transition: none !important; animation-duration: 0s !important;"
+        " animation-delay: 0s !important; }';"
+        "  document.head.appendChild(style);"
+        "});"
+    )
+
     # Wrap goto/reload to transparently retry on transient port exhaustion.
     _orig_goto = page.goto
     _orig_reload = page.reload

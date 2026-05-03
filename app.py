@@ -87,7 +87,7 @@ from core.src.profile import (
     load_profile, save_profile, is_profile_trained,
     get_profile_status, train_profile, save_profile_sections,
     export_profile_dict, import_profile_dict,
-    swap_profile_with_history,
+    swap_profile_with_history, recover_orphaned_swap_tmps,
     list_profiles, create_profile, delete_profile, activate_profile,
     draft_profile_from_playlist,
 )
@@ -169,6 +169,13 @@ def get_rag_update_status() -> dict:
     """Return the cached RAG update status (refreshed once per startup)."""
     return dict(_rag_update_status)
 
+
+try:
+    _n_recovered = recover_orphaned_swap_tmps()
+    if _n_recovered:
+        logger.info("Recovered %d orphan profile swap-tmp file(s) at startup", _n_recovered)
+except Exception as exc:  # pragma: no cover — defensive
+    logger.warning("Profile swap-tmp recovery failed: %s", exc)
 
 _load_rag_corpus_if_enabled()
 _check_rag_corpus_update()

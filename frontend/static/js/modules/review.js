@@ -6,6 +6,7 @@ import { refreshDiscoverPlaylistPicker } from './playlist-mode.js';
 import { resetDashboard } from './taste_dashboard.js';
 import { el } from './dom.js';
 import { postFeedback, postRemove } from './feedback-api.js';
+import { onExternalTrackRemoved } from './preview.js';
 
 export function toggleReviewBody() {
     const body = el('reviewBody');
@@ -212,6 +213,9 @@ export async function dismissReviewTrack(idx) {
 function animateReviewRemove(idx) {
     const node = el(`review-track-${idx}`);
     if (!node) return;
+    // CF-Bug-6: notify the preview module BEFORE the splice so it can stop
+    // playback / shift its index based on pre-splice positions.
+    onExternalTrackRemoved(idx, 'review');
     node.style.opacity = '0';
     node.style.transform = 'translateX(40px)';
     setTimeout(() => node.remove(), 300);

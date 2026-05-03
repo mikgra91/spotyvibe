@@ -289,6 +289,56 @@ def profile_transaction():
         yield _load, _save
 
 
+def recover_orphaned_swap_tmps() -> int:
+    """Recover ``profile.json.swap.tmp`` files left behind by a crash mid-swap.
+
+    ``swap_profile_with_history`` does a 3-step rename
+    (profile→tmp, history→profile, tmp→history). A crash between any
+    pair leaves an orphan ``.swap.tmp`` file. Call once at app startup
+    to put each profile dir back into a consistent state.
+
+    Returns the number of profile dirs touched. Best-effort: per-dir
+    failures are logged and skipped so a corrupt profile never blocks
+    boot.
+    """
+    n_recovered = 0
+    if not PROFILES_DIR.exists():
+        return 0
+    for tmp in PROFILES_DIR.glob("*/profile.json.swap.tmp"):
+        try:
+            profile_path = tmp.with_suffix("")  # strips ".tmp"
+            profile_path = profile_path.with_suffix("")  # strips ".swap"
+            history_path = profile_path.parent / "profile.history.json"
+            if profile_path.exists() and history_path.exists():
+                # Ambiguous — keep both, set tmp aside for inspection.
+                tmp.replace(tmp.with_suffix(".bak"))
+                logging.getLogger(__name__).warning(
+                    "Orphan %s alongside both profile + history; preserved as .swap.tmp.bak",
+                    tmp,
+                )
+            elif profile_path.exists() and not history_path.exists():
+                # Crashed after step 2 (history→profile). Finish step 3.
+                tmp.rename(history_path)
+                logging.getLogger(__name__).info(
+                    "Recovered %s → %s (completed interrupted profile swap)",
+                    tmp.name, history_path.name,
+                )
+                n_recovered += 1
+            else:
+                # profile missing → restore tmp into the profile slot.
+                tmp.rename(profile_path)
+                logging.getLogger(__name__).info(
+                    "Recovered %s → %s (rolled back interrupted profile swap)",
+                    tmp.name, profile_path.name,
+                )
+                n_recovered += 1
+        except OSError as exc:
+            logging.getLogger(__name__).warning(
+                "Could not recover orphan swap tmp %s: %s", tmp, exc,
+            )
+    return n_recovered
+
+
 def swap_profile_with_history():
     """Swap the active profile with its one-level history backup.
 

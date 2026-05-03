@@ -400,13 +400,12 @@ def _artist_tag_weight(artist: ArtistRow, qtag: str) -> int:
 
 
 def _artist_popularity(artist: ArtistRow) -> float:
-    """Return a 0..1 popularity score, preferring real Spotify data.
+    """Return a 0..1 popularity score from the MB-derived proxy.
 
-    Spotify popularity is 0-100; we map to 0-1. For unenriched artists
-    we fall back to the MB-derived ``listener_popularity`` proxy.
+    Spotify removed real popularity/followers from artist objects in
+    Feb 2026; until Phase B (Last.fm) lands, only the MB-derived
+    ``listener_popularity`` proxy is available.
     """
-    if artist.spotify_popularity is not None:
-        return max(0.0, min(1.0, artist.spotify_popularity / 100.0))
     return max(0.0, min(1.0, artist.listener_popularity))
 
 

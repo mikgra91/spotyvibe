@@ -40,11 +40,28 @@ These have no enrichment dependency and gate everything else.
    [evaluation/run_evaluation.py:139-145](evaluation/run_evaluation.py#L139-L145)
    left intact — `gpt-4o` row is harmless reference data and the lookup
    falls back to `0.05` if a user re-adds it.
-3. **Phase A — fix Spotify enrichment** ([rag_enrichment_plan.md](documentation/rag_enrichment_plan.md) §A).
-   Replace removed `GET /artists` batch with sequential `GET /artists/{id}`;
-   drop dead `popularity` / `followers` fields. Without this, the next
-   scheduled Cloud Run rebuild produces a corpus missing all Spotify
-   genres.
+3. ~~**Phase A — fix Spotify enrichment**~~ ✅ Done 2026-05-02.
+   Replaced removed batch `GET /artists` with per-id
+   `GET /artists/{id}` in
+   [build-tools/spotify_enrichment/client.py](build-tools/spotify_enrichment/client.py);
+   dropped dead `popularity` / `followers` from `SpotifyArtist`,
+   `MatchCandidate`, `score_candidate`, `pick_best_match`,
+   [enrich_with_spotify.py](build-tools/enrich_with_spotify.py),
+   `ArtistRow` / `RagCorpus._iter_rows` in
+   [core/src/rag/corpus.py](core/src/rag/corpus.py), and the
+   `spotify_popularity` branch of `_artist_popularity()` in
+   [core/src/rag/retrieval.py:402-410](core/src/rag/retrieval.py#L402-L410)
+   (now returns the MB `listener_popularity` proxy alone until Phase B
+   Last.fm `listeners`/`playcount` lands). Tests rewritten:
+   `test_spotify_popularity_overrides_proxy` deleted (no signal left),
+   `test_mixed_legacy_and_enriched_corpus` regrounded on the proxy,
+   `test_spotify_enrichment.py` + `test_rag_corpus.py` updated for the
+   slimmed schema. Docs synced:
+   [TechnicalManual.md](documentation/TechnicalManual.md) §RAG schema
+   row + Cloud Run pipeline step 2,
+   [cloud-run-rag-setup.md](documentation/guides/cloud-run-rag-setup.md)
+   §9.4. 686 core tests green (was 687, minus the deleted Spotify
+   popularity test).
 
 ### 🟠 P1 — Eval workflow rework (independent of corpus)
 
@@ -84,24 +101,84 @@ single biggest reason "evals pass while production fails" per
 
 From [TODO.md](TODO.md):
 
-11. **S11 — `swap_profile_with_history` crash safety.** Three sequential
-    renames; orphan `*.swap.tmp` recovery on startup.
+11. ~~**S11 — `swap_profile_with_history` crash safety.**~~ ✅ Done 2026-05-02.
+    Added `recover_orphaned_swap_tmps()` in
+    [core/src/profile.py:292-340](core/src/profile.py#L292-L340) that
+    scans `PROFILES_DIR/*/profile.json.swap.tmp` and rolls back (tmp →
+    profile) or completes (tmp → history) the swap based on which
+    siblings are present; ambiguous (both present) preserves tmp as
+    `.bak` for inspection. Wired into startup at
+    [app.py:173-179](app.py#L173-L179) wrapped in `try/except` so a
+    corrupt profile dir never blocks boot. 5 unit tests cover step-1
+    rollback, step-2 completion, ambiguous, no-op, and
+    missing-PROFILES_DIR. 691 core tests green.
 12. **S4 — i18n sweep on backend errors** surfacing in UI
     (`playlist.py:840`, `openai_http.py`, `suggestions.py`,
     `analysis.py`). Use structured-error keys.
-13. **S10 — i18n on hardcoded ARIA labels with interpolated artist/track
-    names** (`generate_section.html:305-306`).
-14. **S8/S9 — Test coverage gaps** for local-LLM auto-downgrade and
-    `validate_profile_schema`/`import_profile_dict`.
-15. **S1/S2 — Frontend flake fixes** (`ragUpdateTip` pointer-blocking;
-    `test_toggle_opens_and_closes_editor` animation timing).
+13. ~~**S10 — i18n on hardcoded ARIA labels with interpolated artist/track
+    names**~~ ✅ Done 2026-05-02.
+    Added the missing `data-i18n-attr` applier in
+    [frontend/static/js/modules/i18n.js](frontend/static/js/modules/i18n.js)
+    (parses `attr1:key1,attr2:key2` form). Dropped per-track artist/title
+    interpolation from the SSR `aria-label` fallback in
+    [frontend/templates/generate_section.html:305-310](frontend/templates/generate_section.html#L305-L310)
+    so the SSR string matches the i18n key (the visible button text in
+    the same row already carries the artist/title context for screen
+    readers).
+14. ~~**S8/S9 — Test coverage gaps**~~ ✅ Done 2026-05-02.
+    **S8** — added `TestLooksLikeSchemaRejection` to
+    [core/tests/test_openai_http.py](core/tests/test_openai_http.py)
+    (7 direct tests over the heuristic itself: empty body, OpenAI-style
+    "is not supported", LM Studio "does not support", invalid
+    response_format, case-insensitivity, three unrelated 400s, bare
+    "invalid"/"unsupported" without schema/format keyword). Locks the
+    auto-downgrade gate that protects every Ollama / LM Studio / Groq
+    user.
+    **S9** — added `TestValidateProfileSchema` (12 tests) +
+    `TestImportProfileDict` (5 tests) to
+    [core/tests/test_profile.py](core/tests/test_profile.py) covering
+    type rejection, unknown-key stripping, length caps, list-of-string
+    enforcement, history truncation, and the import round-trip with
+    template merging + control-char sanitisation. 716 core tests green
+    (was 691, +25).
+15. ~~**S1/S2 — Frontend flake fixes**~~ ✅ Done 2026-05-02.
+    Extended the autouse `_reduce_timeouts` fixture in
+    [frontend/tests/conftest.py](frontend/tests/conftest.py) to inject a
+    persistent test-overrides `<style>` tag on every page load that
+    (a) hides `#ragUpdateTip` with `display:none !important` so the
+    dynamically-injected toast never intercepts modal-button clicks
+    (S1), and (b) zeroes all CSS transitions + animations so toggle
+    tests asserting visibility right after a click no longer race the
+    slide animation (S2). Verified by running the three previously
+    flaky tests
+    (`test_modals.TestHelpModal::test_closes_on_close_button`,
+    `test_modals.TestSettingsModal::test_shows_model_dropdown`,
+    `test_profile.TestProfileEditor::test_toggle_opens_and_closes_editor`)
+    — all pass.
 
 ### 🐛 Found bugs
 
-16. **Playback stuck after track removal** — removed track keeps playing,
-    blocks others. Likely related to CF-Bug-6 in [result-improvement.md](result-improvement.md).
-17. **Settings Save needs busy state.** Slow save without UI feedback
-    causes repeat-click. CF-Bug-7.
+16. ~~**Playback stuck after track removal**~~ ✅ Done 2026-05-02 (CF-Bug-6).
+    Added `onExternalTrackRemoved(idx, source)` in
+    [frontend/static/js/modules/preview.js](frontend/static/js/modules/preview.js)
+    and call it from `animateRemove` ([feedback.js](frontend/static/js/modules/feedback.js))
+    + `animateReviewRemove` ([review.js](frontend/static/js/modules/review.js))
+    BEFORE their state splices. When the removed idx matches the
+    currently-previewed track: pause SDK / clear iframe src / stop
+    ticker / reset `_sdkAdvanceFiredFor` / close overlay if visible —
+    fixes the "preview keeps playing + new tracks won't start" lockup
+    caused by the SDK's stuck "owns this track" state. When the
+    removed idx is below the previewed one: decrement
+    `currentPreviewIndex` so it keeps pointing at the same logical
+    track post-splice.
+17. ~~**Settings Save needs busy state.**~~ ✅ Done 2026-05-02 (CF-Bug-7).
+    `saveSettings()` in
+    [frontend/static/js/modules/modals.js:197-260](frontend/static/js/modules/modals.js#L197-L260)
+    now disables the `.btn-save` element, sets `aria-busy="true"`, and
+    swaps the label to `i18n('btn.saving', '⏳ Saving…')` immediately
+    on click; a `finally` block restores the previous label + enables
+    the button on success, error, and network failure. New i18n key
+    `btn.saving` added to en/de/jp; `test_i18n_parity` green.
 
 ## Further research required (gated on enrichment outcome)
 

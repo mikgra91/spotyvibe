@@ -4,10 +4,9 @@ Goal: for each MB artist, decide which (if any) Spotify search result
 is the same artist. Conservative — better to skip enrichment than to
 mis-attribute (a wrong genre list would actively poison retrieval).
 
-Score components (see plan in chat):
+Score components:
 - exact normalised-name match: +1.0
 - year proximity (|diff| ≤ 3): +0.5
-- popularity ≥ 5 (drops empty stub artists): +0.2
 - shared MB tag ↔ Spotify genre: +0.1 each (capped at +0.5)
 
 Acceptance threshold: ``MIN_MATCH_SCORE`` (1.0 by default).
@@ -36,7 +35,6 @@ _WS_RE = re.compile(r"\s+", re.UNICODE)
 class MatchCandidate:
     spotify_id: str
     name: str
-    popularity: int
     genres: list[str]
     score: float
 
@@ -58,7 +56,6 @@ def score_candidate(*,
                     mb_begin_year: int | None,
                     mb_tags: list[str],
                     sp_name: str,
-                    sp_popularity: int,
                     sp_genres: list[str],
                     sp_first_release_year: int | None = None) -> float:
     """Return a confidence score for a single Spotify candidate."""
@@ -70,9 +67,6 @@ def score_candidate(*,
     if mb_begin_year is not None and sp_first_release_year is not None:
         if abs(mb_begin_year - sp_first_release_year) <= 3:
             score += 0.5
-
-    if sp_popularity >= 5:
-        score += 0.2
 
     if mb_tags and sp_genres:
         mb_set = {normalise_artist_name(t) for t in mb_tags if t}
@@ -95,8 +89,7 @@ def pick_best_match(mb_name: str,
     Note: Spotify search results don't carry a ``first_release_year``
     field. We pass ``None`` for the year-proximity check unless a caller
     has fetched the artist's discography (currently we don't, to save
-    API calls — the name + popularity + genre signals are enough for
-    most cases).
+    API calls — the name + genre signals are enough for most cases).
     """
     best: MatchCandidate | None = None
     for raw in candidates:
@@ -106,7 +99,6 @@ def pick_best_match(mb_name: str,
         if not sp_id:
             continue
         sp_name = str(raw.get("name") or "")
-        sp_pop = int(raw.get("popularity") or 0)
         sp_genres = [str(g) for g in (raw.get("genres") or [])]
 
         s = score_candidate(
@@ -114,7 +106,6 @@ def pick_best_match(mb_name: str,
             mb_begin_year=mb_begin_year,
             mb_tags=mb_tags,
             sp_name=sp_name,
-            sp_popularity=sp_pop,
             sp_genres=sp_genres,
             sp_first_release_year=None,
         )
@@ -122,7 +113,6 @@ def pick_best_match(mb_name: str,
             best = MatchCandidate(
                 spotify_id=sp_id,
                 name=sp_name,
-                popularity=sp_pop,
                 genres=sp_genres,
                 score=s,
             )
