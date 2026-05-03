@@ -71,18 +71,73 @@ current eval does **not** test the production failure path
 single biggest reason "evals pass while production fails" per
 [TODO.md A1](TODO.md).
 
-4. **Add post-feedback regression pass to eval harness.** Generate
-   playlist A → apply dislikes → refine train → generate playlist B →
-   fail on disliked `(artist, track)` reappearance, avoid-trait leakage,
-   completion < 95 %.
-5. **Hard completion gate.** Treat under-fill < 95 % of `playlist_size`
-   as failure, not `under_filled` non-error status.
-6. **Stateful profile eval.** Run against an anonymized copy of the
-   production debug profile (large/aged), not just clean-room sandbox.
-7. **Full per-stage trace snapshot per eval run.** Stage 1 candidates +
-   reject reasons, Stage 2 in/out, Stage 3 raw + normalized output,
-   Spotify verify results, profile diff before/after refine, dislike
-   store diff.
+4. ~~**Add post-feedback regression pass to eval harness.**~~
+   ✅ Done (F8, commit 7f0c6af + earlier).
+   [evaluation/harness.py:551-590](evaluation/harness.py#L551-L590)
+   generates playlist B on the post-feedback profile;
+   [evaluation/leakage.py compute_leakage()](evaluation/leakage.py)
+   audits playlist B against `artists.rejected` (rejected_artist),
+   `feedback.disliked_tracks` (disliked_track), and the
+   ≥3-distinct-tracks dislike-pattern rule.
+   [evaluation/fit_checks.py](evaluation/fit_checks.py) adds the
+   independent `decade_avoid` oracle. Both report into
+   `summary.json`. Pass/fail surfaces in
+   [reporting.py](evaluation/reporting.py). Completion-< 95 %
+   tracking moves to item #5.
+5. ~~**Hard completion gate.**~~ ✅ Done 2026-05-02.
+   New `COMPLETION_THRESHOLD = 0.95` + `_completion_status()` helper
+   in [evaluation/harness.py](evaluation/harness.py); two new
+   `completion_a_status` / `completion_b_status` fields on
+   [ModelRunResult](evaluation/harness.py#L46) classify each playlist
+   as `ok` / `under` / `empty` / `skipped` independent of the
+   semantic `playlist_status` (which still records the production
+   `under_filled` anti-confab signal). Surfaced as a new "playlist
+   completion" table in [reporting.py](evaluation/reporting.py)
+   `comparison.md`. 8 unit tests in
+   [test_evaluation_harness.py](core/tests/test_evaluation_harness.py)
+   pin the threshold + boundary + zero-target cases.
+6. ~~**Stateful profile eval.**~~ ✅ Done 2026-05-02.
+   `Scenario` gained an optional `seed_profile_path: Path | None`
+   field ([evaluation/scenario.py](evaluation/scenario.py)); when
+   set, the harness skips `train_profile(seed_sections)` and instead
+   imports the JSON file via `import_profile_dict()` (new
+   `_step_seed_profile()` in
+   [evaluation/harness.py](evaluation/harness.py); status surfaces as
+   `imported_fixture` so a stateful run isn't confused with a fresh
+   train). New CLI flag `--seed-profile <path>` on
+   [evaluation/run_evaluation.py](evaluation/run_evaluation.py)
+   overrides any scenario's path at invocation time, so a real
+   anonymised production profile can be swapped in without scenario
+   changes — file-not-found fails before any OpenAI/Spotify quota is
+   burned.
+   Also added six coverage scenarios from
+   [scenarios.md](scenarios.md) in the recommended priority order:
+   `ambient_instrumental_focus` (S05), `boom_bap_90s` (S04),
+   `brazilian_samba_funk` (S03), `club_techno_strict` (S12),
+   `original_recordings_only` (S16), `contradictory_profile` (S19).
+   Each is pure-data (no fixture file required) so the existing
+   leakage + fit gates immediately apply. 7 unit tests in
+   [test_evaluation_harness.py](core/tests/test_evaluation_harness.py)
+   cover the new field default, replace() override,
+   `_step_seed_profile()` happy-path + missing-file, registry
+   completeness, required-field schema, and disjoint feedback
+   indices on every new scenario. 735 core tests green (was 728).
+7. ~~**Full per-stage trace snapshot per eval run.**~~ ✅ Done 2026-05-02.
+   F9 [core/src/trace.py](core/src/trace.py) already records Stage 1
+   candidates + reject reasons, Stage 2 in/out, Stage 3 raw +
+   reasoning, Spotify verify, and profile snapshots into
+   `<sandbox>/debug/<run_id>/trace.json` per generation. The harness
+   now copies those bundles into the per-run results dir as
+   `trace_A.json` / `trace_B.json` via `_copy_trace_bundle()` in
+   [evaluation/harness.py](evaluation/harness.py); paths surface on
+   `ModelRunResult.trace_a_path` / `trace_b_path` and as a new
+   "F9 trace bundles" table in
+   [reporting.py](evaluation/reporting.py) `comparison.md`. Returns
+   `None` when DEBUG_MODE was off, so the eval never fails on a
+   missing diagnostic. 4 unit tests in
+   [test_evaluation_harness.py](core/tests/test_evaluation_harness.py)
+   cover the existing-bundle, missing-bundle, falsy-run-id, and
+   A/B-distinct-filename cases.
 
 ### 🟡 P2 — Phase B+ enrichment (after Phase A validates)
 

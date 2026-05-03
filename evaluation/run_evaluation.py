@@ -239,6 +239,12 @@ def main() -> int:
     parser.add_argument("--release-lock", action="store_true",
                         help="Force-release a stale run lock left behind by a "
                              "hard-killed previous run, then exit.")
+    parser.add_argument("--seed-profile", type=Path, default=None,
+                        help="Path to a JSON profile to import into the sandbox "
+                             "instead of running train_profile(seed_sections). "
+                             "Use to evaluate against a stateful (anonymised "
+                             "production) profile. Overrides any "
+                             "scenario.seed_profile_path.")
     args = parser.parse_args()
 
     # ── Run-lock escape hatch ─────────────────────────────────────
@@ -280,6 +286,20 @@ def main() -> int:
     except KeyError as exc:
         print(f"\n  ❌ {exc}\n", file=sys.stderr)
         return 5
+
+    # P1 #6: --seed-profile overrides whatever the scenario would have
+    # done at the seed-train step. Validate the file exists *now* so a
+    # typo fails before we burn OpenAI / Spotify quota.
+    if args.seed_profile is not None:
+        if not args.seed_profile.exists():
+            print(f"\n  ❌ --seed-profile not found: {args.seed_profile}\n",
+                  file=sys.stderr)
+            return 6
+        from dataclasses import replace
+        active_scenario = replace(
+            active_scenario,
+            seed_profile_path=args.seed_profile.resolve(),
+        )
 
     estimate = estimate_cost(models, iterations)
     confirm_or_exit(estimate, models, iterations, args.no_confirm)

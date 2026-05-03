@@ -215,6 +215,16 @@ def write_comparison_report(results_dir: Path, repo_root: Path) -> Path:
         agg["leakage"] = meta.get("leakage") or {}
         agg["fit_status"] = meta.get("fit_status")
         agg["fit"] = meta.get("fit") or {}
+        # P1 #5: pure-count completion gate against the requested
+        # playlist size — surfaces the "I only got 9 of 15" failures
+        # the legacy under_filled status was masking.
+        agg["completion_a_status"] = meta.get("completion_a_status")
+        agg["completion_b_status"] = meta.get("completion_b_status")
+        # P1 #7: trace-bundle paths (None when DEBUG_MODE was off or
+        # the source bundle was missing). Stored relative to the
+        # results dir so the comparison.md can link to them.
+        agg["trace_a_path"] = meta.get("trace_a_path")
+        agg["trace_b_path"] = meta.get("trace_b_path")
         rows.append(agg)
 
     if not rows:
@@ -251,6 +261,41 @@ def write_comparison_report(results_dir: Path, repo_root: Path) -> Path:
             f"| {leak.get('disliked_track_count', '—')} "
             f"| {leak.get('dislike_pattern_count', '—')} |"
         )
+
+    # P1 #5: completion gate (pure track-count vs requested size). A
+    # row that says `under` or `empty` for either A or B means the
+    # production pipeline missed the 95 % completion target — a real
+    # production-failure signal the legacy `under_filled` status was
+    # silently swallowing.
+    out += ["",
+            "## Quality gate — playlist completion (≥ 95 % of requested size)",
+            "",
+            "| Model | Iter | Tracks A | Completion A | Tracks B | Completion B |",
+            "|---|---:|---:|---|---:|---|"]
+    for r in rows:
+        out.append(
+            f"| {r['model']} | {r['iteration']} "
+            f"| {r.get('playlist_track_count') or '—'} "
+            f"| {r.get('completion_a_status') or '—'} "
+            f"| {r.get('playlist_b_track_count') or '—'} "
+            f"| {r.get('completion_b_status') or '—'} |"
+        )
+
+    # P1 #7: per-run F9 trace bundle paths (Stage 1 candidates,
+    # Stage 2 in/out, Stage 3 raw, Spotify verify). Empty cell when
+    # DEBUG_MODE was off or the bundle was missing.
+    if any(r.get("trace_a_path") or r.get("trace_b_path") for r in rows):
+        out += ["",
+                "## Diagnostic — F9 trace bundles",
+                "",
+                "| Model | Iter | Trace A | Trace B |",
+                "|---|---:|---|---|"]
+        for r in rows:
+            ta = r.get("trace_a_path") or "—"
+            tb = r.get("trace_b_path") or "—"
+            out.append(
+                f"| {r['model']} | {r['iteration']} | {ta} | {tb} |"
+            )
 
     # F8.3 (2026-05-01): deterministic per-track fit-check pass rate.
     # Independent of leakage — fit catches profile drift on tracks the

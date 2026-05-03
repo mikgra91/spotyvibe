@@ -77,6 +77,18 @@ class ModelRunResult:
     leakage_status: str = "skipped"
     fit_status: str = "skipped"
     cleanup_status: str = "skipped"
+    # P1 #5: pure-count completion gate against the requested playlist
+    # size, independent of the production-derived ``playlist_*_status``.
+    # Values: ``ok`` / ``under`` / ``empty`` / ``skipped``. Treat any
+    # non-``ok`` as a quality regression in the report.
+    completion_a_status: str = "skipped"
+    completion_b_status: str = "skipped"
+    # P1 #7: durable copy of the F9 per-run trace bundle into the
+    # results dir. ``None`` when DEBUG_MODE was off or the source file
+    # was missing. Stored as a string path (relative to the results
+    # root) so the eval JSON stays portable.
+    trace_a_path: str | None = None
+    trace_b_path: str | None = None
 
     # Raw result snapshots — kept terse so summary.json stays readable.
     seed_train_chars: int | None = None
@@ -226,6 +238,29 @@ def _step_seed_train(profile_mod, scn: Scenario) -> dict[str, Any]:
     }
 
 
+def _step_seed_profile(profile_mod, scn: Scenario) -> dict[str, Any]:
+    """P1 #6: bypass train_profile and import the file at scn.seed_profile_path.
+
+    Used to evaluate against a stateful (large/aged/accumulated-dislikes)
+    profile fixture instead of the clean-room ``seed_sections`` train.
+    The file must be a JSON object accepted by
+    ``profile.import_profile_dict`` — anything else raises ValueError
+    and the step fails loudly so a typo in the fixture doesn't get
+    silently swallowed by the eval.
+    """
+    path = Path(scn.seed_profile_path)  # type: ignore[arg-type]
+    if not path.exists():
+        raise FileNotFoundError(
+            f"seed_profile fixture not found: {path}"
+        )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    merged = profile_mod.import_profile_dict(payload)
+    return {
+        "status": "ok",
+        "profile_chars": len(json.dumps(merged, ensure_ascii=False)),
+    }
+
+
 def _step_analysis(analysis_mod, scn: Scenario) -> dict[str, Any]:
     result = analysis_mod.analyze_band_song(
         scn.analysis_artist, scn.analysis_track,
@@ -239,23 +274,48 @@ def _step_analysis(analysis_mod, scn: Scenario) -> dict[str, Any]:
 
 _PLAYLIST_STEP_TIMEOUT_S = 1800.0  # 30 min hard ceiling per model run
 
+# P1 #5: hard completion gate. Per next-steps.md, anything below 95 % of
+# the requested playlist size is a quality regression that must surface
+# in the eval report — the legacy `under_filled` status (anti-confab
+# guard fired) was being treated as a non-error and silently masking
+# real production "I only got 9 of 15" failures.
+COMPLETION_THRESHOLD = 0.95
+
+
+def _completion_status(track_count: int, playlist_size: int) -> str:
+    """Classify a completed playlist against the 95 % gate.
+
+    Returns:
+      - ``empty`` — got zero tracks
+      - ``under`` — got some, but fewer than 95 % of the request
+      - ``ok``    — at or above 95 % of the request
+    """
+    if track_count <= 0:
+        return "empty"
+    if playlist_size <= 0:
+        return "ok"  # avoid div-by-zero; without a target there's no gate
+    return "ok" if track_count >= playlist_size * COMPLETION_THRESHOLD else "under"
+
 
 def _step_playlist(flask_app, playlist_size: int) -> dict[str, Any]:
     """Drive ``/api/run`` via Flask test client and consume the SSE stream.
 
-    Returns ``{"tracks": [...], "status": "ok"}`` on success. The harness
-    pushes the resulting tracks to Spotify in a separate step so failures
-    are isolated.
+    Returns ``{"tracks": [...], "status": "ok", "run_id": "<uuid>"}``
+    on success. The harness pushes the resulting tracks to Spotify in
+    a separate step so failures are isolated. ``run_id`` is included
+    so the caller can locate the F9 trace bundle written at
+    ``<sandbox>/debug/<run_id>/trace.json``.
 
     Progress events are logged as they arrive so a long run is visible
     in ``harness.log``. Hard timeout at ``_PLAYLIST_STEP_TIMEOUT_S`` —
     if the production loop genuinely runs that long, MAX_GPT_CALLS_PER_RUN
     has not stopped it and something is wrong.
     """
+    run_id = str(_uuid.uuid4())
     client = flask_app.test_client()
     resp = client.post(
         "/api/run",
-        json={"run_id": str(_uuid.uuid4()), "playlist_size": playlist_size},
+        json={"run_id": run_id, "playlist_size": playlist_size},
     )
     tracks: list[dict] = []
     error_msg: str | None = None
@@ -325,9 +385,35 @@ def _step_playlist(flask_app, playlist_size: int) -> dict[str, Any]:
                 "to confabulate or exhausted candidate pool): %s", error_msg,
             )
             return {"status": "under_filled", "tracks": [],
-                    "warning": error_msg}
+                    "warning": error_msg, "run_id": run_id}
         raise RuntimeError(f"run_pipeline returned error: {error_msg}")
-    return {"status": "ok", "tracks": tracks}
+    return {"status": "ok", "tracks": tracks, "run_id": run_id}
+
+
+def _copy_trace_bundle(sandbox_dir: Path, run_id: str | None,
+                        dest_dir: Path, label: str) -> str | None:
+    """Copy ``<sandbox>/debug/<run_id>/trace.json`` → ``<dest>/trace_<label>.json``.
+
+    Returns the destination path as a string when the copy succeeds, or
+    ``None`` if either the source bundle is missing (e.g. DEBUG_MODE was
+    off, so trace.py wrote nothing) or the copy raises. The trace
+    bundle is diagnostic — never let a missing file break the eval.
+    """
+    if not run_id:
+        return None
+    src = sandbox_dir / "debug" / run_id / "trace.json"
+    if not src.exists():
+        logger.info("[trace] no bundle at %s — DEBUG_MODE off or stage skipped", src)
+        return None
+    try:
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dst = dest_dir / f"trace_{label}.json"
+        shutil.copy2(src, dst)
+        logger.info("[trace] copied bundle %s → %s", src.name, dst)
+        return str(dst)
+    except OSError as exc:
+        logger.warning("[trace] copy failed (%s → %s): %s", src, dest_dir, exc)
+        return None
 
 
 def _step_push_to_spotify(playlist_mod, tracks: list[dict],
@@ -464,6 +550,10 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
     playlist_id: str | None = None
     playlist_b_id: str | None = None
     tracks: list[dict] = []
+    # P1 #7: per_run_dir is built in `finally`, but we resolve it now
+    # so the per-playlist trace copies land alongside the eval-log
+    # slice and summary.json instead of in a separate directory.
+    per_run_dir = results_dir / f"{model}-iter{iteration}"
 
     try:
         # ── 0. Profile creation ──────────────────────────────────
@@ -474,10 +564,17 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
         result.profile_id = profile_id
         profile_mod.activate_profile(profile_id)
 
-        # ── 1. Seed train ────────────────────────────────────────
+        # ── 1. Seed train (or fixture import — P1 #6) ────────────
         try:
-            r = _step_seed_train(profile_mod, scn)
-            result.seed_train_status = r["status"]
+            if scn.seed_profile_path is not None:
+                r = _step_seed_profile(profile_mod, scn)
+                # Distinguish in the report so a stateful run isn't
+                # confused with a fresh-train run when reading
+                # summary.json by hand.
+                result.seed_train_status = "imported_fixture"
+            else:
+                r = _step_seed_train(profile_mod, scn)
+                result.seed_train_status = r["status"]
             result.seed_train_chars = r["profile_chars"]
         except Exception as exc:
             result.seed_train_status = "error"
@@ -511,6 +608,16 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
                 result.playlist_status = "ok"
             else:
                 result.playlist_status = "empty"
+            # P1 #5: pure-count gate runs regardless of the semantic
+            # playlist_status above.
+            result.completion_a_status = _completion_status(
+                len(tracks), settings["evaluation"]["playlist_size"],
+            )
+            # P1 #7: copy F9 trace bundle for playlist A while the
+            # source still exists in the sandbox debug dir.
+            result.trace_a_path = _copy_trace_bundle(
+                sandbox_dir, r.get("run_id"), per_run_dir, "A",
+            )
         except Exception as exc:
             result.playlist_status = "error"
             result.error = f"playlist: {exc}"
@@ -565,6 +672,15 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
                     result.playlist_b_status = "ok"
                 else:
                     result.playlist_b_status = "empty"
+                # P1 #5: pure-count gate for playlist B.
+                result.completion_b_status = _completion_status(
+                    len(tracks_b), settings["evaluation"]["playlist_size"],
+                )
+                # P1 #7: copy F9 trace bundle for playlist B before
+                # the next-iteration sandbox reuse can clobber it.
+                result.trace_b_path = _copy_trace_bundle(
+                    sandbox_dir, r.get("run_id"), per_run_dir, "B",
+                )
             except Exception as exc:
                 result.playlist_b_status = "error"
                 tracks_b = []
@@ -665,8 +781,9 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
         )
 
         # Snapshot the eval-log slice for this run BEFORE other model
-        # runs append to the same file.
-        per_run_dir = results_dir / f"{model}-iter{iteration}"
+        # runs append to the same file. ``per_run_dir`` was resolved
+        # at the top of run_for_model so playlist-A/B trace copies
+        # land in the same directory; mkdir is idempotent.
         per_run_dir.mkdir(parents=True, exist_ok=True)
         result.eval_log_lines = _slice_eval_log(
             eval_log, log_pos_start, per_run_dir / "eval.jsonl",

@@ -32,12 +32,24 @@ the default.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable
 
 
 @dataclass(frozen=True)
 class Scenario:
-    """One canonical evaluation scenario. All fields are deterministic."""
+    """One canonical evaluation scenario. All fields are deterministic.
+
+    P1 #6 (2026-05-02): when ``seed_profile_path`` is set, the harness
+    bypasses ``train_profile(seed_sections)`` and writes the JSON file
+    verbatim into the sandbox profile slot. This is the swap point for
+    running an eval against an anonymised production profile (large /
+    aged / accumulated dislikes) instead of a clean-room seed —
+    ``seed_sections`` stays as documentation of what the file
+    represents but is unused at run time. Any caller (run_evaluation
+    `--seed-profile <path>` CLI flag, downstream scripts) can override
+    a scenario's path without subclassing.
+    """
 
     name: str
     description: str
@@ -49,6 +61,7 @@ class Scenario:
     dislike_indices: tuple[int, ...]
     like_reason: str
     dislike_reason: str
+    seed_profile_path: Path | None = None
 
 
 # ── Default scenario — broad theatrical-pop-rock ────────────────────
@@ -180,11 +193,289 @@ REGRESSION_JAPANESE_SCENARIO = Scenario(
 )
 
 
+# ── Coverage scenarios (scenarios.md, recommended order) ────────────
+#
+# Each one targets a blind spot identified in scenarios.md. Definitions
+# are pure data: prose seed + deterministic feedback rule + analysis
+# anchor known to exist on Spotify. Scoring relies on the existing
+# leakage + fit gates; per-scenario oracle checks (geo, language,
+# instrumental-only) are deferred to a future phase.
+
+# S05 — ambient instrumental focus. Catches vocal leakage, ambient/
+# downtempo confusion, over-dramatic soundtrack picks.
+AMBIENT_INSTRUMENTAL_SCENARIO = Scenario(
+    name="ambient_instrumental_focus",
+    description="Beatless instrumental ambient for concentration. "
+                "Vocal/beat leakage and ambient-vs-downtempo confusion "
+                "are the failure modes.",
+    seed_sections={
+        "core_description": (
+            "Beatless or near-beatless ambient music for concentration. "
+            "Slow development, atmospheric textures, instrumental only."
+        ),
+        "must_have": (
+            "Instrumental only; atmospheric; slow development; "
+            "no vocals; no drums or beats"
+        ),
+        "soft_preferences": (
+            "Drone; texture; field recordings; gentle synth pads"
+        ),
+        "avoid": (
+            "Vocals; dance beats; drum-driven structure; "
+            "cinematic trailer crescendos; pop song form"
+        ),
+    },
+    refine_sections={
+        "core_description": "",
+        "must_have": "",
+        "soft_preferences": "",
+        "avoid": "and reinforce: no vocals, no beat-driven structure, no dramatic crescendos",
+        "vibe_description": (
+            "Tighten the instrumental + ambient anchor. Suppress any "
+            "track with vocals or a dance beat — even if marketed as "
+            "ambient."
+        ),
+    },
+    analysis_artist="Brian Eno",
+    analysis_track="An Ending (Ascent)",
+    like_indices=(0, 4, 8, 12, 16),
+    dislike_indices=(1, 5, 9),
+    like_reason="instrumental ambient texture with no vocal focus",
+    dislike_reason="vocals, beat-driven structure, or dramatic crescendo",
+)
+
+# S04 — 90s boom bap hip-hop. Catches era leakage, modern production
+# leakage, genre-adjacency collapse (trap / pop rap / drill).
+BOOM_BAP_90S_SCENARIO = Scenario(
+    name="boom_bap_90s",
+    description="1990s East Coast / golden-age boom bap. Era drift "
+                "and modern production leakage are the failure modes.",
+    seed_sections={
+        "core_description": (
+            "1990s East Coast / golden-age boom bap with grounded drums "
+            "and gritty production. No modern trap or pop-rap drift."
+        ),
+        "must_have": (
+            "Boom-bap drums; rap vocals; 90s production feel; "
+            "rooted in 1990-1999 sound"
+        ),
+        "soft_preferences": (
+            "Sample-based production; DJ scratches; jazzy loops; "
+            "East Coast lyricism"
+        ),
+        "avoid": (
+            "Trap hi-hats; autotune; pop rap; drill; "
+            "glossy 2010s production; mumble rap"
+        ),
+    },
+    refine_sections={
+        "core_description": "",
+        "must_have": "",
+        "soft_preferences": "",
+        "avoid": "and reinforce: no trap hi-hats, no autotune, nothing post-2005 in production feel",
+        "vibe_description": (
+            "Tighten the 90s boom-bap era anchor. Anything that smells "
+            "like 2010s glossy production or trap should be suppressed."
+        ),
+    },
+    analysis_artist="Gang Starr",
+    analysis_track="Mass Appeal",
+    like_indices=(0, 4, 8, 12, 16),
+    dislike_indices=(1, 5, 9),
+    like_reason="grounded 90s boom-bap sound",
+    dislike_reason="modern trap / pop-rap / glossy production drift",
+)
+
+# S03 — Brazilian samba-funk party. Catches Latin-region overgener-
+# alisation, Spanish-vs-Portuguese miss, EDM remix false positives.
+BRAZILIAN_SAMBA_FUNK_SCENARIO = Scenario(
+    name="brazilian_samba_funk",
+    description="Brazilian Portuguese party music with live percussion. "
+                "Latin-region overgeneralisation and Spanish/Portuguese "
+                "confusion are the failure modes.",
+    seed_sections={
+        "core_description": (
+            "Brazilian party music with live percussion and groove. "
+            "Portuguese vocals only. Samba, samba-funk, carnival energy."
+        ),
+        "must_have": (
+            "Brazilian artist; Portuguese vocals; samba or samba-funk; "
+            "live percussion; carnival / party energy"
+        ),
+        "soft_preferences": (
+            "Brass section; call-and-response vocals; danceable rhythm; "
+            "Tropicália adjacency"
+        ),
+        "avoid": (
+            "Reggaeton; Latin trap; Spanish vocals; generic EDM "
+            "remixes; non-Brazilian Latin pop"
+        ),
+    },
+    refine_sections={
+        "core_description": "",
+        "must_have": "",
+        "soft_preferences": "",
+        "avoid": "and reinforce: no Spanish vocals, no reggaeton, no EDM remix versions",
+        "vibe_description": (
+            "Tighten the Brazilian Portuguese anchor. Spanish-language "
+            "Latin pop is the most likely drift to suppress."
+        ),
+    },
+    analysis_artist="Jorge Ben Jor",
+    analysis_track="Mas Que Nada",
+    like_indices=(0, 4, 8, 12, 16),
+    dislike_indices=(1, 5, 9),
+    like_reason="Brazilian Portuguese groove with organic percussion",
+    dislike_reason="Spanish / reggaeton / EDM-remix drift",
+)
+
+# S12 — strict club techno. Catches electronic-subgenre collapse
+# (house / trance / EDM / pop-vocal contamination).
+CLUB_TECHNO_STRICT_SCENARIO = Scenario(
+    name="club_techno_strict",
+    description="Functional club techno. Electronic-subgenre collapse "
+                "(house / trance / EDM / pop-vocal) is the failure mode.",
+    seed_sections={
+        "core_description": (
+            "Functional club techno with hypnotic repetition. "
+            "Berlin / Detroit influence, dark warehouse feel. "
+            "Minimal vocals, no festival EDM."
+        ),
+        "must_have": (
+            "Techno pulse; minimal vocals; hypnotic repetition; "
+            "dark warehouse feel"
+        ),
+        "soft_preferences": (
+            "Berlin techno; Detroit techno; dub techno; long-form "
+            "build; analogue drum machines"
+        ),
+        "avoid": (
+            "House piano; EDM festival drops; trance leads; "
+            "pop vocals; melodic vocal hooks"
+        ),
+    },
+    refine_sections={
+        "core_description": "",
+        "must_have": "",
+        "soft_preferences": "",
+        "avoid": "and reinforce: no house piano, no trance leads, no festival EDM, no pop vocals",
+        "vibe_description": (
+            "Tighten the strict-techno anchor. Adjacent electronic "
+            "subgenres (house / trance / EDM) are the leakage to "
+            "suppress hardest."
+        ),
+    },
+    analysis_artist="Jeff Mills",
+    analysis_track="The Bells",
+    like_indices=(0, 4, 8, 12, 16),
+    dislike_indices=(1, 5, 9),
+    like_reason="strict techno pulse with hypnotic repetition",
+    dislike_reason="house / trance / EDM / pop-vocal drift",
+)
+
+# S16 — original studio recordings only. Catches track-title variant
+# leakage (live / remix / acoustic / cover / sped-up / slowed).
+ORIGINAL_RECORDINGS_ONLY_SCENARIO = Scenario(
+    name="original_recordings_only",
+    description="Original studio recordings only. Track-title variant "
+                "leakage (live / remix / acoustic / cover / sped-up) "
+                "is the failure mode.",
+    seed_sections={
+        "core_description": (
+            "Modern indie pop, but original studio recordings only. "
+            "No live versions, no remixes, no acoustic versions, "
+            "no covers, no sped-up / slowed-and-reverb edits."
+        ),
+        "must_have": (
+            "Original studio recording; canonical album version; "
+            "indie pop / art-pop"
+        ),
+        "soft_preferences": (
+            "Polished production; melodic hooks; emotive vocals"
+        ),
+        "avoid": (
+            "Live versions; remixes; acoustic versions; covers; "
+            "karaoke; sped-up; slowed-and-reverb; radio edits"
+        ),
+    },
+    refine_sections={
+        "core_description": "",
+        "must_have": "",
+        "soft_preferences": "",
+        "avoid": "and reinforce: never a live, remix, acoustic, cover, sped-up, or slowed track",
+        "vibe_description": (
+            "Tighten the originals-only anchor. Track titles ending in "
+            "(Live), (Remix), (Acoustic), (Cover), (Sped Up), or "
+            "(Slowed) are the leakage to suppress."
+        ),
+    },
+    analysis_artist="Phoebe Bridgers",
+    analysis_track="Motion Sickness",
+    like_indices=(0, 4, 8, 12, 16),
+    dislike_indices=(1, 5, 9),
+    like_reason="original studio recording, canonical version",
+    dislike_reason="track is a live / remix / acoustic / cover / sped-up variant",
+)
+
+# S19 — contradictory profile. Catches under-fill quality + instruction
+# conflict handling. Acceptance criterion is "graceful refusal", not
+# leakage zero.
+CONTRADICTORY_PROFILE_SCENARIO = Scenario(
+    name="contradictory_profile",
+    description="Contradictory must_have + avoid (calm + aggressive). "
+                "Graceful under-fill is acceptable; hallucination or "
+                "random picks are not.",
+    seed_sections={
+        "core_description": (
+            "Music that is simultaneously calm + minimal AND aggressive "
+            "+ high-energy. Both mood states must be present in every "
+            "track. (This is intentionally contradictory — the eval "
+            "checks how the system handles instruction conflict.)"
+        ),
+        "must_have": (
+            "Calm; minimal; aggressive; high-energy; "
+            "both moods present simultaneously"
+        ),
+        "soft_preferences": (
+            "Cross-genre fusion; experimental structure; "
+            "dynamic-range extremes"
+        ),
+        "avoid": (
+            "Tracks that are only calm; tracks that are only "
+            "aggressive; tracks that compromise on either mood; "
+            "ambient drones without intensity; pure noise without rest"
+        ),
+    },
+    refine_sections={
+        "core_description": "",
+        "must_have": "",
+        "soft_preferences": "",
+        "avoid": "and reinforce: no track may be only calm or only aggressive; both must coexist",
+        "vibe_description": (
+            "Reinforce the contradictory dual-mood requirement. Tracks "
+            "that satisfy only one side are unacceptable."
+        ),
+    },
+    analysis_artist="Swans",
+    analysis_track="Some Things We Do",
+    like_indices=(0, 4),
+    dislike_indices=(1, 5, 9),
+    like_reason="manages to hold calm and aggressive at once",
+    dislike_reason="only one mood present; compromises on the other",
+)
+
+
 # ── Registry + dispatcher ────────────────────────────────────────────
 
 SCENARIOS: dict[str, Scenario] = {
     DEFAULT_SCENARIO.name: DEFAULT_SCENARIO,
     REGRESSION_JAPANESE_SCENARIO.name: REGRESSION_JAPANESE_SCENARIO,
+    AMBIENT_INSTRUMENTAL_SCENARIO.name: AMBIENT_INSTRUMENTAL_SCENARIO,
+    BOOM_BAP_90S_SCENARIO.name: BOOM_BAP_90S_SCENARIO,
+    BRAZILIAN_SAMBA_FUNK_SCENARIO.name: BRAZILIAN_SAMBA_FUNK_SCENARIO,
+    CLUB_TECHNO_STRICT_SCENARIO.name: CLUB_TECHNO_STRICT_SCENARIO,
+    ORIGINAL_RECORDINGS_ONLY_SCENARIO.name: ORIGINAL_RECORDINGS_ONLY_SCENARIO,
+    CONTRADICTORY_PROFILE_SCENARIO.name: CONTRADICTORY_PROFILE_SCENARIO,
 }
 
 
@@ -237,6 +528,12 @@ __all__ = [
     "Scenario",
     "DEFAULT_SCENARIO",
     "REGRESSION_JAPANESE_SCENARIO",
+    "AMBIENT_INSTRUMENTAL_SCENARIO",
+    "BOOM_BAP_90S_SCENARIO",
+    "BRAZILIAN_SAMBA_FUNK_SCENARIO",
+    "CLUB_TECHNO_STRICT_SCENARIO",
+    "ORIGINAL_RECORDINGS_ONLY_SCENARIO",
+    "CONTRADICTORY_PROFILE_SCENARIO",
     "SCENARIOS",
     "get_scenario",
     "SEED_SECTIONS",
