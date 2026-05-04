@@ -274,6 +274,18 @@ From [TODO.md](TODO.md):
     `test_profile.TestProfileEditor::test_toggle_opens_and_closes_editor`)
     — all pass.
 
+### 🟢 P4 — Nice-to-have polish (from TODO.md)
+
+18. ~~**N2 — JS addEventListener leak in quickstart-demo.js**~~ ✅ False positive
+    (2026-05-04). Lightbox keydown listener is guarded by `if (!lb)` and
+    properly cleaned up in `_closeLightbox`. No leak.
+19. ~~**N3 — Onboarding i18n hardcoded strings**~~ ✅ False positive (2026-05-04).
+    Provider badge is dynamically set via `obI18n('ob.step6_provider_note')`.
+20. ~~**N4 — help.de.md localised anchor IDs**~~ ✅ Done 2026-05-04.
+    All `<a id>` anchors and `href="#"` links in `help.de.md` normalised to
+    English IDs matching `help.en.md` and `help.jp.md`. Cross-language
+    deep-linking now works.
+
 ### 🐛 Found bugs
 
 16. ~~**Playback stuck after track removal**~~ ✅ Done 2026-05-02 (CF-Bug-6).
@@ -298,69 +310,97 @@ From [TODO.md](TODO.md):
     the button on success, error, and network failure. New i18n key
     `btn.saving` added to en/de/jp; `test_i18n_parity` green.
 
-## 🚀 Phase B Cloud Run / operational state — 2026-05-03
+## 🚀 Phase B Cloud Run / operational state — 2026-05-04
 
-First Phase B-enriched corpus build was kicked off on 2026-05-03 ~21:15 Vienna. Steady-state operational config:
+First Phase B run (x4v5b, 2026-05-03) failed: Spotify enrichment got
+0% matches (wrong credentials in Secret Manager — `400` on every token
+request), Last.fm enrichment was uncapped (170k instead of intended
+50k due to `--max-enrich` not being wired from env var to CLI).
+Execution cancelled 2026-05-04.
+
+### Fixes applied 2026-05-04
+
+1. **Spotify credentials rotated** in Secret Manager — `spotify-client-id`
+   v2 + `spotify-client-secret` v2 now match the working credentials
+   from `settings.ini`. Verified locally via Client Credentials flow.
+2. **`--max-enrich` env-var wiring** — `cloud_run_publish.py` now passes
+   `SPOTIFY_MAX_ENRICH` and `LASTFM_MAX_ENRICH` env vars as `--max-enrich`
+   CLI args to both enrichment scripts. When unset, the scripts use their
+   defaults.
+3. **Default changed to enrich ALL artists** — both `enrich_with_spotify.py`
+   and `enrich_with_lastfm.py` now default `--max-enrich=0` (= all), not
+   50k/170k. Partial enrichment biases toward mainstream and leaves the
+   long tail (where RAG adds value) unenriched.
+4. **Throttle reduced** — Spotify: 0.21s → 0.17s (~176 req/30s, within
+   180-300 range). Last.fm: 0.21s → 0.18s (~5.5 req/s, within 5 req/s
+   guideline). Saves ~6h per full run.
+5. **Job downsized to free tier** — 2 vCPU / 8 GiB → 1 vCPU / 512 MiB.
+   Enrichment scripts are I/O-bound (99% time in throttle sleep), not
+   CPU/memory-bound.
+6. **Scheduler changed to monthly** — `0 23 1 * *` Europe/Vienna (1st of
+   each month at 23:00). `MIN_REBUILD_DAYS=25`. Free tier budget:
+   ~29h × 1 vCPU = 29 vCPU-hours/month (of 50 free) + ~29h × 0.5 GiB
+   = 14.5 GiB-hours/month (of 100 free). Zero cost.
 
 **Cloud Run Job — `spotivibe-rag-builder` (region us-central1):**
-- Image: rebuilt from `build-tools/cloud-run-job/Dockerfile` on 2026-05-03 (digest `sha256:53274668…99a5a5`).
-- `--task-timeout=24h` (was 4h — needed for the longer Phase B pass).
-- Env vars now set on the job spec:
-  - `GCS_BUCKET=spotivibe-rag-corpus`
-  - `CORPUS_TOP_N=350000`
-  - `MIN_REBUILD_DAYS=1` (was 6 — daily cadence; the gate still skips reruns within 24h to stop a failed-and-retry loop from double-publishing)
-  - `LASTFM_MAX_ENRICH=30000` (steady-state, ~3.5h Last.fm pass; the in-flight first run is at 50000 via execution-level override)
-- Secrets bound via Secret Manager → env vars:
-  - `SPOTIFY_CLIENT_ID` ← `spotify-client-id:latest`
-  - `SPOTIFY_CLIENT_SECRET` ← `spotify-client-secret:latest`
-  - `LASTFM_API_KEY` ← `lastfm-api-key:latest` (NEW 2026-05-03)
+- 1 vCPU, 4 GiB RAM, 24h timeout, max-retries 1.
+- Env vars: `GCS_BUCKET=spotivibe-rag-corpus`, `CORPUS_TOP_N=350000`,
+  `MIN_REBUILD_DAYS=25`, `DISABLE_SPOTIFY_ENRICHMENT=1`.
+- Secrets: `LASTFM_API_KEY` v1.
+- Image: `sha256:4106fd54…` (deployed 2026-05-04, includes all fixes).
 
 **Cloud Scheduler — `spotivibe-rag-weekly`:**
-- Schedule: `0 23 * * *` Europe/Vienna (was `0 */2 * * *`). Runs daily at 23:00 Vienna so the corpus is fresh for morning use.
-- Target: `spotivibe-rag-builder` Cloud Run job.
+- Schedule: `0 23 1 * *` Europe/Vienna (monthly, 1st at 23:00).
+- Resumed 2026-05-04.
 
-**First-run execution (in flight):**
-- Execution name: `spotivibe-rag-builder-x4v5b`.
-- Started 2026-05-03 ~21:15 Vienna; estimated finish ~07:00 Vienna 2026-05-04.
-- Slice: top-50000 by MB proxy popularity (one-off override; future runs use 30k).
+**Estimated run time (Last.fm only, all ~174k artists):**
+- MB dump + build: ~13 min
+- Last.fm: ~17h (348k calls at 0.18s throttle)
+- Total: ~17.5h — well within 24h timeout and free tier (17.5 vCPU-hours
+  of 50 free + 70 GiB-hours of 100 free at 4 GiB RAM).
 
-### Verifying the first Phase B corpus tomorrow morning
+### Current execution — `spotivibe-rag-builder-ltrfp` (2026-05-04)
+
+Started 2026-05-04 ~07:45 UTC. MB build completed at 07:58, Last.fm
+enrichment started at 07:58 with all 174,200 artists (no cap). Spotify
+enrichment skipped (`DISABLE_SPOTIFY_ENRICHMENT=1` confirmed in logs).
+
+**Expected completion: ~01:15 UTC 2026-05-05 (~03:15 Vienna).**
+
+### ⏰ VERIFY on 2026-05-05 morning
 
 ```bash
-# 1. Did the execution complete?
-gcloud run jobs executions describe spotivibe-rag-builder-x4v5b \
+# 1. Execution status
+gcloud run jobs executions describe spotivibe-rag-builder-ltrfp \
   --region=us-central1 \
-  --format='value(status.completionTime,status.conditions[0].type,status.conditions[0].message)'
+  --format='value(status.completionTime,status.conditions[0].type)'
 
-# 2. New manifest?  built_at should be 2026-05-04, sha256 different from
-#    the 2026-04-28 baseline (41f67df93d8a7…).
+# 2. New manifest? built_at should be 2026-05-04 or 2026-05-05
 gcloud storage cat gs://spotivibe-rag-corpus/manifest.json
 
-# 3. Halt flag clean?  (rate-limit aborts write halt.flag with reason
-#    "lastfm_rate_limited" or "spotify_rate_limited".)
-gcloud storage ls gs://spotivibe-rag-corpus/halt.flag  # should NotFound
+# 3. No halt flag?
+gcloud storage ls gs://spotivibe-rag-corpus/halt.flag  # should be NotFound
 
-# 4. Spot-check the corpus carries Last.fm fields. The tail-of-output
-#    should contain at least one row with lastfm_listeners + lastfm_tags.
+# 4. Spot-check Last.fm fields in the new corpus
 gcloud storage cp gs://spotivibe-rag-corpus/artists.jsonl.gz /tmp/c.jsonl.gz
-zcat /tmp/c.jsonl.gz | head -100 | grep -c '"lastfm_listeners"'   # > 0 expected
-zcat /tmp/c.jsonl.gz | head -100 | grep -c '"lastfm_tags"'         # > 0 expected
+zcat /tmp/c.jsonl.gz | head -100 | grep -c '"lastfm_listeners"'  # > 0
+zcat /tmp/c.jsonl.gz | head -100 | grep -c '"lastfm_tags"'       # > 0
+
+# 5. Full enrichment stats
+zcat /tmp/c.jsonl.gz | python -u -c "
+import sys, json
+total=0; lf=0
+for l in sys.stdin:
+    r=json.loads(l); total+=1
+    if r.get('lastfm_listeners'): lf+=1
+print(f'Total: {total}, Last.fm enriched: {lf} ({100*lf/total:.1f}%)')
+"
 ```
 
-### If the first run fails
-
-Most likely failure modes and what each implies:
-
-| Symptom in execution log | Meaning | Resume path |
-|---|---|---|
-| `enrich_with_lastfm.py` exit 43 + halt.flag written, reason `lastfm_rate_limited` | Last.fm Retry-After exceeded the 300s cap or cumulative-backoff budget exhausted (~5 min). Either Last.fm temp-banned the key, or the `_MIN_INTER_REQUEST_SEC` throttle is too aggressive. | Investigate Last.fm key in Last.fm dashboard, then `gcloud storage rm gs://spotivibe-rag-corpus/halt.flag`; rerun. |
-| `enrich_with_lastfm.py` exit 44 (no halt flag) | API key invalid / suspended. | Rotate `lastfm-api-key` secret (`gcloud secrets versions add lastfm-api-key …`); rerun. |
-| `enrich_with_spotify.py` exit 42 + halt.flag (reason `spotify_rate_limited`) | Pre-existing Spotify circuit breaker, unrelated to Phase B. | Per the existing playbook in [`documentation/guides/cloud-run-rag-setup.md`](documentation/guides/cloud-run-rag-setup.md) §9.5. |
-| Execution killed at ~24h with no upload | Slice too large or throttle too slow. | Lower `LASTFM_MAX_ENRICH` (e.g. 20000) on the job or as `--update-env-vars` on the next execution. |
-
-### Steady-state daily cadence
-
-Once the first run lands and the corpus is verified, no further action is needed — the scheduler will fire daily at 23:00 Vienna, the job will rebuild + enrich + upload, and the desktop app will pick up the new corpus on its next manifest poll. To pause: disable the scheduler (`gcloud scheduler jobs pause spotivibe-rag-weekly --location=us-central1`).
+If successful: download the new corpus locally, verify in the app,
+then set the fixed monthly schedule (1st of each month). If failed:
+check logs with
+`gcloud logging read "labels.\"run.googleapis.com/execution_name\"=spotivibe-rag-builder-ltrfp" --limit=30 --order=desc`.
 
 ## Further research required (gated on enrichment outcome)
 
@@ -417,6 +457,14 @@ fresh canonical eval is collected.
   enrichment numbers prove this layer is still needed.
 
 ## Dropped / obsolete
+
+- **Spotify corpus enrichment (Phase A)** — disabled 2026-05-04. After
+  Feb 2026 API changes, `genres` returns empty for all artists. The only
+  field retrieved is `spotify_id`, which has no current consumer. The
+  enrichment costs ~12h of API time, carries the highest rate-limit risk
+  (21h temp-bans), and adds a failure mode that blocks the entire
+  pipeline. `DISABLE_SPOTIFY_ENRICHMENT=1` set on Cloud Run job. Code
+  retained in repo for future re-enablement if Spotify restores genres.
 
 - **AcousticBrainz audio features** — service shut down 2022; static
   dump irrelevant for new artists. Permanently out of scope.

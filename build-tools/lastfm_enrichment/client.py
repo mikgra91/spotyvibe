@@ -36,7 +36,7 @@ _REQUEST_TIMEOUT = 15.0
 
 # Last.fm publishes no hard rate limit but the docs recommend ~5 req/s;
 # 210 ms ≈ 4.7 req/s sits comfortably under that.
-_MIN_INTER_REQUEST_SEC = 0.21
+_MIN_INTER_REQUEST_SEC = 0.18
 
 # Cap on Retry-After we will respect; longer means abort the run.
 _MAX_RETRY_AFTER_SEC = 300

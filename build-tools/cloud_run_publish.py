@@ -7,8 +7,10 @@ Reads its configuration from env vars set in the Job spec:
     SPOTIFY_CLIENT_ID           — (optional) enables Phase 2 Spotify enrichment
     SPOTIFY_CLIENT_SECRET       — (optional) enables Phase 2 Spotify enrichment
     DISABLE_SPOTIFY_ENRICHMENT  — "1" to force-skip enrichment even if creds set
+    SPOTIFY_MAX_ENRICH          — (optional) cap on Spotify lookups (default: script's 50000)
     LASTFM_API_KEY              — (optional) enables Phase B Last.fm enrichment
     DISABLE_LASTFM_ENRICHMENT   — "1" to force-skip Last.fm even if key set
+    LASTFM_MAX_ENRICH           — (optional) cap on Last.fm lookups (default: script's 170000)
     MIN_REBUILD_DAYS            — skip the run if a build was published within
                                   this many days (default 6). Set to 0 to force.
     FORCE_REBUILD               — "1" to ignore both the halt flag and the
@@ -260,11 +262,13 @@ def main() -> int:
     if sp_id and sp_secret and not skip_enrichment:
         enriched_path = CORPUS_PATH.with_name("artists.enriched.jsonl.gz")
         print("Phase 2: enriching corpus with Spotify metadata …", flush=True)
+        spotify_max = os.environ.get("SPOTIFY_MAX_ENRICH", "").strip()
         rc = _run_allow_exit_codes(
             [
                 sys.executable, "build-tools/enrich_with_spotify.py",
                 "--input", str(CORPUS_PATH),
                 "--output", str(enriched_path),
+                *(["--max-enrich", spotify_max] if spotify_max else []),
             ],
             allowed={RATE_LIMIT_EXIT_CODE},
         )
@@ -299,11 +303,13 @@ def main() -> int:
     # back to the circuit breaker.
     lastfm_path = CORPUS_PATH.with_name("artists.lastfm.jsonl.gz")
     print("Phase B: enriching corpus with Last.fm metadata …", flush=True)
+    lastfm_max = os.environ.get("LASTFM_MAX_ENRICH", "").strip()
     rc = _run_allow_exit_codes(
         [
             sys.executable, "build-tools/enrich_with_lastfm.py",
             "--input", str(CORPUS_PATH),
             "--output", str(lastfm_path),
+            *(["--max-enrich", lastfm_max] if lastfm_max else []),
         ],
         allowed={LASTFM_RATE_LIMIT_EXIT_CODE, LASTFM_AUTH_ERROR_EXIT_CODE},
     )

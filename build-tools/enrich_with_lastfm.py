@@ -97,10 +97,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--limit", type=int, default=0,
                         help="Cap on artists to process (0 = all). Smoke tests.")
-    parser.add_argument("--max-enrich", type=int, default=170_000,
+    parser.add_argument("--max-enrich", type=int, default=0,
                         help="Hard ceiling on Last.fm lookups. Top N by MB "
                              "proxy popularity get enriched; remainder is "
-                             "emitted unchanged. Default 170000 ≈ entire MB.")
+                             "emitted unchanged. 0 = enrich all (default).")
     parser.add_argument("--min-popularity", type=int, default=0,
                         help="Skip Last.fm lookup for MB artists below this "
                              "proxy popularity (0..100). 0 = enrich all.")
@@ -139,8 +139,12 @@ def main(argv: list[str] | None = None) -> int:
     all_rows.sort(key=lambda r: float(r.get("listener_popularity") or 0.0),
                   reverse=True)
 
-    enrich_slice = all_rows[: args.max_enrich]
-    passthrough = all_rows[args.max_enrich:]
+    if args.max_enrich > 0:
+        enrich_slice = all_rows[: args.max_enrich]
+        passthrough = all_rows[args.max_enrich:]
+    else:
+        enrich_slice = all_rows
+        passthrough = []
     logger.info(
         "%d rows total — enriching top %d, %d streamed unchanged",
         len(all_rows), len(enrich_slice), len(passthrough),

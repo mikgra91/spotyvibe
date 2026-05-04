@@ -74,12 +74,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="Where to write the enriched corpus.")
     parser.add_argument("--limit", type=int, default=0,
                         help="Optional cap on artists to process (0 = all). Useful for smoke tests.")
-    parser.add_argument("--max-enrich", type=int, default=50_000,
+    parser.add_argument("--max-enrich", type=int, default=0,
                         help="Hard ceiling on Spotify lookups. We sort the input by "
                              "MB proxy popularity DESC and only enrich the top N. "
-                             "The remaining artists are emitted unchanged. Default 50000 — "
-                             "≈ 60 min of API time. Long-tail MB artists rarely surface "
-                             "in retrieval anyway.")
+                             "0 = enrich all (default).")
     parser.add_argument("--min-popularity", type=int, default=0,
                         help="Skip Spotify lookup for MB artists below this proxy popularity (0..100). "
                              "0 = enrich everything (default).")
@@ -110,8 +108,12 @@ def main(argv: list[str] | None = None) -> int:
                   reverse=True)
 
     # Determine the slice we attempt to enrich.
-    enrich_slice = all_rows[: args.max_enrich]
-    passthrough = all_rows[args.max_enrich:]
+    if args.max_enrich > 0:
+        enrich_slice = all_rows[: args.max_enrich]
+        passthrough = all_rows[args.max_enrich:]
+    else:
+        enrich_slice = all_rows
+        passthrough = []
     logger.info(
         "%d rows total — enriching top %d by popularity, %d streamed unchanged",
         len(all_rows), len(enrich_slice), len(passthrough),

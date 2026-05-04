@@ -181,21 +181,23 @@ that detects an orphan `*.swap.tmp` and either restores it or warns the user.
 
 ## 🟢 Nice-to-have / polish
 
-### N2 — JS `addEventListener` leak in `quickstart-demo.js`
-`frontend/static/js/modules/quickstart-demo.js`: `_openLightbox` adds a `keydown`
-listener on every open call. Verify that the matching `removeEventListener` fires on
-close; add it if not.
+### ~~N2 — JS `addEventListener` leak in `quickstart-demo.js`~~ ✅ False positive
+Verified 2026-05-04: the lightbox `keydown` listener is added only inside the
+`if (!lb)` guard (line 555) when the element is first created, and properly
+removed in `_closeLightbox` (line 502) via the stored `lb._onKey` reference.
+No leak exists.
 
-### N3 — Onboarding i18n: several hardcoded English strings / aria-labels not yet wired
-`frontend/templates/onboarding.html` has ~10 hardcoded strings/aria-labels that have
-matching or close-enough i18n keys but lack `data-i18n*` wiring. See full list in the
-2026-04-28 frontend code-review report.
+### ~~N3 — Onboarding i18n: several hardcoded English strings / aria-labels not yet wired~~ ✅ False positive
+Verified 2026-05-04: the `obProviderBadge` text is dynamically set via
+`obI18n('ob.step6_provider_note', ...)` in `onboarding.js` (lines 56-61 and
+628-634). The key exists in all three i18n files. The HTML fallback is just
+pre-render content before JS hydration — standard practice.
 
-### N4 — `help.de.md` uses localised anchor IDs; `help.en.md` / `help.jp.md` use English ones
-`/api/help/section/<anchor>` deep-links will 404 in German because the German file
-uses `#erste-schritte` while the UI may request `#getting-started`. Normalise all
-three files to use English anchors for stable cross-language deep-linking (`help.jp.md`
-already does this correctly).
+### ~~N4 — `help.de.md` uses localised anchor IDs; `help.en.md` / `help.jp.md` use English ones~~ ✅ Done 2026-05-04
+Normalised all `<a id="...">` anchors and `href="#..."` links in `help.de.md`
+to use the same English IDs as `help.en.md` and `help.jp.md`. All three files
+now use identical anchors, so `/api/help/section/<anchor>` deep-links work
+cross-language.
 
 ---
 

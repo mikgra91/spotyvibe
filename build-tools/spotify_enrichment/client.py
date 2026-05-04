@@ -43,11 +43,11 @@ _TOKEN_REFRESH_CUSHION_SEC = 300
 #  - total backoff budget per process: if cumulative 429 sleeps go
 #    above this we abort (something is structurally wrong).
 _MAX_RETRY_AFTER_SEC = 300
-# 210 ms ≈ 4.7 req/s ≈ 143 req per 30s window — well under Spotify's
+# 170 ms ≈ 5.9 req/s ≈ 176 req per 30s window — within Spotify's
 # undocumented dev-app rolling-window quota (~180-300 req/30s for
 # /search). The 21h temp-ban we saw at 70ms (14 req/s = 420/30s)
-# confirmed we were over the limit.
-_MIN_INTER_REQUEST_SEC = 0.21
+# confirmed we were over the limit. Conservative margin retained.
+_MIN_INTER_REQUEST_SEC = 0.17
 _MAX_TOTAL_BACKOFF_SEC = 300
 
 
