@@ -1,16 +1,11 @@
-# Next Steps — 2026-05-02
+# Next Steps — 2026-05-04
 
-Consolidated forward plan after the RAG enrichment research pass. Drops
-items the multi-source enrichment work supersedes; flags items whose
-relevance is now contingent on enrichment results.
+Consolidated forward plan. Open tasks, decisions, and gated research items.
 
-## Reference documents
-
-- [documentation/rag_enrichment_plan.md](documentation/rag_enrichment_plan.md) — multi-source enrichment plan (Spotify fix + Last.fm + Discogs + Wikidata + ListenBrainz)
-- [corpus_analysis.md](corpus_analysis.md) — corpus coverage diagnosis, vocab-mismatch findings, surgical bridge
-- [cost-speed-research.md](cost-speed-research.md) — 26-lever cost/speed audit
-- [result-improvement.md](result-improvement.md) — phase-by-phase implementation history
-- [TODO.md](TODO.md) — full deferred-items register
+> **Documentation cleanup (2026-05-04):** Six working documents were consolidated
+> into `documentation/TechnicalManual.md` and this file, then deleted. See
+> TechnicalManual.md §"Documentation Cleanup Log" for the full list. All deleted
+> files are recoverable via git history.
 
 ## Active priorities
 
@@ -65,7 +60,7 @@ These have no enrichment dependency and gate everything else.
 Eval gap: current eval does **not** test the production failure path
 (disliked-band re-recommendation after profile update). This is the
 single biggest reason "evals pass while production fails" per
-[TODO.md A1](TODO.md).
+the user feedback note (formerly TODO.md A1).
 
 4. ~~**Add post-feedback regression pass to eval harness.**~~
    ✅ Done (F8, commit 7f0c6af + earlier).
@@ -179,17 +174,17 @@ single biggest reason "evals pass while production fails" per
    `test_rag_retrieval.py` (4 tests) for the new fields +
    popularity precedence + tag-weight passthrough. 780 core tests
    green (was 723).
-9. **Phase D — Wikidata structured facts** ([rag_enrichment_plan.md §D](documentation/rag_enrichment_plan.md)).
+9. **Phase D — Wikidata structured facts** (rag_enrichment_plan.md §D (deleted; see git history)).
    Highest-value next layer because it directly fixes the F1 must-have
    gate failure for "Japanese music" / "American artists" documented in
-   [corpus_analysis.md](corpus_analysis.md). Order C↔D is flexible —
+   corpus_analysis.md (deleted; see git history). Order C↔D is flexible —
    take D first if eval scenarios remain country-constrained.
-10. **Phase C — Discogs styles** ([rag_enrichment_plan.md §C](documentation/rag_enrichment_plan.md)).
+10. **Phase C — Discogs styles** (rag_enrichment_plan.md §C (deleted; see git history)).
     Broadens tag vocab where MB is sparse (electronic, hip-hop, niche).
 
 ### 🟢 P3 — Should-fix (independent of enrichment)
 
-From [TODO.md](TODO.md):
+From next-steps.md:
 
 11. ~~**S11 — `swap_profile_with_history` crash safety.**~~ ✅ Done 2026-05-02.
     Added `recover_orphaned_swap_tmps()` in
@@ -274,7 +269,7 @@ From [TODO.md](TODO.md):
     `test_profile.TestProfileEditor::test_toggle_opens_and_closes_editor`)
     — all pass.
 
-### 🟢 P4 — Nice-to-have polish (from TODO.md)
+### 🟢 P4 — Nice-to-have polish (formerly in TODO.md)
 
 18. ~~**N2 — JS addEventListener leak in quickstart-demo.js**~~ ✅ False positive
     (2026-05-04). Lightbox keydown listener is guarded by `if (!lb)` and
@@ -409,50 +404,50 @@ relevance, scope, or pass criteria all change once Phase B/D land.
 **Do not pursue blindly.** Re-evaluate after enrichment ships and a
 fresh canonical eval is collected.
 
-- **P6-EVAL — Phase 6.0 cost-bundle validation** ([TODO.md](TODO.md) P6-EVAL).
+- **P6-EVAL — Phase 6.0 cost-bundle validation** (next-steps.md).
   Originally targeted ~36 % cost reduction on the unenriched corpus.
   Pass criteria (cite/found/cost) all baseline against
   `sweep-merged-5blocks/summary.csv` which is pre-enrichment. Re-run
   **after** Phase B Last.fm enrichment so the validated baseline
   reflects production-relevant retrieval quality.
-- **P6-INV13-25 — Pool-size + model-downgrade sweep** ([TODO.md](TODO.md) P6-INV13-25).
+- **P6-INV13-25 — Pool-size + model-downgrade sweep** (next-steps.md).
   L25 (pool 50 → 30) variance was 16-22 pp on the unenriched corpus.
   Enriched corpus changes pool composition entirely; the sweep must be
   re-run on enriched data, not just multi-seeded on the old one.
-- **P6-RELY — L20+L21 Spotify search cache** ([TODO.md](TODO.md) P6-RELY).
+- **P6-RELY — L20+L21 Spotify search cache** (next-steps.md).
   Speed/429 lever; still relevant but de-prioritised — Phase A's
   single-GET enrichment changes the Spotify call profile, may shift
   the 429 hotspot.
-- **OPEN-2 / P2.3 — Semantic avoid filter** ([result-improvement.md](result-improvement.md)).
+- **OPEN-2 / P2.3 — Semantic avoid filter** (result-improvement.md (deleted; see git history)).
   Predicated on the LLM-Stage-2 dropping nothing today. Phase B's
   weighted Last.fm tags may close enough of the avoid-vocab gap that
   the semantic post-filter is unnecessary. Decide after enrichment +
   OPEN-1 dislike-rate measurement.
-- **OPEN-1 — Manual dislike-rate measurement** ([result-improvement.md](result-improvement.md)).
+- **OPEN-1 — Manual dislike-rate measurement** (result-improvement.md (deleted; see git history)).
   Still blocking but the measurement target itself shifts: pre- vs
   post-enrichment dislike rates must be measured separately.
-- **OPEN-5 / P3.2 — Profile consolidation on overgrowth** ([result-improvement.md](result-improvement.md)).
+- **OPEN-5 / P3.2 — Profile consolidation on overgrowth** (result-improvement.md (deleted; see git history)).
   Independent of enrichment, but acceptance threshold (12 KB after 10
   updates) was set against current profile shape. Re-confirm threshold
   is still binding.
-- **OPEN-6 / P3.3 — Periodic feedback absorption** ([result-improvement.md](result-improvement.md)).
+- **OPEN-6 / P3.3 — Periodic feedback absorption** (result-improvement.md (deleted; see git history)).
   Independent of enrichment. Still queued behind OPEN-1.
-- **OPEN-8 / Phase 4 — Structured `taste_vector`** ([result-improvement.md](result-improvement.md)).
+- **OPEN-8 / Phase 4 — Structured `taste_vector`** (result-improvement.md (deleted; see git history)).
   Replacement for freeform `taste_summary`. Tag vocabulary the vector
   uses depends on the enriched corpus's tag inventory; design only
   after Phase B+D land.
-- **Surgical bridge — `corpus_tag_hints`** ([corpus_analysis.md](corpus_analysis.md)
+- **Surgical bridge — `corpus_tag_hints`** (corpus_analysis.md (deleted; see git history)
   §"Implementation plan — surgical bridge"). LLM-driven user-prose →
   corpus-vocab translation. Phase B's Last.fm tags + Phase D's Wikidata
   genres may close enough of the vocab gap to make the bridge
   redundant. Re-examine after enrichment.
-- **Tag co-occurrence graph** ([corpus_analysis.md](corpus_analysis.md)
+- **Tag co-occurrence graph** (corpus_analysis.md (deleted; see git history)
   §"Recommended semantic bridge"). Long-term solution to vocab
   mismatch. Phase B's Last.fm tag-weight vectors are a cheaper
   approximation; build the co-occurrence graph only if Phase B fails
   to lift retrieval quality.
 - **MB tag rollup (release-group / recording / work → artist)**
-  ([corpus_analysis.md](corpus_analysis.md) §"What MusicBrainz can
+  (corpus_analysis.md (deleted; see git history) §"What MusicBrainz can
   help with"). Phase B's Last.fm tags partly substitute. Defer until
   enrichment numbers prove this layer is still needed.
 
@@ -474,7 +469,7 @@ fresh canonical eval is collected.
   removed at the API. Replaced by Last.fm `listeners` / `playcount`
   in Phase B.
 - **gpt-5.5 model recommendation** — classified unfit
-  ([result-improvement.md](result-improvement.md) Phase 2.6); already
+  (result-improvement.md (deleted; see git history) Phase 2.6); already
   removed from defaults.
 - **Stage 3 `json_schema` strict mode** — reverted in Phase 2.6;
   do not re-attempt without a new schema strategy.
@@ -484,7 +479,7 @@ fresh canonical eval is collected.
 
 ## Open product question (unanswered)
 
-[TODO.md A1](TODO.md) records a user-stated possibility of scrapping
+the user feedback note (formerly TODO.md A1) records a user-stated possibility of scrapping
 RAG / Cloud Run / current infrastructure entirely. The enrichment plan
 implicitly bets that better corpus data will close the production
 quality gap. If Phase B + the eval workflow rework above do **not**

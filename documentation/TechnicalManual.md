@@ -300,17 +300,18 @@ The corpus (`artists.jsonl.gz`, ~10 MB) is **not** bundled with the app. It is b
 |---|---|
 | **GCP Project** | `spotivibe-rag` |
 | **GCS Bucket** | `spotivibe-rag-corpus` (us-central1, public read via `allUsers/objectViewer`) |
-| **Cloud Run Job** | `spotivibe-rag-builder` — 2 vCPU, 8 GiB RAM, 60 min timeout |
-| **Cloud Scheduler** | `spotivibe-rag-weekly` — every Monday 03:00 Europe/Vienna |
+| **Cloud Run Job** | `spotivibe-rag-builder` — 1 vCPU, 4 GiB RAM, 24 h timeout, max-retries 1 |
+| **Cloud Scheduler** | `spotivibe-rag-weekly` — monthly, 1st at 23:00 Europe/Vienna (`0 23 1 * *`) |
 | **Service Account** | `spotivibe-rag-builder@spotivibe-rag.iam.gserviceaccount.com` |
 
 **Pipeline** — the Cloud Run Job executes `build-tools/cloud_run_publish.py`, which:
 
 1. Runs `refresh_rag_corpus.py` — downloads the latest MusicBrainz JSON dump (~3 GB), **streams** directly from the compressed `.tar.xz` archives (no 33 GB extraction to disk), and invokes `build_rag_corpus.py` to produce the corpus.
-2. **(Phase 2, 2026-04, optional)** Runs `enrich_with_spotify.py` if `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` are set — looks up each MB artist on Spotify (Client Credentials flow) and attaches `spotify_id` + `spotify_genres`. Spotify removed `popularity` and `followers` from artist objects in Feb 2026 and dropped the batch `GET /artists` endpoint, so the enricher now does a per-id `GET /artists/{id}` and stores genres only. Conservative match heuristic skips artists below confidence ≥ 1.0 (≈ 65-80% match rate). Adds ~7-10 MB to the gzipped corpus. See `documentation/guides/cloud-run-rag-setup.md` §9 for setup.
-3. Computes SHA-256 of the resulting `artists.jsonl.gz`.
-4. Uploads `artists.jsonl.gz` + `manifest.json` to the public GCS bucket.
-5. Wipes the ephemeral working directory.
+2. **(Optional, currently disabled)** Runs `enrich_with_spotify.py` if `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` are set and `DISABLE_SPOTIFY_ENRICHMENT` is unset. Disabled since 2026-05-04: Spotify's `genres` field returns empty for all artists post-Feb-2026. Code retained for future re-enablement.
+3. **(Phase B, 2026-05)** Runs `enrich_with_lastfm.py` if `LASTFM_API_KEY` is set — looks up each MB artist on Last.fm via MBID and attaches `lastfm_listeners`, `lastfm_playcount`, and `lastfm_tags` (weighted community tags, min-weight cutoff ≥ 30). Rate-limited to ~5.5 req/s. Estimated wall-clock for all ~174k artists: ~17 h (within the 24 h timeout). Distinct exit codes: 43 (rate-limit → `halt.flag`) / 44 (auth-error → loud fail). See `build-tools/lastfm_enrichment/client.py`.
+4. Computes SHA-256 of the resulting `artists.jsonl.gz`.
+5. Uploads `artists.jsonl.gz` + `manifest.json` to the public GCS bucket.
+6. Wipes the ephemeral working directory.
 
 **Bucket contents** — always exactly two objects:
 
@@ -331,7 +332,7 @@ python build-tools/refresh_rag_corpus.py --top-n 350000
 gcloud storage cp data/rag_corpus/artists.jsonl.gz gs://spotivibe-rag-corpus/
 ```
 
-**Cost**: $0/month on the GCP always-free tier. The Job uses <2% of the free Cloud Run vCPU quota and the bucket stores <0.01% of the free 5 GB. See `cloud-run-rag-setup.md` § 9 for the full cost breakdown.
+**Cost**: $0/month on the GCP always-free tier. The Job uses ~29 vCPU-hours/month (of 50 free) at 1 vCPU and ~14.5 GiB-hours/month (of 100 free) at 4 GiB RAM. See `cloud-run-rag-setup.md` § 9 for the full cost breakdown.
 
 **Client-side update flow** — implemented in [core/src/rag/distribution.py](../core/src/rag/distribution.py) and wired from [app.py](../app.py):
 
@@ -340,7 +341,7 @@ gcloud storage cp data/rag_corpus/artists.jsonl.gz gs://spotivibe-rag-corpus/
 3. The Settings modal renders a banner when status is `update_available` or `missing_corpus`. Clicking **Download now** POSTs to `/api/rag/download-corpus`, which streams to `artists.jsonl.gz.part`, sha256-verifies against the manifest, atomically renames into place, writes the `artists.meta.json` sidecar, and hot-swaps the in-memory `RagCorpus` handle.
 4. `RAG_MANIFEST_URL` is overridable via env var for testing against a staging URL.
 
-**Cadence** — the Cloud Run Job runs weekly (Monday 03:00 Vienna time) via Cloud Scheduler. The corpus refreshes automatically from the latest MusicBrainz dump. No manual intervention is needed unless the pipeline fails (check Cloud Run console → Jobs → Executions).
+**Cadence** — the Cloud Run Job runs monthly (1st of each month at 23:00 Vienna time) via Cloud Scheduler. `MIN_REBUILD_DAYS=25` prevents premature rebuilds. The corpus refreshes automatically from the latest MusicBrainz dump. No manual intervention is needed unless the pipeline fails (check Cloud Run console → Jobs → Executions).
 
 ### Maintaining the RAG feature
 
@@ -383,8 +384,12 @@ This subsection captures the formulas, memory budgets, and design-rationale answ
 | `begin_year` | MusicBrainz `artist.begin_date_year` | Era matching |
 | `tags` (list) | MusicBrainz `artist_tag` joined on tag id | Genre / mood matching — main retrieval signal |
 | `tag_weights` (list of ints) | MusicBrainz `artist_tag.count` | Tag relevance ranking |
-| `listener_popularity` (0–1) | Derived: release count + tag total proxy (Option A) | Anti-popularity-bias re-rank |
-| `spotify_id`, `spotify_genres` | Phase 2 enrichment via Spotify Client Credentials | Optional: extra tag vocabulary (`popularity` + `followers` removed by Spotify Feb 2026) |
+| `listener_popularity` (0–1) | Derived: release count + tag total proxy (Option A) | Anti-popularity-bias re-rank (fallback when Last.fm data absent) |
+| `spotify_id`, `spotify_genres` | Phase 2 enrichment via Spotify Client Credentials | Optional: extra tag vocabulary (currently disabled — Spotify genres empty post-Feb 2026) |
+| `lastfm_listeners` | Phase B enrichment via Last.fm `artist.getInfo` | Primary popularity signal — log10-scaled to 0–1 in `_lastfm_popularity()` |
+| `lastfm_playcount` | Phase B enrichment via Last.fm `artist.getInfo` | Stored for future use; not currently consumed at runtime |
+| `lastfm_tags` | Phase B enrichment via Last.fm `artist.getTopTags` | High-signal weighted tags (0–100), indexed alongside MB tags + Spotify genres |
+| `lastfm_tag_weights` | Phase B enrichment via Last.fm `artist.getTopTags` | Per-tag weight matching `lastfm_tags` order |
 
 Slimming history (2026-04): `sort_name`, `country`, `end_year` and the in-memory `by_mbid` / `by_name_normalised` indexes were dropped because they were loaded but never read. Net: ~25–30% resident memory reduction. JSONL parser silently ignores extra fields, so older corpora still load.
 
@@ -429,7 +434,7 @@ Eval data (Apr 2026, 4 playlists × 30 tracks on the "Rock" profile):
 |---:|---:|---:|---|
 | 20 | 19% | 5.5% | Pool too narrow to anchor an eclectic profile — model picks off-pool 81% of the time |
 | 60 | ~38% | ~5% | Better adherence, prompt grows ~600 tok |
-| **100** | **~50%** | **~5%** | **Default since 2026-04**; further width adds prompt cost without measurable gain |
+| **100** | **~50%** | **~5%** | Eval benchmark value; further width adds prompt cost without measurable gain |
 | 200 | ~55% | ~5% | Hits 8K context for some local LLMs |
 
 The 2026-04-21 decision report set `≥ 40% in_candidate_pool` as the target metric; the 100-slot default reaches it.
@@ -555,7 +560,7 @@ print(prompt_sizes.groupby(batches["config_signature"]).mean())
 ## Tests
 
 ```bash
-python -m pytest core/tests/ -v              # ~620 core tests, ~3s
+python -m pytest core/tests/ -v              # ~780 core tests, ~15s
 bash build-tools/run_frontend_tests.sh       # Playwright, 3 parallel groups
 bash build-tools/run_tests.sh                # all tests, 4 groups
 bash build-tools/run_tests_podman.sh         # CI parity
@@ -590,3 +595,25 @@ User clicks Generate
       ▼
  SSE `result` event → browser renders cards + playlist link
 ```
+
+---
+
+## Documentation Cleanup Log
+
+| Date | Commit | Action |
+|---|---|---|
+| 2026-05-04 | `e526cc2` | Consolidated and deleted 6 working documents (see below). Relevant technical content merged into this manual; open tasks merged into `next-steps.md`. |
+
+**Files deleted in the 2026-05-04 cleanup:**
+
+| File | Lines | Content | Disposition |
+|---|---|---|---|
+| `result-improvement.md` | 1410 | Phase 0–6 implementation journal (quality & cost rework history) | Architecture captured here; open items in `next-steps.md` |
+| `cost-speed-research.md` | 597 | 26-lever cost/speed audit (2026-04-29) | Shipped levers documented here; open levers in `next-steps.md` |
+| `corpus_analysis.md` | 907 | Pre-enrichment corpus diagnosis + vocab-mismatch findings | Superseded by Phase B Last.fm enrichment; residual items in `next-steps.md` |
+| `context/claudeAnalyse.md` | 278 | One-time production failure analysis (F1–F9 findings) | All findings implemented (Phases 2.0–2.6); analysis is historical |
+| `documentation/rag_enrichment_plan.md` | 265 | Multi-source enrichment plan (Phases A–E) | Phase A+B done; C–E tracked in `next-steps.md`; Cloud Run details here |
+| `TODO.md` | 317 | Deferred code-review items register | All completed or merged into `next-steps.md` |
+
+All deleted files are recoverable via `git show <commit>:path/to/file`. Use the commit hash above to inspect any file's content at the point of deletion.
+
