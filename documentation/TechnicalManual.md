@@ -602,7 +602,7 @@ User clicks Generate
 
 | Date | Commit | Action |
 |---|---|---|
-| 2026-05-04 | `e526cc2` | Consolidated and deleted 6 working documents (see below). Relevant technical content merged into this manual; open tasks merged into `next-steps.md`. |
+| 2026-05-04 | `a212e55` | Consolidated and deleted 6 working documents (see below). Relevant technical content merged into this manual; open tasks merged into `next-steps.md`. |
 
 **Files deleted in the 2026-05-04 cleanup:**
 
