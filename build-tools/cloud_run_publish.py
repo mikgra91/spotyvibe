@@ -64,9 +64,10 @@ WORK_DIR = ROOT / "build-tools" / ".rag-cache"
 
 # Must match enrich_with_spotify.RATE_LIMIT_EXIT_CODE.
 RATE_LIMIT_EXIT_CODE = 42
-# Must match enrich_with_lastfm.{RATE_LIMIT,AUTH_ERROR}_EXIT_CODE.
+# Must match enrich_with_lastfm.{RATE_LIMIT,AUTH_ERROR,SMOKE_FAIL}_EXIT_CODE.
 LASTFM_RATE_LIMIT_EXIT_CODE = 43
 LASTFM_AUTH_ERROR_EXIT_CODE = 44
+LASTFM_SMOKE_FAIL_EXIT_CODE = 45
 
 HALT_FLAG_BLOB = "halt.flag"
 MANIFEST_BLOB = "manifest.json"
@@ -304,14 +305,23 @@ def main() -> int:
     lastfm_path = CORPUS_PATH.with_name("artists.lastfm.jsonl.gz")
     print("Phase B: enriching corpus with Last.fm metadata …", flush=True)
     lastfm_max = os.environ.get("LASTFM_MAX_ENRICH", "").strip()
+    # Checkpoint to a fixed GCS path so a Cloud Run container restart
+    # (OOM / preemption / unrelated crash) resumes where the previous
+    # one left off rather than re-burning the 18 h enrichment loop.
+    lastfm_checkpoint_uri = f"gs://{bucket_name}/lastfm-checkpoint.jsonl.gz"
     rc = _run_allow_exit_codes(
         [
             sys.executable, "build-tools/enrich_with_lastfm.py",
             "--input", str(CORPUS_PATH),
             "--output", str(lastfm_path),
+            "--checkpoint-gcs-uri", lastfm_checkpoint_uri,
             *(["--max-enrich", lastfm_max] if lastfm_max else []),
         ],
-        allowed={LASTFM_RATE_LIMIT_EXIT_CODE, LASTFM_AUTH_ERROR_EXIT_CODE},
+        allowed={
+            LASTFM_RATE_LIMIT_EXIT_CODE,
+            LASTFM_AUTH_ERROR_EXIT_CODE,
+            LASTFM_SMOKE_FAIL_EXIT_CODE,
+        },
     )
     if rc == LASTFM_RATE_LIMIT_EXIT_CODE:
         _set_halt_flag(
@@ -327,6 +337,15 @@ def main() -> int:
         # Auth error = bad key. Fail loudly but DO NOT set the halt flag —
         # the user can rotate the secret without needing to clear a flag.
         print("ABORT: Last.fm API key invalid/suspended. Fix LASTFM_API_KEY secret.",
+              file=sys.stderr, flush=True)
+        return 1
+    if rc == LASTFM_SMOKE_FAIL_EXIT_CODE:
+        # Smoke pre-flight tripped — Last.fm reachable but returning bad
+        # data (HTML maintenance, wrong account, etc.). Do NOT set the
+        # halt flag (a transient outage clears itself); just fail this
+        # run so the next scheduled trigger retries cleanly.
+        print("ABORT: Last.fm smoke pre-flight failed. Run aborted before "
+              "the 18 h enrichment loop. Investigate logs.",
               file=sys.stderr, flush=True)
         return 1
     if lastfm_path.exists():

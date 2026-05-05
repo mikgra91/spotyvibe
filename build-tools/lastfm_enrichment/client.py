@@ -45,6 +45,13 @@ _MAX_RETRY_AFTER_SEC = 300
 # (something structural is wrong).
 _MAX_TOTAL_BACKOFF_SEC = 300
 
+# Consecutive transient-failure circuit breaker. After this many
+# back-to-back artists fail with non-recoverable transients (network
+# error, non-JSON body), abort the whole run — Last.fm is likely down
+# or the egress path is broken, and there is no point spending the
+# remaining 18h budget on doomed lookups. Resets on any success.
+_MAX_CONSECUTIVE_TRANSIENT_FAILURES = 25
+
 # Last.fm error codes that indicate the *artist* request is bad and
 # retrying would not help — propagate as ``LastfmArtistNotFound``
 # instead of generic LastfmError so the driver can skip cleanly.
@@ -80,6 +87,19 @@ class LastfmBackoffBudgetExhausted(RuntimeError):
     """Cumulative 429/5xx backoff exceeded the per-process budget."""
 
 
+class LastfmTransientFailure(LastfmError):
+    """Network / non-JSON / empty-body failure after exhausting retries.
+
+    Distinct from :class:`LastfmError` (API-level error) so the driver
+    can choose to skip the offending artist while still aborting on
+    structural problems (auth, rate-limit, budget).
+    """
+
+
+class LastfmServiceUnavailable(RuntimeError):
+    """Too many consecutive transient failures — service likely down."""
+
+
 @dataclass
 class LastfmArtistInfo:
     """Per-artist Last.fm enrichment payload."""
@@ -104,6 +124,7 @@ class LastfmClient:
         self._session.headers.setdefault("User-Agent", user_agent)
         self._last_request_at: float = 0.0
         self._cumulative_backoff: float = 0.0
+        self._consecutive_transient_failures: int = 0
 
     # ── Throttling / budgeting ───────────────────────────────────────
 
@@ -123,19 +144,38 @@ class LastfmClient:
     # ── Generic GET with retry ───────────────────────────────────────
 
     def _get(self, params: dict, max_retries: int = 5) -> dict:
-        """GET ``_API_BASE`` with the given params; retry on 429 / 5xx.
+        """GET ``_API_BASE`` with the given params; retry on 429 / 5xx /
+        network errors / non-JSON bodies.
 
         Returns the parsed JSON body. Raises :class:`LastfmAuthError`,
         :class:`LastfmArtistNotFound`, or :class:`LastfmError` on
         API-level error responses (HTTP 200 + ``error`` JSON field).
+
+        After ``max_retries`` exhausts on transient failures, raises
+        :class:`LastfmTransientFailure` so the driver can skip the
+        offending artist without aborting the whole run.
         """
         full = {"api_key": self._api_key, "format": "json", **params}
+        last_transient: str | None = None
         for attempt in range(max_retries):
             self._throttle()
             self._last_request_at = time.time()
-            resp = self._session.get(
-                _API_BASE, params=full, timeout=_REQUEST_TIMEOUT,
-            )
+            try:
+                resp = self._session.get(
+                    _API_BASE, params=full, timeout=_REQUEST_TIMEOUT,
+                )
+            except requests.RequestException as exc:
+                # Connection reset, DNS failure, timeout, SSL error,
+                # chunked-encoding error mid-stream. All transient.
+                backoff = 2 ** attempt
+                last_transient = f"network: {type(exc).__name__}: {exc}"
+                logger.warning(
+                    "Last.fm network error (%s) — backoff %ds (attempt %d/%d)",
+                    type(exc).__name__, backoff, attempt + 1, max_retries,
+                )
+                self._account_backoff(backoff)
+                time.sleep(backoff)
+                continue
             if resp.status_code == 429:
                 retry_after = float(resp.headers.get("Retry-After", "1"))
                 if retry_after > _MAX_RETRY_AFTER_SEC:
@@ -156,8 +196,48 @@ class LastfmClient:
                 self._account_backoff(backoff)
                 time.sleep(backoff)
                 continue
-            resp.raise_for_status()
-            data = resp.json()
+            try:
+                resp.raise_for_status()
+            except requests.HTTPError as exc:
+                # Non-2xx that isn't 429/5xx (e.g. 400 / 403). Our request
+                # is bad — propagate as LastfmError, do not retry.
+                raise LastfmError(
+                    f"Last.fm HTTP {resp.status_code}: {exc}"
+                ) from exc
+            # 2xx body — must be JSON. Last.fm has been observed to
+            # return HTML maintenance pages, empty bodies, and
+            # truncated chunked responses with a 200 status; treat any
+            # of these as transient.
+            try:
+                data = resp.json()
+            except ValueError as exc:
+                backoff = 2 ** attempt
+                body_preview = (resp.text or "")[:120].replace("\n", " ")
+                last_transient = (
+                    f"non-JSON body (status={resp.status_code}, "
+                    f"len={len(resp.content)}): {body_preview!r}"
+                )
+                logger.warning(
+                    "Last.fm non-JSON body (status=%d, len=%d) — "
+                    "backoff %ds (attempt %d/%d): %s",
+                    resp.status_code, len(resp.content), backoff,
+                    attempt + 1, max_retries, body_preview,
+                )
+                self._account_backoff(backoff)
+                time.sleep(backoff)
+                continue
+            if not isinstance(data, dict):
+                # Last.fm always returns an object at top level; a list
+                # or scalar means the body is corrupt. Retry.
+                backoff = 2 ** attempt
+                last_transient = f"non-object JSON: {type(data).__name__}"
+                logger.warning(
+                    "Last.fm non-object JSON (%s) — backoff %ds (attempt %d/%d)",
+                    type(data).__name__, backoff, attempt + 1, max_retries,
+                )
+                self._account_backoff(backoff)
+                time.sleep(backoff)
+                continue
             err = data.get("error")
             if err is not None:
                 msg = data.get("message") or "unknown Last.fm error"
@@ -167,8 +247,9 @@ class LastfmClient:
                     raise LastfmArtistNotFound(f"[{err}] {msg}")
                 raise LastfmError(f"[{err}] {msg}")
             return data
-        raise RuntimeError(
-            f"Last.fm GET {params.get('method')} exceeded {max_retries} retries"
+        raise LastfmTransientFailure(
+            f"Last.fm GET {params.get('method')} exceeded "
+            f"{max_retries} retries (last: {last_transient or 'unknown'})"
         )
 
     # ── High-level operations ────────────────────────────────────────
@@ -229,9 +310,37 @@ class LastfmClient:
         return out
 
     def fetch_artist(self, mbid: str) -> LastfmArtistInfo:
-        """Convenience: ``get_artist_info`` + ``get_top_tags`` merged."""
-        info = self.get_artist_info(mbid)
-        info.tags = self.get_top_tags(mbid)
+        """Convenience: ``get_artist_info`` + ``get_top_tags`` merged.
+
+        Single-artist transient failures (network, non-JSON body) are
+        swallowed and returned as an empty :class:`LastfmArtistInfo` so
+        one bad MBID does not kill an 18 h enrichment run. A consecutive
+        run of transient failures trips the circuit breaker
+        (:class:`LastfmServiceUnavailable`) — Last.fm is likely down or
+        the egress path is broken, and continuing wastes compute.
+        """
+        try:
+            info = self.get_artist_info(mbid)
+            tags = self.get_top_tags(mbid)
+        except LastfmTransientFailure as exc:
+            self._consecutive_transient_failures += 1
+            logger.warning(
+                "Last.fm transient failure for mbid=%s (consecutive=%d): %s",
+                mbid, self._consecutive_transient_failures, exc,
+            )
+            if (self._consecutive_transient_failures
+                    >= _MAX_CONSECUTIVE_TRANSIENT_FAILURES):
+                raise LastfmServiceUnavailable(
+                    f"{self._consecutive_transient_failures} consecutive "
+                    f"transient failures — Last.fm likely unavailable, "
+                    f"aborting (last: {exc})"
+                ) from exc
+            return LastfmArtistInfo()
+        # Any successful fetch resets the consecutive-failure counter —
+        # even getInfo succeeding while getTopTags fails would not get
+        # here, so this only fires on a fully clean lookup.
+        self._consecutive_transient_failures = 0
+        info.tags = tags
         return info
 
 

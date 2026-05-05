@@ -10,6 +10,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "build-tools"))
 
+import requests  # noqa: E402
+
 from lastfm_enrichment.client import (  # noqa: E402
     LastfmArtistInfo,
     LastfmArtistNotFound,
@@ -18,6 +20,8 @@ from lastfm_enrichment.client import (  # noqa: E402
     LastfmClient,
     LastfmError,
     LastfmRateLimitedError,
+    LastfmServiceUnavailable,
+    LastfmTransientFailure,
 )
 
 
@@ -245,3 +249,164 @@ def test_aborts_when_cumulative_backoff_budget_exhausted(monkeypatch):
     )
     with pytest.raises(LastfmBackoffBudgetExhausted):
         _client(sess).get_artist_info("mbid-x")
+
+
+# ── Transient failures: non-JSON / network / max-retries ─────────────
+
+
+def _bad_json_resp(status_code=200, body=b"<html>503 maintenance</html>"):
+    """Build a response whose .json() raises ValueError (non-JSON body)."""
+    r = MagicMock()
+    r.status_code = status_code
+    r.headers = {}
+    r.content = body
+    r.text = body.decode("utf-8", errors="replace")
+    r.json.side_effect = ValueError("Expecting value: line 1 column 1 (char 0)")
+    return r
+
+
+def test_retries_on_non_json_body_then_succeeds(monkeypatch):
+    """Last.fm 200 + HTML maintenance page → retry, do not crash the run."""
+    monkeypatch.setattr("lastfm_enrichment.client.time.sleep", lambda *_a, **_k: None)
+    sess = MagicMock()
+    sess.get.side_effect = [
+        _bad_json_resp(),
+        _bad_json_resp(body=b""),  # also: empty body
+        _resp(json_body={"artist": {"stats": {"listeners": "7"}}}),
+    ]
+    info = _client(sess).get_artist_info("mbid-x")
+    assert info.listeners == 7
+    assert sess.get.call_count == 3
+
+
+def test_non_json_body_raises_transient_after_max_retries(monkeypatch):
+    """After max_retries on non-JSON, raise LastfmTransientFailure (not RuntimeError)."""
+    monkeypatch.setattr("lastfm_enrichment.client.time.sleep", lambda *_a, **_k: None)
+    sess = MagicMock()
+    sess.get.return_value = _bad_json_resp()
+    with pytest.raises(LastfmTransientFailure):
+        _client(sess).get_artist_info("mbid-x")
+
+
+def test_non_object_json_body_retried(monkeypatch):
+    """A JSON list at top level is corrupt — retry."""
+    monkeypatch.setattr("lastfm_enrichment.client.time.sleep", lambda *_a, **_k: None)
+    sess = MagicMock()
+    list_resp = MagicMock()
+    list_resp.status_code = 200
+    list_resp.headers = {}
+    list_resp.json.return_value = ["unexpected", "list"]
+    sess.get.side_effect = [
+        list_resp,
+        _resp(json_body={"artist": {"stats": {"listeners": "1"}}}),
+    ]
+    info = _client(sess).get_artist_info("mbid-x")
+    assert info.listeners == 1
+    assert sess.get.call_count == 2
+
+
+def test_retries_on_connection_error(monkeypatch):
+    """ConnectionError / Timeout / SSL error → exp backoff, not crash."""
+    monkeypatch.setattr("lastfm_enrichment.client.time.sleep", lambda *_a, **_k: None)
+    sess = MagicMock()
+    sess.get.side_effect = [
+        requests.ConnectionError("Connection reset by peer"),
+        requests.Timeout("Read timed out"),
+        _resp(json_body={"artist": {"stats": {"listeners": "9"}}}),
+    ]
+    info = _client(sess).get_artist_info("mbid-x")
+    assert info.listeners == 9
+    assert sess.get.call_count == 3
+
+
+def test_network_errors_after_max_retries_raise_transient(monkeypatch):
+    monkeypatch.setattr("lastfm_enrichment.client.time.sleep", lambda *_a, **_k: None)
+    sess = MagicMock()
+    sess.get.side_effect = requests.ConnectionError("perma-fail")
+    with pytest.raises(LastfmTransientFailure):
+        _client(sess).get_artist_info("mbid-x")
+
+
+def test_4xx_other_than_429_raises_lastfm_error_no_retry(monkeypatch):
+    """400 / 403 means our request is bad — propagate, do not retry."""
+    monkeypatch.setattr("lastfm_enrichment.client.time.sleep", lambda *_a, **_k: None)
+    resp = MagicMock()
+    resp.status_code = 403
+    resp.headers = {}
+    resp.raise_for_status.side_effect = requests.HTTPError("403 Forbidden")
+    sess = MagicMock()
+    sess.get.return_value = resp
+    with pytest.raises(LastfmError):
+        _client(sess).get_artist_info("mbid-x")
+    assert sess.get.call_count == 1
+
+
+# ── fetch_artist circuit breaker ─────────────────────────────────────
+
+
+def test_fetch_artist_swallows_single_transient_failure(monkeypatch):
+    """One bad artist returns empty info; the run continues."""
+    monkeypatch.setattr("lastfm_enrichment.client.time.sleep", lambda *_a, **_k: None)
+    sess = MagicMock()
+    sess.get.return_value = _bad_json_resp()
+    info = _client(sess).fetch_artist("mbid-x")
+    assert info == LastfmArtistInfo()
+
+
+def test_fetch_artist_resets_consecutive_counter_on_success(monkeypatch):
+    monkeypatch.setattr("lastfm_enrichment.client.time.sleep", lambda *_a, **_k: None)
+    monkeypatch.setattr("lastfm_enrichment.client._MAX_CONSECUTIVE_TRANSIENT_FAILURES", 3)
+    sess = MagicMock()
+    # Two transients (5 attempts each = 10 calls), then a clean fetch
+    # (getInfo + getTopTags = 2 calls), then more transients.
+    transient_seq = [_bad_json_resp() for _ in range(5)] * 2
+    success_seq = [
+        _resp(json_body={"artist": {"stats": {"listeners": "1"}}}),
+        _resp(json_body={"toptags": {"tag": []}}),
+    ]
+    more_transients = [_bad_json_resp() for _ in range(5)] * 2
+    sess.get.side_effect = transient_seq + success_seq + more_transients
+    c = _client(sess)
+    c.fetch_artist("a")  # transient #1 (counter=1)
+    c.fetch_artist("b")  # transient #2 (counter=2)
+    info = c.fetch_artist("c")  # success → counter resets
+    assert info.listeners == 1
+    # Two more transients: counter goes 1, 2 — does NOT trip (would be 3+ pre-reset)
+    c.fetch_artist("d")
+    c.fetch_artist("e")
+    # Counter is 2 now; no exception. Confirms reset worked.
+
+
+def test_fetch_artist_circuit_breaker_aborts_after_threshold(monkeypatch):
+    """N consecutive transient failures → LastfmServiceUnavailable."""
+    monkeypatch.setattr("lastfm_enrichment.client.time.sleep", lambda *_a, **_k: None)
+    monkeypatch.setattr("lastfm_enrichment.client._MAX_CONSECUTIVE_TRANSIENT_FAILURES", 3)
+    sess = MagicMock()
+    sess.get.return_value = _bad_json_resp()
+    c = _client(sess)
+    c.fetch_artist("a")  # 1
+    c.fetch_artist("b")  # 2
+    with pytest.raises(LastfmServiceUnavailable):
+        c.fetch_artist("c")  # 3 → trip
+
+
+def test_fetch_artist_does_not_swallow_auth_error(monkeypatch):
+    """Auth errors must propagate — bad API key should fail loudly."""
+    monkeypatch.setattr("lastfm_enrichment.client.time.sleep", lambda *_a, **_k: None)
+    sess = MagicMock()
+    sess.get.return_value = _resp(json_body={
+        "error": 10, "message": "Invalid API key",
+    })
+    with pytest.raises(LastfmAuthError):
+        _client(sess).fetch_artist("mbid-x")
+
+
+def test_fetch_artist_does_not_swallow_rate_limit(monkeypatch):
+    """Rate-limit errors must propagate so the driver sets the halt flag."""
+    monkeypatch.setattr("lastfm_enrichment.client.time.sleep", lambda *_a, **_k: None)
+    sess = MagicMock()
+    sess.get.return_value = _resp(
+        status_code=429, headers={"Retry-After": "9999"},
+    )
+    with pytest.raises(LastfmRateLimitedError):
+        _client(sess).fetch_artist("mbid-x")
