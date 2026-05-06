@@ -187,6 +187,26 @@ window.addEventListener('message', async (e) => {
     }
 });
 
+// U1 (2026-05-06): re-verify auth state when the tab regains focus
+// or visibility, so a Spotify token that expired while the app was
+// in the background flips the Generate button to disabled BEFORE the
+// user clicks. Throttled at 30 s so a quickly toggled tab doesn't
+// hammer /api/spotify/status.
+let _lastAuthRecheckAt = 0;
+async function _recheckAuthIfStale() {
+    const now = Date.now();
+    if (now - _lastAuthRecheckAt < 30000) return;
+    _lastAuthRecheckAt = now;
+    try {
+        await Promise.all([checkSpotifyAuth(), checkCredentialStatus()]);
+        renderComponentWarnings();
+    } catch (_) { /* network blip — next focus tries again */ }
+}
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') _recheckAuthIfStale();
+});
+window.addEventListener('focus', _recheckAuthIfStale);
+
 // Close settings dropdown when clicking outside
 document.addEventListener('click', (e) => {
     const wrapper = document.querySelector('.header-controls');

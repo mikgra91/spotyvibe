@@ -111,7 +111,8 @@ from core.src.rag import retrieve_candidates
 from core.src.openai_http import OpenAIConfigError, OpenAIError
 from core.src.errors import TranslatableError, as_response_payload
 from core.src.playlist import (
-    search_tracks, add_to_playlist, remove_from_playlist, delete_playlist,
+    search_tracks, iter_search_tracks, add_to_playlist, remove_from_playlist,
+    delete_playlist,
     get_spotify_auth_status, get_spotify_auth_url, handle_spotify_callback,
     disconnect_spotify, get_user_playlists, get_playlist_tracks,
     filter_emerging_artists, fetch_user_playlists, fetch_playlist_items_for_seed,
@@ -1221,14 +1222,40 @@ def run_pipeline():
                     "progress",
                     message=f"Batch {batch_num}: Verifying {batch_count} tracks on Spotify…",
                 )
-                # E1 (2026-05-06): wall-clock for Spotify verify. The
-                # search_tracks helper fans out across a thread pool
-                # internally; what we care about here is wall-clock
-                # from the user's perspective — when did the batch
-                # finish verifying. No-op when DEBUG_MODE off.
+                # E1 (2026-05-06): wall-clock for Spotify verify.
+                # L3 (2026-05-06): consume the streaming generator so a
+                # `track_verified` SSE event fires per Spotify match —
+                # the user sees each track land as soon as it's
+                # confirmed, instead of waiting 2-3 s for the whole
+                # batch to finish. Total batch counter (`batch_verified`)
+                # still fires once at end so the "Use X tracks now"
+                # button increments by batch.
                 from core.src import trace as _e1_trace
+                found = []
+                not_found = []
                 with _e1_trace.time_stage(_e1_trace.STAGE_SPOTIFY_VERIFY):
-                    found, not_found = search_tracks(result["playlist"])
+                    for _kind, _payload in iter_search_tracks(result["playlist"]):
+                        if _kind == "found":
+                            found.append(_payload)
+                            yield _sse(
+                                "track_verified",
+                                track={
+                                    "artist": _payload.get("artist"),
+                                    "track": _payload.get("track"),
+                                    "uri": _payload.get("uri"),
+                                    "cover_url": _payload.get("cover_url"),
+                                    "preview_url": _payload.get("preview_url"),
+                                    "spotify_url": _payload.get("spotify_url"),
+                                    "release_year": _payload.get("release_year"),
+                                },
+                                # Cumulative count across the whole run
+                                # (verified_tracks not yet extended; this
+                                # batch's `found` is what just landed).
+                                count=len(verified_tracks) + len(found),
+                                total=playlist_size,
+                            )
+                        else:
+                            not_found.append(_payload)
                 all_not_found.extend(not_found)
 
                 # Build the ephemeral in-run deny set from this batch's

@@ -286,6 +286,7 @@
   "pipeline.cancelled": "⛔ Generierung abgebrochen.",
   "pipeline.finalising": "⏳ Finalisiere…",
   "pipeline.creating_playlist": "⏳ Erstelle Playlist mit {count} Track(s)…",
+  "pipeline.verifying_progress": "⏳ Prüfe Tracks… {count} von {total} bestätigt",
   "pipeline.stopped_early": "⛔ Generierung vorzeitig gestoppt. Playlist mit {count} Track(s) erstellt.",
   "pipeline.suggestions_generated": "✅ {count} Vorschläge generiert.",
   "pipeline.tracks_added": "{count} neue(r) Track(s) zur Playlist hinzugefügt.",

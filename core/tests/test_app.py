@@ -505,7 +505,7 @@ class TestRunPipeline:
 
     @patch("app.save_run")
     @patch("app.add_to_playlist")
-    @patch("app.search_tracks")
+    @patch("app.iter_search_tracks")
     @patch("app.filter_duplicate_suggestions")
     @patch("app.call_gpt")
     @patch("app.save_profile")
@@ -543,9 +543,14 @@ class TestRunPipeline:
             "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
         }
         mock_update.return_value = mock_load.return_value
-        mock_search.return_value = (
-            [{"artist": "a", "track": "b", "uri": f"spotify:track:{i}", "cover_url": None} for i in range(10)],
-            [],
+        # L3 (2026-05-06): app.py now consumes iter_search_tracks (a
+        # generator yielding ('found' | 'not_found', payload)). side_effect
+        # rebuilds the iterator each time the generator is invoked.
+        mock_search.side_effect = lambda *_a, **_kw: iter(
+            [("found",
+              {"artist": "a", "track": "b", "uri": f"spotify:track:{i}",
+               "cover_url": None})
+             for i in range(10)]
         )
         mock_add.return_value = {"url": "https://open.spotify.com/playlist/test", "added": 10}
 
@@ -560,7 +565,7 @@ class TestRunPipeline:
 
     @patch("app.save_run")
     @patch("app.add_to_playlist")
-    @patch("app.search_tracks")
+    @patch("app.iter_search_tracks")
     @patch("app.filter_duplicate_suggestions")
     @patch("app.call_gpt")
     @patch("app.save_profile")
@@ -599,9 +604,11 @@ class TestRunPipeline:
             "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
         }
         mock_update.return_value = mock_load.return_value
-        mock_search.return_value = (
-            [{"artist": "a", "track": "b", "uri": f"spotify:track:{i}", "cover_url": None} for i in range(15)],
-            [],
+        mock_search.side_effect = lambda *_a, **_kw: iter(
+            [("found",
+              {"artist": "a", "track": "b", "uri": f"spotify:track:{i}",
+               "cover_url": None})
+             for i in range(15)]
         )
         mock_add.return_value = {"url": "https://open.spotify.com/playlist/test", "added": 15}
 

@@ -309,6 +309,27 @@ export function handleStreamEvent(event) {
         case 'batch_verified':
             updateUseTracksButton(event.count);
             break;
+        case 'track_verified': {
+            // L3 (2026-05-06): per-track Spotify verify event. Updates
+            // the partial counter immediately so the user sees each
+            // track land instead of waiting for the whole batch. Falls
+            // through to the existing "Use X tracks now" path so the
+            // button label keeps in sync without a separate code path.
+            if (typeof event.count === 'number') {
+                updateUseTracksButton(event.count);
+            }
+            const total = (typeof event.total === 'number' && event.total > 0) ? event.total : null;
+            const cnt = (typeof event.count === 'number') ? event.count : null;
+            if (cnt !== null && total !== null) {
+                const tmpl = i18n('pipeline.verifying_progress',
+                                   '⏳ Verifying… {count} of {total} tracks confirmed');
+                showStatus(
+                    tmpl.replace('{count}', cnt).replace('{total}', total),
+                    'info',
+                );
+            }
+            break;
+        }
         case 'cancelled':
             showStatus('⛔ ' + event.message, 'info');
             break;

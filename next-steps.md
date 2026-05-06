@@ -386,7 +386,7 @@ or app restart that hits the manifest URL).
 > the "quick wins + E1 + E7" plan from the Post-Phase B agenda. State
 > at handoff:
 >
-> ### Done (all 820 core tests green at handoff commit)
+> ### Done (all 820 core tests + 2 i18n parity tests green)
 > - **E1 — per-stage telemetry.** Trace bundle now carries
 >   `stage_metrics: {stage_name: {duration_s, calls, tokens_in, tokens_out}}`.
 >   Instrumented at `app.py` (Stage 1 + Spotify verify wrap) and
@@ -402,49 +402,52 @@ or app restart that hits the manifest URL).
 >   both `found` and `not_found` per `(artist, track)` lower/strip key.
 >   Caller-supplied fields (e.g. GPT genres) survive cache round-trip.
 >   6 new tests in [test_playlist.py](core/tests/test_playlist.py).
-> - **L3 — backend refactor (partial).** New `iter_search_tracks(tracks)`
->   generator in playlist.py yields `("found", enriched)` / `("not_found", label)`
->   per track in completion order; `_do_spotify_search` extracted to
->   module-level. `search_tracks(tracks, on_progress)` is now a thin
->   wrapper around `iter_search_tracks`, preserving its public
->   signature/return shape. **Backend ready for streaming SSE** — no
->   regressions, but **app.py still calls `search_tracks` (the
->   wrapper)**, so no per-track SSE event is emitted yet.
+> - **L3 — streaming SSE per-track verify.** Backend: new
+>   `iter_search_tracks(tracks)` generator yields
+>   `("found", enriched)` / `("not_found", label)` per track in
+>   completion order; `_do_spotify_search` extracted to module-level;
+>   `search_tracks(tracks, on_progress)` is now a thin wrapper.
+>   [app.py](app.py) consumes the generator inside the
+>   `time_stage(STAGE_SPOTIFY_VERIFY)` block and yields
+>   `_sse("track_verified", track={...minimal fields...}, count=,
+>   total=)` per match (`batch_verified` still fires at end of batch
+>   for the "Use X tracks now" counter). Frontend:
+>   [pipeline.js handleStreamEvent](frontend/static/js/modules/pipeline.js#L299)
+>   gained `case 'track_verified':` that updates the partial counter
+>   and renders an "X of Y tracks confirmed" status. New i18n key
+>   `pipeline.verifying_progress` in en/de/jp.
+>   Test mocks updated in [test_app.py](core/tests/test_app.py)
+>   to patch `app.iter_search_tracks` instead of `app.search_tracks`.
+> - **U1 — pre-flight Spotify session check.** Click-time pre-flight
+>   was already in `runPipeline` (line 81). Page-load pre-flight was
+>   already in DOMContentLoaded (line 228). What was MISSING and now
+>   added: `visibilitychange` + `focus` re-check in
+>   [main.js](frontend/static/js/main.js) — when the tab regains
+>   focus after being backgrounded, `checkSpotifyAuth() +
+>   checkCredentialStatus() + renderComponentWarnings()` re-fire (30 s
+>   throttled). Generate-button gating via `warnings.js` flips the
+>   button disabled the moment the auth state changes, so a token
+>   that expired while the user was away no longer surprises at click
+>   time.
 >
 > ### Remaining
-> 1. **L3 backend wire-up.** In [app.py](app.py) replace
->    `found, not_found = search_tracks(result["playlist"])` (~line 1233,
->    inside the time_stage(STAGE_SPOTIFY_VERIFY) block) with a loop
->    over `iter_search_tracks(result["playlist"])`. For each
->    `("found", track)` yield `_sse("track_verified", track=...)` AND
->    accumulate `found.append(track)`; for `("not_found", label)`
->    accumulate `not_found.append(label)`. Keep the existing
->    `batch_verified` SSE at end of batch (frontend still uses it for
->    the "Use X tracks now" button counter).
-> 2. **L3 frontend.** Add `case 'track_verified':` to `handleStreamEvent`
->    in [pipeline.js:299](frontend/static/js/modules/pipeline.js#L299).
->    Update `State.partialTrackCount` per event and reflect in the
->    button label. Optional: render the track row immediately into the
->    list pane. Add an i18n key for the verified-counter status if a
->    new string is shown.
-> 3. **U1 — pre-flight Spotify session check.** Add `/api/session`
->    endpoint (or use existing `get_spotify_auth_status`) on page load
->    + on focus. Frontend: gate the Generate button on
->    `State.spotifyAuthStatus === 'authenticated'`; show "🔗 Reconnect
->    Spotify" pill when expired. New i18n keys in
->    `frontend/static/i18n/{en,de,jp}.json`.
-> 4. **E7 — baseline run.** Once L3 + U1 are in: `python evaluation/run_evaluation.py`.
->    4 models × 8 scenarios × 1 iter ≈ $3-8 OpenAI + Spotify quota.
->    Output → `evaluation/baselines/2026-05-06_lastfm.csv`. **Requires
->    explicit user go-ahead before kickoff (real money / real Spotify
->    rate budget).**
+> 1. **E7 — baseline run.** Now unblocked. Recommended:
+>    `python evaluation/run_evaluation.py` with the existing 8
+>    scenarios × 4 models × 1 iter ≈ $3-8 OpenAI + Spotify quota,
+>    ~30-60 min. Output → `evaluation/baselines/2026-05-06_lastfm.csv`
+>    (create the dir; the run currently writes to `evaluation/results/<ts>/`
+>    so copy/rename the resulting `summary.csv` after completion).
+>    **Requires explicit user go-ahead before kickoff (real money /
+>    real Spotify rate budget).**
 >
 > ### Files touched at handoff
 > Backend: `core/src/trace.py`, `core/src/playlist.py`,
 > `core/src/suggestions.py`, `app.py`, `evaluation/harness.py`,
-> `evaluation/reporting.py`. Tests: `core/tests/test_trace.py`,
-> `core/tests/test_evaluation_harness.py`, `core/tests/test_playlist.py`.
-> No frontend changes yet.
+> `evaluation/reporting.py`. Frontend: `frontend/static/js/main.js`,
+> `frontend/static/js/modules/pipeline.js`,
+> `frontend/static/i18n/{en,de,jp}.json`. Tests:
+> `core/tests/test_trace.py`, `core/tests/test_evaluation_harness.py`,
+> `core/tests/test_playlist.py`, `core/tests/test_app.py`.
 
 ## 🆕 Post-Phase B agenda — 2026-05-06
 

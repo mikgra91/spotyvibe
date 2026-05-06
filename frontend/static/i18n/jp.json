@@ -323,6 +323,7 @@
   "pipeline.cancelled": "⛔ 生成をキャンセルしました。",
   "pipeline.finalising": "⏳ 最終処理中…",
   "pipeline.creating_playlist": "⏳ {count} 曲でプレイリストを作成中…",
+  "pipeline.verifying_progress": "⏳ 確認中… {count} / {total} 曲を確認しました",
   "pipeline.stopped_early": "⛔ 生成を途中で停止しました。{count} 曲でプレイリストを作成しました。",
   "pipeline.suggestions_generated": "✅ {count} 件の提案を生成しました。",
   "pipeline.tracks_added": "{count} 曲をプレイリストに追加しました。",
