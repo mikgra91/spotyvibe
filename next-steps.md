@@ -382,72 +382,236 @@ or app restart that hits the manifest URL).
 
 ## 🚧 Active implementation handoff — 2026-05-06
 
-> **For the next agent picking this up.** A previous session executed
-> the "quick wins + E1 + E7" plan from the Post-Phase B agenda. State
-> at handoff:
+> **For the next agent picking this up.** This section is
+> self-contained: everything you need to continue is below. The full
+> agenda is in the `## 🆕 Post-Phase B agenda` section further down;
+> consult that for the rationale and ordering decisions.
+
+### Session context — what the user asked for
+
+The Last.fm-enriched corpus shipped 2026-05-06 (manifest
+`corpus_version=2026-05-06`, 174 200 artists, 83.6 % Last.fm listener
+data, 66.6 % weighted tag data — see "Corpus verified" section above).
+With that unblocked, the user kicked off a session with these goals:
+
+> **Continue analysis using new Last.fm corpus. Goal: harden app +
+> significantly improve quality. Actions: design robust, repeatable
+> evaluation tests → collect large-scale performance data; optimize UX
+> + system performance.**
 >
-> ### Done (all 820 core tests + 2 i18n parity tests green)
-> - **E1 — per-stage telemetry.** Trace bundle now carries
->   `stage_metrics: {stage_name: {duration_s, calls, tokens_in, tokens_out}}`.
->   Instrumented at `app.py` (Stage 1 + Spotify verify wrap) and
->   `core/src/suggestions.py` (Stage 2 + Stage 3). `evaluation/harness.py`
->   surfaces as `ModelRunResult.stage_metrics_a/b`; `evaluation/reporting.py`
->   renders a "Per-stage breakdown (E1)" section in `comparison.md`.
->   18 new tests across [test_trace.py](core/tests/test_trace.py)
->   + [test_evaluation_harness.py](core/tests/test_evaluation_harness.py).
-> - **L2 — per-run Spotify search-result cache.** New
->   `start_run_search_cache()` / `end_run_search_cache()` in
->   [core/src/playlist.py](core/src/playlist.py); bracketed in
->   [app.py](app.py) around the SSE generation try/finally. Caches
->   both `found` and `not_found` per `(artist, track)` lower/strip key.
->   Caller-supplied fields (e.g. GPT genres) survive cache round-trip.
->   6 new tests in [test_playlist.py](core/tests/test_playlist.py).
-> - **L3 — streaming SSE per-track verify.** Backend: new
->   `iter_search_tracks(tracks)` generator yields
->   `("found", enriched)` / `("not_found", label)` per track in
->   completion order; `_do_spotify_search` extracted to module-level;
->   `search_tracks(tracks, on_progress)` is now a thin wrapper.
->   [app.py](app.py) consumes the generator inside the
->   `time_stage(STAGE_SPOTIFY_VERIFY)` block and yields
->   `_sse("track_verified", track={...minimal fields...}, count=,
->   total=)` per match (`batch_verified` still fires at end of batch
->   for the "Use X tracks now" counter). Frontend:
->   [pipeline.js handleStreamEvent](frontend/static/js/modules/pipeline.js#L299)
->   gained `case 'track_verified':` that updates the partial counter
->   and renders an "X of Y tracks confirmed" status. New i18n key
->   `pipeline.verifying_progress` in en/de/jp.
->   Test mocks updated in [test_app.py](core/tests/test_app.py)
->   to patch `app.iter_search_tracks` instead of `app.search_tracks`.
-> - **U1 — pre-flight Spotify session check.** Click-time pre-flight
->   was already in `runPipeline` (line 81). Page-load pre-flight was
->   already in DOMContentLoaded (line 228). What was MISSING and now
->   added: `visibilitychange` + `focus` re-check in
->   [main.js](frontend/static/js/main.js) — when the tab regains
->   focus after being backgrounded, `checkSpotifyAuth() +
->   checkCredentialStatus() + renderComponentWarnings()` re-fire (30 s
->   throttled). Generate-button gating via `warnings.js` flips the
->   button disabled the moment the auth state changes, so a token
->   that expired while the user was away no longer surprises at click
->   time.
+> **End goals:**
+> - High-relevance recommendations.
+> - Minimize perceived user cost (costs negligible / unnoticed).
+> - Low-latency delivery (no user frustration).
+> - Maximize responsiveness (optimize internal performance; mitigate
+>   external LLM delays).
 >
-> ### Remaining
-> 1. **E7 — baseline run.** Now unblocked. Recommended:
->    `python evaluation/run_evaluation.py` with the existing 8
->    scenarios × 4 models × 1 iter ≈ $3-8 OpenAI + Spotify quota,
->    ~30-60 min. Output → `evaluation/baselines/2026-05-06_lastfm.csv`
->    (create the dir; the run currently writes to `evaluation/results/<ts>/`
->    so copy/rename the resulting `summary.csv` after completion).
->    **Requires explicit user go-ahead before kickoff (real money /
->    real Spotify rate budget).**
->
-> ### Files touched at handoff
-> Backend: `core/src/trace.py`, `core/src/playlist.py`,
-> `core/src/suggestions.py`, `app.py`, `evaluation/harness.py`,
-> `evaluation/reporting.py`. Frontend: `frontend/static/js/main.js`,
-> `frontend/static/js/modules/pipeline.js`,
-> `frontend/static/i18n/{en,de,jp}.json`. Tests:
-> `core/tests/test_trace.py`, `core/tests/test_evaluation_harness.py`,
-> `core/tests/test_playlist.py`, `core/tests/test_app.py`.
+> **Process:** add newly identified tasks to next-steps.md for later
+> evaluation.
+
+The session triaged the agenda into "quick wins + E1 + E7" and the
+user confirmed that scope. Work below is the result.
+
+### Session deliverables — code shipped (2 commits)
+
+All 820 core unit tests + 2 i18n parity tests green.
+
+**Commit `4856de1`** — E1 per-stage telemetry + L2 search cache + L3
+streaming generator (backend half).
+
+**Commit `51b66fd`** — L3 SSE wire-up (app.py + pipeline.js + i18n) +
+U1 focus/visibility re-check.
+
+#### E1 — per-stage telemetry
+[core/src/trace.py](core/src/trace.py) now exposes
+`stage_metrics: {stage_name: {duration_s, calls, tokens_in,
+tokens_out}}` on the bundle, plus four named-constant stage keys
+(`STAGE_RAG_RETRIEVE`, `STAGE_STAGE2_AVOID`, `STAGE_STAGE3_SELECT`,
+`STAGE_SPOTIFY_VERIFY`) and three helpers:
+
+- `time_stage(stage)` — `with`-context wall-clock timer.
+- `add_tokens(stage, tin, tout)` — accumulator.
+- `stage_metrics_record(stage, duration_s, tokens_in, tokens_out)`
+  — one-shot for sites that already measured locally.
+
+Instrumentation:
+- [app.py](app.py) wraps the `retrieve_candidates(...)` call in
+  `time_stage(STAGE_RAG_RETRIEVE)`.
+- [app.py](app.py) wraps the `iter_search_tracks(...)` consumer in
+  `time_stage(STAGE_SPOTIFY_VERIFY)`.
+- [core/src/suggestions.py](core/src/suggestions.py)
+  `check_avoid_compliance` calls `stage_metrics_record(STAGE_STAGE2_AVOID,
+  duration_s, tokens_in, tokens_out)` after the LLM call.
+- [core/src/suggestions.py](core/src/suggestions.py) Stage 3 inside
+  the per-batch trace block calls `stage_metrics_record(STAGE_STAGE3_SELECT,
+  ...)` per batch — duration/tokens accumulate across all batches.
+
+Surface:
+- [evaluation/harness.py](evaluation/harness.py) gained
+  `_extract_stage_metrics(trace_path)` and
+  `ModelRunResult.stage_metrics_a/b` fields, populated immediately
+  after each `_copy_trace_bundle` call.
+- [evaluation/reporting.py](evaluation/reporting.py) renders a new
+  `## Per-stage breakdown (E1)` table in `comparison.md`, split by
+  playlist A / B, with stage rows for any of the four canonical stages
+  the run actually exercised.
+
+Tests: 7 in `TestStageMetrics` ([test_trace.py](core/tests/test_trace.py))
++ 6 in `TestExtractStageMetrics` + 2 in `TestStageMetricsFieldsOnResult`
+([test_evaluation_harness.py](core/tests/test_evaluation_harness.py)).
+
+#### L2 — per-run Spotify search-result cache
+[core/src/playlist.py](core/src/playlist.py) gained
+`_RUN_SEARCH_CACHE` module-level state, plus
+`start_run_search_cache()` / `end_run_search_cache()` lifecycle
+hooks. The cache key is `f"{artist.lower().strip()}|{track.lower().strip()}"`
+(same shape as the in-call dedup). Caches both `found` (just the
+Spotify-derived enrichment fields, *not* caller-supplied fields like
+GPT genres) and `not_found`. Bracketed in [app.py](app.py) around the
+SSE generation try/finally so cancellations / errors never leave
+stale state.
+
+Tests: 6 in `TestSearchTracksRunCache` ([test_playlist.py](core/tests/test_playlist.py)).
+
+#### L3 — streaming SSE per-track verify
+[core/src/playlist.py](core/src/playlist.py) refactor:
+
+- New module-level `_dedup_tracks_for_search(tracks)` (one source of
+  truth for the dedup shape).
+- New module-level `_do_spotify_search(t, sp)` — the per-track
+  search body extracted from the old `search_one` closure. Carries
+  L2 cache check + populate, 429 retry, and the `found`/`not_found`
+  return contract.
+- New `iter_search_tracks(tracks)` generator — fans out across the
+  same `ThreadPoolExecutor`, yields `("found", enriched_with_release_year)`
+  / `("not_found", label)` per `as_completed` future.
+- `search_tracks(tracks, on_progress=None)` is now a thin wrapper:
+  consumes `iter_search_tracks`, accumulates into `(found, not_found)`
+  lists, fires `on_progress(completed, total)` per yield, calls
+  `_enrich_tracks_with_metadata(found)` as a no-op safety net at end
+  (idempotent — sets `release_year` only if absent).
+
+[app.py](app.py) per-batch verify path now consumes
+`iter_search_tracks(...)` directly inside the
+`time_stage(STAGE_SPOTIFY_VERIFY)` block. For each `("found", track)`
+yield it emits `_sse("track_verified", track={artist, track, uri,
+cover_url, preview_url, spotify_url, release_year}, count=<cumulative>,
+total=<playlist_size>)`. The existing `batch_verified` SSE still
+fires at end of batch so the "Use X tracks now" counter increments
+per batch (frontend uses this).
+
+[frontend/static/js/modules/pipeline.js](frontend/static/js/modules/pipeline.js)
+`handleStreamEvent` gained `case 'track_verified':` that:
+- Calls `updateUseTracksButton(event.count)` so the counter ticks
+  per match.
+- Renders an "⏳ Verifying… {count} of {total} tracks confirmed"
+  status via the new i18n key `pipeline.verifying_progress`
+  (en/de/jp all updated).
+
+Test mocks in [test_app.py](core/tests/test_app.py) updated:
+`@patch("app.search_tracks")` → `@patch("app.iter_search_tracks")`,
+return value swapped from a `(found, not_found)` tuple to a
+`side_effect=lambda *_a, **_kw: iter([("found", {...}), ...])`.
+
+#### U1 — focus/visibility auth re-check
+[frontend/static/js/main.js](frontend/static/js/main.js) gained
+`_recheckAuthIfStale()` (30 s throttled) bound to
+`visibilitychange` and `window.focus`. It calls `checkSpotifyAuth()
++ checkCredentialStatus() + renderComponentWarnings()`. The Generate
+button is already gated by `warnings.js` on `State.spotifyAuthStatus`
+— the new wiring just makes sure the auth state stays fresh while
+the user has the tab open.
+
+Click-time pre-flight (`runPipeline` line 81) and DOMContentLoaded
+pre-flight (line 228) were already present in the codebase — they
+did not need changes.
+
+### What still remains
+
+#### E7 — baseline run (BLOCKED on user go-ahead)
+
+The reason E7 was scoped in but not executed: it costs real money
+and burns real Spotify call quota. The user must explicitly say
+"run E7" / "go E7" before kickoff.
+
+**Command:** `python evaluation/run_evaluation.py`
+
+**Cost & timing:** 4 models × 8 scenarios × 1 iter ≈ $3-8 OpenAI +
+real Spotify rate budget, ~30-60 min wall clock. 1 iter (not 3) is
+the minimum-cost variant — bump iterations in
+[evaluation/settings.ini](evaluation/settings.ini) line 33 if
+averaging is wanted.
+
+**Output handling:** the harness writes to
+`evaluation/results/<timestamp>/`. After completion, copy / rename
+that run's `summary.csv` to
+`evaluation/baselines/2026-05-06_lastfm.csv` (create the dir
+first). The whole `<timestamp>/` dir also contains per-run trace
+bundles — those carry the new E1 `stage_metrics` data needed to
+size further L* / Q* optimisations.
+
+**Pre-flight gates the user will likely want first** (suggested,
+not blocking):
+
+1. `python app.py` — generate a playlist locally and watch the SSE
+   stream. Confirm `track_verified` events tick the counter
+   visually instead of jumping batch-by-batch. Confirm the
+   `comparison.md`-style trace bundle exists at
+   `%LOCALAPPDATA%/spotyvibe/debug/<run_id>/trace.json` and
+   contains `stage_metrics` populated for all four stages.
+2. Disconnect Spotify in another tab while the app is open. Switch
+   back to the app tab. Generate button should auto-disable within
+   ~one tick of focus (U1 re-check).
+3. Run the frontend Playwright suite if a UI regression worry
+   warrants it: `bash build-tools/run_frontend_tests.sh`. Backend
+   regressions are already covered by core tests.
+
+If kicking off E7, monitor for:
+- `LASTFM_API_KEY` rate-limit errors (shouldn't fire — eval doesn't
+  call Last.fm at runtime).
+- Spotify 429 cascade (L2 cache helps but isn't a guarantee under
+  multi-model parallel workload — eval iterates models serially so
+  this should be fine).
+- Any new `error` SSE events that the harness might not yet
+  recognise.
+
+#### Items NOT touched this session (still queued in agenda)
+
+The full Post-Phase B agenda below covers the rest. Specifically
+these were scoped in but not executed (and don't block E7):
+- **E2 / E3 / E4 / E5 / E6** — Last.fm-tag coverage metric, listener
+  popularity distribution, three new scenarios. Recommend landing
+  these BEFORE bumping E7 from 1 iter to 3 iters — otherwise the
+  baseline misses the new corpus's load-bearing signals.
+- **L4 / L5 / Q* / U2 / U3 / U4 / U5 / U6 / M2 / M3** — see agenda
+  for prioritisation. None are blocked by the work this session
+  shipped.
+
+### Files touched at handoff
+
+Backend:
+- [core/src/trace.py](core/src/trace.py) (E1)
+- [core/src/playlist.py](core/src/playlist.py) (L2 + L3)
+- [core/src/suggestions.py](core/src/suggestions.py) (E1 stage 2/3)
+- [app.py](app.py) (E1 stage 1/verify, L2 lifecycle, L3 stream wire-up)
+- [evaluation/harness.py](evaluation/harness.py) (E1 surface)
+- [evaluation/reporting.py](evaluation/reporting.py) (E1 table)
+
+Frontend:
+- [frontend/static/js/main.js](frontend/static/js/main.js) (U1)
+- [frontend/static/js/modules/pipeline.js](frontend/static/js/modules/pipeline.js) (L3)
+- [frontend/static/i18n/en.json](frontend/static/i18n/en.json),
+  [de.json](frontend/static/i18n/de.json),
+  [jp.json](frontend/static/i18n/jp.json) (L3 i18n key)
+
+Tests:
+- [core/tests/test_trace.py](core/tests/test_trace.py) (E1, +7 tests)
+- [core/tests/test_evaluation_harness.py](core/tests/test_evaluation_harness.py) (E1, +8 tests)
+- [core/tests/test_playlist.py](core/tests/test_playlist.py) (L2, +6 tests)
+- [core/tests/test_app.py](core/tests/test_app.py) (L3 mock surface
+  swap — no new tests, only retargeted)
+
+Doc: this file (`next-steps.md`) — handoff section + agenda updates.
 
 ## 🆕 Post-Phase B agenda — 2026-05-06
 
