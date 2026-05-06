@@ -357,6 +357,31 @@ def test_no_resume_flag_ignores_checkpoint(monkeypatch, tmp_path):
     assert rows[0]["lastfm_listeners"] == 42
 
 
+def test_default_checkpoint_for_gz_output_is_gzipped(monkeypatch, tmp_path):
+    """Regression: when --output is .jsonl.gz, the auto-named checkpoint
+    sibling must also be gzip — otherwise after promotion the GCS object
+    is named .gz but contains raw text and consumers cannot decompress it.
+    """
+    inp = tmp_path / "in.jsonl"
+    out = tmp_path / "out.jsonl.gz"
+    _write_jsonl(inp, [{"mbid": "mb-1", "name": "A", "listener_popularity": 0.9}])
+    monkeypatch.setenv("LASTFM_API_KEY", "test-key")
+
+    with patch.object(driver.LastfmClient, "fetch_artist",
+                       lambda self, mbid: LastfmArtistInfo(listeners=42)):
+        rc = driver.main([
+            "--input", str(inp), "--output", str(out), "--skip-smoke",
+        ])
+    assert rc == 0
+    # Magic bytes: gzip starts with 0x1f 0x8b. A non-gzip file starts
+    # with '{' (0x7b) for JSON.
+    with open(out, "rb") as fh:
+        magic = fh.read(2)
+    assert magic == b"\x1f\x8b", (
+        f"Promoted output is not gzip-compressed: magic={magic!r}"
+    )
+
+
 def test_checkpoint_preserved_on_rate_limit_abort(monkeypatch, tmp_path):
     """When the run aborts mid-way, the checkpoint must survive so the
     next container can pick up where it left off."""

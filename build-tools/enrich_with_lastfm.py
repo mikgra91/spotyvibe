@@ -92,7 +92,12 @@ SMOKE_MBIDS: list[tuple[str, str]] = [
 
 
 def _open_jsonl(path: Path, mode: str):
-    opener = gzip.open if path.suffix == ".gz" else open
+    # Use ``str(path).endswith(".gz")`` rather than ``path.suffix == ".gz"``:
+    # a checkpoint sibling like ``out.jsonl.gz.partial`` should still be
+    # written through gzip, but ``Path.suffix`` only returns the last
+    # extension (``.partial``) and would silently fall back to plain
+    # text — producing a 52 MB "gzip" file that isn't gzip at all.
+    opener = gzip.open if str(path).endswith(".gz") else open
     return opener(path, mode, encoding="utf-8")  # type: ignore[arg-type]
 
 
@@ -309,9 +314,19 @@ def main(argv: list[str] | None = None) -> int:
             return rc
 
     # ── Resolve checkpoint paths and (optionally) restore from GCS ────
-    checkpoint_path: Path = args.checkpoint or args.output.with_suffix(
-        args.output.suffix + ".partial"
-    )
+    # Default: insert ".partial" *before* the final extension so the
+    # gzip detection in ``_open_jsonl`` continues to fire (e.g.
+    # ``out.jsonl.gz`` → ``out.jsonl.partial.gz``).
+    if args.checkpoint:
+        checkpoint_path = args.checkpoint
+    elif args.output.suffix == ".gz":
+        checkpoint_path = args.output.with_name(
+            args.output.stem + ".partial" + args.output.suffix
+        )
+    else:
+        checkpoint_path = args.output.with_suffix(
+            args.output.suffix + ".partial"
+        )
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
 
     if args.no_resume and checkpoint_path.exists():
