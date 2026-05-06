@@ -28,11 +28,30 @@ from __future__ import annotations
 import json
 import logging
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 logger = logging.getLogger(__name__)
+
+
+# E1 (2026-05-06): canonical stage names for cross-run comparability.
+# Reporting / harness rollups assume these keys; instrument sites use
+# the constants below so a typo can't silently shard a stage's metrics.
+STAGE_RAG_RETRIEVE = "rag_retrieve"
+STAGE_STAGE2_AVOID = "stage2_avoid"
+STAGE_STAGE3_SELECT = "stage3_select"
+STAGE_SPOTIFY_VERIFY = "spotify_verify"
+
+
+def _empty_stage_metric() -> dict[str, Any]:
+    return {
+        "duration_s": 0.0,
+        "calls": 0,
+        "tokens_in": 0,
+        "tokens_out": 0,
+    }
 
 
 @dataclass
@@ -45,11 +64,18 @@ class TraceBundle:
     The ``stages`` dict mirrors the pipeline order (stage1 / stage2 /
     stage3 / postfilter / spotify) so a future renderer can lay them
     out chronologically without parsing.
+
+    E1 (2026-05-06): ``stage_metrics`` carries wall-clock + LLM-token
+    aggregates per pipeline stage. Distinct from ``stages`` (free-form
+    diagnostic payload) so the harness/reporter can roll up timing
+    without parsing per-stage shapes. Keys are the ``STAGE_*`` constants
+    above; values are ``{duration_s, calls, tokens_in, tokens_out}``.
     """
     run_id: str
     started_at: float = field(default_factory=time.time)
     profile: dict | None = None
     stages: dict[str, Any] = field(default_factory=dict)
+    stage_metrics: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -58,6 +84,7 @@ class TraceBundle:
             "duration_s": round(time.time() - self.started_at, 3),
             "profile": self.profile,
             "stages": self.stages,
+            "stage_metrics": self.stage_metrics,
         }
 
 
@@ -191,6 +218,74 @@ def finalize_trace(base_dir: Path | None = None) -> Path | None:
         return None
 
 
+@contextmanager
+def time_stage(stage: str) -> Iterator[None]:
+    """Wall-clock timer that accumulates into ``stage_metrics[stage]``.
+
+    Use as ``with trace.time_stage(trace.STAGE_RAG_RETRIEVE): ...``.
+    Each entry adds to ``duration_s`` and increments ``calls`` so a
+    pipeline that runs Stage 3 across N batches sees N calls and the
+    summed wall-clock.
+
+    No-op (yields through) when there is no active trace bundle; the
+    caller pays only one ``time.perf_counter()`` lookup per entry/exit
+    in production-DEBUG_MODE-off paths.
+    """
+    if _CURRENT is None:
+        yield
+        return
+    t0 = time.perf_counter()
+    try:
+        yield
+    finally:
+        elapsed = time.perf_counter() - t0
+        m = _CURRENT.stage_metrics.setdefault(stage, _empty_stage_metric())
+        m["duration_s"] = round(m["duration_s"] + elapsed, 4)
+        m["calls"] += 1
+
+
+def add_tokens(stage: str, tokens_in: int | None, tokens_out: int | None) -> None:
+    """Accumulate LLM input/output token counts onto ``stage_metrics[stage]``.
+
+    Pull tokens out of the OpenAI ``usage`` dict at the call site and
+    forward them here; the harness reads the rollup from the trace
+    bundle to compute per-stage cost. Tolerates None / missing values
+    (treated as zero) so callers don't have to guard around partial
+    response shapes.
+    """
+    if _CURRENT is None:
+        return
+    m = _CURRENT.stage_metrics.setdefault(stage, _empty_stage_metric())
+    m["tokens_in"] += int(tokens_in or 0)
+    m["tokens_out"] += int(tokens_out or 0)
+
+
+def stage_metrics_record(
+    stage: str,
+    duration_s: float | None = None,
+    tokens_in: int | None = None,
+    tokens_out: int | None = None,
+) -> None:
+    """One-shot helper for stages that already measured their own latency.
+
+    Stage 2 / Stage 3 both wrap the OpenAI call in a local ``time.monotonic``
+    span and end up holding both wall-clock and ``usage`` tokens at the
+    same call site — a single helper avoids two separate trace calls.
+    Always increments ``calls`` by one. Either argument may be None to
+    skip that field.
+    """
+    if _CURRENT is None:
+        return
+    m = _CURRENT.stage_metrics.setdefault(stage, _empty_stage_metric())
+    if duration_s is not None:
+        m["duration_s"] = round(m["duration_s"] + float(duration_s), 4)
+    m["calls"] += 1
+    if tokens_in is not None:
+        m["tokens_in"] += int(tokens_in or 0)
+    if tokens_out is not None:
+        m["tokens_out"] += int(tokens_out or 0)
+
+
 def reset_for_test() -> None:
     """Test-only helper: clear the singleton without writing.
 
@@ -203,10 +298,17 @@ def reset_for_test() -> None:
 
 __all__ = [
     "TraceBundle",
+    "STAGE_RAG_RETRIEVE",
+    "STAGE_STAGE2_AVOID",
+    "STAGE_STAGE3_SELECT",
+    "STAGE_SPOTIFY_VERIFY",
     "start_trace",
     "is_active",
     "record",
     "append",
+    "time_stage",
+    "add_tokens",
+    "stage_metrics_record",
     "finalize_trace",
     "reset_for_test",
 ]

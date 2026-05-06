@@ -225,6 +225,11 @@ def write_comparison_report(results_dir: Path, repo_root: Path) -> Path:
         # results dir so the comparison.md can link to them.
         agg["trace_a_path"] = meta.get("trace_a_path")
         agg["trace_b_path"] = meta.get("trace_b_path")
+        # E1 (2026-05-06): per-stage rollup pulled out of the trace
+        # bundle by harness._extract_stage_metrics. None on legacy
+        # bundles or DEBUG_MODE-off runs.
+        agg["stage_metrics_a"] = meta.get("stage_metrics_a")
+        agg["stage_metrics_b"] = meta.get("stage_metrics_b")
         rows.append(agg)
 
     if not rows:
@@ -417,6 +422,57 @@ def write_comparison_report(results_dir: Path, repo_root: Path) -> Path:
             f"| {_fmt(fl['profile_update_summary'])} "
             f"| {_fmt(fl['analysis_summary'])} |"
         )
+
+    # E1 (2026-05-06): per-stage breakdown — ms wall-clock + tokens
+    # per stage. Only printed when at least one row carries the
+    # rollup, so legacy / DEBUG-off summaries skip the section
+    # entirely. Splits A/B since the post-feedback playlist often has
+    # very different Stage 2/3 budgets.
+    if any(r.get("stage_metrics_a") or r.get("stage_metrics_b") for r in rows):
+        out += [
+            "",
+            "## Per-stage breakdown (E1)",
+            "",
+            "Wall-clock + LLM tokens per pipeline stage, pulled from the F9 "
+            "trace bundle. `calls` is the number of times the stage fired "
+            "in this run (Stage 3 fires once per generation batch). "
+            "Empty cells when the stage didn't run on that playlist.",
+            "",
+        ]
+        _stage_order = (
+            ("rag_retrieve", "RAG retrieve"),
+            ("stage2_avoid", "Stage 2 avoid"),
+            ("stage3_select", "Stage 3 select"),
+            ("spotify_verify", "Spotify verify"),
+        )
+        for label_letter in ("a", "b"):
+            metrics_key = f"stage_metrics_{label_letter}"
+            if not any(r.get(metrics_key) for r in rows):
+                continue
+            out.append(f"### Playlist {label_letter.upper()}")
+            out.append("")
+            out.append(
+                "| Model | Iter | Stage | Wall (s) | Calls | Tokens in | Tokens out |"
+            )
+            out.append(
+                "|---|---:|---|---:|---:|---:|---:|"
+            )
+            for r in rows:
+                metrics = r.get(metrics_key) or {}
+                if not metrics:
+                    continue
+                for stage_key, stage_label in _stage_order:
+                    m = metrics.get(stage_key)
+                    if not m:
+                        continue
+                    out.append(
+                        f"| {r['model']} | {r['iteration']} | {stage_label} "
+                        f"| {_fmt(m.get('duration_s'))} "
+                        f"| {m.get('calls', 0)} "
+                        f"| {m.get('tokens_in', 0)} "
+                        f"| {m.get('tokens_out', 0)} |"
+                    )
+            out.append("")
 
     out += ["", "## Eval-log row counts", "",
             "(Sanity check that telemetry actually fired for every feature.)",

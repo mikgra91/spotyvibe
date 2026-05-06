@@ -114,6 +114,94 @@ class TestCopyTraceBundle:
         assert (dest / "trace_B.json").exists()
 
 
+# ── E1 (2026-05-06): per-stage rollup extraction ─────────────────────
+
+class TestExtractStageMetrics:
+    """Pin _extract_stage_metrics() — the bridge between trace.py's
+    on-disk JSON and the harness's ModelRunResult fields."""
+
+    def test_returns_metrics_when_present(self, tmp_path):
+        import json
+        from evaluation.harness import _extract_stage_metrics
+        bundle = tmp_path / "trace_A.json"
+        payload = {
+            "run_id": "x",
+            "stage_metrics": {
+                "rag_retrieve": {"duration_s": 0.12, "calls": 1,
+                                  "tokens_in": 0, "tokens_out": 0},
+                "stage3_select": {"duration_s": 1.5, "calls": 3,
+                                   "tokens_in": 9000, "tokens_out": 1200},
+            },
+        }
+        bundle.write_text(json.dumps(payload), encoding="utf-8")
+        out = _extract_stage_metrics(str(bundle))
+        assert out is not None
+        assert "rag_retrieve" in out
+        assert out["stage3_select"]["calls"] == 3
+        assert out["stage3_select"]["tokens_in"] == 9000
+
+    def test_returns_none_for_missing_path(self):
+        from evaluation.harness import _extract_stage_metrics
+        assert _extract_stage_metrics(None) is None
+        assert _extract_stage_metrics("") is None
+
+    def test_returns_none_for_missing_file(self, tmp_path):
+        from evaluation.harness import _extract_stage_metrics
+        # Path that doesn't exist on disk.
+        assert _extract_stage_metrics(str(tmp_path / "nope.json")) is None
+
+    def test_returns_none_when_bundle_lacks_field(self, tmp_path):
+        """Legacy bundles (pre-E1) have no stage_metrics key — caller
+        must get None, not an empty dict, so the comparison renderer's
+        `if any(...)` guard skips the section cleanly."""
+        import json
+        from evaluation.harness import _extract_stage_metrics
+        bundle = tmp_path / "old.json"
+        bundle.write_text(json.dumps({"run_id": "x", "stages": {}}),
+                          encoding="utf-8")
+        assert _extract_stage_metrics(str(bundle)) is None
+
+    def test_returns_none_when_metrics_empty(self, tmp_path):
+        """An empty dict is treated the same as missing — keeps the
+        renderer's guard logic single-branch."""
+        import json
+        from evaluation.harness import _extract_stage_metrics
+        bundle = tmp_path / "empty.json"
+        bundle.write_text(json.dumps({"stage_metrics": {}}),
+                          encoding="utf-8")
+        assert _extract_stage_metrics(str(bundle)) is None
+
+    def test_returns_none_on_malformed_json(self, tmp_path):
+        from evaluation.harness import _extract_stage_metrics
+        bundle = tmp_path / "broken.json"
+        bundle.write_text("{not json", encoding="utf-8")
+        assert _extract_stage_metrics(str(bundle)) is None
+
+
+class TestStageMetricsFieldsOnResult:
+    """ModelRunResult must carry the new fields with safe defaults."""
+
+    def test_default_stage_metrics_fields_present(self):
+        from evaluation.harness import ModelRunResult
+        r = ModelRunResult(
+            model="gpt-x", iteration=0, started_at="2026-05-06T00:00:00Z",
+        )
+        assert r.stage_metrics_a is None
+        assert r.stage_metrics_b is None
+
+    def test_stage_metrics_fields_serialise_through_asdict(self):
+        from dataclasses import asdict
+        from evaluation.harness import ModelRunResult
+        r = ModelRunResult(
+            model="gpt-x", iteration=0, started_at="2026-05-06T00:00:00Z",
+            stage_metrics_a={"rag_retrieve": {"duration_s": 0.1, "calls": 1,
+                                                "tokens_in": 0, "tokens_out": 0}},
+        )
+        d = asdict(r)
+        assert d["stage_metrics_a"]["rag_retrieve"]["duration_s"] == 0.1
+        assert d["stage_metrics_b"] is None
+
+
 # ── P1 #6: stateful profile import via Scenario.seed_profile_path ────
 
 class TestSeedProfileFixture:

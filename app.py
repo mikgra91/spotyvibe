@@ -702,6 +702,16 @@ def run_pipeline():
             except Exception as _exc:
                 app_log(f"trace.start_trace failed: {_exc}")
 
+            # L2 (2026-05-06): bracket the multi-batch generation in a
+            # per-run Spotify search-result cache. Closed in the
+            # ``finally`` below so cancellations / errors never leave
+            # stale cache state for the next run.
+            try:
+                from core.src import playlist as _pl_cache
+                _pl_cache.start_run_search_cache()
+            except Exception as _exc:
+                app_log(f"playlist.start_run_search_cache failed: {_exc}")
+
             # Two-pass mode: when history is large, boost new-artist pressure
             # after the first half of the playlist is filled to break recycling loops.
             _history_len = len(profile.get("history", {}).get("suggested_tracks", []))
@@ -884,13 +894,18 @@ def run_pipeline():
                     elif not isinstance(_primary_ref, dict):
                         _primary_ref = None
 
-                    _stage1_candidates = retrieve_candidates(
-                        _corpus, profile,
-                        deny_keys=_deny_keys,
-                        target_size=RETRIEVE_CANDIDATES_SIZE,
-                        popularity_penalty=RAG_POPULARITY_PENALTY,
-                        primary_reference=_primary_ref,
-                    )
+                    # E1 (2026-05-06): wall-clock for the full Stage 1
+                    # body (stratified scorer + must-have/avoid filters
+                    # + popularity band). No-op when DEBUG_MODE off.
+                    from core.src import trace as _e1_trace
+                    with _e1_trace.time_stage(_e1_trace.STAGE_RAG_RETRIEVE):
+                        _stage1_candidates = retrieve_candidates(
+                            _corpus, profile,
+                            deny_keys=_deny_keys,
+                            target_size=RETRIEVE_CANDIDATES_SIZE,
+                            popularity_penalty=RAG_POPULARITY_PENALTY,
+                            primary_reference=_primary_ref,
+                        )
                     set_last_rag_pool_names([a.name for a in _stage1_candidates])
                     if _primary_ref:
                         logger.info(
@@ -1206,7 +1221,14 @@ def run_pipeline():
                     "progress",
                     message=f"Batch {batch_num}: Verifying {batch_count} tracks on Spotify…",
                 )
-                found, not_found = search_tracks(result["playlist"])
+                # E1 (2026-05-06): wall-clock for Spotify verify. The
+                # search_tracks helper fans out across a thread pool
+                # internally; what we care about here is wall-clock
+                # from the user's perspective — when did the batch
+                # finish verifying. No-op when DEBUG_MODE off.
+                from core.src import trace as _e1_trace
+                with _e1_trace.time_stage(_e1_trace.STAGE_SPOTIFY_VERIFY):
+                    found, not_found = search_tracks(result["playlist"])
                 all_not_found.extend(not_found)
 
                 # Build the ephemeral in-run deny set from this batch's
@@ -1453,6 +1475,15 @@ def run_pipeline():
                 _trace.finalize_trace()
             except Exception as _exc:
                 app_log(f"trace.finalize_trace failed: {_exc}")
+            # L2 (2026-05-06): tear down the per-run Spotify cache so
+            # the next run starts clean. Stale `not_found` entries
+            # would otherwise mask retries for tracks the LLM tries
+            # again later.
+            try:
+                from core.src import playlist as _pl_cache
+                _pl_cache.end_run_search_cache()
+            except Exception as _exc:
+                app_log(f"playlist.end_run_search_cache failed: {_exc}")
 
     return Response(
         stream_with_context(generate()),

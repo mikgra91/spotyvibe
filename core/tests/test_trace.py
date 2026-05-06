@@ -238,3 +238,114 @@ class TestRetrievalCapture:
         profile = {"preferences": {"must_have": ["indie rock"], "avoid": []}}
         retrieve_candidates(corpus, profile, target_size=5)
         assert trace.is_active() is False
+
+
+# ── E1 (2026-05-06) per-stage metrics rollup ─────────────────────────
+
+class TestStageMetrics:
+    """Pin the time_stage / add_tokens / stage_metrics_record contract.
+
+    These three helpers are the load-bearing surface for the E1 eval
+    telemetry. The harness reads `stage_metrics` straight out of the
+    trace bundle JSON — silent breakage here would invalidate every
+    later perf comparison without raising.
+    """
+
+    def test_time_stage_no_op_when_inactive(self, debug_off):
+        """Without an active trace the CM still yields and never raises."""
+        from core.src import trace
+        # Trace not started; CM is a pass-through.
+        with trace.time_stage(trace.STAGE_RAG_RETRIEVE):
+            pass
+        assert trace.is_active() is False
+
+    def test_time_stage_accumulates_duration_and_calls(self, debug_on):
+        from core.src import trace
+        trace.start_trace("run-time")
+        with trace.time_stage(trace.STAGE_RAG_RETRIEVE):
+            pass
+        with trace.time_stage(trace.STAGE_RAG_RETRIEVE):
+            pass
+        from core.src.trace import _CURRENT
+        m = _CURRENT.stage_metrics[trace.STAGE_RAG_RETRIEVE]
+        assert m["calls"] == 2
+        assert m["duration_s"] >= 0.0
+        # tokens stay zero since add_tokens wasn't called
+        assert m["tokens_in"] == 0
+        assert m["tokens_out"] == 0
+
+    def test_add_tokens_accumulates(self, debug_on):
+        from core.src import trace
+        trace.start_trace("run-tok")
+        trace.add_tokens(trace.STAGE_STAGE2_AVOID, 100, 20)
+        trace.add_tokens(trace.STAGE_STAGE2_AVOID, 50, None)
+        from core.src.trace import _CURRENT
+        m = _CURRENT.stage_metrics[trace.STAGE_STAGE2_AVOID]
+        assert m["tokens_in"] == 150
+        assert m["tokens_out"] == 20
+
+    def test_stage_metrics_record_one_shot(self, debug_on):
+        from core.src import trace
+        trace.start_trace("run-rec")
+        trace.stage_metrics_record(
+            trace.STAGE_STAGE3_SELECT,
+            duration_s=0.45,
+            tokens_in=1234,
+            tokens_out=567,
+        )
+        trace.stage_metrics_record(
+            trace.STAGE_STAGE3_SELECT,
+            duration_s=0.30,
+            tokens_in=900,
+            tokens_out=400,
+        )
+        from core.src.trace import _CURRENT
+        m = _CURRENT.stage_metrics[trace.STAGE_STAGE3_SELECT]
+        assert m["calls"] == 2
+        assert m["duration_s"] == 0.75
+        assert m["tokens_in"] == 1234 + 900
+        assert m["tokens_out"] == 567 + 400
+
+    def test_stage_metrics_record_none_skips_field(self, debug_on):
+        """Each arg may be None to skip that field (callers without
+        usage data still increment calls + duration)."""
+        from core.src import trace
+        trace.start_trace("run-partial")
+        trace.stage_metrics_record(
+            trace.STAGE_SPOTIFY_VERIFY,
+            duration_s=2.0,
+        )
+        from core.src.trace import _CURRENT
+        m = _CURRENT.stage_metrics[trace.STAGE_SPOTIFY_VERIFY]
+        assert m["calls"] == 1
+        assert m["duration_s"] == 2.0
+        assert m["tokens_in"] == 0  # untouched, default zero
+
+    def test_metrics_serialised_in_finalize(self, debug_on, tmp_path):
+        from core.src import trace
+        trace.start_trace("run-fin")
+        with trace.time_stage(trace.STAGE_RAG_RETRIEVE):
+            pass
+        trace.stage_metrics_record(
+            trace.STAGE_STAGE2_AVOID, duration_s=0.1,
+            tokens_in=10, tokens_out=5,
+        )
+        out = trace.finalize_trace(base_dir=tmp_path)
+        assert out is not None
+        payload = json.loads(out.read_text(encoding="utf-8"))
+        assert "stage_metrics" in payload
+        assert trace.STAGE_RAG_RETRIEVE in payload["stage_metrics"]
+        s2 = payload["stage_metrics"][trace.STAGE_STAGE2_AVOID]
+        assert s2["tokens_in"] == 10
+        assert s2["tokens_out"] == 5
+
+    def test_no_capture_when_inactive(self, debug_off):
+        """All three helpers no-op without an active trace."""
+        from core.src import trace
+        # Trace not started.
+        with trace.time_stage("anything"):
+            pass
+        trace.add_tokens("x", 1, 1)
+        trace.stage_metrics_record("y", duration_s=1.0, tokens_in=1, tokens_out=1)
+        # Nothing crashed; no singleton was created.
+        assert trace.is_active() is False

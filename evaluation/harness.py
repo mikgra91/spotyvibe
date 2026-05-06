@@ -89,6 +89,12 @@ class ModelRunResult:
     # root) so the eval JSON stays portable.
     trace_a_path: str | None = None
     trace_b_path: str | None = None
+    # E1 (2026-05-06): per-stage rollup pulled out of the trace bundle
+    # at copy time. Shape mirrors ``trace.TraceBundle.stage_metrics`` —
+    # ``{stage_name: {duration_s, calls, tokens_in, tokens_out}}``. None
+    # when DEBUG_MODE was off or no metrics were recorded.
+    stage_metrics_a: dict | None = None
+    stage_metrics_b: dict | None = None
 
     # Raw result snapshots — kept terse so summary.json stays readable.
     seed_train_chars: int | None = None
@@ -416,6 +422,29 @@ def _copy_trace_bundle(sandbox_dir: Path, run_id: str | None,
         return None
 
 
+def _extract_stage_metrics(trace_path: str | None) -> dict | None:
+    """Read ``stage_metrics`` out of a copied trace bundle.
+
+    Returns the dict on success, ``None`` when the path is missing,
+    unreadable, malformed, or the bundle has no ``stage_metrics`` key
+    (older bundles, or DEBUG_MODE-off runs whose copy step returned None
+    upstream so this function never sees the path). The harness must
+    keep working on legacy bundles, so every error path returns None.
+    """
+    if not trace_path:
+        return None
+    try:
+        with open(trace_path, "r", encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except (OSError, ValueError) as exc:
+        logger.warning("[trace] could not read %s: %s", trace_path, exc)
+        return None
+    metrics = payload.get("stage_metrics")
+    if isinstance(metrics, dict) and metrics:
+        return metrics
+    return None
+
+
 def _step_push_to_spotify(playlist_mod, tracks: list[dict],
                            playlist_name: str, profile: dict) -> dict[str, Any]:
     """Create a Spotify playlist and push verified tracks to it.
@@ -618,6 +647,10 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
             result.trace_a_path = _copy_trace_bundle(
                 sandbox_dir, r.get("run_id"), per_run_dir, "A",
             )
+            # E1 (2026-05-06): pull stage rollup out of the just-copied
+            # bundle so summary.json carries the timing/token data
+            # without a separate consumer having to re-open the file.
+            result.stage_metrics_a = _extract_stage_metrics(result.trace_a_path)
         except Exception as exc:
             result.playlist_status = "error"
             result.error = f"playlist: {exc}"
@@ -681,6 +714,8 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
                 result.trace_b_path = _copy_trace_bundle(
                     sandbox_dir, r.get("run_id"), per_run_dir, "B",
                 )
+                # E1: same rollup extraction as playlist A.
+                result.stage_metrics_b = _extract_stage_metrics(result.trace_b_path)
             except Exception as exc:
                 result.playlist_b_status = "error"
                 tracks_b = []

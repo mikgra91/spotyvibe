@@ -354,6 +354,145 @@ class TestSearchTracks:
         assert progress_calls[0] == (1, 1)
 
 
+class TestSearchTracksRunCache:
+    """L2 (2026-05-06): per-run search-result cache.
+
+    The cache is bracketed by ``start_run_search_cache()`` /
+    ``end_run_search_cache()`` around a generation run, so a track the
+    LLM proposes in batch 1 AND batch 5 only hits Spotify once. The
+    first call populates; the second skips the network entirely.
+    """
+
+    def _mock_oauth_and_spotify(self, sp_mock):
+        oauth = MagicMock()
+        oauth.cache_handler.get_cached_token.return_value = {"access_token": "tok"}
+        oauth.validate_token.return_value = {"access_token": "tok"}
+        return patch("core.src.playlist.get_spotify_oauth", return_value=oauth), \
+               patch("core.src.playlist.spotipy.Spotify", return_value=sp_mock)
+
+    def test_cache_off_by_default(self):
+        """Without start_run_search_cache, every call hits Spotify."""
+        from core.src import playlist as pl
+        sp = MagicMock()
+        sp.search.return_value = {
+            "tracks": {"items": [{"uri": "spotify:track:1", "album": {"images": []}}]}
+        }
+        p_oauth, p_sp = self._mock_oauth_and_spotify(sp)
+        # Defensive: ensure cache is closed.
+        pl.end_run_search_cache()
+        with p_oauth, p_sp:
+            pl.search_tracks([{"artist": "a", "track": "b"}])
+            pl.search_tracks([{"artist": "a", "track": "b"}])
+        assert sp.search.call_count == 2
+
+    def test_cache_hits_skip_spotify_for_repeat_pair(self):
+        from core.src import playlist as pl
+        sp = MagicMock()
+        sp.search.return_value = {
+            "tracks": {
+                "items": [{
+                    "uri": "spotify:track:1",
+                    "album": {"images": [{"url": "img"}], "release_date": "2020"},
+                }]
+            }
+        }
+        p_oauth, p_sp = self._mock_oauth_and_spotify(sp)
+        pl.start_run_search_cache()
+        try:
+            with p_oauth, p_sp:
+                first, _ = pl.search_tracks([{"artist": "a", "track": "b"}])
+                second, _ = pl.search_tracks([{"artist": "a", "track": "b"}])
+            assert sp.search.call_count == 1  # 2nd call short-circuited
+            assert first[0]["uri"] == "spotify:track:1"
+            assert second[0]["uri"] == "spotify:track:1"
+        finally:
+            pl.end_run_search_cache()
+
+    def test_cache_normalises_case_and_whitespace(self):
+        """Cache key is lower/strip — `'  Bear Ghost '` and
+        `'bear ghost'` collide."""
+        from core.src import playlist as pl
+        sp = MagicMock()
+        sp.search.return_value = {
+            "tracks": {"items": [{"uri": "spotify:track:1", "album": {"images": []}}]}
+        }
+        p_oauth, p_sp = self._mock_oauth_and_spotify(sp)
+        pl.start_run_search_cache()
+        try:
+            with p_oauth, p_sp:
+                pl.search_tracks([{"artist": "  Bear Ghost  ", "track": "Mr Bubbles"}])
+                pl.search_tracks([{"artist": "bear ghost", "track": "MR BUBBLES"}])
+            assert sp.search.call_count == 1
+        finally:
+            pl.end_run_search_cache()
+
+    def test_cache_caches_not_found_too(self):
+        """A miss is also worth caching — re-searching a hallucination
+        wastes a roundtrip every time."""
+        from core.src import playlist as pl
+        sp = MagicMock()
+        sp.search.return_value = {"tracks": {"items": []}}
+        p_oauth, p_sp = self._mock_oauth_and_spotify(sp)
+        pl.start_run_search_cache()
+        try:
+            with p_oauth, p_sp:
+                _, miss_a = pl.search_tracks([{"artist": "halluc", "track": "fake"}])
+                _, miss_b = pl.search_tracks([{"artist": "halluc", "track": "fake"}])
+            assert sp.search.call_count == 1
+            assert miss_a == miss_b == ["halluc - fake"]
+        finally:
+            pl.end_run_search_cache()
+
+    def test_end_run_clears_cache(self):
+        """After end_run, a re-opened cache must not see prior entries."""
+        from core.src import playlist as pl
+        sp = MagicMock()
+        sp.search.return_value = {
+            "tracks": {"items": [{"uri": "spotify:track:1", "album": {"images": []}}]}
+        }
+        p_oauth, p_sp = self._mock_oauth_and_spotify(sp)
+        pl.start_run_search_cache()
+        try:
+            with p_oauth, p_sp:
+                pl.search_tracks([{"artist": "a", "track": "b"}])
+        finally:
+            pl.end_run_search_cache()
+        # Re-open. Same call must hit Spotify again (different "run").
+        pl.start_run_search_cache()
+        try:
+            with p_oauth, p_sp:
+                pl.search_tracks([{"artist": "a", "track": "b"}])
+            assert sp.search.call_count == 2
+        finally:
+            pl.end_run_search_cache()
+
+    def test_cache_does_not_bleed_caller_supplied_keys(self):
+        """Caller-supplied fields (like GPT genres) on the input track
+        must be applied to the cached enrichment — never replaced by
+        stale values from the first batch."""
+        from core.src import playlist as pl
+        sp = MagicMock()
+        sp.search.return_value = {
+            "tracks": {"items": [{"uri": "spotify:track:1", "album": {"images": []}}]}
+        }
+        p_oauth, p_sp = self._mock_oauth_and_spotify(sp)
+        pl.start_run_search_cache()
+        try:
+            with p_oauth, p_sp:
+                first, _ = pl.search_tracks([
+                    {"artist": "a", "track": "b", "genres": ["rock"]},
+                ])
+                second, _ = pl.search_tracks([
+                    {"artist": "a", "track": "b", "genres": ["pop"]},
+                ])
+            # Cache stored only Spotify-derived fields; caller's
+            # GPT-supplied `genres` survives the round-trip.
+            assert first[0]["genres"] == ["rock"]
+            assert second[0]["genres"] == ["pop"]
+        finally:
+            pl.end_run_search_cache()
+
+
 class TestAddToPlaylist:
     @patch("core.src.playlist.get_existing_track_uris")
     @patch("core.src.playlist.find_existing_playlist")

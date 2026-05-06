@@ -1118,6 +1118,17 @@ def check_avoid_compliance(
                     "latency_s": meta.get("latency_s"),
                     "usage": meta.get("usage"),
                 })
+                # E1 (2026-05-06): per-stage rollup. Latency was just
+                # measured around the LLM call; usage carries token
+                # counts. Record both even if `usage` is missing — the
+                # call still ate wall-clock.
+                _u = meta.get("usage") or {}
+                trace.stage_metrics_record(
+                    trace.STAGE_STAGE2_AVOID,
+                    duration_s=float(meta.get("latency_s") or 0.0),
+                    tokens_in=_u.get("prompt_tokens"),
+                    tokens_out=_u.get("completion_tokens"),
+                )
         except Exception as _trace_exc:  # pragma: no cover
             logger.debug("trace capture (stage2) failed: %s", _trace_exc)
         data = json.loads(strip_code_fences(raw))
@@ -1388,6 +1399,7 @@ def select_tracks(
     try:
         from core.src import trace
         if trace.is_active():
+            _s3_usage = (response or {}).get("usage") if isinstance(response, dict) else None
             trace.append("stage3_batches", {
                 "batch_num": batch_num,
                 "model": get_model(),
@@ -1396,10 +1408,20 @@ def select_tracks(
                 "approved_artists": list(approved_artist_names),
                 "raw_response": raw_content,
                 "latency_s": latency_s,
-                "usage": (response or {}).get("usage") if isinstance(response, dict) else None,
+                "usage": _s3_usage,
                 "temperature": temperature,
                 "effective_batch_size": effective_batch_size,
             })
+            # E1 (2026-05-06): per-stage rollup. Stage 3 fires once per
+            # batch, so each call accumulates here — duration/tokens
+            # sum across all batches for a single playlist generation.
+            _u = _s3_usage or {}
+            trace.stage_metrics_record(
+                trace.STAGE_STAGE3_SELECT,
+                duration_s=float(latency_s or 0.0),
+                tokens_in=_u.get("prompt_tokens"),
+                tokens_out=_u.get("completion_tokens"),
+            )
     except Exception as _trace_exc:  # pragma: no cover
         logger.debug("trace capture (stage3) failed: %s", _trace_exc)
 

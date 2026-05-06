@@ -354,48 +354,285 @@ Execution cancelled 2026-05-04.
 - Total: ~17.5h — well within 24h timeout and free tier (17.5 vCPU-hours
   of 50 free + 70 GiB-hours of 100 free at 4 GiB RAM).
 
-### Current execution — `spotivibe-rag-builder-ltrfp` (2026-05-04)
+### ✅ Corpus verified — 2026-05-06
 
-Started 2026-05-04 ~07:45 UTC. MB build completed at 07:58, Last.fm
-enrichment started at 07:58 with all 174,200 artists (no cap). Spotify
-enrichment skipped (`DISABLE_SPOTIFY_ENRICHMENT=1` confirmed in logs).
+Manifest `corpus_version=2026-05-06`, built `2026-05-06T10:43:54Z` from
+execution `spotivibe-rag-builder-ctwgm`. No `halt.flag`. `gs://spotivibe-rag-corpus/artists.jsonl.gz`
+(13.2 MB gz) → 174,200 artists. Phase B enrichment landed:
 
-**Expected completion: ~01:15 UTC 2026-05-05 (~03:15 Vienna).**
+| Signal | Coverage |
+|---|---|
+| `lastfm_listeners` | 145,627 / 174,200 (83.6 %) |
+| `lastfm_tags` (≥30 weight) | 116,007 / 174,200 (66.6 %) |
+| Avg `lastfm_tags` per enriched row | 2.6 |
+| Listener distribution | 16.4 % zero · 31.8 % <1k · 23.6 % 1k-10k · 19.7 % 10k-100k · 7.6 % 100k-1M · 0.9 % 1M+ |
 
-### ⏰ VERIFY on 2026-05-05 morning
+Sample rows (Beatles 6.5M / Metallica 5.2M listeners) carry full
+weighted tag vectors. **No Spotify fields by design** —
+`DISABLE_SPOTIFY_ENRICHMENT=1` was respected. Schema field name is
+`tags` (MB) + `tag_weights` (MB) + `lastfm_tags` (Last.fm name+weight
+pairs). Listener proxy `listener_popularity` is present on every row.
 
-```bash
-# 1. Execution status
-gcloud run jobs executions describe spotivibe-rag-builder-ltrfp \
-  --region=us-central1 \
-  --format='value(status.completionTime,status.conditions[0].type)'
+App pickup: still on whatever local corpus the dev box last fetched.
+Next app launch on a fresh Cloud Run-backed deploy will hydrate the
+2026-05-06 manifest. Re-verify smoke after dev box pulls (`/api/rag/refresh`
+or app restart that hits the manifest URL).
 
-# 2. New manifest? built_at should be 2026-05-04 or 2026-05-05
-gcloud storage cat gs://spotivibe-rag-corpus/manifest.json
 
-# 3. No halt flag?
-gcloud storage ls gs://spotivibe-rag-corpus/halt.flag  # should be NotFound
 
-# 4. Spot-check Last.fm fields in the new corpus
-gcloud storage cp gs://spotivibe-rag-corpus/artists.jsonl.gz /tmp/c.jsonl.gz
-zcat /tmp/c.jsonl.gz | head -100 | grep -c '"lastfm_listeners"'  # > 0
-zcat /tmp/c.jsonl.gz | head -100 | grep -c '"lastfm_tags"'       # > 0
+## 🚧 Active implementation handoff — 2026-05-06
 
-# 5. Full enrichment stats
-zcat /tmp/c.jsonl.gz | python -u -c "
-import sys, json
-total=0; lf=0
-for l in sys.stdin:
-    r=json.loads(l); total+=1
-    if r.get('lastfm_listeners'): lf+=1
-print(f'Total: {total}, Last.fm enriched: {lf} ({100*lf/total:.1f}%)')
-"
-```
+> **For the next agent picking this up.** A previous session executed
+> the "quick wins + E1 + E7" plan from the Post-Phase B agenda. State
+> at handoff:
+>
+> ### Done (all 820 core tests green at handoff commit)
+> - **E1 — per-stage telemetry.** Trace bundle now carries
+>   `stage_metrics: {stage_name: {duration_s, calls, tokens_in, tokens_out}}`.
+>   Instrumented at `app.py` (Stage 1 + Spotify verify wrap) and
+>   `core/src/suggestions.py` (Stage 2 + Stage 3). `evaluation/harness.py`
+>   surfaces as `ModelRunResult.stage_metrics_a/b`; `evaluation/reporting.py`
+>   renders a "Per-stage breakdown (E1)" section in `comparison.md`.
+>   18 new tests across [test_trace.py](core/tests/test_trace.py)
+>   + [test_evaluation_harness.py](core/tests/test_evaluation_harness.py).
+> - **L2 — per-run Spotify search-result cache.** New
+>   `start_run_search_cache()` / `end_run_search_cache()` in
+>   [core/src/playlist.py](core/src/playlist.py); bracketed in
+>   [app.py](app.py) around the SSE generation try/finally. Caches
+>   both `found` and `not_found` per `(artist, track)` lower/strip key.
+>   Caller-supplied fields (e.g. GPT genres) survive cache round-trip.
+>   6 new tests in [test_playlist.py](core/tests/test_playlist.py).
+> - **L3 — backend refactor (partial).** New `iter_search_tracks(tracks)`
+>   generator in playlist.py yields `("found", enriched)` / `("not_found", label)`
+>   per track in completion order; `_do_spotify_search` extracted to
+>   module-level. `search_tracks(tracks, on_progress)` is now a thin
+>   wrapper around `iter_search_tracks`, preserving its public
+>   signature/return shape. **Backend ready for streaming SSE** — no
+>   regressions, but **app.py still calls `search_tracks` (the
+>   wrapper)**, so no per-track SSE event is emitted yet.
+>
+> ### Remaining
+> 1. **L3 backend wire-up.** In [app.py](app.py) replace
+>    `found, not_found = search_tracks(result["playlist"])` (~line 1233,
+>    inside the time_stage(STAGE_SPOTIFY_VERIFY) block) with a loop
+>    over `iter_search_tracks(result["playlist"])`. For each
+>    `("found", track)` yield `_sse("track_verified", track=...)` AND
+>    accumulate `found.append(track)`; for `("not_found", label)`
+>    accumulate `not_found.append(label)`. Keep the existing
+>    `batch_verified` SSE at end of batch (frontend still uses it for
+>    the "Use X tracks now" button counter).
+> 2. **L3 frontend.** Add `case 'track_verified':` to `handleStreamEvent`
+>    in [pipeline.js:299](frontend/static/js/modules/pipeline.js#L299).
+>    Update `State.partialTrackCount` per event and reflect in the
+>    button label. Optional: render the track row immediately into the
+>    list pane. Add an i18n key for the verified-counter status if a
+>    new string is shown.
+> 3. **U1 — pre-flight Spotify session check.** Add `/api/session`
+>    endpoint (or use existing `get_spotify_auth_status`) on page load
+>    + on focus. Frontend: gate the Generate button on
+>    `State.spotifyAuthStatus === 'authenticated'`; show "🔗 Reconnect
+>    Spotify" pill when expired. New i18n keys in
+>    `frontend/static/i18n/{en,de,jp}.json`.
+> 4. **E7 — baseline run.** Once L3 + U1 are in: `python evaluation/run_evaluation.py`.
+>    4 models × 8 scenarios × 1 iter ≈ $3-8 OpenAI + Spotify quota.
+>    Output → `evaluation/baselines/2026-05-06_lastfm.csv`. **Requires
+>    explicit user go-ahead before kickoff (real money / real Spotify
+>    rate budget).**
+>
+> ### Files touched at handoff
+> Backend: `core/src/trace.py`, `core/src/playlist.py`,
+> `core/src/suggestions.py`, `app.py`, `evaluation/harness.py`,
+> `evaluation/reporting.py`. Tests: `core/tests/test_trace.py`,
+> `core/tests/test_evaluation_harness.py`, `core/tests/test_playlist.py`.
+> No frontend changes yet.
 
-If successful: download the new corpus locally, verify in the app,
-then set the fixed monthly schedule (1st of each month). If failed:
-check logs with
-`gcloud logging read "labels.\"run.googleapis.com/execution_name\"=spotivibe-rag-builder-ltrfp" --limit=30 --order=desc`.
+## 🆕 Post-Phase B agenda — 2026-05-06
+
+Corpus is now Last.fm-enriched (see verification above). End goals from
+this point: (a) **harden** by capturing the quality lift in repeatable
+evals, (b) **optimise UX** so perceived cost (waiting / confusion) drops
+to near-zero, (c) **optimise system perf** so internal latency is small
+and the unavoidable LLM latency is masked by streaming + responsiveness.
+Each item below is independently grabbable; ordering reflects ROI not
+hard dependency.
+
+### E — Eval hardening (Last.fm-aware) 🔴 P0
+
+The current harness pre-dates the enriched corpus. It will not detect
+the quality lift Phase B is supposed to deliver because it (a) lacks
+scenarios that exercise tag-weight + listener-popularity signals, and
+(b) reports per-feature aggregates only — no per-stage latency/cost
+breakdown to size optimisation wins.
+
+- **E1 — Per-stage latency + cost telemetry.** Today
+  [evaluation/reporting.py:111-164](evaluation/reporting.py#L111-L164)
+  rolls latency up by feature (`batch_summary`, `stage2_summary`,
+  `profile_update_summary`). Add a per-stage breakdown so Stage 1
+  (RAG retrieve), Stage 2 (avoid compliance), Stage 3 (track select),
+  and Spotify verify are individually surfaced. Required to size L*
+  perf wins (below) before/after measurement is meaningful. Plumb
+  through new `stage_timings: dict[str, float]` on `ModelRunResult`.
+- **E2 — Last.fm-tag coverage metric.** New column in `comparison.md`:
+  for each playlist, % of source candidates that had `lastfm_tags`
+  populated. Gate: ≥ 75 % expected (matches corpus-level 66.6 %
+  + popularity-weighted retrieval bias toward enriched rows). Catches
+  silent corpus regressions where the enrichment field is dropped or
+  never populated for selected candidates.
+- **E3 — Listener-popularity distribution.** Median + p95 of
+  `lastfm_listeners` per playlist. Cheap signal for the "all-mainstream
+  vs all-niche" axis. Surface as a column.
+- **E4 — Scenario `lastfm_tag_weighting`** (new). Profile prose with
+  prominent weighted tags ("post-rock instrumental, slowcore, math
+  rock"). Asserts that Stage 1 candidate pool is ≥ 70 % populated by
+  artists whose `lastfm_tags` overlap the prose tokens — directly
+  exercises [retrieval._artist_tag_weight()](core/src/rag/retrieval.py).
+- **E5 — Scenario `niche_only_strict`** (new). Profile prose explicitly
+  avoids mainstream ("avoid Billboard chart, avoid radio rotation,
+  avoid >1M monthly listeners"). Asserts that p95 `lastfm_listeners`
+  on the playlist stays below 100k. Direct test of whether the
+  retrieval can de-bias from popularity proxy.
+- **E6 — Scenario `post_feedback_tag_regression`** (new). Seeds a
+  profile, generates A, dislikes 3 tracks all sharing one Last.fm tag
+  (e.g. `synthwave`); asserts B-playlist contains 0 tracks where the
+  matched Last.fm tag overlaps the dislike-tag set. Locks in the
+  "tags are how avoid actually propagates" assumption.
+- **E7 — Smoke baseline run.** Before anything else lands, run all
+  existing + new scenarios 3× per model on the new corpus and commit
+  the `summary.csv` baseline as `evaluation/baselines/2026-05-06_lastfm.csv`.
+  Every later optimisation diffs against this, not the pre-enrichment
+  baseline `sweep-merged-5blocks/summary.csv` (deprecated — note in
+  the file header).
+
+### Q — Quality (uses new corpus directly) 🟠 P1
+
+- **Q1 — Re-baseline cost-bundle** (was P6-EVAL, see below). Now
+  unblocked by E7. Validate the ~36 % cost reduction hypothesis on
+  the enriched retrieval, not the legacy one. Decide if `gpt-4.1-mini`
+  remains usable for Stage 3 once Last.fm tags carry semantic load.
+- **Q2 — Last.fm `getSimilar` similarity facet.** Deferred from Phase B
+  shipping. Adds a per-artist similarity vector, useful for "expand
+  pool around liked artists" without an LLM call. Cost: ~1 extra
+  Last.fm call per enriched artist (~145k extra calls — re-uses
+  Phase B's cumulative-budget abort). Gate behind Q1 unless E7 shows
+  retrieval recall is the binding constraint.
+- **Q3 — Wikidata Phase D — country + era facts.** Was item #9 above.
+  Re-prioritise behind E7 results: if `regression_japanese_theatrical`
+  (existing) and the new `country_constrained` scenarios all pass on
+  the enriched corpus, Phase D may be unnecessary. Decide from data,
+  not plan.
+- **Q4 — Tag-precedence audit.** `_artist_popularity()` now prefers
+  `_lastfm_popularity()` over the MB proxy. Confirm with a 1-shot
+  query that the precedence is observable on a known mainstream-vs-
+  niche pair. If MB proxy still wins for any non-trivial slice of the
+  corpus, the precedence wiring has a bug.
+
+### L — Latency / cost levers (system perf) 🟡 P2
+
+- **L1 — ✅ Stage 2 skip when avoid filter applied.** Already in
+  production via the L1 path — no action required, listed for
+  completeness.
+- **L2 — Spotify artist-metadata cache (per run).** Deduplicate
+  Spotify search calls when the same artist recurs across batches.
+  Today [playlist.py:518-525](core/src/playlist.py#L518-L525) dedupes
+  `(artist, track)` but not `artist`. Memoise `artist_id`/`market_ok`
+  per `(run_id, artist_name_normalised)` in a request-scoped dict.
+  Estimated win: 1-2 s saved on multi-batch runs, zero quality cost.
+- **L3 — Stream Spotify search results via SSE.** Today the SSE stream
+  only advances on `batch_verified` (per N tracks). Emit one
+  `track_verified` event per successful Spotify match — the user
+  sees individual tracks appear as they're confirmed instead of a
+  batch landing in one chunk. Expected perceived-latency reduction:
+  1-2 s on the first batch (huge mobile/slow-network UX win).
+  Touches [app.py /api/run](app.py) + [pipeline.js SSE handler](frontend/static/js/modules/pipeline.js).
+- **L4 — Prompt-template memoisation.** [suggestions.py:103-112](core/src/suggestions.py#L103-L112)
+  `load_text_file()` re-reads `prompts/*.txt` every batch. Cache once
+  at module import. Saves ~5 ms × 10 batches per run; tiny but free.
+- **L5 — Stage 3 model downgrade probe.** Compare `gpt-5.4` vs
+  `gpt-5.4-mini` for Stage 3 on the new corpus (E7 baseline as
+  reference). If quality delta < 5 pp on cite/found and feedback
+  leakage stays clean, default Stage 3 to `mini` and save ~20 % cost
+  + ~500 ms / batch. Decision is data-only; do not pre-commit.
+
+### U — UX friction reduction (perceived cost) 🟡 P2
+
+- **U1 — Pre-flight Spotify session check.** Currently the
+  "Spotify not connected" failure surfaces ~5 s after the user clicks
+  Generate (post-`/api/run` auth check). Move the check to a
+  non-blocking `/api/session` ping on page load + on focus, gate the
+  Generate button on `spotifyAuthStatus === 'authenticated'`. Show a
+  prominent "🔗 Reconnect Spotify" button when expired. Eliminates a
+  recurring confusion-source.
+- **U2 — Distinguish transient vs permanent errors.** Today every
+  upstream failure renders as "❌ Network error". Split:
+  Spotify 429 → "⏳ Spotify rate-limited, retrying in 30 s…" with
+  one auto-retry. OpenAI timeout → "⏳ Model slow, retrying…" with one
+  auto-retry. Hard 4xx → "❌ <specific>" with no retry. Touches
+  the `_sse_error` helper in [app.py](app.py) and the SSE error
+  branch in [pipeline.js:153](frontend/static/js/modules/pipeline.js#L153).
+- **U3 — Track-progress UI.** "X / Y tracks verified — est. Z s"
+  during generation, refreshed on every `track_verified` event from
+  L3. Today only batch-level "starting batch 3" is visible; mobile
+  users perceive a stall.
+- **U4 — Disable "Use X tracks now" while finalize is in flight.**
+  [pipeline.js:73](frontend/static/js/modules/pipeline.js#L73) — set
+  `aria-busy="true"` and `disabled` until the finalize SSE returns,
+  matching the Settings Save fix from CF-Bug-7.
+- **U5 — Better GPT-exhaustion message.** [app.py:1184-1187](app.py#L1184-L1187)
+  emits a verbose technical phrase ("GPT suggested only already-known
+  tracks for 3 consecutive batches"). Replace with: "Couldn't find
+  more matching tracks. Try a smaller playlist or adjust the
+  exploration slider." + an actionable button. New i18n key.
+- **U6 — Live "Spotify connected" badge.** Status pill in the header
+  (green ●  / red ●), refreshed by U1's session check. Eliminates the
+  whole class of "I clicked Generate but nothing happened" confusions.
+
+### M — Measurement infrastructure (foundation) 🟢 P3
+
+Required before Q1 / L5 land — any tuning without measurement is
+guessing.
+
+- **M1 — Stage spans in `core/src/trace.py`.** Already records
+  per-stage candidate sets (F9). Add wall-clock timing + LLM-token
+  counters per stage on the same trace bundle. Nothing else has to
+  change for E1 to pick this up — the harness already copies the
+  bundle into per-run results.
+- **M2 — Local perf-baseline test.** New `core/tests/test_perf_baseline.py`
+  with millisecond budgets per stage on a frozen corpus subset
+  (~5 k artists). Marker `@pytest.mark.perf` so CI excludes by default
+  — run only when an `L*` lever lands. Catches regressions like
+  `_build_indices` accidentally being O(n²).
+- **M3 — Persist per-run perf summary to local sqlite.** One row per
+  generation: `run_id, stage_timings_json, token_counts, found_rate,
+  exhausted, model`. Lets a longitudinal trend ("did quality / latency
+  drift over 3 weeks?") be answered with one SQL query instead of
+  re-running the harness. Optional but cheap.
+
+### Suggested execution order
+
+1. **M1** (5-min change to trace bundle) → unlocks E1.
+2. **E1, E2, E3** (telemetry surface) → unlocks E7.
+3. **E4, E5, E6** (new scenarios) → unlocks E7.
+4. **E7 baseline run** — frozen reference for everything that follows.
+5. **L2, L3, L4** (free latency wins, no quality risk) — measure
+   delta against E7.
+6. **U1, U2, U3** (UX wins, parallelisable with L*) — measure
+   subjective by trying the app, but L3 is a hard prerequisite for U3.
+7. **Q1** (cost-bundle re-baseline) → decide L5.
+8. **U4, U5, U6** (UX polish, anytime).
+9. **Q2, Q4, Q3** in that order, gated on E7 + Q1 outcomes.
+
+### Decision gates
+
+- After E7: if dislike-rate / leakage didn't drop materially vs
+  pre-enrichment baseline, the open product question (bottom of file)
+  re-fires before any further investment.
+- After L5: if `gpt-5.4-mini` for Stage 3 holds quality, Q1's
+  cost-bundle work is largely moot (the lever is bigger than the
+  bundle).
+- After U1+U6: if the "Spotify not connected" friction class goes
+  silent in informal usage, U2's auto-retry investment may be
+  premature for production. Keep transient-error labelling, drop the
+  retry loop.
 
 ## Further research required (gated on enrichment outcome)
 

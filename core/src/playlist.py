@@ -59,6 +59,53 @@ logger = logging.getLogger(__name__)
 _legacy_track_key_warned = False
 
 
+# L2 (2026-05-06): per-run search-result cache. ``None`` when caching
+# is off; ``{}`` when bracketed by ``start_run_search_cache()`` /
+# ``end_run_search_cache()``. The cache is single-flight, matching the
+# rest of the suggestion pipeline (one playlist generation at a time).
+#
+# Key shape: ``"<artist_lower>|<track_lower>"`` (same normalisation as
+# the in-call dedup at line 521-525, so the two never disagree).
+# Value shape: ``("found", enriched_dict)`` or ``("not_found", label)``
+# — exactly what ``search_one`` would have returned, so a cache hit
+# slots into the result aggregation without any other branch change.
+#
+# Within a single ``search_tracks()`` call the existing dedup already
+# guards against double-search. This cache exists for the cross-batch
+# case: in a multi-batch generation run the LLM occasionally re-proposes
+# an (artist, track) pair from an earlier batch (deny-list slips), and
+# without this cache each repeat costs another Spotify roundtrip.
+_RUN_SEARCH_CACHE: dict | None = None
+
+
+def start_run_search_cache() -> None:
+    """Open the per-run search-result cache.
+
+    Call once at the start of a generation run; subsequent
+    ``search_tracks()`` invocations will skip Spotify for any
+    ``(artist, track)`` pair already verified in this run. Idempotent —
+    re-opening clears any leftover state from a prior run.
+    """
+    global _RUN_SEARCH_CACHE
+    _RUN_SEARCH_CACHE = {}
+
+
+def end_run_search_cache() -> None:
+    """Close the per-run search-result cache.
+
+    Call from a ``finally`` so the cache always tears down even when
+    the generation run errors out — leaving it on between runs would
+    return stale ``not_found`` labels for tracks the LLM tries again
+    later.
+    """
+    global _RUN_SEARCH_CACHE
+    _RUN_SEARCH_CACHE = None
+
+
+def _search_cache_key(artist: str, track: str) -> str:
+    return f"{(artist or '').lower().strip()}|{(track or '').lower().strip()}"
+
+
 def _warn_legacy_track_key_once():
     """Log once per process when Spotify's playlist item still uses the
     pre-Feb-2026 'track' key instead of the current 'item' key.
@@ -487,6 +534,165 @@ def _make_pooled_session(pool_size=10):
     return session
 
 
+def _dedup_tracks_for_search(tracks):
+    """Deduplicate `(artist, track)` pairs, lower-cased + stripped.
+
+    Same shape as the L2 cache key (so both stay consistent) and the
+    only place this dedup lives — both ``search_tracks`` and
+    ``iter_search_tracks`` (L3, 2026-05-06) reuse it.
+    """
+    seen = set()
+    out = []
+    for t in tracks:
+        key = f'{t["artist"]} - {t["track"]}'.lower()
+        if key not in seen:
+            seen.add(key)
+            out.append(t)
+    return out
+
+
+def _do_spotify_search(t, shared_sp):
+    """Single-track Spotify search with L2 cache + 429 retry.
+
+    Module-level (not a closure) so both ``search_tracks`` and
+    ``iter_search_tracks`` can hand it to a ``ThreadPoolExecutor``.
+    Returns the same ``("found", enriched)`` / ``("not_found", label)``
+    tuple either generator/wrapper consumes.
+    """
+    cache_key = _search_cache_key(t["artist"], t["track"])
+    if _RUN_SEARCH_CACHE is not None:
+        cached = _RUN_SEARCH_CACHE.get(cache_key)
+        if cached is not None:
+            kind, payload = cached
+            if kind == "found":
+                return "found", {**t, **payload}
+            return "not_found", f"{t['artist']} - {t['track']}"
+
+    query = _build_track_artist_query(t["artist"], t["track"])
+
+    res = None
+    for attempt in range(4):
+        try:
+            res = shared_sp.search(q=query, type="track", limit=1, market="from_token")
+            break
+        except SpotifyException as e:
+            if e.http_status == 429 and attempt < 3:
+                retry_after = int(e.headers.get("Retry-After", 1))
+                backoff_floor = 2 ** attempt
+                time.sleep(min(max(retry_after, backoff_floor), 30))
+                continue
+            raise
+
+    if res and res["tracks"]["items"]:
+        item = res["tracks"]["items"][0]
+        uri = item["uri"]
+        track_id = uri.split(":")[-1] if uri else None
+        images = item.get("album", {}).get("images", [])
+        cover_url = _pick_album_cover(images)
+        preview_url = item.get("preview_url")
+        spotify_url = item.get("external_urls", {}).get("spotify")
+        album_url = item.get("album", {}).get("external_urls", {}).get("spotify")
+        release_date = item.get("album", {}).get("release_date")
+        artists = item.get("artists", [])
+        artist_url = artists[0].get("external_urls", {}).get("spotify") if artists else None
+        artist_id = artists[0].get("id") if artists else None
+        spotify_extras = {
+            "uri": uri,
+            "track_id": track_id,
+            "cover_url": cover_url,
+            "preview_url": preview_url,
+            "spotify_url": spotify_url,
+            "album_url": album_url,
+            "release_date": release_date,
+            "artist_url": artist_url,
+            "artist_id": artist_id,
+        }
+        enriched = {**t, **spotify_extras}
+        if _RUN_SEARCH_CACHE is not None:
+            _RUN_SEARCH_CACHE[cache_key] = ("found", spotify_extras)
+        return "found", enriched
+    if _RUN_SEARCH_CACHE is not None:
+        _RUN_SEARCH_CACHE[cache_key] = ("not_found", None)
+    return "not_found", f"{t['artist']} - {t['track']}"
+
+
+def iter_search_tracks(tracks):
+    """L3 (2026-05-06) — streaming generator over Spotify track search.
+
+    Yields ``("found", enriched_track)`` or ``("not_found", label)`` as
+    each search completes (in completion order, *not* input order; the
+    underlying ``ThreadPoolExecutor`` is the same one ``search_tracks``
+    uses, so the parallelism profile is identical).
+
+    Why this exists: ``search_tracks`` blocks the SSE generator until
+    every track in a batch is verified. For a 10-track batch that's
+    2-3 s during which the user sees no progress. Calling
+    ``iter_search_tracks`` from the SSE generator and yielding a
+    ``track_verified`` event per item gives the user immediate feedback
+    on each Spotify match without any other architectural change.
+
+    Each found track has ``release_year`` already populated (parsed
+    from ``release_date``) so the consumer doesn't need a second
+    enrichment pass — the original ``_enrich_tracks_with_metadata``
+    runs once per batch in the wrapper, but per-track in the
+    generator.
+
+    Same L2 cache, same 429-retry, same per-track-cache populate as
+    ``search_tracks`` — the implementations share ``search_one``.
+    """
+    unique_tracks = _dedup_tracks_for_search(tracks)
+    if not unique_tracks:
+        return
+
+    oauth = get_spotify_oauth()
+    token_info = oauth.validate_token(oauth.cache_handler.get_cached_token())
+    if not token_info:
+        logger.error("Spotify token unavailable — cannot search tracks")
+        for t in unique_tracks:
+            yield "not_found", f"{t['artist']} - {t['track']}"
+        return
+    access_token = token_info["access_token"]
+
+    pool_size = min(5, len(unique_tracks)) or 1
+    shared_session = _make_pooled_session(pool_size)
+    shared_sp = spotipy.Spotify(
+        auth=access_token,
+        requests_session=shared_session,
+    )
+
+    def search_one(t):
+        return _do_spotify_search(t, shared_sp)
+
+    try:
+        with ThreadPoolExecutor(max_workers=pool_size) as executor:
+            futures = {executor.submit(search_one, t): t for t in unique_tracks}
+            for future in as_completed(futures):
+                try:
+                    result_type, result_data = future.result()
+                except Exception as e:
+                    t = futures[future]
+                    label = f"{t['artist']} - {t['track']}"
+                    logger.error("Spotify search error for %s: %s", label, e)
+                    app_log(f"Spotify search error for {label}: {e}")
+                    yield "not_found", label
+                    continue
+                if result_type == "found":
+                    # Inline the per-track release_year enrichment so a
+                    # streaming consumer doesn't need a post-pass. Genres
+                    # default already-set by GPT survives untouched.
+                    result_data["release_year"] = _parse_release_year(
+                        result_data.get("release_date")
+                    )
+                    result_data.setdefault("genres", [])
+                    yield "found", result_data
+                else:
+                    logger.warning("Not found on Spotify: %s", result_data)
+                    app_log(f"Spotify search miss (possible LLM hallucination): {result_data}")
+                    yield "not_found", result_data
+    finally:
+        shared_session.close()
+
+
 def search_tracks(tracks, on_progress=None):
     """Search Spotify for each track using parallel requests.
 
@@ -514,121 +720,23 @@ def search_tracks(tracks, on_progress=None):
     """
     found = []
     not_found = []
-
-    # Deduplicate input
-    seen = set()
-    unique_tracks = []
-    for t in tracks:
-        key = f'{t["artist"]} - {t["track"]}'.lower()
-        if key not in seen:
-            seen.add(key)
-            unique_tracks.append(t)
-
-    # ── Pre-fetch token + shared session ──────────────────────────────
-    # Validate / refresh the token once.  All workers then use the raw
-    # access_token string, skipping per-thread OAuth overhead.
-    oauth = get_spotify_oauth()
-    token_info = oauth.validate_token(oauth.cache_handler.get_cached_token())
-    if not token_info:
-        logger.error("Spotify token unavailable — cannot search tracks")
-        return [], [f"{t['artist']} - {t['track']}" for t in unique_tracks]
-    access_token = token_info["access_token"]
-
-    # Cap concurrency at 5 (down from 10) — Spotify's per-user search
-    # rate limit is tight enough that 10 simultaneous in-flight requests
-    # routinely trigger 429 cascades, especially when callers run
-    # back-to-back (e.g. evaluation harness, multi-batch generation).
-    # 5 still gives most of the parallelism speed-up while leaving
-    # headroom for the rolling-window quota.
-    pool_size = min(5, len(unique_tracks)) or 1
-    shared_session = _make_pooled_session(pool_size)
-
-    # Single shared client: pre-fetched token + pooled session.
-    # The underlying requests.Session / urllib3 pool is thread-safe for
-    # concurrent requests — no need for a per-thread client.
-    shared_sp = spotipy.Spotify(
-        auth=access_token,
-        requests_session=shared_session,
-    )
-
-    def search_one(t):
-        query = _build_track_artist_query(t["artist"], t["track"])
-
-        # Retry on 429 (rate limit) with exponential backoff, honouring
-        # the Retry-After header when present. Up to 4 attempts: a single
-        # retry is not enough when many concurrent searches all hit the
-        # quota at the same moment (observed in evaluation harness with
-        # multi-model runs). Cap each sleep at 30 s to bound total wait.
-        res = None
-        for attempt in range(4):
-            try:
-                res = shared_sp.search(q=query, type="track", limit=1, market="from_token")
-                break
-            except SpotifyException as e:
-                if e.http_status == 429 and attempt < 3:
-                    retry_after = int(e.headers.get("Retry-After", 1))
-                    # Exponential backoff floor: 1s, 2s, 4s (doubles each attempt)
-                    backoff_floor = 2 ** attempt
-                    time.sleep(min(max(retry_after, backoff_floor), 30))
-                    continue
-                raise
-
-        if res and res["tracks"]["items"]:
-            item = res["tracks"]["items"][0]
-            uri = item["uri"]
-            track_id = uri.split(":")[-1] if uri else None
-            images = item.get("album", {}).get("images", [])
-            cover_url = _pick_album_cover(images)
-            preview_url = item.get("preview_url")
-            spotify_url = item.get("external_urls", {}).get("spotify")
-            album_url = item.get("album", {}).get("external_urls", {}).get("spotify")
-            release_date = item.get("album", {}).get("release_date")
-            artists = item.get("artists", [])
-            artist_url = artists[0].get("external_urls", {}).get("spotify") if artists else None
-            artist_id = artists[0].get("id") if artists else None
-            enriched = {
-                **t,
-                "uri": uri,
-                "track_id": track_id,
-                "cover_url": cover_url,
-                "preview_url": preview_url,
-                "spotify_url": spotify_url,
-                "album_url": album_url,
-                "release_date": release_date,
-                "artist_url": artist_url,
-                "artist_id": artist_id,
-            }
-            return "found", enriched
-        return "not_found", f"{t['artist']} - {t['track']}"
-
-    try:
-        with ThreadPoolExecutor(max_workers=pool_size) as executor:
-            futures = {executor.submit(search_one, t): t for t in unique_tracks}
-            completed = 0
-            for future in as_completed(futures):
-                try:
-                    result_type, result_data = future.result()
-                    if result_type == "found":
-                        found.append(result_data)
-                    else:
-                        logger.warning("Not found on Spotify: %s", result_data)
-                        app_log(f"Spotify search miss (possible LLM hallucination): {result_data}")
-                        not_found.append(result_data)
-                except Exception as e:
-                    t = futures[future]
-                    label = f"{t['artist']} - {t['track']}"
-                    logger.error("Spotify search error for %s: %s", label, e)
-                    app_log(f"Spotify search error for {label}: {e}")
-                    not_found.append(label)
-                completed += 1
-                if on_progress:
-                    on_progress(completed, len(unique_tracks))
-    finally:
-        shared_session.close()
-
-    # ── Batch-enrich: artist genres + release_year ────────────────────
+    unique_tracks = _dedup_tracks_for_search(tracks)
+    total = len(unique_tracks)
+    completed = 0
+    # L3 (2026-05-06): consume the streaming generator so search_tracks
+    # and iter_search_tracks share one code path. release_year is
+    # already populated per-track inside iter_search_tracks, but we
+    # still call _enrich_tracks_with_metadata at the end as a no-op
+    # safety net (it's idempotent — sets release_year only if missing).
+    for kind, payload in iter_search_tracks(tracks):
+        if kind == "found":
+            found.append(payload)
+        else:
+            not_found.append(payload)
+        completed += 1
+        if on_progress:
+            on_progress(completed, total)
     _enrich_tracks_with_metadata(found)
-
     return found, not_found
 
 
