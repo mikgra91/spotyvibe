@@ -168,41 +168,9 @@
         </div>
     </div>
 
-    <!-- ═══ SHARED: Playlist destination (visible in both modes) ═══ -->
-    <div class="playlist-destination-section">
-        <label class="playlist-destination-label" data-i18n="generate.destination_label">Save to</label>
-        <div class="playlist-mode-row">
-            <div class="playlist-mode-options">
-                {% for mode in playlist_modes %}
-                <label class="playlist-mode-option">
-                    <input type="radio" name="playlist_mode" value="{{ mode.value }}"
-                        {% if current_playlist_mode == mode.value %}checked{% endif %}
-                        onchange="onPlaylistModeChange()"> <span data-i18n="generate.mode_{{ mode.value }}">{{ mode.label }}</span>
-                </label>
-                {% endfor %}
-            </div>
-            <div id="playlistNameRow" class="playlist-name-row {% if current_playlist_mode in ('create',) %}{% else %}hidden{% endif %}">
-                <input id="playlistNameInput" type="text" data-i18n-placeholder="generate.playlist_name_placeholder" placeholder="Playlist name" maxlength="200" class="playlist-name-input" value="{{ playlist_name if playlist_name }}">
-            </div>
-            <div id="playlistPickerRow" class="playlist-picker-row {% if current_playlist_mode in ('append', 'replace') %}{% else %}hidden{% endif %}">
-                <select id="playlistPicker" class="playlist-picker-select">
-                    {% if playlist_options %}
-                        {% for pl in playlist_options %}
-                        <option value="{{ pl.id }}">{{ pl.name }}</option>
-                        {% endfor %}
-                    {% else %}
-                    <option value="">Loading playlists…</option>
-                    {% endif %}
-                </select>
-                <button class="playlist-refresh-btn" onclick="refreshDiscoverPlaylistPicker()" aria-label="Refresh playlist list" data-i18n-title="playlist.refresh_aria" title="Refresh playlist list">↻</button>
-                <button class="btn-icon playlist-delete-btn" onclick="deleteSelectedPlaylist('playlistPicker')" aria-label="Delete selected playlist" data-i18n-title="playlist.delete_aria" title="Delete selected playlist">🗑</button>
-            </div>
-        </div>
-    </div>
-
     <!-- ═══ SHARED: Run section (outside both mode bodies) ═══ -->
     <div class="run-section">
-        <button class="btn-run" id="runBtn" onclick="runPipeline()" {% if not can_generate %}disabled{% endif %}><span aria-hidden="true">▶</span> <span data-i18n="btn.generate">Generate &amp; Create Playlist</span></button>
+        <button class="btn-run" id="runBtn" onclick="runPipeline()" {% if not can_generate %}disabled{% endif %}><span aria-hidden="true">▶</span> <span data-i18n="btn.generate">Generate Suggestions</span></button>
         <button class="btn-run-cancel hidden" id="cancelBtn" onclick="cancelGeneration()"><span aria-hidden="true">⛔</span> <span data-i18n="btn.cancel_generation">Cancel</span></button>
         <button class="btn-use-tracks hidden" id="useTracksBtn" onclick="useCurrentTracks()"><span aria-hidden="true">▶</span> Use 0 tracks now</button>
         <p class="cost-footnote hidden" id="costFootnote" onclick="toggleCostPopover(event)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCostPopover(event)}" role="button" tabindex="0" aria-expanded="false" aria-controls="costPopoverCard">
@@ -259,6 +227,10 @@
     <!-- ── Discover tracklist (inside section body) ── -->
     <div id="discoverTrackArea" class="{% if not tracklist %}hidden{% endif %}">
         <hr class="inline-divider">
+        <div class="tracklist-actions-row">
+            <button class="btn btn-apply" onclick="openApplyModal()" data-i18n="btn.apply_playlist">Apply to Playlist</button>
+            <button class="btn btn-clear-list" onclick="clearSuggestions()" data-i18n="btn.clear_list">Clear</button>
+        </div>
         <div id="statusBox" class="hidden"></div>
         <div id="playlistLinkBox" class="playlist-link-box hidden"></div>
         <div class="songlist-counter-row">

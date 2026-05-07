@@ -653,6 +653,7 @@ async function _postFeedbackAndReact(action, artist, track, reason) {
             action, artist, track, reason,
             playlistId: _getContextPlaylistId(),
             trackId: currentTrack && currentTrack.track_id,
+            source: currentPreviewSource,
         });
         if (!result.ok) {
             showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', result.error));
@@ -720,6 +721,7 @@ export async function previewDismiss() {
             track: track.track,
             playlistId: _getContextPlaylistId(),
             trackId: track.track_id,
+            source: currentPreviewSource,
         });
         const { showToast } = await import('./ui.js');
         if (body && body.removed) {

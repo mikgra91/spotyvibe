@@ -147,6 +147,7 @@ export async function submitReviewFeedback(idx, action) {
             reason,
             playlistId: picker && picker.value ? picker.value : null,
             trackId: reviewTrack && reviewTrack.track_id,
+            source: 'review',
         });
 
         if (!result.ok) {
@@ -198,6 +199,7 @@ export async function dismissReviewTrack(idx) {
             track: track.track,
             playlistId: picker && picker.value ? picker.value : null,
             trackId: track.track_id,
+            source: 'review',
         });
         const msg = data.removed
             ? i18n('feedback.removed_from_playlist', 'Removed from playlist: {track}').replace('{track}', `${track.artist} — ${track.track}`)
@@ -287,6 +289,9 @@ export async function deleteSelectedPlaylist(pickerId) {
             return;
         }
         showToast(i18n('playlist.deleted', 'Playlist deleted.'), 'success');
+        // Clear the review track list since the playlist no longer exists
+        State.setReviewTracks([]);
+        renderReviewTracks();
         // Refresh both pickers
         State.invalidateCachedPlaylists();
         await populateReviewPlaylistPicker();

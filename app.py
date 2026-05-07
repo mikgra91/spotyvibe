@@ -613,6 +613,30 @@ def _sse_error(exc_or_message):
     return _sse("error", message=str(exc_or_message))
 
 
+def _add_tracks_to_suggested(profile, tracks):
+    """Add tracks to suggested_tracks in the profile (distinct by artist+track key)."""
+    history = profile.setdefault("history", {})
+    existing = history.get("suggested_tracks", [])
+    existing_keys = {
+        (e.get("artist", "").lower().strip(), e.get("track", "").lower().strip())
+        for e in existing
+    }
+    new_entries = []
+    for t in tracks:
+        key = (t.get("artist", "").lower().strip(), t.get("track", "").lower().strip())
+        if key not in existing_keys and key[0] and key[1]:
+            new_entries.append({"artist": key[0], "track": key[1]})
+            existing_keys.add(key)
+    if new_entries:
+        history["suggested_tracks"] = existing + new_entries
+        existing_artists = set(history.get("suggested_artists", []))
+        for entry in new_entries:
+            existing_artists.add(entry["artist"])
+        history["suggested_artists"] = sorted(existing_artists)
+        save_profile(profile)
+
+
+@app.route("/api/run", methods=["POST"])
 @app.route("/api/run", methods=["POST"])
 def run_pipeline():
     """Generate suggestions via OpenAI in batches of BATCH_SIZE, verify on
@@ -625,11 +649,6 @@ def run_pipeline():
     """
     body = request.get_json(force=True, silent=True) or {}
     run_id = body.get("run_id") or str(uuid.uuid4())
-    playlist_mode = body.get("playlist_mode", "default")
-    playlist_target_id = body.get("playlist_id") or None
-    playlist_custom_name = sanitize_text(str(body.get("playlist_name") or "").strip()) or None
-    if playlist_custom_name and len(playlist_custom_name) > 200:
-        playlist_custom_name = playlist_custom_name[:200]
     # Audio feature filters: {"energy": {"min": 0.6, "max": 1.0}, ...}
     audio_filters = body.get("audio_filters") or {}
     emerging_only = bool(body.get("emerging_only"))
@@ -679,7 +698,7 @@ def run_pipeline():
             if get_debug_mode():
                 clear_debug_log()
 
-            app_log(f"Generation run started: run_id={run_id} mode={playlist_mode}")
+            app_log(f"Generation run started: run_id={run_id}")
 
             playlist_size = get_playlist_size()
             # Wave 2: client-specified size overrides server default
@@ -1435,27 +1454,6 @@ def run_pipeline():
             if not emerging_only:
                 verified_tracks = verified_tracks[:playlist_size]
 
-            # 5 — Add all verified tracks to the Spotify playlist
-            yield _sse("progress", message=f"Adding {len(verified_tracks)} tracks to Spotify playlist…")
-            playlist_info = add_to_playlist(
-                verified_tracks,
-                mode=playlist_mode,
-                playlist_id=playlist_target_id,
-                playlist_name=playlist_custom_name,
-                profile=profile,
-            )
-
-            # Save run history (before stripping internal keys)
-            try:
-                save_run(
-                    run_id=run_id,
-                    playlist_id=playlist_info.get("playlist_id") or "",
-                    playlist_url=playlist_info.get("url") or "",
-                    tracks=verified_tracks,
-                )
-            except Exception:
-                pass  # history save is best-effort
-
             # Strip internal "uri" key — the UI doesn't need it
             _HIDDEN_KEYS = {"uri"}
             visible_playlist = [
@@ -1480,9 +1478,6 @@ def run_pipeline():
             yield _sse(
                 "result",
                 playlist=visible_playlist,
-                playlist_url=playlist_info.get("url"),
-                playlist_id=playlist_info.get("playlist_id"),
-                added=playlist_info.get("added", 0),
                 not_found=all_not_found,
                 was_cancelled=was_cancelled or gpt_exhausted,
                 **({"emerging_shown": len(visible_playlist), "emerging_checked": emerging_checked} if emerging_only else {}),
@@ -1557,6 +1552,90 @@ def cancel_run():
     return jsonify({"status": "not_found"})
 
 
+@app.route("/api/apply-playlist", methods=["POST"])
+def apply_playlist():
+    """Apply the staged suggestion list to a Spotify playlist.
+
+    Body: {
+        tracks: [{artist, track, track_id, uri?, ...}, ...],
+        playlist_mode: "create" | "append" | "replace",
+        playlist_name: str (for create mode),
+        playlist_id: str (for append/replace mode),
+    }
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    tracks = data.get("tracks")
+    if not tracks or not isinstance(tracks, list):
+        return jsonify({"error": "No tracks provided."}), 400
+    if len(tracks) > MAX_SONG_LIST_SIZE:
+        tracks = tracks[:MAX_SONG_LIST_SIZE]
+
+    playlist_mode = data.get("playlist_mode", "create")
+    if playlist_mode not in ("create", "append", "replace"):
+        return jsonify({"error": "Invalid playlist_mode."}), 400
+    playlist_name = sanitize_text(str(data.get("playlist_name") or "").strip()) or None
+    if playlist_name and len(playlist_name) > 200:
+        playlist_name = playlist_name[:200]
+    playlist_id = _safe_spotify_id(data.get("playlist_id") or None)
+
+    if playlist_mode in ("append", "replace") and not playlist_id:
+        return jsonify({"error": "playlist_id is required for append/replace mode."}), 400
+
+    try:
+        spotify_status = get_spotify_auth_status()
+        if spotify_status != "authenticated":
+            return jsonify({"error": "Spotify is not connected."}), 401
+
+        # Build track list with URIs for add_to_playlist
+        verified_tracks = []
+        for t in tracks:
+            if t.get("uri"):
+                verified_tracks.append(t)
+            elif t.get("track_id"):
+                verified_tracks.append({**t, "uri": f"spotify:track:{t['track_id']}"})
+            else:
+                continue
+
+        if not verified_tracks:
+            return jsonify({"error": "No tracks with valid Spotify IDs."}), 400
+
+        profile = load_profile()
+        playlist_info = add_to_playlist(
+            verified_tracks,
+            mode=playlist_mode,
+            playlist_id=playlist_id,
+            playlist_name=playlist_name,
+            profile=profile,
+        )
+
+        # Add all tracks to suggested_tracks in profile (distinct)
+        _add_tracks_to_suggested(profile, verified_tracks)
+
+        # Save run history
+        try:
+            save_run(
+                run_id=str(uuid.uuid4()),
+                playlist_id=playlist_info.get("playlist_id") or "",
+                playlist_url=playlist_info.get("url") or "",
+                tracks=verified_tracks,
+            )
+        except Exception:
+            pass
+
+        return jsonify({
+            "status": "ok",
+            "playlist_url": playlist_info.get("url"),
+            "playlist_id": playlist_info.get("playlist_id"),
+            "added": playlist_info.get("added", 0),
+        })
+
+    except TranslatableError as e:
+        return jsonify(as_response_payload(e)), e.status_code
+    except Exception as e:
+        logger.exception("apply_playlist failed")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/feedback", methods=["POST"])
 def submit_feedback():
     """Record a like or dislike and persist it in music_profile.json.
@@ -1594,15 +1673,18 @@ def submit_feedback():
             # Stamp sentiment in run history for dashboard charts
             if track:
                 update_track_sentiment(artist, track, "disliked")
-            # Also remove the track from the Spotify playlist
-            if track:
+            # Only remove from Spotify playlist when source is "review"
+            source = data.get("source", "discover")
+            if source == "review" and track:
                 removal = remove_from_playlist(
                     artist, track,
                     playlist_id=playlist_id,
                     track_id=track_id,
                 )
-            else:
+            elif source == "review" and not track:
                 removal = {"removed": False, "reason": "No track specified"}
+            else:
+                removal = {"removed": False, "reason": "discover_mode"}
 
         response: dict = {"status": "ok"}
         if removal is not None:
@@ -1638,11 +1720,16 @@ def dislike_artist_purge():
     if reason and len(reason) > MAX_FEEDBACK_REASON_LEN:
         reason = reason[:MAX_FEEDBACK_REASON_LEN]
 
+    source = data.get("source", "discover")
+
     try:
         # 1. Persist the artist-level dislike (no track ⇒ artist-level).
         dislike_track(artist, track=None, reason=reason)
-        # 2. Strip the active playlist.
-        removal = remove_all_tracks_by_artist(artist, playlist_id=playlist_id)
+        # 2. Strip the active playlist only in review mode.
+        if source == "review":
+            removal = remove_all_tracks_by_artist(artist, playlist_id=playlist_id)
+        else:
+            removal = {"removed_count": 0, "reason": "discover_mode"}
         return jsonify({"status": "ok", "removal": removal})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1650,22 +1737,29 @@ def dislike_artist_purge():
 
 @app.route("/api/remove", methods=["POST"])
 def remove_track():
-    """Remove a track from the Spotify playlist without recording feedback."""
+    """Remove a track. In review mode, also removes from Spotify playlist."""
     data   = request.get_json(force=True)
     artist = safe_text(data, "artist")
     track  = safe_text(data, "track")
     playlist_id = _safe_spotify_id(safe_text(data, "playlist_id") or None)
     track_id    = _safe_spotify_id(safe_text(data, "track_id") or None)
+    source = data.get("source", "discover")
 
     if not artist or not track:
         return jsonify({"error": "Artist and track are required."}), 400
 
     try:
-        result = remove_from_playlist(
-            artist, track,
-            playlist_id=playlist_id,
-            track_id=track_id,
-        )
+        if source == "review":
+            result = remove_from_playlist(
+                artist, track,
+                playlist_id=playlist_id,
+                track_id=track_id,
+            )
+        else:
+            # Discover mode: add to suggested_tracks, no Spotify removal
+            profile = load_profile()
+            _add_tracks_to_suggested(profile, [{"artist": artist, "track": track}])
+            result = {"removed": False, "reason": "discover_mode"}
         return jsonify(result)
 
     except Exception as e:

@@ -388,7 +388,7 @@ class TestSubmitFeedback:
         mock_remove.return_value = {"removed": True}
         resp = client.post(
             "/api/feedback",
-            data=json.dumps({"action": "dislike", "artist": "Bad", "track": "Song"}),
+            data=json.dumps({"action": "dislike", "artist": "Bad", "track": "Song", "source": "review"}),
             content_type="application/json",
         )
         assert resp.status_code == 200
@@ -430,7 +430,7 @@ class TestRemoveTrack:
         mock_remove.return_value = {"removed": True}
         resp = client.post(
             "/api/remove",
-            data=json.dumps({"artist": "A", "track": "B"}),
+            data=json.dumps({"artist": "A", "track": "B", "source": "review"}),
             content_type="application/json",
         )
         assert resp.status_code == 200
@@ -561,7 +561,7 @@ class TestRunPipeline:
         )
         data = resp.data.decode()
         assert "result" in data
-        assert "open.spotify.com" in data
+        assert '"artist": "a"' in data
 
     @patch("app.save_run")
     @patch("app.add_to_playlist")
@@ -1020,8 +1020,8 @@ class TestMainPageStructure:
         assert 'id="trainAvoid"' in self.html
 
     def test_playlist_mode_controls_exist(self):
-        """Playlist mode selector and playlist picker must exist."""
-        assert 'id="playlistPicker"' in self.html or 'name="playlistMode"' in self.html
+        """Apply playlist modal and playlist picker must exist."""
+        assert 'id="applyPlaylistModal"' in self.html or 'id="applyPlaylistPicker"' in self.html
 
 
 class TestOnclickHandlersRegistered:

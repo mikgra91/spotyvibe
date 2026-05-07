@@ -1,0 +1,37 @@
+<!-- Apply Playlist modal -->
+<div class="modal-overlay hidden" id="applyPlaylistModal" role="dialog" aria-modal="true" aria-labelledby="applyPlaylistModalTitle" aria-hidden="true" onclick="if(event.target===this)closeApplyModal()">
+    <div class="modal modal-sm">
+        <h2 id="applyPlaylistModalTitle"><span aria-hidden="true">🎵</span> <span data-i18n="apply.modal_title">Apply to Playlist</span></h2>
+
+        <div class="form-row">
+            <label class="radio-label">
+                <input type="radio" name="apply_playlist_mode" id="applyModeCreate" value="create" checked onchange="applyModeChange()">
+                <span data-i18n="apply.create">Create new playlist</span>
+            </label>
+            <label class="radio-label">
+                <input type="radio" name="apply_playlist_mode" id="applyModeAppend" value="append" onchange="applyModeChange()">
+                <span data-i18n="apply.append">Append to existing</span>
+            </label>
+            <label class="radio-label">
+                <input type="radio" name="apply_playlist_mode" id="applyModeReplace" value="replace" onchange="applyModeChange()">
+                <span data-i18n="apply.replace">Replace existing</span>
+            </label>
+        </div>
+
+        <div class="form-row" id="applyPlaylistNameRow">
+            <label for="applyPlaylistNameInput" data-i18n="apply.playlist_name_label">Playlist name</label>
+            <input type="text" id="applyPlaylistNameInput" placeholder="My SpotyVibe Playlist" data-i18n-placeholder="apply.playlist_name_placeholder">
+        </div>
+
+        <div class="form-row hidden" id="applyPlaylistPickerRow">
+            <label for="applyPlaylistPicker" data-i18n="apply.select_playlist_label">Select playlist</label>
+            <select id="applyPlaylistPicker"></select>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn btn-save" id="applySubmitBtn" onclick="submitApply()" data-i18n="apply.confirm">Apply</button>
+            <button class="btn btn-cancel" onclick="closeApplyModal()" data-i18n="btn.cancel">Cancel</button>
+        </div>
+    </div>
+</div>
+

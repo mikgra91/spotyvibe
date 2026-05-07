@@ -26,7 +26,7 @@
  *   (or 'unknown'). On network failure the promise rejects — callers should
  *   wrap the call in try/catch.
  */
-export async function postFeedback({ action, artist, track, reason, playlistId, trackId }) {
+export async function postFeedback({ action, artist, track, reason, playlistId, trackId, source }) {
     const resp = await fetch('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -37,6 +37,7 @@ export async function postFeedback({ action, artist, track, reason, playlistId, 
             reason: reason || null,
             playlist_id: playlistId || null,
             track_id: trackId || null,
+            source: source || 'discover',
         }),
     });
     const body = await resp.json().catch(() => ({}));
@@ -56,7 +57,7 @@ export async function postFeedback({ action, artist, track, reason, playlistId, 
  * @param {?string} p.trackId
  * @returns {Promise<{ok: boolean, status: number, body: Object}>}
  */
-export async function postRemove({ artist, track, playlistId, trackId }) {
+export async function postRemove({ artist, track, playlistId, trackId, source }) {
     const resp = await fetch('/api/remove', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -65,6 +66,7 @@ export async function postRemove({ artist, track, playlistId, trackId }) {
             track,
             playlist_id: playlistId || null,
             track_id: trackId || null,
+            source: source || 'discover',
         }),
     });
     const body = await resp.json().catch(() => ({}));

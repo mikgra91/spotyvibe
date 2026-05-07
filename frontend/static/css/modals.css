@@ -1,4 +1,4 @@
-/* modals.css — Modal overlay, modal panel, help modal, help content, screenshot lightbox */
+ /* modals.css — Modal overlay, modal panel, help modal, help content, screenshot lightbox */
 /* =============================================
    Modal overlay
    ============================================= */
@@ -29,6 +29,7 @@ body.modal-scroll-lock { overflow: hidden !important; }
     box-shadow: var(--shadow-elevated);
 }
 #settingsModal .modal { max-width: var(--modal-width-lg); }
+.modal.modal-sm { max-width: 420px; }
 .modal h2 {
     color: var(--primary);
     margin-bottom: var(--sp-6);

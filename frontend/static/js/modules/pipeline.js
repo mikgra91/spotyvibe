@@ -1,18 +1,14 @@
 import * as State from './state.js';
-import { showStatus, showStatusHtml, hidePlaylistLink, showPlaylistLink, showConfirm } from './ui.js';
+import { showStatus, showStatusHtml, hidePlaylistLink } from './ui.js';
 import { checkCredentialStatus, checkSpotifyAuth } from './auth.js';
 import { renderComponentWarnings } from './warnings.js';
-import { getPlaylistModePayload, getPlaylistMode, refreshDiscoverPlaylistPicker, ensurePlaylistsLoaded, switchToAppendMode, rememberLastPlaylistId } from './playlist-mode.js';
 import { getAudioFilters } from './audio-filters.js';
 import { renderTracks } from './tracklist.js';
 import { loadHistory } from './history.js';
-import { populateReviewPlaylistPicker } from './review.js';
 import { resetDashboard } from './taste_dashboard.js';
 import { i18n, localizedError } from './i18n.js';
 import { el } from './dom.js';
 import { estimate as estimateCost, recordRunSpend } from './cost_estimate.js';
-
-let _runPlaylistMode = null;  // playlist mode at time of generation (for auto-switch)
 
 export function toggleGenerateBody() {
     const body = el('generateBody');
@@ -46,7 +42,7 @@ export function setGenerating(generating) {
     const loadArea  = el('generateLoadingArea');
 
     runBtn.disabled  = generating;
-    runBtn.textContent = generating ? i18n('msg.generating', '⏳ Generating…') : '▶ ' + i18n('btn.generate', 'Generate & Create Playlist');
+    runBtn.textContent = generating ? i18n('msg.generating', '⏳ Generating…') : '▶ ' + i18n('btn.generate', 'Generate Suggestions');
 
     cancelBtn.classList.toggle('hidden', !generating);
 
@@ -97,25 +93,6 @@ export async function runPipeline() {
 
     if (!canGenerate()) return;
 
-    // Duplicate playlist name check (only for "create" mode)
-    const preMode = getPlaylistMode();
-    if (preMode === 'create') {
-        const nameInput = el('playlistNameInput');
-        const desiredName = (nameInput?.value || '').trim();
-        if (desiredName) {
-            const playlists = await ensurePlaylistsLoaded();
-            const duplicate = playlists.some(pl => pl.name.toLowerCase() === desiredName.toLowerCase());
-            if (duplicate) {
-                const msg = i18n('playlist_mode.duplicate_confirm', 'A playlist named "{name}" already exists.\n\nDo you want to create a duplicate?')
-                    .replace('{name}', desiredName);
-                const confirmed = await showConfirm(msg);
-                if (!confirmed) return;
-                const suffix = i18n('playlist_mode.duplicate_suffix', '_Duplicate');
-                nameInput.value = desiredName + suffix;
-            }
-        }
-    }
-
     State.setPartialTrackCount(0);
     State.setCurrentRunId(generateUUID());
     State.setCurrentAbortController(new AbortController());
@@ -123,30 +100,29 @@ export async function runPipeline() {
     showStatus(i18n('pipeline.starting', 'Starting pipeline…'), 'info');
     hidePlaylistLink();
 
-    const playlistPayload = getPlaylistModePayload();
-    _runPlaylistMode = playlistPayload.playlist_mode || 'default';
+    const payload = {};
     const audioFilters = getAudioFilters();
-    if (audioFilters) playlistPayload.audio_filters = audioFilters;
+    if (audioFilters) payload.audio_filters = audioFilters;
     const emergingOnly = el('emergingArtistsCheckbox')?.checked || false;
-    if (emergingOnly) playlistPayload.emerging_only = true;
+    if (emergingOnly) payload.emerging_only = true;
 
     // Wave 2: temperature from exploration slider
     try {
         const Exploration = window._explorationModule;
         if (Exploration) {
             const temp = Exploration.getTemperature();
-            if (temp != null) playlistPayload.temperature = temp;
+            if (temp != null) payload.temperature = temp;
         }
     } catch (_) { /* ignore */ }
 
     // Wave 2: playlist size from shared slider (overrides settings modal)
     const sizeSlider = document.querySelector('.gen-size-slider');
     if (sizeSlider) {
-        playlistPayload.playlist_size = parseInt(sizeSlider.value, 10);
+        payload.playlist_size = parseInt(sizeSlider.value, 10);
     }
 
     try {
-        await _startSseStream(State.currentRunId, State.currentAbortController.signal, playlistPayload);
+        await _startSseStream(State.currentRunId, State.currentAbortController.signal, payload);
     } catch (e) {
         if (e.name === 'AbortError') {
             // Expected — cancelGeneration() was called, status already set
@@ -285,7 +261,7 @@ export async function useCurrentTracks() {
     useBtn.disabled = true;
     useBtn.textContent = i18n('pipeline.finalising', '⏳ Finalising…');
 
-    showStatus(i18n('pipeline.creating_playlist', '⏳ Creating playlist with {count} track(s)…').replace('{count}', State.partialTrackCount), 'info');
+    showStatus(i18n('pipeline.creating_playlist', '⏳ Finalising with {count} track(s)…').replace('{count}', State.partialTrackCount), 'info');
 
     try {
         await fetch('/api/cancel', {
@@ -334,9 +310,14 @@ export function handleStreamEvent(event) {
             showStatus('⛔ ' + event.message, 'info');
             break;
         case 'result': {
-            State.setSuggestions(event.playlist || []);
+            // Append new suggestions to existing list (cap at 100)
+            const newTracks = event.playlist || [];
+            const maxSize = window._maxSongListSize || 100;
+            const currentTracks = State.suggestions.filter(Boolean);
+            const combined = [...currentTracks, ...newTracks].slice(0, maxSize);
+            State.setSuggestions(combined);
             renderTracks();
-            const _batchCount = State.suggestions.length;
+            const _batchCount = newTracks.length;
             if (State.historyBodyOpen) loadHistory();
 
             // P0.1: add this run's estimated cost to the session-cumulative
@@ -355,30 +336,16 @@ export function handleStreamEvent(event) {
                     });
                 }
             } catch (_) { /* ignore */ }
-            if (event.playlist_url) showPlaylistLink(event.playlist_url);
-            if (event.playlist_id) {
-                State.setLastGeneratedPlaylistId(event.playlist_id);
-                rememberLastPlaylistId(event.playlist_id);
-            }
             const parts = [
                 event.was_cancelled
-                    ? i18n('pipeline.stopped_early', '⛔ Generation stopped early. Playlist created with {count} track(s).').replace('{count}', _batchCount)
-                    : i18n('pipeline.suggestions_generated', '✅ {count} suggestions generated.').replace('{count}', _batchCount)
+                    ? i18n('pipeline.stopped_early', '⛔ Generation stopped early. {count} track(s) added to list.').replace('{count}', _batchCount)
+                    : i18n('pipeline.suggestions_generated', '✅ {count} suggestions added to list.').replace('{count}', _batchCount)
             ];
-            if (event.added) parts.push(i18n('pipeline.tracks_added', '{count} new track(s) added to playlist.').replace('{count}', event.added));
             if (event.not_found && event.not_found.length)
                 parts.push(i18n('pipeline.tracks_not_found', '{count} track(s) not found on Spotify.').replace('{count}', event.not_found.length));
             if (event.emerging_shown != null && event.emerging_checked != null)
                 parts.push(i18n('pipeline.emerging_filter_result', 'Showing {shown} of {checked} checked tracks — only tracks by recently emerged artists are included.').replace('{shown}', event.emerging_shown).replace('{checked}', event.emerging_checked));
             showStatus(parts.join(' '), event.was_cancelled ? 'info' : 'success');
-            // Playlist was created or modified — refresh both pickers
-            refreshDiscoverPlaylistPicker().then(() => {
-                populateReviewPlaylistPicker();
-                // Auto-switch to "append" mode after a "create" run
-                if (_runPlaylistMode === 'create' && event.playlist_id) {
-                    switchToAppendMode(event.playlist_id);
-                }
-            });
 
             // Refresh taste dashboard and run history with the new data
             resetDashboard();
@@ -387,7 +354,6 @@ export function handleStreamEvent(event) {
             // Wave 3: Tip triggers after successful generation
             if (window.Tips) {
                 window.Tips.maybeTrigger('first_generation_complete');
-                // Track generation count for the "five generations" tip
                 try {
                     const genCount = parseInt(localStorage.getItem('sv.gen_count') || '0', 10) + 1;
                     localStorage.setItem('sv.gen_count', genCount.toString());

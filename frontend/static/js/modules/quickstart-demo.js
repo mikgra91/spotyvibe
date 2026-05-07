@@ -227,13 +227,13 @@ function _step3Frames() {
             </div>`
         },
         {
-            caption: i18n('quickstart.demo3_f3', 'Click "Generate & Create Playlist"'),
+            caption: i18n('quickstart.demo3_f3', 'Click "Generate Suggestions"'),
             html: `<div class="qd-scene">
                 <div class="qd-provider qd-provider-spotify">
                     <div class="qd-accordion qd-open">
                         <div class="qd-accordion-header"><h4><span class="qd-icon">🎧</span> ${secDiscover}</h4></div>
                         <div class="qd-accordion-body">
-                            <button class="qd-btn qd-btn-primary qd-btn-wide qd-pulse">${i18n('quickstart.demo_ui_btn_generate', '▶ Generate & Create Playlist')}</button>
+                            <button class="qd-btn qd-btn-primary qd-btn-wide qd-pulse">${i18n('quickstart.demo_ui_btn_generate', '▶ Generate Suggestions')}</button>
                             <div class="qd-spinner qd-fade-in">${i18n('quickstart.demo_ui_status_generating', 'Generating suggestions…')}</div>
                         </div>
                     </div>

@@ -72,7 +72,7 @@ class TestPageLoadInteractive:
         page.goto(base_url)
         open_generate_section(page)
         expect(page.locator("#runBtn")).to_be_visible()
-        expect(page.locator("#runBtn")).to_have_text("▶ Generate & Create Playlist")
+        expect(page.locator("#runBtn")).to_have_text("▶ Generate Suggestions")
 
 
 class TestMetaTags:

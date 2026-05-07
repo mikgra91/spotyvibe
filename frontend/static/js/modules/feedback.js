@@ -133,6 +133,7 @@ export async function submitFeedback(idx, action) {
                     artist,
                     reason,
                     playlist_id: State.lastGeneratedPlaylistId,
+                    source: 'discover',
                 }),
             });
             const body = await resp.json().catch(() => ({}));
@@ -194,6 +195,7 @@ export async function submitFeedback(idx, action) {
             reason,
             playlistId: State.lastGeneratedPlaylistId,
             trackId: srcTrack && srcTrack.track_id,
+            source: 'discover',
         });
 
         if (!result.ok) {
@@ -216,25 +218,17 @@ export async function submitFeedback(idx, action) {
             if (window._svSessionDislikes >= 2 && window.Tips) {
                 window.Tips.maybeTrigger('disliked_2_plus');
             }
+            // Remove disliked track from the ephemeral list
+            animateRemove(idx);
         } else {
             showToast(i18n('feedback.liked', '👍 Liked: {track}').replace('{track}', `${artist}${trackLabel}`));
+            // Liked tracks stay in the list — user can still apply them to a playlist
         }
 
         resetDashboard();
 
         if (typeof window.refreshGettingStarted === 'function') {
             window.refreshGettingStarted();
-        }
-
-        const fbTrack = State.suggestions[idx];
-        animateRemove(idx);
-
-        if (fbTrack) {
-            fetch('/api/songlist/track', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ artist: fbTrack.artist, track: fbTrack.track }),
-            }).catch(() => {});
         }
     } catch (e) {
         showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
@@ -249,29 +243,18 @@ export async function removeTrack(idx) {
     if (!track) { animateRemove(idx); return; }
 
     try {
-        const { body: data } = await postRemove({
+        await postRemove({
             artist: track.artist,
             track: track.track,
             playlistId: State.lastGeneratedPlaylistId,
             trackId: track.track_id,
+            source: 'discover',
         });
-        const msg = data.removed
-            ? i18n('feedback.removed_from_playlist', 'Removed from playlist: {track}').replace('{track}', `${track.artist} — ${track.track}`)
-            : i18n('feedback.removed', 'Removed: {track}').replace('{track}', `${track.artist} — ${track.track}`);
-        showToast(msg);
     } catch (e) {
         /* Network error — still remove from UI */
     }
 
     animateRemove(idx);
-
-    if (track) {
-        fetch('/api/songlist/track', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ artist: track.artist, track: track.track }),
-        }).catch(() => {});
-    }
 }
 
 export function animateRemove(idx) {
