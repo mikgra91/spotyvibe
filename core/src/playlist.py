@@ -52,6 +52,7 @@ from spotipy.exceptions import SpotifyException
 from spotipy.oauth2 import SpotifyOAuth, CacheFileHandler
 from config import CACHE_FILE
 from .errors import TranslatableError
+from .rag.corpus import normalise_name
 from .utils import app_log
 
 logger = logging.getLogger(__name__)
@@ -887,6 +888,52 @@ def filter_emerging_artists(tracks, cutoff_months=6):
             rejected.append(track)
 
     return survivors, rejected
+
+
+def search_top_tracks_by_name(sp, name: str, max_tracks: int) -> list[str]:
+    """Return up to *max_tracks* relevance-ranked tracks for *name*.
+
+    Uses ``/v1/search?type=track&q=artist:"NAME"`` — the only path that
+    works post-Feb-2026 in Development Mode (``artist_top_tracks`` needs
+    Extended Quota Mode and returns 403). Filters hits to those whose
+    primary artist's normalised name matches the request, so search
+    fuzziness can't poison results with wrong-artist titles. Dedupes
+    on lowercase title to drop regional / remastered variants.
+
+    Returns ``[]`` on any error so a single missing artist never breaks
+    the caller. Mirrors :func:`build-tools/build_top_tracks_overlay.py
+    ._search_top_tracks_by_name`; live MCP verification of the response
+    shape is still pending (see next-steps.md Session 3).
+    """
+    if not name or not name.strip():
+        return []
+    target = normalise_name(name)
+    try:
+        resp = sp.search(
+            q=f'artist:"{name}"', type="track",
+            limit=min(10, max(max_tracks * 2, max_tracks)), market="from_token",
+        )
+    except Exception as exc:
+        logger.warning("search(track artist=%r) failed: %s", name, exc)
+        return []
+    items = ((resp or {}).get("tracks") or {}).get("items") or []
+    out: list[str] = []
+    seen: set[str] = set()
+    for tr in items:
+        if len(out) >= max_tracks:
+            break
+        artists = tr.get("artists") or []
+        if not any(normalise_name(a.get("name", "")) == target for a in artists):
+            continue
+        title = (tr.get("name") or "").strip()
+        if not title:
+            continue
+        key = title.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(title)
+    return out
 
 
 def get_user_playlists():

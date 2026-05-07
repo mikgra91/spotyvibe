@@ -1,0 +1,7 @@
+APPROVED_ARTISTS:
+{approved_artists}
+TASTE SUMMARY:
+{taste_summary}
+{recent_feedback}
+{audio_filters_block}
+Suggest UP TO {artist_count} artists, each with UP TO {tracks_per_artist} of their real released tracks. Return only JSON matching the schema.

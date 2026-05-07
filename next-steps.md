@@ -836,6 +836,66 @@ tests + 6 always-on-metrics tests.
   facet — both Spotify-independent, queued for a follow-up session.
 - **L5 / Q1 / Q3 / OPEN-*** — gated on E7 results.
 
+#### Artist-suggestion backend wiring — 2026-05-07
+
+Added `search_top_tracks_by_name(sp, name, max_tracks)` to
+[core/src/playlist.py](core/src/playlist.py) (between
+`filter_emerging_artists` and `get_user_playlists`). Mirrors
+`_search_top_tracks_by_name` in
+[build-tools/build_top_tracks_overlay.py:98-147](build-tools/build_top_tracks_overlay.py#L98-L147)
+— pure `sp.search(q='artist:"NAME"', type="track")` + normalised-name
+filter on the primary artist. Reuses canonical
+`core.src.rag.corpus.normalise_name` (no duplicated normaliser).
+`limit` clamped to ≤ 10 per SKILL.md (Feb-2026 search-limit
+reduction).
+
+**Note on approach:** Original recommendation was to *import* from
+build-tools. Not viable — `build-tools/` has no `__init__.py` and
+`build_top_tracks_overlay.py` already imports from
+`core.src.playlist` (would be circular). Settled on a thin in-place
+copy with a doc-link back to the build-tool original.
+
+**🔴 Deferred — live MCP verification of search response shape.**
+Spotify MCP returned 429 (app-wide rate-limit) twice during the
+2026-05-07 verification attempt. The implementation is grounded in:
+1. SKILL.md (Track `popularity` removed Feb 2026 — no field is read).
+2. The known-good build-tool reference impl shipped 2026-04-27.
+
+When the MCP quota resets, run these three live checks before merging
+the artist-suggestion feature end-to-end:
+
+1. `mcp__spotify__searchSpotify(query='artist:"radiohead"', type='track', limit=10)`
+   — confirm 2026 returns current tracks with usable URIs and the
+   `artists` array (we filter on `artists[*].name`).
+2. Inspect one track item — confirm `popularity` field is absent
+   (already documented; live confirmation is the safety net). Note any
+   surviving relevance signal in case we want a tie-break beyond
+   search-rank order.
+3. (Already done from README scan, no MCP call needed.) The Spotify
+   MCP exposes **no** artist-scoped "top tracks" tool — search +
+   filter is the only path. Confirmed against
+   `C:/Users/micha/.claude/mcp-servers/spotify-mcp-server/README.md`.
+
+**Resolved 2026-05-07:** Artist suggestions reuse the track-suggestion
+RAG pool — same `retrieve_candidates` invocation, same APPROVED_ARTISTS
+block fed into [prompts/artist_select_user.txt](prompts/artist_select_user.txt).
+No separate niche-biased pool.
+
+**Mirror the existing emerging-only RAG skip rule.** When `emerging_only=True`
+the corpus is bypassed for tracks today
+([core/src/suggestions.py:587-631](core/src/suggestions.py#L587-L631)) —
+the quarterly MusicBrainz dump cannot contain artists who debuted in
+the last ~3-6 months, and `filter_emerging_artists` post-filters
+factually anyway. Artist suggestions follow the same rule: **RAG fed
+when `emerging_only=False`; bypassed when `True`.**
+
+Wiring TODO when the backend lands: the artist prompt's hard constraint
+#2 ("ONLY suggest artists in the APPROVED_ARTISTS list") must be
+relaxed in emerging mode, parallel to how the track prompt swaps in
+the "debut within 6 months" constraint when the pool is absent.
+Spec the swap before implementing — don't ship contradictory
+constraints to the model.
+
 ### Files touched at handoff
 
 Backend:
