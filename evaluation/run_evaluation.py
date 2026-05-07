@@ -396,45 +396,45 @@ def main() -> int:
     # ── Run the matrix ────────────────────────────────────────────
     summaries = []
     overall_t0 = time.monotonic()
-    # Inter-model cooldown: prevents Spotify search 429-cascade between
-    # consecutive iterations. Spotify enforces a sliding-window quota per
-    # user token; back-to-back model runs that fan out many parallel
-    # searches can exhaust it and cause the next model to record 0 %
-    # Spotify-found purely as a side effect. 60 s is enough for the rolling
-    # window to drain in practice (raised from 15 s in Phase 2.6).
-    INTER_MODEL_COOLDOWN_S = 90
-    # 2026-05-07: longer inter-scenario cooldown. Crossing a scenario
-    # boundary means N models worth of search bursts have already
-    # landed against this token; a fresh "scenario start" with even
-    # the throttled serial-search mode can still tip the rolling
-    # window if it lands too soon. 120 s is empirically safe.
-    INTER_SCENARIO_COOLDOWN_S = 120
-    cooldown_skipped = True  # first iteration: nothing to cool down from
+    # 2026-05-07 (attempt 3): Spotify rate-limit hardening.
+    #
+    # The root problem: each run_for_model() call generates TWO
+    # playlists (A + B), each verifying ~15 tracks via Spotify search.
+    # Even at 1.5 s per call, that's ~45 s of sustained search traffic
+    # per playlist × 2 = ~90 s per model run. With 4 models per
+    # scenario and 11 scenarios, the cumulative load within Spotify's
+    # rolling-window quota (believed to be 30 s or 60 s) triggers 429s
+    # even when individual calls are well-spaced.
+    #
+    # Fix: a full 10-MINUTE cooldown between every run_for_model()
+    # call (i.e. between every model × iteration slot). This ensures
+    # the Spotify rolling window has fully drained before the next
+    # burst of ~30 search calls begins. Yes, this makes the full eval
+    # take ~18 h for 44 runs — but each run actually completes and
+    # produces usable data instead of burning OpenAI tokens on a run
+    # that will 429-crash during Spotify verify.
+    #
+    # The inter-scenario cooldown is subsumed by the per-run cooldown
+    # (every scenario boundary is also a run boundary).
+    INTER_RUN_COOLDOWN_S = 600  # 10 minutes
+    is_first_run = True
     try:
         for scn_idx, active_scenario in enumerate(active_scenarios):
-            if scn_idx > 0:
-                logger.info(
-                    "Cooling down %ds before next scenario to let Spotify rate-limit window drain…",
-                    INTER_SCENARIO_COOLDOWN_S,
-                )
-                time.sleep(INTER_SCENARIO_COOLDOWN_S)
-                # Don't double-sleep: the inter-model cooldown will
-                # already account for the gap to the first model of
-                # this scenario.
-                cooldown_skipped = True
             logger.info(
                 "═══ Scenario: %s — %s ═══",
                 active_scenario.name, active_scenario.description,
             )
             for model in models:
-                if not cooldown_skipped:
-                    logger.info(
-                        "Cooling down %ds before next model to let Spotify rate-limit window drain…",
-                        INTER_MODEL_COOLDOWN_S,
-                    )
-                    time.sleep(INTER_MODEL_COOLDOWN_S)
-                cooldown_skipped = False
                 for iteration in range(1, iterations + 1):
+                    if not is_first_run:
+                        logger.info(
+                            "Cooling down %ds (%.1f min) before next run to let "
+                            "Spotify rate-limit window fully drain…",
+                            INTER_RUN_COOLDOWN_S,
+                            INTER_RUN_COOLDOWN_S / 60,
+                        )
+                        time.sleep(INTER_RUN_COOLDOWN_S)
+                    is_first_run = False
                     logger.info(
                         "─── %s · %s · iter %d/%d ───",
                         active_scenario.name, model, iteration, iterations,
