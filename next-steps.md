@@ -736,7 +736,107 @@ python evaluation/run_evaluation.py --no-confirm
 If 429s persist even after a 1-hour cool-down, the remaining lever
 is to increase `SPOTIVIBE_SPOTIFY_SEARCH_DELAY_S` further (e.g. 2.0)
 or reduce the eval scope to fewer scenarios (`scenarios = default`
-in `settings.ini` instead of `all`).### Files touched at handoff
+in `settings.ini` instead of `all`).
+
+## 🆕 Session 3 deliverables — 2026-05-07 (Spotify-blocked work)
+
+User token blocked till 2026-05-08. Took the gap to land all
+Spotify-independent agenda items: U2, U4, U5, U6, Q4, M2, M3 plus doc
+sync. 876 core tests green (was 845, +31). 2 i18n parity tests green.
+
+#### U4 — Use-X-tracks-now busy state during finalize
+[pipeline.js](frontend/static/js/modules/pipeline.js) `useCurrentTracks()`
+now sets `aria-busy="true"` + saves the previous label, and restores both
+on fetch failure. `setGenerating(false)` clears any leftover
+busy/disabled state so the next run starts clean.
+
+#### U5 — Better GPT-exhaustion message
+Dropped the verbose technical fallback in [app.py](app.py)
+(`error.run.gpt_exhausted`); new copy: "Couldn't find more matching
+tracks. Try a smaller playlist or adjust the exploration slider."
+en/de/jp keys updated. Eval harness `_UNDER_FILL_PHRASES` retargeted to
+the new fallback.
+
+#### U2 — Transient vs permanent error classification
+`TranslatableError` and `as_response_payload()` in
+[core/src/errors.py](core/src/errors.py) gained `error_class:
+"transient"|"permanent"` (default permanent).
+[openai_http.py](core/src/openai_http.py) `OpenAIRateLimitError` /
+`OpenAITimeoutError` carry class-level `error_class = "transient"` +
+i18n keys.
+[app.py](app.py) `_classify_unknown_exception()` injects transient
+class for `SpotifyException` http_status 429 / 502-504. Frontend SSE
+error handler renders transient with ⏳ + `info` level, permanent with
+❌ + `error` level. 4 new i18n keys per language. 13 new tests
+(`TestErrorClass` in `test_errors.py` + `TestSseErrorClassification` in
+`test_app.py`).
+
+#### U6 — Live Spotify status pill
+New `<button id="spotifyStatusPill">` in
+[settings_gear.html](frontend/templates/settings_gear.html) between the
+language toggle and burger menu. Coloured-dot CSS in
+[components.css](frontend/static/css/components.css) (Spotify-green when
+authenticated, red when not, grey when unknown). State refreshed inside
+`renderComponentWarnings()` ([warnings.js](frontend/static/js/modules/warnings.js))
+which is already called by every auth-state path including the U1
+focus/visibilitychange re-check. Click toggles `toggleSpotifyConnection()`
+(re-using the existing menu handler). 4 new i18n keys per language.
+
+#### Q4 — Tag-precedence audit
+New [build-tools/audit_tag_precedence.py](build-tools/audit_tag_precedence.py).
+Loads the local Last.fm-enriched corpus, spot-checks 5 known mainstream
+artists, then sweeps all 174,200 rows. **Result on 2026-05-07 corpus
+(corpus_version=2026-05-06, 145,627 enriched rows): 145,627 / 145,627
+resolve via `_lastfm_popularity()`; 0 precedence-bug rows.** Mainstream
+artists (Beatles 6.5M listeners → 0.963; Drake 6.7M → 0.966) all clear
+the MB-proxy ceiling clamp at 1.0 — Phase B precedence wiring
+([core/src/rag/retrieval.py:431](core/src/rag/retrieval.py#L431) is
+fix-confirmed.
+
+Side note: the local `artists.jsonl.gz` was a non-gzipped JSONL written
+under the `.gz` suffix. Audit script handles via magic-byte detection +
+sibling-copy fallback (non-destructive). The runtime corpus loader
+should probably learn the same trick — filed as a follow-up.
+
+#### M2 — Local perf-baseline test
+New [test_perf_baseline.py](core/tests/test_perf_baseline.py) with 3
+budget tests on a frozen, deterministic 5,000-artist synthetic corpus
+(seeded `random.Random(20260507)`). `pytest.mark.perf` registered in
+[pytest.ini](pytest.ini); deselected by default via `addopts -m "not
+screenshots and not perf"`. Run with `pytest -m perf`. Budgets are 5×
+observed wall-clock — they catch O(n²) regressions, not micro-tuning.
+
+#### M3 — Per-run perf summary persisted to sqlite
+New [core/src/perf_log.py](core/src/perf_log.py): one row per
+generation, schema documented in
+[TechnicalManual.md](documentation/TechnicalManual.md) §"Per-run perf
+log". sqlite path: `<APP_DIR>/perf_log.sqlite`.
+[trace.py](core/src/trace.py) gained an always-on `_METRICS` accumulator
+(populated regardless of `DEBUG_MODE`) plus `current_stage_metrics()` /
+`current_run_id()` accessors. The heavy trace bundle (`stages` /
+disk-write) is still gated on `DEBUG_MODE`. Wired into the
+`/api/run` finally block in [app.py](app.py) — fires before
+`finalize_trace()` so the metrics are still in memory. 12 perf-log
+tests + 6 always-on-metrics tests.
+
+#### Doc sync
+- [UserManual.md](documentation/UserManual.md) — Spotify status pill
+  paragraph in §"5. Connect Spotify"; troubleshooting table updated for
+  the new exhaustion message + transient-error rendering.
+- [help.en.md](documentation/help.en.md) /
+  [help.de.md](documentation/help.de.md) /
+  [help.jp.md](documentation/help.jp.md) — status pill mention.
+- [TechnicalManual.md](documentation/TechnicalManual.md) — new
+  §"Per-run perf log" + §"SSE error classification".
+
+#### Files NOT touched (still queued in agenda)
+
+- **E7** baseline run — still gated on Spotify cool-down.
+- **U3** track-progress ETA, **Q2** Last.fm `getSimilar` similarity
+  facet — both Spotify-independent, queued for a follow-up session.
+- **L5 / Q1 / Q3 / OPEN-*** — gated on E7 results.
+
+### Files touched at handoff
 
 Backend:
 - [core/src/trace.py](core/src/trace.py) (E1)

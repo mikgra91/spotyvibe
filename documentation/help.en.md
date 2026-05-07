@@ -103,7 +103,7 @@ When you open SpotyVibe, you will see the main interface with two provider secti
 - **OpenAI** — Taste profile editor, AI profile updates, and AI Band/Song Analysis.
 - **Spotify** — Playlist generation, playlist refinement, and run history.
 
-Status pills at the top of each section show whether your credentials are configured and connected.
+Status pills at the top of each section show whether your credentials are configured and connected. The header also carries a small **Spotify status pill** — a coloured dot (green = connected, red = not connected, grey = unknown) next to the word "Spotify". Click it to connect or disconnect; it refreshes whenever the tab regains focus.
 
 Each major component is **collapsible/expandable**. You can click the section header (anywhere in the title area) or the toggle button to expand or collapse it. A short description below each title explains what the component does.
 

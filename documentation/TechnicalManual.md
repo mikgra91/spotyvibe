@@ -557,6 +557,70 @@ print(prompt_sizes.groupby(batches["config_signature"]).mean())
 
 ---
 
+## Per-run perf log (`core/src/perf_log.py`)
+
+M3 (2026-05-07). One sqlite row per playlist generation, written from
+the `/api/run` finally block before `trace.finalize_trace()` clears the
+in-memory metrics. Lets a longitudinal trend ("did latency drift over
+N weeks?") be answered with one SQL query without re-running the eval
+harness.
+
+**Path**: `<APP_DIR>/perf_log.sqlite`. Created on first write.
+
+**Schema** (`run_perf` table):
+
+| Column | Type | Notes |
+|---|---|---|
+| `run_id` | TEXT PRIMARY KEY | UUID; deduplicates on retry. |
+| `ts_utc` | TEXT NOT NULL | ISO-8601 insert time. |
+| `model` | TEXT | Selected model at `/api/run` time. |
+| `stage_metrics` | TEXT NOT NULL | JSON dump of `{stage: {duration_s, calls, tokens_in, tokens_out}}`. |
+| `tracks_found` | INTEGER NOT NULL | Verified tracks at finalisation. |
+| `tracks_target` | INTEGER NOT NULL | What the user requested. |
+| `exhausted` | INTEGER NOT NULL | 1 when GPT-exhaustion guard fired. |
+| `error` | TEXT | Truncated message when the run raised, else NULL. |
+| `schema_version` | INTEGER NOT NULL | Bumped on incompatible changes. |
+
+**Always-on metrics**: `core/src/trace.py` keeps a lightweight
+`_METRICS` accumulator that is populated regardless of `DEBUG_MODE`;
+the heavy trace bundle (`stages` payloads, disk write) still requires
+`DEBUG_MODE=true`. `trace.current_stage_metrics()` returns a deep copy
+for the perf-log writer.
+
+**Cost**: ~one `INSERT` per generation (≈ 1 ms). Failures are logged
++ swallowed so the perf log is never load-bearing.
+
+**Tests**: `core/tests/test_perf_log.py` (12 tests) plus
+`TestAlwaysOnMetrics` in `core/tests/test_trace.py` (6 tests).
+
+---
+
+## SSE error classification (`core/src/errors.py`)
+
+U2 (2026-05-07). `TranslatableError` and `as_response_payload()` now
+carry an `error_class` field with values `"transient"` or `"permanent"`.
+The frontend SSE handler renders transient failures with ⏳ + a soft
+status level (the user just retries) and permanent failures with ❌.
+
+**Classification entry points**:
+
+- `OpenAIRateLimitError` and `OpenAITimeoutError` (in
+  `core/src/openai_http.py`) carry class-level `error_class = "transient"`
+  and `key = "error.transient.openai_rate_limited" / "openai_slow"`.
+- Spotipy's `SpotifyException` is a third-party type; `app.py`
+  `_classify_unknown_exception()` inspects `http_status` (429 / 502 /
+  503 / 504) and injects the transient class + i18n key.
+- Anything else → defaults to `permanent`.
+
+**i18n keys** (en/de/jp): `error.transient.openai_rate_limited`,
+`error.transient.openai_slow`, `error.transient.spotify_rate_limited`,
+`error.transient.spotify_unavailable`.
+
+**Tests**: `TestErrorClass` in `core/tests/test_errors.py` (6 tests)
+and `TestSseErrorClassification` in `core/tests/test_app.py` (7 tests).
+
+---
+
 ## Tests
 
 ```bash

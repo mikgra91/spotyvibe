@@ -349,3 +349,84 @@ class TestStageMetrics:
         trace.stage_metrics_record("y", duration_s=1.0, tokens_in=1, tokens_out=1)
         # Nothing crashed; no singleton was created.
         assert trace.is_active() is False
+
+
+class TestAlwaysOnMetrics:
+    """M3 (2026-05-07): stage_metrics are collected even when DEBUG_MODE
+    is off so the perf-log can record per-run latency on production
+    deployments. Independent of the heavy trace bundle (which still
+    requires DEBUG_MODE for the disk write)."""
+
+    def test_metrics_collected_with_debug_off(self, debug_off):
+        from core.src import trace
+        trace.start_trace("run-prod")
+        # No heavy trace bundle exists ...
+        assert trace.is_active() is False
+        # ... but the lightweight metrics accumulator does capture.
+        with trace.time_stage(trace.STAGE_RAG_RETRIEVE):
+            pass
+        trace.stage_metrics_record(
+            trace.STAGE_STAGE3_SELECT,
+            duration_s=0.123, tokens_in=10, tokens_out=5,
+        )
+        trace.add_tokens(trace.STAGE_STAGE2_AVOID, 100, 50)
+        m = trace.current_stage_metrics()
+        assert trace.STAGE_RAG_RETRIEVE in m
+        assert m[trace.STAGE_RAG_RETRIEVE]["calls"] == 1
+        assert m[trace.STAGE_STAGE3_SELECT]["duration_s"] == 0.123
+        assert m[trace.STAGE_STAGE3_SELECT]["tokens_in"] == 10
+        assert m[trace.STAGE_STAGE2_AVOID]["tokens_in"] == 100
+        assert trace.current_run_id() == "run-prod"
+
+    def test_finalize_clears_metrics(self, debug_off):
+        from core.src import trace
+        trace.start_trace("run-fin")
+        with trace.time_stage(trace.STAGE_RAG_RETRIEVE):
+            pass
+        assert trace.current_stage_metrics()  # populated
+        trace.finalize_trace()
+        assert trace.current_stage_metrics() == {}
+        assert trace.current_run_id() is None
+
+    def test_start_resets_previous_metrics(self, debug_off):
+        from core.src import trace
+        trace.start_trace("run-1")
+        with trace.time_stage(trace.STAGE_RAG_RETRIEVE):
+            pass
+        trace.start_trace("run-2")
+        m = trace.current_stage_metrics()
+        assert m == {}  # cleared on new start
+        assert trace.current_run_id() == "run-2"
+
+    def test_metrics_returned_as_deep_copy(self, debug_off):
+        from core.src import trace
+        trace.start_trace("run-deep")
+        with trace.time_stage(trace.STAGE_RAG_RETRIEVE):
+            pass
+        m1 = trace.current_stage_metrics()
+        m1[trace.STAGE_RAG_RETRIEVE]["calls"] = 999
+        m2 = trace.current_stage_metrics()
+        assert m2[trace.STAGE_RAG_RETRIEVE]["calls"] == 1
+
+    def test_no_run_id_no_capture(self, debug_off):
+        from core.src import trace
+        # No start_trace call → metrics stay empty.
+        with trace.time_stage(trace.STAGE_RAG_RETRIEVE):
+            pass
+        trace.add_tokens(trace.STAGE_STAGE2_AVOID, 1, 1)
+        assert trace.current_stage_metrics() == {}
+        assert trace.current_run_id() is None
+
+    def test_debug_on_writes_to_both(self, debug_on, tmp_path):
+        """When DEBUG_MODE is on, both the trace bundle AND the always-on
+        accumulator carry the metrics — they must agree."""
+        from core.src import trace
+        trace.start_trace("run-both")
+        with trace.time_stage(trace.STAGE_RAG_RETRIEVE):
+            pass
+        trace.add_tokens(trace.STAGE_RAG_RETRIEVE, 5, 3)
+        always_on = trace.current_stage_metrics()
+        from core.src.trace import _CURRENT
+        bundle_metrics = _CURRENT.stage_metrics
+        assert always_on[trace.STAGE_RAG_RETRIEVE]["tokens_in"] == 5
+        assert bundle_metrics[trace.STAGE_RAG_RETRIEVE]["tokens_in"] == 5

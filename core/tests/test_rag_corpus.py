@@ -90,6 +90,23 @@ def test_plain_jsonl_also_loads(tmp_path):
     assert len(corpus) == 5
 
 
+def test_loader_handles_misnamed_gz_file(tmp_path):
+    """Q4 follow-up (2026-05-07): a file landed under ``.jsonl.gz`` that
+    is actually plain JSONL (Cloud Run gsutil sync edge case) must load
+    via the magic-byte detection rather than exploding with
+    ``BadGzipFile``."""
+    path = tmp_path / "artists.jsonl.gz"
+    path.write_text(
+        "\n".join(json.dumps(r) for r in FIXTURE_ARTISTS),
+        encoding="utf-8",
+    )
+    # First two bytes are JSON ('{ "') — definitely not gzip.
+    with open(path, "rb") as fh:
+        assert fh.read(2) != b"\x1f\x8b"
+    corpus = RagCorpus.load(path)
+    assert len(corpus) == 5
+
+
 def test_bad_lines_are_skipped(tmp_path):
     path = tmp_path / "artists.jsonl"
     path.write_text(

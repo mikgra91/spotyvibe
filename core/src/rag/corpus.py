@@ -219,8 +219,25 @@ class RagCorpus:
         return cls(artists, aliases)
 
     @staticmethod
+    def _is_gzipped(path: Path) -> bool:
+        """Return True when the file's magic bytes are gzip's ``1f 8b``.
+
+        Cloud Run gsutil sync has been observed to write raw JSONL
+        under an ``.jsonl.gz`` filename (no recompression on download).
+        Trusting the suffix alone explodes the loader with
+        ``BadGzipFile`` even though the payload is perfectly valid
+        JSONL. Read the first two bytes once and decide for real.
+        """
+        try:
+            with open(path, "rb") as fh:
+                magic = fh.read(2)
+            return magic == b"\x1f\x8b"
+        except OSError:
+            return False
+
+    @staticmethod
     def _iter_rows(path: Path) -> Iterable[ArtistRow]:
-        opener = gzip.open if path.suffix == ".gz" else open
+        opener = gzip.open if RagCorpus._is_gzipped(path) else open
         with opener(path, "rt", encoding="utf-8") as fh:  # type: ignore[arg-type]
             for line_no, line in enumerate(fh, 1):
                 line = line.strip()

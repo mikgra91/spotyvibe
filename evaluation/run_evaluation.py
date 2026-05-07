@@ -189,6 +189,39 @@ def _apply_stage2_override(stage2_model: str | None) -> None:
     logging.getLogger(__name__).info("STAGE2_MODEL overridden → %s", stage2_model)
 
 
+# ── Spotify pre-flight 429 check ────────────────────────────────────
+
+def check_spotify_not_rate_limited() -> int | None:
+    """Fire one cheap Spotify search to detect an active 429 penalty block.
+
+    Returns the raw ``Retry-After`` value (seconds) if blocked, or ``None``
+    when the account is clear.  Called BEFORE any OpenAI quota is burned so
+    a hard block aborts early with a human-readable message and exit code 7.
+    """
+    try:
+        from core.src.playlist import get_spotify_client
+        import spotipy
+
+        sp = get_spotify_client()
+        sp.search(
+            q='track:"primadonna like me" artist:"the struts"',
+            limit=1,
+            type="track",
+            market="from_token",
+        )
+        return None  # no 429
+    except Exception as exc:  # noqa: BLE001
+        # Import spotipy lazily — only available inside the production path.
+        try:
+            import spotipy  # noqa: F401
+            if hasattr(exc, "http_status") and exc.http_status == 429:  # type: ignore[union-attr]
+                return int(exc.headers.get("Retry-After", 0))  # type: ignore[union-attr]
+        except Exception:
+            pass
+        # Non-429 error (auth, network) — don't block the run on this check.
+        return None
+
+
 # ── Cleanup-only path ────────────────────────────────────────────────
 
 def cleanup_only() -> int:
@@ -374,6 +407,29 @@ def main() -> int:
         logger.error("Sandbox setup failed: %s", exc)
         print(f"\n  ❌ Sandbox setup failed: {exc}\n", file=sys.stderr)
         return 3
+
+    # ── Spotify 429 pre-flight ────────────────────────────────────────
+    # Fire one test search BEFORE burning any OpenAI quota.  A 429 here
+    # means Spotify has imposed a penalty window that our per-call back-off
+    # cap (90 s) cannot drain — aborting now saves money and avoids a run
+    # full of partial failures.
+    import config as _cfg_tmp  # noqa: F401
+    _cfg_tmp.load_config()
+    blocked_for_s = check_spotify_not_rate_limited()
+    if blocked_for_s is not None:
+        h, rem = divmod(blocked_for_s, 3600)
+        m = rem // 60
+        msg = (
+            f"\n  ❌ Spotify search API returned 429 — account is rate-limited.\n"
+            f"     Retry-After: {blocked_for_s:,} s  (~{h}h {m:02d}m)\n"
+            f"     Re-run after the block expires.  No OpenAI quota was burned.\n"
+        )
+        logger.error(
+            "Spotify 429 pre-flight: blocked for %d s (~%dh %02dm). Aborting.",
+            blocked_for_s, h, m,
+        )
+        print(msg, file=sys.stderr)
+        return 7
 
     # Now safe to import production code — _APP_DIR resolves to sandbox.
     import config  # noqa: F401  — load + apply env overrides

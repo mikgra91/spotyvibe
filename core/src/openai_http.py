@@ -42,9 +42,15 @@ class OpenAIAuthError(OpenAIRequestError):
 class OpenAIRateLimitError(OpenAIRequestError):
     """429 — rate limit exceeded."""
 
+    error_class = "transient"
+    key = "error.transient.openai_rate_limited"
+
 
 class OpenAITimeoutError(OpenAIError):
     """Request timed out before a response was received."""
+
+    error_class = "transient"
+    key = "error.transient.openai_slow"
 
 
 class OpenAIResponseError(OpenAIError):

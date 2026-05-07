@@ -108,6 +108,45 @@
 .lang-toggle-btn.active { background: var(--primary); color: var(--btn-cta-text); }
 .lang-toggle-sep { color: var(--text-muted); font-size: var(--fs-xs); user-select: none; opacity: 0.4; }
 
+/* ── Spotify status pill (U6 — 2026-05-07) ──
+   Live connection badge in the header. Click toggles connect/disconnect. */
+.spotify-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.3px;
+    padding: var(--sp-1) var(--sp-3);
+    cursor: pointer;
+    transition: all var(--transition);
+}
+@media (hover: hover) {
+    .spotify-status-pill:hover { color: var(--text-primary); border-color: var(--text-muted); }
+}
+.spotify-status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+}
+.spotify-status-connected .spotify-status-dot {
+    background: #1DB954; /* Spotify green */
+    box-shadow: 0 0 6px rgba(29,185,84,0.5);
+}
+.spotify-status-disconnected .spotify-status-dot {
+    background: #e74c3c;
+}
+.spotify-status-unknown .spotify-status-dot {
+    background: var(--text-muted);
+    opacity: 0.6;
+}
+
 /* ── Burger menu ── */
 .burger-wrapper { position: relative; }
 .burger-btn {

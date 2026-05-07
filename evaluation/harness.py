@@ -389,7 +389,7 @@ def _step_playlist(flask_app, playlist_size: int) -> dict[str, Any]:
         # was removed from the supported list in Phase 2.6.)
         _UNDER_FILL_PHRASES = (
             "no tracks could be verified on spotify",
-            "gpt kept suggesting already-known",
+            "couldn't find more matching tracks",
         )
         if any(p in error_msg.lower() for p in _UNDER_FILL_PHRASES):
             logger.info(

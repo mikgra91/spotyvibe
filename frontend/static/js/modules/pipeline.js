@@ -34,6 +34,45 @@ export function generateUUID() {
     });
 }
 
+// U3 (2026-05-07): track per-event timestamps for an ETA-style "est. Xs"
+// progress label. Reset at the start of each generation.
+let _trackVerifySamples = [];
+
+function _resetVerifyEta() {
+    _trackVerifySamples = [];
+}
+
+function _pushVerifySample(count) {
+    const now = (typeof performance !== 'undefined' && performance.now)
+        ? performance.now() : Date.now();
+    _trackVerifySamples.push({ t: now, count });
+    // Keep only the last 12 samples — recent rate matters more than
+    // the long-tail average across all batches.
+    if (_trackVerifySamples.length > 12) _trackVerifySamples.shift();
+}
+
+function _estimateRemainingSeconds(currentCount, total) {
+    if (total <= currentCount) return null;
+    if (_trackVerifySamples.length < 2) return null;
+    const first = _trackVerifySamples[0];
+    const last = _trackVerifySamples[_trackVerifySamples.length - 1];
+    const dt = (last.t - first.t) / 1000.0;
+    const dn = last.count - first.count;
+    if (dt <= 0 || dn <= 0) return null;
+    const rate = dn / dt;             // tracks per second
+    const remaining = total - currentCount;
+    const eta = remaining / rate;
+    if (!isFinite(eta) || eta < 0) return null;
+    return eta;
+}
+
+function _formatEta(seconds) {
+    // Round to whole seconds; clamp to a useful display range.
+    if (seconds < 1) return '<1s';
+    if (seconds >= 60) return `${Math.round(seconds / 60)}m`;
+    return `${Math.round(seconds)}s`;
+}
+
 export function setGenerating(generating) {
     State.setIsGenerating(generating);
     const runBtn    = el('runBtn');
@@ -47,6 +86,12 @@ export function setGenerating(generating) {
     cancelBtn.classList.toggle('hidden', !generating);
 
     useBtn.classList.toggle('hidden', !generating || State.partialTrackCount === 0);
+    if (!generating) {
+        // Clear any leftover busy/disabled state from a finalize-in-flight
+        // so a fresh generation starts the button clean.
+        useBtn.disabled = false;
+        useBtn.removeAttribute('aria-busy');
+    }
 
     if (loadArea) {
         loadArea.classList.toggle('hidden', !generating);
@@ -96,6 +141,7 @@ export async function runPipeline() {
     State.setPartialTrackCount(0);
     State.setCurrentRunId(generateUUID());
     State.setCurrentAbortController(new AbortController());
+    _resetVerifyEta();
     setGenerating(true);
     showStatus(i18n('pipeline.starting', 'Starting pipeline…'), 'info');
     hidePlaylistLink();
@@ -258,7 +304,10 @@ export async function useCurrentTracks() {
     if (!State.isGenerating || !State.currentRunId || State.partialTrackCount === 0) return;
 
     const useBtn = el('useTracksBtn');
+    const prevLabel = useBtn.textContent;
+    const prevDisabled = useBtn.disabled;
     useBtn.disabled = true;
+    useBtn.setAttribute('aria-busy', 'true');
     useBtn.textContent = i18n('pipeline.finalising', '⏳ Finalising…');
 
     showStatus(i18n('pipeline.creating_playlist', '⏳ Finalising with {count} track(s)…').replace('{count}', State.partialTrackCount), 'info');
@@ -269,7 +318,15 @@ export async function useCurrentTracks() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ run_id: State.currentRunId, finalize: true }),
         });
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+        // Network failure before finalize was acknowledged: restore the
+        // button so the user can retry. On success the result SSE will
+        // hide the button via setGenerating(false), so no restore is
+        // needed in the happy path.
+        useBtn.disabled = prevDisabled;
+        useBtn.removeAttribute('aria-busy');
+        useBtn.textContent = prevLabel;
+    }
 }
 
 export function handleStreamEvent(event) {
@@ -297,12 +354,23 @@ export function handleStreamEvent(event) {
             const total = (typeof event.total === 'number' && event.total > 0) ? event.total : null;
             const cnt = (typeof event.count === 'number') ? event.count : null;
             if (cnt !== null && total !== null) {
-                const tmpl = i18n('pipeline.verifying_progress',
-                                   '⏳ Verifying… {count} of {total} tracks confirmed');
-                showStatus(
-                    tmpl.replace('{count}', cnt).replace('{total}', total),
-                    'info',
-                );
+                // U3 (2026-05-07): record sample + compute rate-based ETA.
+                _pushVerifySample(cnt);
+                const eta = _estimateRemainingSeconds(cnt, total);
+                let msg;
+                if (eta !== null) {
+                    const tmpl = i18n('pipeline.verifying_progress_eta',
+                                      '⏳ Verifying… {count} of {total} tracks confirmed — est. {eta} remaining');
+                    msg = tmpl
+                        .replace('{count}', cnt)
+                        .replace('{total}', total)
+                        .replace('{eta}', _formatEta(eta));
+                } else {
+                    const tmpl = i18n('pipeline.verifying_progress',
+                                       '⏳ Verifying… {count} of {total} tracks confirmed');
+                    msg = tmpl.replace('{count}', cnt).replace('{total}', total);
+                }
+                showStatus(msg, 'info');
             }
             break;
         }
@@ -367,7 +435,15 @@ export function handleStreamEvent(event) {
                 { error: event.message, error_key: event.error_key, error_params: event.error_params },
                 event.message
             );
-            showStatus('❌ ' + localized, 'error');
+            // U2 (2026-05-07): transient upstream failures (Spotify 429,
+            // OpenAI rate-limit / timeout) render with ⏳ and a softer
+            // status level so users perceive them as "wait and retry"
+            // rather than a permanent break. Permanent errors keep ❌.
+            if (event.error_class === 'transient') {
+                showStatus('⏳ ' + localized, 'info');
+            } else {
+                showStatus('❌ ' + localized, 'error');
+            }
             break;
         }
     }

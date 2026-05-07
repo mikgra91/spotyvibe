@@ -1262,3 +1262,171 @@ class TestSessionAndTokenEndpoints:
         resp = client.get("/api/spotify/token")
         assert resp.status_code == 401
 
+
+class TestPerfLogWiring:
+    """M3 (2026-05-07): /api/run finally block records one perf_log row
+    per generation. Patch ``core.src.perf_log.record_run`` and assert
+    the call shape — keeps the wiring honest if a refactor moves the
+    call site."""
+
+    @patch("core.src.perf_log.record_run")
+    @patch("app.save_run")
+    @patch("app.add_to_playlist")
+    @patch("app.iter_search_tracks")
+    @patch("app.filter_duplicate_suggestions")
+    @patch("app.call_gpt")
+    @patch("app.save_profile")
+    @patch("app.update_profile")
+    @patch("app.normalize_history")
+    @patch("app.load_profile")
+    @patch("app.get_new_artist_percentage", return_value=30)
+    @patch("app.get_playlist_size", return_value=10)
+    @patch("app.get_debug_mode", return_value=False)
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    @patch("app.is_profile_trained", return_value=True)
+    def test_perf_log_record_run_called_on_success(
+        self, _mock_trained, _mock_spotify, _mock_debug, _mock_size,
+        _mock_percentage, mock_load, mock_norm, mock_update,
+        _mock_save, mock_gpt, mock_filter, mock_search, mock_add,
+        _mock_save_run, mock_record, client,
+    ):
+        mock_load.return_value = {
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {},
+            "preferences": {},
+        }
+        mock_norm.return_value = mock_load.return_value
+        mock_gpt.return_value = (
+            {
+                "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 10,
+                "new_artists": ["a"],
+                "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
+            },
+            {"usage": None, "latency_s": 0.0},
+        )
+        mock_filter.return_value = {
+            "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 10,
+            "new_artists": ["a"],
+            "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
+        }
+        mock_update.return_value = mock_load.return_value
+        mock_search.side_effect = lambda *_a, **_kw: iter(
+            [("found",
+              {"artist": "a", "track": "b", "uri": f"spotify:track:{i}",
+               "cover_url": None})
+             for i in range(10)]
+        )
+        mock_add.return_value = {"url": "https://open.spotify.com/playlist/test", "added": 10}
+
+        resp = client.post(
+            "/api/run",
+            data=json.dumps({"run_id": "test-run-001"}),
+            content_type="application/json",
+        )
+        # Consume the streaming response so the generator runs to
+        # completion (including the finally that calls perf_log).
+        resp.data.decode()
+
+        assert mock_record.called, "perf_log.record_run was never called"
+        kwargs = mock_record.call_args.kwargs
+        args = mock_record.call_args.args
+        assert args and args[0] == "test-run-001"
+        assert kwargs.get("tracks_target") == 10
+        assert kwargs.get("tracks_found") == 10
+        assert kwargs.get("exhausted") is False
+        assert kwargs.get("error") is None
+
+    @patch("core.src.perf_log.record_run")
+    @patch("app.load_profile", side_effect=RuntimeError("boom"))
+    @patch("app.get_playlist_size", return_value=10)
+    @patch("app.get_debug_mode", return_value=False)
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    @patch("app.is_profile_trained", return_value=True)
+    def test_perf_log_record_run_called_on_error(
+        self, _mock_trained, _mock_spotify, _mock_debug, _mock_size,
+        _mock_load, mock_record, client,
+    ):
+        resp = client.post(
+            "/api/run",
+            data=json.dumps({"run_id": "test-run-err"}),
+            content_type="application/json",
+        )
+        resp.data.decode()
+        # Even when the run blew up before producing tracks, the finally
+        # block should still record a perf-log row with the error
+        # message. That's the whole point of writing it pre-finalize.
+        assert mock_record.called
+        kwargs = mock_record.call_args.kwargs
+        assert kwargs.get("error") is not None
+        assert "boom" in kwargs.get("error")
+        assert kwargs.get("tracks_found") == 0
+
+
+class TestSseErrorClassification:
+    """U2 (2026-05-07): _sse_error tags transient upstream failures."""
+
+    def _parse(self, sse_line):
+        # SSE frame format: "data: {json}\n\n"
+        assert sse_line.startswith("data: ")
+        return json.loads(sse_line[len("data: "):].strip())
+
+    def test_translatable_error_propagates_class(self):
+        from app import _sse_error
+        from core.src.errors import TranslatableError
+
+        exc = TranslatableError(
+            "error.transient.x", "Slow.", error_class="transient",
+        )
+        payload = self._parse(_sse_error(exc))
+        assert payload["type"] == "error"
+        assert payload["error_class"] == "transient"
+        assert payload["error_key"] == "error.transient.x"
+
+    def test_openai_rate_limit_classified_transient(self):
+        from app import _sse_error
+        from core.src.openai_http import OpenAIRateLimitError
+
+        exc = OpenAIRateLimitError("429", status_code=429)
+        payload = self._parse(_sse_error(exc))
+        assert payload["error_class"] == "transient"
+        assert payload["error_key"] == "error.transient.openai_rate_limited"
+
+    def test_spotify_429_classified_transient(self):
+        from app import _sse_error
+        from spotipy.exceptions import SpotifyException
+
+        exc = SpotifyException(429, -1, "rate limited")
+        payload = self._parse(_sse_error(exc))
+        assert payload["error_class"] == "transient"
+        assert payload["error_key"] == "error.transient.spotify_rate_limited"
+
+    def test_spotify_503_classified_transient(self):
+        from app import _sse_error
+        from spotipy.exceptions import SpotifyException
+
+        exc = SpotifyException(503, -1, "unavailable")
+        payload = self._parse(_sse_error(exc))
+        assert payload["error_class"] == "transient"
+        assert payload["error_key"] == "error.transient.spotify_unavailable"
+
+    def test_spotify_4xx_not_classified_transient(self):
+        from app import _sse_error
+        from spotipy.exceptions import SpotifyException
+
+        exc = SpotifyException(400, -1, "bad request")
+        payload = self._parse(_sse_error(exc))
+        assert "error_class" not in payload
+
+    def test_plain_runtime_error_omits_class(self):
+        from app import _sse_error
+
+        payload = self._parse(_sse_error(RuntimeError("boom")))
+        assert "error_class" not in payload
+        assert payload["message"] == "boom"
+
+    def test_string_message_path_unchanged(self):
+        from app import _sse_error
+
+        payload = self._parse(_sse_error("plain string error"))
+        assert payload == {"type": "error", "message": "plain string error"}
+

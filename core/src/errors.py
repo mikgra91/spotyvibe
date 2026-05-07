@@ -18,6 +18,10 @@ class TranslatableError(Exception):
     ``params`` are interpolated by the frontend (``{name}`` placeholders).
     ``status_code`` lets Flask handlers map a single error type to the
     correct HTTP status without an extra except branch.
+    ``error_class`` (U2) tags the failure as ``"transient"`` (e.g. upstream
+    rate-limit / timeout — the user can simply retry) or ``"permanent"``
+    (a real configuration / data problem). Frontend renders the two
+    differently (⏳ vs ❌).
     """
 
     def __init__(
@@ -27,12 +31,14 @@ class TranslatableError(Exception):
         *,
         params: dict[str, Any] | None = None,
         status_code: int = 400,
+        error_class: str = "permanent",
     ) -> None:
         super().__init__(message)
         self.key = key
         self.message = message
         self.params = dict(params) if params else None
         self.status_code = status_code
+        self.error_class = error_class
 
 
 def as_response_payload(exc: BaseException) -> dict[str, Any]:
@@ -50,4 +56,7 @@ def as_response_payload(exc: BaseException) -> dict[str, Any]:
         params = getattr(exc, "params", None)
         if isinstance(params, dict) and params:
             payload["error_params"] = params
+    error_class = getattr(exc, "error_class", None)
+    if isinstance(error_class, str) and error_class in ("transient", "permanent"):
+        payload["error_class"] = error_class
     return payload

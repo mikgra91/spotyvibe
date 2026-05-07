@@ -643,7 +643,13 @@ def _do_spotify_search(t, shared_sp):
                 # too low and let the eval cascade into a flagged
                 # account. Honour Retry-After up to 90 s in serial mode.
                 cap = 90 if _is_serial_search_mode() else 30
-                time.sleep(min(max(retry_after, backoff_floor), cap))
+                sleep_s = min(max(retry_after, backoff_floor), cap)
+                logger.warning(
+                    "Spotify 429 on attempt %d — Retry-After=%ds (raw), "
+                    "sleeping %ds (cap=%ds)",
+                    attempt + 1, retry_after, sleep_s, cap,
+                )
+                time.sleep(sleep_s)
                 continue
             raise
 

@@ -91,6 +91,8 @@ Below the title: **Equalizer** (default — frequency bars) or **Pulse** (concen
 
 After saving credentials, click **Connect to Spotify** in the banner. A popup handles the OAuth handshake. Disconnect any time via ☰ → **🔌 Disconnect Spotify**.
 
+The header carries a small **Spotify status pill** with a coloured dot — green when connected, red when disconnected, grey while the status is still being checked. The pill refreshes automatically when you switch back to the tab and click-toggles connect/disconnect like the menu item.
+
 > If you see `403 Forbidden` during generation, the app auto-disconnects. Just click **Connect to Spotify** to reconnect.
 
 ### 6. Build a music profile
@@ -336,8 +338,8 @@ Reinstall or update without losing anything.
 | Spotify auth fails with "INVALID_CLIENT" | Check Client ID/Secret and the redirect URIs in your Spotify Developer Dashboard. |
 | 403 Forbidden during generation | Session expired / permissions revoked. Click **Connect to Spotify** to reconnect. |
 | "OpenAI API key is not configured" | ☰ → Credentials; enter your OpenAI key. |
-| GPT keeps repeating songs and stops early | Loop protection kicked in (3 all-filtered batches). Use **▶ Use X tracks now** earlier, or expand your profile with new styles. |
-| "GPT could not generate any new tracks" | History too large. Add new styles or genres to the profile. |
+| "Couldn't find more matching tracks" | Loop protection kicked in (3 all-filtered batches). Try a smaller playlist size, adjust the exploration slider, or add new styles to the profile. |
+| ⏳ Spotify rate-limited / Model slow | Transient upstream throttle — wait a moment, then retry. The pipeline already retried internally before surfacing this. |
 | Most tracks "not found on Spotify" | GPT suggested obscure tracks. Try again — each run is different. |
 | "python-dotenv could not parse statement" | Credentials file corrupt. Re-save via ☰ → Credentials. |
 | Audio filters remove all tracks | Ranges are too narrow. Widen or clear them. |

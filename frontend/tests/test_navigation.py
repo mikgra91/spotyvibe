@@ -82,6 +82,36 @@ class TestBurgerMenu:
         expect(page.locator("#spotifyToggleBtn")).to_contain_text("Disconnect Spotify")
 
 
+class TestSpotifyStatusPill:
+    """U6 (2026-05-07): live Spotify status pill in the header.
+
+    The pill mirrors `State.spotifyAuthStatus` into a CSS class so the
+    coloured dot reflects the live connection state. Conftest patches
+    `get_spotify_auth_status` to return ``"authenticated"``, so the pill
+    should land in the connected state on every page load.
+    """
+
+    def test_pill_visible_in_header(self, page: Page, base_url):
+        page.goto(base_url)
+        page.wait_for_load_state("domcontentloaded")
+        expect(page.locator("#spotifyStatusPill")).to_be_visible()
+
+    def test_pill_shows_connected_when_authenticated(self, page: Page, base_url):
+        page.goto(base_url)
+        page.wait_for_load_state("domcontentloaded")
+        # Wait for renderComponentWarnings() to fire after the
+        # checkSpotifyAuth() pre-flight ping resolves.
+        pill = page.locator("#spotifyStatusPill.spotify-status-connected")
+        expect(pill).to_be_visible(timeout=5_000)
+
+    def test_pill_aria_label_localised(self, page: Page, base_url):
+        page.goto(base_url)
+        page.wait_for_load_state("domcontentloaded")
+        pill = page.locator("#spotifyStatusPill.spotify-status-connected")
+        expect(pill).to_be_visible(timeout=5_000)
+        expect(pill).to_have_attribute("aria-label", "Spotify connected")
+
+
 class TestKeyboardNavigation:
     """Keyboard accessibility — tab bar, accordion, modals, skip link."""
 

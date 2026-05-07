@@ -92,6 +92,15 @@ class TraceBundle:
 # off or no run is in flight.
 _CURRENT: TraceBundle | None = None
 
+# M3 (2026-05-07): always-on stage-metrics accumulator. Populated even
+# when DEBUG_MODE is off so the perf-log sqlite (one row per run) gets
+# durations + token counts on every generation, not just debug runs.
+# Reset on each ``start_trace`` and read by :func:`current_stage_metrics`
+# before :func:`finalize_trace` clears it. Mirror writes from
+# ``time_stage`` / ``add_tokens`` / ``stage_metrics_record``.
+_METRICS_RUN_ID: str | None = None
+_METRICS: dict[str, dict[str, Any]] = {}
+
 
 def _enabled() -> bool:
     """Return True when tracing should write data.
@@ -117,7 +126,11 @@ def start_trace(run_id: str, profile: dict | None = None) -> None:
 
     No-op when DEBUG_MODE is off — production runs pay nothing.
     """
-    global _CURRENT
+    global _CURRENT, _METRICS, _METRICS_RUN_ID
+    # M3: always reset the lightweight metrics accumulator so the
+    # perf-log captures one clean row per run, regardless of DEBUG_MODE.
+    _METRICS = {}
+    _METRICS_RUN_ID = run_id
     if not _enabled():
         _CURRENT = None
         return
@@ -189,7 +202,12 @@ def finalize_trace(base_dir: Path | None = None) -> Path | None:
     The directory is created on demand. Errors are logged and
     swallowed — the trace is diagnostic, never load-bearing.
     """
-    global _CURRENT
+    global _CURRENT, _METRICS, _METRICS_RUN_ID
+    # M3: tear down the always-on metrics accumulator so the next run
+    # starts clean. Callers that want the metrics must read them via
+    # :func:`current_stage_metrics` *before* calling finalize.
+    _METRICS = {}
+    _METRICS_RUN_ID = None
     if _CURRENT is None:
         return None
     bundle = _CURRENT
@@ -231,7 +249,9 @@ def time_stage(stage: str) -> Iterator[None]:
     caller pays only one ``time.perf_counter()`` lookup per entry/exit
     in production-DEBUG_MODE-off paths.
     """
-    if _CURRENT is None:
+    # M3: always time when a run is active, even when DEBUG_MODE is off
+    # so the perf-log can record latency on every generation.
+    if _CURRENT is None and _METRICS_RUN_ID is None:
         yield
         return
     t0 = time.perf_counter()
@@ -239,9 +259,14 @@ def time_stage(stage: str) -> Iterator[None]:
         yield
     finally:
         elapsed = time.perf_counter() - t0
-        m = _CURRENT.stage_metrics.setdefault(stage, _empty_stage_metric())
-        m["duration_s"] = round(m["duration_s"] + elapsed, 4)
-        m["calls"] += 1
+        if _CURRENT is not None:
+            m = _CURRENT.stage_metrics.setdefault(stage, _empty_stage_metric())
+            m["duration_s"] = round(m["duration_s"] + elapsed, 4)
+            m["calls"] += 1
+        if _METRICS_RUN_ID is not None:
+            mm = _METRICS.setdefault(stage, _empty_stage_metric())
+            mm["duration_s"] = round(mm["duration_s"] + elapsed, 4)
+            mm["calls"] += 1
 
 
 def add_tokens(stage: str, tokens_in: int | None, tokens_out: int | None) -> None:
@@ -253,11 +278,14 @@ def add_tokens(stage: str, tokens_in: int | None, tokens_out: int | None) -> Non
     (treated as zero) so callers don't have to guard around partial
     response shapes.
     """
-    if _CURRENT is None:
-        return
-    m = _CURRENT.stage_metrics.setdefault(stage, _empty_stage_metric())
-    m["tokens_in"] += int(tokens_in or 0)
-    m["tokens_out"] += int(tokens_out or 0)
+    if _CURRENT is not None:
+        m = _CURRENT.stage_metrics.setdefault(stage, _empty_stage_metric())
+        m["tokens_in"] += int(tokens_in or 0)
+        m["tokens_out"] += int(tokens_out or 0)
+    if _METRICS_RUN_ID is not None:
+        mm = _METRICS.setdefault(stage, _empty_stage_metric())
+        mm["tokens_in"] += int(tokens_in or 0)
+        mm["tokens_out"] += int(tokens_out or 0)
 
 
 def stage_metrics_record(
@@ -274,16 +302,40 @@ def stage_metrics_record(
     Always increments ``calls`` by one. Either argument may be None to
     skip that field.
     """
-    if _CURRENT is None:
-        return
-    m = _CURRENT.stage_metrics.setdefault(stage, _empty_stage_metric())
-    if duration_s is not None:
-        m["duration_s"] = round(m["duration_s"] + float(duration_s), 4)
-    m["calls"] += 1
-    if tokens_in is not None:
-        m["tokens_in"] += int(tokens_in or 0)
-    if tokens_out is not None:
-        m["tokens_out"] += int(tokens_out or 0)
+    if _CURRENT is not None:
+        m = _CURRENT.stage_metrics.setdefault(stage, _empty_stage_metric())
+        if duration_s is not None:
+            m["duration_s"] = round(m["duration_s"] + float(duration_s), 4)
+        m["calls"] += 1
+        if tokens_in is not None:
+            m["tokens_in"] += int(tokens_in or 0)
+        if tokens_out is not None:
+            m["tokens_out"] += int(tokens_out or 0)
+    if _METRICS_RUN_ID is not None:
+        mm = _METRICS.setdefault(stage, _empty_stage_metric())
+        if duration_s is not None:
+            mm["duration_s"] = round(mm["duration_s"] + float(duration_s), 4)
+        mm["calls"] += 1
+        if tokens_in is not None:
+            mm["tokens_in"] += int(tokens_in or 0)
+        if tokens_out is not None:
+            mm["tokens_out"] += int(tokens_out or 0)
+
+
+def current_stage_metrics() -> dict[str, dict[str, Any]]:
+    """M3: return a deep copy of the active run's stage_metrics.
+
+    Reads the always-on accumulator (independent of DEBUG_MODE) so the
+    perf-log can record per-run latency + token counts even on
+    production deployments. Returns an empty dict when no run is active.
+    Caller may mutate the result freely.
+    """
+    return {k: dict(v) for k, v in _METRICS.items()}
+
+
+def current_run_id() -> str | None:
+    """M3: return the run_id of the active run, or None when idle."""
+    return _METRICS_RUN_ID
 
 
 def reset_for_test() -> None:
@@ -292,8 +344,10 @@ def reset_for_test() -> None:
     Lets unit tests start fresh without depending on environment state.
     Production code should not call this.
     """
-    global _CURRENT
+    global _CURRENT, _METRICS, _METRICS_RUN_ID
     _CURRENT = None
+    _METRICS = {}
+    _METRICS_RUN_ID = None
 
 
 __all__ = [
@@ -309,6 +363,8 @@ __all__ = [
     "time_stage",
     "add_tokens",
     "stage_metrics_record",
+    "current_stage_metrics",
+    "current_run_id",
     "finalize_trace",
     "reset_for_test",
 ]

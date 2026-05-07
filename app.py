@@ -595,12 +595,39 @@ def _sse(event_type, **data):
     return f"data: {json.dumps({'type': event_type, **data})}\n\n"
 
 
+def _classify_unknown_exception(exc):
+    """U2: best-effort classification for exceptions not carrying their own
+    ``error_class`` / ``key`` attrs — most importantly spotipy's
+    ``SpotifyException`` which is a third-party type we can't subclass.
+
+    Returns a dict suitable for splatting into ``_sse('error', ...)``.
+    """
+    try:
+        from spotipy.exceptions import SpotifyException as _SpotifyException
+    except Exception:  # pragma: no cover - import guard
+        _SpotifyException = ()  # type: ignore[assignment]
+    if _SpotifyException and isinstance(exc, _SpotifyException):
+        status = getattr(exc, "http_status", None)
+        if status == 429:
+            return {
+                "error_class": "transient",
+                "error_key": "error.transient.spotify_rate_limited",
+            }
+        if status in (502, 503, 504):
+            return {
+                "error_class": "transient",
+                "error_key": "error.transient.spotify_unavailable",
+            }
+    return {}
+
+
 def _sse_error(exc_or_message):
     """Emit an SSE ``error`` event with i18n-aware payload.
 
     Accepts either a :class:`TranslatableError` (or any exception with a
     ``key`` attribute) or a plain string. Sends ``message`` for backwards
-    compatibility plus ``error_key`` / ``error_params`` when available.
+    compatibility plus ``error_key`` / ``error_params`` / ``error_class``
+    when available.
     """
     if isinstance(exc_or_message, BaseException):
         payload = as_response_payload(exc_or_message)
@@ -609,6 +636,10 @@ def _sse_error(exc_or_message):
             kwargs["error_key"] = payload["error_key"]
         if "error_params" in payload:
             kwargs["error_params"] = payload["error_params"]
+        if "error_class" in payload:
+            kwargs["error_class"] = payload["error_class"]
+        else:
+            kwargs.update(_classify_unknown_exception(exc_or_message))
         return _sse("error", **kwargs)
     return _sse("error", message=str(exc_or_message))
 
@@ -674,6 +705,16 @@ def run_pipeline():
         _runs[run_id] = {"cancel": cancel_event, "finalize_on_cancel": False, "verified_tracks": [], "created_at": time.monotonic()}
 
     def generate():
+        # M3 (2026-05-07): closure-shared state read by the finally block
+        # for the perf-log row. Survives every termination path (return,
+        # exception, GeneratorExit) — a generator's locals snapshot is
+        # not reliable in a finally that runs after the iterator closes.
+        _run_state = {
+            "tracks_found": 0,
+            "tracks_target": 0,
+            "exhausted": False,
+            "error": None,
+        }
         try:
             if not is_profile_trained():
                 yield _sse(
@@ -704,6 +745,7 @@ def run_pipeline():
             # Wave 2: client-specified size overrides server default
             if client_playlist_size is not None:
                 playlist_size = client_playlist_size
+            _run_state["tracks_target"] = int(playlist_size)
             new_artist_percentage = get_new_artist_percentage()
 
             yield _sse("progress", message="Loading profile…")
@@ -1214,6 +1256,7 @@ def run_pipeline():
 
                     if consecutive_empty_batches >= MAX_CONSECUTIVE_EMPTY_BATCHES:
                         gpt_exhausted = True
+                        _run_state["exhausted"] = True
                         yield _sse(
                             "progress",
                             message=f"Batch {batch_num}: GPT suggested only already-known tracks "
@@ -1355,6 +1398,7 @@ def run_pipeline():
                     if t["uri"] not in verified_uris:
                         verified_tracks.append(t)
                         verified_uris.add(t["uri"])
+                _run_state["tracks_found"] = len(verified_tracks)
 
                 # Keep run state updated so the cancel endpoint can report progress
                 with _runs_lock:
@@ -1428,9 +1472,8 @@ def run_pipeline():
                 yield _sse(
                     "error",
                     message=(
-                        "GPT kept suggesting already-known tracks and could not produce "
-                        "any new ones. Try updating your taste profile with new preferences, "
-                        "or reduce the playlist size."
+                        "Couldn't find more matching tracks. Try a smaller playlist "
+                        "or adjust the exploration slider."
                     ),
                     error_key="error.run.gpt_exhausted",
                 )
@@ -1475,6 +1518,7 @@ def run_pipeline():
             except Exception:
                 pass
 
+            _run_state["tracks_found"] = len(verified_tracks)
             yield _sse(
                 "result",
                 playlist=visible_playlist,
@@ -1485,10 +1529,33 @@ def run_pipeline():
 
         except Exception as e:
             traceback.print_exc()
+            _run_state["error"] = str(e)[:500]
             yield _sse_error(e)
         finally:
             with _runs_lock:
                 _runs.pop(run_id, None)
+            # M3 (2026-05-07): persist a per-run perf summary to local
+            # sqlite BEFORE finalize_trace clears the metrics
+            # accumulator. One row per generation regardless of
+            # DEBUG_MODE. Diagnostic-only — failures are swallowed.
+            # Reads out of the closure-shared ``_run_state`` so the
+            # values survive whichever branch (success / except /
+            # GeneratorExit) ended the run.
+            try:
+                from core.src import trace as _trace
+                from core.src import perf_log as _perf_log
+                _stage_metrics = _trace.current_stage_metrics()
+                _perf_log.record_run(
+                    run_id,
+                    stage_metrics=_stage_metrics,
+                    model=get_model(),
+                    tracks_found=_run_state.get("tracks_found", 0),
+                    tracks_target=_run_state.get("tracks_target", 0),
+                    exhausted=_run_state.get("exhausted", False),
+                    error=_run_state.get("error"),
+                )
+            except Exception as _exc:
+                app_log(f"perf_log.record_run failed: {_exc}")
             # F9: write the trace bundle. Always runs — partial runs
             # and cancellations should still leave a diagnostic
             # artifact. No-op when DEBUG_MODE was off.

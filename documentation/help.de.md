@@ -103,7 +103,7 @@ Wenn du SpotyVibe öffnest, siehst du die Hauptoberfläche mit zwei Anbieterbere
 - **OpenAI** — Geschmacksprofil-Editor, KI-Profil-Updates und KI-Band-/Song-Analyse.
 - **Spotify** — Playlist-Generierung, Playlist-Verfeinerung und Lauf-Verlauf.
 
-Status-Anzeigen oben in jedem Bereich zeigen, ob deine Zugangsdaten konfiguriert und verbunden sind.
+Status-Anzeigen oben in jedem Bereich zeigen, ob deine Zugangsdaten konfiguriert und verbunden sind. Im Kopfbereich befindet sich zusätzlich ein kleines **Spotify-Status-Pill** — ein farbiger Punkt (grün = verbunden, rot = nicht verbunden, grau = unbekannt) neben dem Wort „Spotify". Klick darauf verbindet bzw. trennt; der Status aktualisiert sich, sobald der Tab wieder fokussiert wird.
 
 Jede Hauptkomponente ist **auf-/zuklappbar**. Du kannst auf die Bereichsüberschrift (irgendwo im Titelbereich) oder den Ein-/Ausblenden-Button klicken, um sie auf- oder zuzuklappen. Eine kurze Beschreibung unter jedem Titel erklärt, was die Komponente tut.
 
