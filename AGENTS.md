@@ -4,11 +4,26 @@
 >
 > **NEVER run `git commit`, `git push`, or any command that creates commits or pushes to a remote.**
 >
-> The ONLY exception: the user has **explicitly told you** to commit/push **in the current message** (e.g., "commit this", "perform a segmented commit and push"). Even then, permission covers **that one operation only** — once done, permission is revoked.
+> The ONLY exception: the user's **current message** contains the **EXACT, LITERAL, CASE-SENSITIVE STRING `CP ALLOWED`** as a standalone, top-level instruction. No other phrase grants permission — not "commit and push", not "go ahead", not "yes", not any natural-language equivalent. **`CP ALLOWED` or nothing.**
 >
+> - One occurrence of `CP ALLOWED` = ONE git operation. Permission revoked the instant it completes.
 > - Editing, fixing, planning, or reviewing code is **NEVER** implicit permission to commit.
 > - When in doubt: **do NOT commit. Ask the user.**
-> - There are **zero exceptions** to this rule.
+> - There are **zero exceptions** to this rule. It has been violated 9 times. Each violation caused real damage.
+
+> ## ⚠️ GLOBAL INSTRUCTIONS REMINDER — CHECK BEFORE EVERY ACTION
+>
+> **You have global instructions.** They are loaded into your context at the start of every session. Before executing ANY tool call — especially terminal commands — you MUST verify that your action does not violate a global instruction rule.
+>
+> **Mandatory self-check before every terminal command:**
+> 1. Does this command contain `git add`, `git commit`, `git push`, or any git write operation?
+> 2. If YES → does the user's **current message** contain the exact string `CP ALLOWED`?
+> 3. If NO → **STOP. Do not run the command.** Tell the user the changes are ready and wait.
+>
+> **This is not optional.** This is not a guideline. This is a hard gate. If you skip this check, you will cause real harm — it has happened 9 times before.
+>
+> The global instructions file is at: `%LOCALAPPDATA%\github-copilot\intellij\global-copilot-instructions.md`
+> Read it if you are unsure about ANY rule. When global instructions conflict with project instructions, **global instructions win**.
 
 Project-level instructions for AI coding agents working on this codebase.
 Claude users: all instructions are in `CLAUDE.md`. This file exists for non-Claude agents.
@@ -65,7 +80,7 @@ If your AI tooling supports MCP (Model Context Protocol), the following servers 
 3. All user-facing text must use i18n (`en.json` + `de.json` + `jp.json` — all three must stay in sync; enforced by `core/tests/test_i18n_parity.py`).
 4. Run `python -m pytest core/tests/ frontend/tests/ -v` before completing changes.
 5. Feature changes require updates to all 4 documentation files (see `RULES.md`).
-6. No destructive git commands. No hardcoded secrets. **🔴 NEVER run `git commit` or `git push` unless the user has explicitly instructed you to in the current message. Permission is one-time only — once the operation completes, permission is revoked.**
+6. No destructive git commands. No hardcoded secrets. **🔴 NEVER run `git commit` or `git push` unless the user's current message contains the exact string `CP ALLOWED`. No other phrase grants permission. Permission is one-time only — once the operation completes, permission is revoked.**
 7. Spotify OAuth redirect: `http://127.0.0.1:5000/callback`.
 8. **🔴 Pre-existing test failures are NOT to be ignored.** When running the test suite (rule 4), **all** failures must be investigated and fixed — not just those caused by changes made in the current session. A test that was already broken before you started is still a bug. Report it, diagnose it, and fix it. Never dismiss a failure with "this wasn't caused by my changes" or silently skip it.
 

@@ -4,11 +4,12 @@
 >
 > **NEVER run `git commit`, `git push`, or any command that creates commits or pushes to a remote.**
 >
-> The ONLY exception: the user has **explicitly told you** to commit/push **in the current message** (e.g., "commit this", "perform a segmented commit and push"). Even then, permission covers **that one operation only** — once done, permission is revoked.
+> The ONLY exception: the user's **current message** contains the **EXACT, LITERAL, CASE-SENSITIVE STRING `CP ALLOWED`** as a standalone, top-level instruction. No other phrase grants permission — not "commit and push", not "go ahead", not "yes", not any natural-language equivalent. **`CP ALLOWED` or nothing.**
 >
+> - One occurrence of `CP ALLOWED` = ONE git operation. Permission revoked the instant it completes.
 > - Editing, fixing, planning, or reviewing code is **NEVER** implicit permission to commit.
 > - When in doubt: **do NOT commit. Ask the user.**
-> - There are **zero exceptions** to this rule.
+> - There are **zero exceptions** to this rule. It has been violated 9 times. Each violation caused real damage.
 
 AI-powered music discovery: Flask + OpenAI + Spotify Web API.
 
@@ -82,7 +83,7 @@ PLAYWRIGHT_BROWSERS_PATH="$LOCALAPPDATA/ms-playwright" LOCALAPPDATA=$(mktemp -d)
    - No destructive commands (`restore`, `checkout --`, `reset`, `clean`).
    - **Do not use `git stash` / `git stash pop` inside an assistant session** — pop re-injects every restored file's contents into the conversation as "intentional changes" system reminders, consuming tens of thousands of tokens. If work must be parked, commit to a scratch branch instead, or ask the user.
    - Sentence-case commit subjects, no trailing period.
-   - **🔴 NEVER run `git commit` or `git push` unless the user explicitly instructs you to in the current message.** One-time instructions grant permission for that operation only.
+   - **🔴 NEVER run `git commit` or `git push` unless the user's current message contains the exact string `CP ALLOWED`. No other phrase grants permission. Permission is one-time only — once the operation completes, permission is revoked.**
 6. **Security** — Never hardcode API keys. Never commit `.credentials`, `.spotify-cache`, or `personalized_music_profile.json`.
 7. **Large tasks** — Present a plan with files/order/summary and wait for confirmation before implementing.
 8. **No code style enforcement** — Rely on linters/formatters, not AI judgment. Only follow existing conventions.
