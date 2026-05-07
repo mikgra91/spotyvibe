@@ -95,6 +95,12 @@ class ModelRunResult:
     # when DEBUG_MODE was off or no metrics were recorded.
     stage_metrics_a: dict | None = None
     stage_metrics_b: dict | None = None
+    # E2/E3 (2026-05-07): Last.fm-aware coverage + listener distribution
+    # rollup, computed against the loaded RAG corpus. None when the
+    # corpus isn't available (RAG disabled / file missing). Schema is
+    # ``corpus_metrics.CorpusMetricsReport.to_json()``.
+    corpus_metrics_a: dict | None = None
+    corpus_metrics_b: dict | None = None
 
     # Raw result snapshots — kept terse so summary.json stays readable.
     seed_train_chars: int | None = None
@@ -445,6 +451,41 @@ def _extract_stage_metrics(trace_path: str | None) -> dict | None:
     return None
 
 
+def _extract_corpus_metrics(tracks: list[dict]) -> dict | None:
+    """E2/E3: Last.fm coverage + listener stats for *tracks* against the
+    live RAG corpus singleton.
+
+    Reads the corpus via ``suggestions.get_rag_corpus()`` rather than
+    re-loading from disk — the production code has already loaded it
+    at app startup, so this is a free lookup. Returns the
+    ``CorpusMetricsReport.to_json()`` dict or None if the corpus is
+    unavailable AND the playlist is empty (so the report wouldn't
+    carry useful information either way).
+
+    Never raises — corpus metrics are diagnostic; a lookup failure
+    must not fail the eval run.
+    """
+    if not tracks:
+        return None
+    try:
+        from core.src.suggestions import get_rag_corpus
+        from .corpus_metrics import compute_corpus_metrics
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.warning("[corpus_metrics] import failed: %s", exc)
+        return None
+    try:
+        corpus = get_rag_corpus()
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.warning("[corpus_metrics] get_rag_corpus failed: %s", exc)
+        corpus = None
+    try:
+        report = compute_corpus_metrics(tracks, corpus)
+        return report.to_json()
+    except Exception as exc:
+        logger.warning("[corpus_metrics] compute failed: %s", exc)
+        return None
+
+
 def _step_push_to_spotify(playlist_mod, tracks: list[dict],
                            playlist_name: str, profile: dict) -> dict[str, Any]:
     """Create a Spotify playlist and push verified tracks to it.
@@ -582,7 +623,13 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
     # P1 #7: per_run_dir is built in `finally`, but we resolve it now
     # so the per-playlist trace copies land alongside the eval-log
     # slice and summary.json instead of in a separate directory.
-    per_run_dir = results_dir / f"{model}-iter{iteration}"
+    # E7 (2026-05-07): include the scenario name when it isn't the
+    # default so multi-scenario runs don't collide on the same
+    # ``{model}-iter{n}`` slot.
+    if scn.name and scn.name != "default":
+        per_run_dir = results_dir / f"{scn.name}__{model}-iter{iteration}"
+    else:
+        per_run_dir = results_dir / f"{model}-iter{iteration}"
 
     try:
         # ── 0. Profile creation ──────────────────────────────────
@@ -651,6 +698,10 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
             # bundle so summary.json carries the timing/token data
             # without a separate consumer having to re-open the file.
             result.stage_metrics_a = _extract_stage_metrics(result.trace_a_path)
+            # E2/E3 (2026-05-07): Last.fm coverage + listener stats on
+            # playlist A. Reads the live RAG corpus singleton so the
+            # lookup is consistent with what Stage 1 actually saw.
+            result.corpus_metrics_a = _extract_corpus_metrics(tracks)
         except Exception as exc:
             result.playlist_status = "error"
             result.error = f"playlist: {exc}"
@@ -716,6 +767,8 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
                 )
                 # E1: same rollup extraction as playlist A.
                 result.stage_metrics_b = _extract_stage_metrics(result.trace_b_path)
+                # E2/E3: same coverage rollup as playlist A.
+                result.corpus_metrics_b = _extract_corpus_metrics(tracks_b)
             except Exception as exc:
                 result.playlist_b_status = "error"
                 tracks_b = []

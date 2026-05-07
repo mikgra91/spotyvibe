@@ -316,3 +316,222 @@ class TestCoverageScenarios:
             dislikes = set(scn.dislike_indices)
             assert likes.isdisjoint(dislikes), \
                 f"{name}: like/dislike index collision {likes & dislikes}"
+
+
+# ── E4/E5/E6 (2026-05-07): Last.fm-aware coverage scenarios ──────────
+
+class TestLastfmAwareScenarios:
+    """Three new scenarios that exercise the Phase B Last.fm signals.
+
+    They live in the same registry as the legacy + coverage scenarios
+    so the existing schema/disjoint tests already cover them; these
+    tests pin (a) registry membership and (b) that each one carries
+    the load-bearing Last.fm vocabulary in its prose.
+    """
+
+    NAMES = (
+        "lastfm_tag_weighting",
+        "niche_only_strict",
+        "post_feedback_tag_regression",
+    )
+
+    def test_registry_includes_three_lastfm_scenarios(self):
+        from evaluation.scenario import SCENARIOS
+        for name in self.NAMES:
+            assert name in SCENARIOS, f"missing scenario {name}"
+
+    def test_lastfm_tag_weighting_carries_tag_vocabulary(self):
+        """Stage 1 retrieval expects to match these tokens against the
+        Last.fm tag inverted index — empty / generic prose would defeat
+        the scenario."""
+        from evaluation.scenario import LASTFM_TAG_WEIGHTING_SCENARIO
+        prose = " ".join(
+            LASTFM_TAG_WEIGHTING_SCENARIO.seed_sections.values()
+        ).lower()
+        for token in ("post-rock", "slowcore", "math rock"):
+            assert token in prose, f"missing tag vocabulary: {token}"
+
+    def test_niche_only_strict_carries_popularity_avoid_signals(self):
+        """E5 acceptance gate is p95 listeners < 100k. The avoid prose
+        must explicitly call out the popularity axis or the LLM has no
+        anchor to push back against."""
+        from evaluation.scenario import NICHE_ONLY_STRICT_SCENARIO
+        avoid = NICHE_ONLY_STRICT_SCENARIO.seed_sections["avoid"].lower()
+        # At least two of the popularity-axis hints must be present so
+        # a single rephrase can't accidentally water the scenario down.
+        signals = ("billboard", "radio", "monthly listeners",
+                   "major-label", "viral")
+        present = sum(1 for s in signals if s in avoid)
+        assert present >= 3, (
+            f"niche_only_strict avoid prose only mentions {present} "
+            f"popularity signals; need ≥ 3 for the scenario to bite"
+        )
+
+    def test_post_feedback_tag_regression_names_disliked_tag_in_refine(self):
+        """E6 acceptance gate is "0 tracks where matched Last.fm tag
+        overlaps the dislike-tag set". The refine prose must surface
+        the disliked tag explicitly so the LLM can absorb it into avoid.
+        """
+        from evaluation.scenario import POST_FEEDBACK_TAG_REGRESSION_SCENARIO
+        refine_avoid = (
+            POST_FEEDBACK_TAG_REGRESSION_SCENARIO.refine_sections["avoid"]
+            .lower()
+        )
+        assert "synthwave" in refine_avoid
+
+
+# ── E2/E3 (2026-05-07): corpus_metrics module ────────────────────────
+
+class _FakeArtistRow:
+    """Mimics ArtistRow shape just enough for compute_corpus_metrics."""
+    def __init__(self, name: str, lastfm_tags=None, lastfm_listeners=None):
+        self.name = name
+        self.lastfm_tags = lastfm_tags or []
+        self.lastfm_listeners = lastfm_listeners
+
+
+class _FakeCorpus:
+    """Minimal corpus surface — only `artists` + `by_name_normalised`."""
+    def __init__(self, rows):
+        from core.src.rag.corpus import normalise_name
+        self.artists = rows
+        self.by_name_normalised = {
+            normalise_name(r.name): i for i, r in enumerate(rows)
+        }
+
+
+class TestCorpusMetrics:
+    def test_empty_tracks_returns_empty_report(self):
+        from evaluation.corpus_metrics import compute_corpus_metrics
+        report = compute_corpus_metrics([], None)
+        assert report.total_tracks == 0
+        assert report.lastfm_tag_coverage_pct is None
+        assert report.lastfm_listeners_median is None
+
+    def test_no_corpus_counts_total_only(self):
+        from evaluation.corpus_metrics import compute_corpus_metrics
+        tracks = [{"artist": "X", "track": "Y"},
+                  {"artist": "Z", "track": "W"}]
+        report = compute_corpus_metrics(tracks, None)
+        assert report.total_tracks == 2
+        assert report.matched_in_corpus == 0
+        assert report.lastfm_tag_coverage_pct is None
+
+    def test_full_lastfm_coverage_passes_gate(self):
+        from evaluation.corpus_metrics import compute_corpus_metrics
+        rows = [
+            _FakeArtistRow("Mogwai", lastfm_tags=["post-rock"], lastfm_listeners=900_000),
+            _FakeArtistRow("Boards of Canada", lastfm_tags=["idm"], lastfm_listeners=600_000),
+            _FakeArtistRow("Slint", lastfm_tags=["math rock"], lastfm_listeners=400_000),
+            _FakeArtistRow("Codeine", lastfm_tags=["slowcore"], lastfm_listeners=200_000),
+        ]
+        corpus = _FakeCorpus(rows)
+        tracks = [{"artist": r.name, "track": "T"} for r in rows]
+        report = compute_corpus_metrics(tracks, corpus)
+        assert report.matched_in_corpus == 4
+        assert report.lastfm_tag_populated == 4
+        assert report.lastfm_tag_coverage_pct == 1.0
+        assert report.passed_tag_coverage is True
+        assert report.lastfm_listeners_sample_size == 4
+        # Median of [200k, 400k, 600k, 900k] → 500k.
+        assert report.lastfm_listeners_median == 500_000
+
+    def test_partial_coverage_below_gate_flags_fail(self):
+        from evaluation.corpus_metrics import compute_corpus_metrics
+        rows = [
+            _FakeArtistRow("A", lastfm_tags=["x"]),
+            _FakeArtistRow("B", lastfm_tags=[]),    # unenriched
+            _FakeArtistRow("C", lastfm_tags=[]),    # unenriched
+            _FakeArtistRow("D", lastfm_tags=["x"]),
+        ]
+        corpus = _FakeCorpus(rows)
+        tracks = [{"artist": r.name, "track": "T"} for r in rows]
+        report = compute_corpus_metrics(tracks, corpus)
+        # 2 of 4 = 50 % < 75 % gate.
+        assert report.lastfm_tag_coverage_pct == 0.5
+        assert report.passed_tag_coverage is False
+
+    def test_unmatched_artists_excluded_from_coverage(self):
+        """Spotify-only artists shouldn't drag coverage down — they're
+        a corpus-miss problem, not an enrichment problem."""
+        from evaluation.corpus_metrics import compute_corpus_metrics
+        rows = [_FakeArtistRow("InCorpus", lastfm_tags=["x"])]
+        corpus = _FakeCorpus(rows)
+        tracks = [
+            {"artist": "InCorpus", "track": "T"},
+            {"artist": "NotInCorpus", "track": "U"},
+        ]
+        report = compute_corpus_metrics(tracks, corpus)
+        assert report.total_tracks == 2
+        assert report.matched_in_corpus == 1
+        # Coverage is over MATCHED rows, not total → 100 %.
+        assert report.lastfm_tag_coverage_pct == 1.0
+
+    def test_zero_listener_artists_excluded_from_distribution(self):
+        from evaluation.corpus_metrics import compute_corpus_metrics
+        rows = [
+            _FakeArtistRow("A", lastfm_listeners=0),     # excluded
+            _FakeArtistRow("B", lastfm_listeners=None),  # excluded
+            _FakeArtistRow("C", lastfm_listeners=10_000),
+            _FakeArtistRow("D", lastfm_listeners=50_000),
+        ]
+        corpus = _FakeCorpus(rows)
+        tracks = [{"artist": r.name, "track": "T"} for r in rows]
+        report = compute_corpus_metrics(tracks, corpus)
+        assert report.lastfm_listeners_sample_size == 2
+        assert report.lastfm_listeners_median == 30_000  # median of [10k, 50k]
+
+    def test_to_json_round_trip(self):
+        from evaluation.corpus_metrics import CorpusMetricsReport
+        r = CorpusMetricsReport(
+            total_tracks=10, matched_in_corpus=8,
+            lastfm_tag_populated=6, lastfm_tag_coverage_pct=0.75,
+            lastfm_listeners_median=12_000,
+            lastfm_listeners_p95=98_000,
+            lastfm_listeners_sample_size=8,
+        )
+        d = r.to_json()
+        assert d["lastfm_tag_coverage_pct"] == 0.75
+        assert d["passed_tag_coverage"] is True  # at the gate
+        assert d["lastfm_listeners_p95"] == 98_000
+
+
+class TestCorpusMetricsFieldsOnResult:
+    def test_default_corpus_metrics_fields_present(self):
+        from evaluation.harness import ModelRunResult
+        r = ModelRunResult(
+            model="gpt-x", iteration=0, started_at="2026-05-07T00:00:00Z",
+        )
+        assert r.corpus_metrics_a is None
+        assert r.corpus_metrics_b is None
+
+    def test_corpus_metrics_serialise_through_asdict(self):
+        from dataclasses import asdict
+        from evaluation.harness import ModelRunResult
+        r = ModelRunResult(
+            model="gpt-x", iteration=0, started_at="2026-05-07T00:00:00Z",
+            corpus_metrics_a={"lastfm_tag_coverage_pct": 0.8},
+        )
+        d = asdict(r)
+        assert d["corpus_metrics_a"]["lastfm_tag_coverage_pct"] == 0.8
+        assert d["corpus_metrics_b"] is None
+
+
+class TestExtractCorpusMetrics:
+    def test_empty_tracks_returns_none(self):
+        from evaluation.harness import _extract_corpus_metrics
+        assert _extract_corpus_metrics([]) is None
+
+    def test_returns_dict_with_no_corpus(self, monkeypatch):
+        """When no corpus is loaded, still returns a structured rollup
+        (so the report shows total_tracks even if matched=0)."""
+        from evaluation.harness import _extract_corpus_metrics
+        from core.src import suggestions
+        monkeypatch.setattr(suggestions, "get_rag_corpus", lambda: None)
+        result = _extract_corpus_metrics([{"artist": "X", "track": "Y"}])
+        assert result is not None
+        assert result["total_tracks"] == 1
+        assert result["matched_in_corpus"] == 0
+
+
+

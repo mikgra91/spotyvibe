@@ -59,6 +59,63 @@ logger = logging.getLogger(__name__)
 _legacy_track_key_warned = False
 
 
+# 2026-05-07: Spotify rate-limit hardening for the eval harness.
+# These env vars are set by run_evaluation.py before the production
+# code is imported. Production users hit none of this — the env vars
+# stay unset, max_workers stays at the prior default of 5, and no
+# extra sleep is inserted. The eval path is the only consumer because
+# (a) it generates hundreds of searches per session against ONE user
+# token and (b) repeatedly tripping a 429 risks the user account
+# being flagged for unusual API behaviour.
+_SEARCH_SERIAL_ENV = "SPOTIVIBE_SPOTIFY_SEARCH_SERIAL"
+_SEARCH_DELAY_ENV = "SPOTIVIBE_SPOTIFY_SEARCH_DELAY_S"
+
+
+def _is_serial_search_mode() -> bool:
+    """Return True when the eval harness has asked for serial searches.
+
+    Reads ``SPOTIVIBE_SPOTIFY_SEARCH_SERIAL`` at call time so a test
+    can flip the flag mid-process without restarting. Accepts the
+    common truthy spellings.
+    """
+    return os.environ.get(_SEARCH_SERIAL_ENV, "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+
+
+def _resolve_search_pool_size(default_max: int, n_unique: int) -> int:
+    """Compute the ThreadPoolExecutor max_workers for a search batch.
+
+    Serial mode forces 1 worker so a multi-batch eval run can never
+    burst-saturate the Spotify per-token sliding-window quota. Default
+    mode preserves the prior ``min(default_max, n_unique) or 1``
+    behaviour for the user-facing app path.
+    """
+    if _is_serial_search_mode():
+        return 1
+    return min(default_max, n_unique) or 1
+
+
+def _post_search_throttle() -> None:
+    """Sleep ``SPOTIVIBE_SPOTIFY_SEARCH_DELAY_S`` seconds after a search.
+
+    Called inside ``_do_spotify_search`` after each successful Spotify
+    response. Eval mode sets this to ~0.5 s so the steady-state call
+    rate stays well under the documented Spotify per-user search budget
+    (≤ 180 calls / 30 s rolling window). No-op when the env var is
+    unset, blank, non-numeric, or ≤ 0.
+    """
+    raw = os.environ.get(_SEARCH_DELAY_ENV, "").strip()
+    if not raw:
+        return
+    try:
+        delay = float(raw)
+    except ValueError:
+        return
+    if delay > 0:
+        time.sleep(delay)
+
+
 # L2 (2026-05-06): per-run search-result cache. ``None`` when caching
 # is off; ``{}`` when bracketed by ``start_run_search_cache()`` /
 # ``end_run_search_cache()``. The cache is single-flight, matching the
@@ -579,9 +636,21 @@ def _do_spotify_search(t, shared_sp):
             if e.http_status == 429 and attempt < 3:
                 retry_after = int(e.headers.get("Retry-After", 1))
                 backoff_floor = 2 ** attempt
-                time.sleep(min(max(retry_after, backoff_floor), 30))
+                # 2026-05-07: in serial-search mode the harness is
+                # already paying ~0.5 s per call to stay well under the
+                # rolling-window quota. A 429 there means Spotify has
+                # imposed a longer cool-down — the prior 30 s cap was
+                # too low and let the eval cascade into a flagged
+                # account. Honour Retry-After up to 90 s in serial mode.
+                cap = 90 if _is_serial_search_mode() else 30
+                time.sleep(min(max(retry_after, backoff_floor), cap))
                 continue
             raise
+
+    # 2026-05-07: throttle BEFORE the cache-write / return so even cache
+    # misses pace themselves under serial-search mode. The throttle is
+    # a no-op when the eval harness hasn't set the env var.
+    _post_search_throttle()
 
     if res and res["tracks"]["items"]:
         item = res["tracks"]["items"][0]
@@ -653,7 +722,7 @@ def iter_search_tracks(tracks):
         return
     access_token = token_info["access_token"]
 
-    pool_size = min(5, len(unique_tracks)) or 1
+    pool_size = _resolve_search_pool_size(5, len(unique_tracks))
     shared_session = _make_pooled_session(pool_size)
     shared_sp = spotipy.Spotify(
         auth=access_token,

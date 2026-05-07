@@ -587,7 +587,156 @@ these were scoped in but not executed (and don't block E7):
   for prioritisation. None are blocked by the work this session
   shipped.
 
-### Files touched at handoff
+## 🆕 Session 2 deliverables — 2026-05-07
+
+E2/E3/E4/E5/E6/L4 all landed before kicking off E7. Code summary:
+
+#### E4 / E5 / E6 — three Last.fm-aware scenarios
+[evaluation/scenario.py](evaluation/scenario.py) gained
+`LASTFM_TAG_WEIGHTING_SCENARIO`, `NICHE_ONLY_STRICT_SCENARIO`,
+`POST_FEEDBACK_TAG_REGRESSION_SCENARIO`. Each is pure-data; the
+existing leakage + fit gates apply, and the new E2/E3 metrics surface
+the Last.fm-specific acceptance signals in `comparison.md`.
+Settings template ([evaluation/settings.ini.example](evaluation/settings.ini.example))
+documents all three. Tests: 4 in `TestLastfmAwareScenarios`
+([test_evaluation_harness.py](core/tests/test_evaluation_harness.py))
+pin registry membership and load-bearing prose vocabulary; the
+existing `test_each_scenario_has_required_seed_fields` and
+`test_feedback_indices_are_disjoint` cover schema + disjoint-index
+on every new scenario automatically.
+
+#### E2 / E3 — Last.fm coverage + listener distribution
+New module [evaluation/corpus_metrics.py](evaluation/corpus_metrics.py)
+with `compute_corpus_metrics(tracks, corpus) → CorpusMetricsReport`.
+Computes (a) Last.fm-tag coverage % over corpus-matched tracks
+(gate: `LASTFM_TAG_COVERAGE_GATE = 0.75`), (b) listener-count median
++ p95 over enriched rows. `_FakeArtistRow`-shape lookup keeps the
+public surface narrow so future field renames stay isolated.
+
+Wired into [evaluation/harness.py](evaluation/harness.py): new
+`_extract_corpus_metrics(tracks)` helper reads `suggestions.get_rag_corpus()`
+(zero extra disk I/O — the production code already loaded the
+corpus at app startup), populates `ModelRunResult.corpus_metrics_a` /
+`corpus_metrics_b`. Surface in
+[evaluation/reporting.py](evaluation/reporting.py): new
+"Phase B coverage — Last.fm tags + listener distribution (E2/E3)"
+section in `comparison.md`, split A/B with a ⚠ marker on rows below
+the 75 % gate. Tests: 7 in `TestCorpusMetrics` + 2 in
+`TestCorpusMetricsFieldsOnResult` + 2 in `TestExtractCorpusMetrics`
+([test_evaluation_harness.py](core/tests/test_evaluation_harness.py))
+cover empty/no-corpus/full-coverage/partial-coverage/unmatched-rows/
+zero-listener-exclusion/JSON round-trip + `ModelRunResult` field
+defaults + the `get_rag_corpus`-returns-None path.
+
+#### L4 — prompt-template memoisation
+[core/src/suggestions.py](core/src/suggestions.py) `load_text_file()`
+now wraps a private `@functools.lru_cache(maxsize=32)` helper keyed
+on the stringified path. `cache_clear()` / `cache_info()` are
+re-exposed on the public name so a developer iterating on
+`prompts/*.txt` in a long-lived process can force a re-read without
+reaching into a private symbol. 1 new test in `TestLoadTextFile`
+([test_suggestions.py](core/tests/test_suggestions.py)) verifies
+the cache holds across a mid-session file mutation and `cache_clear`
+forces the reload.
+
+#### Multi-scenario support for E7
+[evaluation/run_evaluation.py](evaluation/run_evaluation.py) gained a
+`scenarios` (plural) settings field. Comma-separated list OR the
+special value `all` (expands to every registry entry, default first).
+Loop order: scenarios → models → iterations. Cost estimate scales
+by `len(active_scenarios)`. Inter-model cooldown still fires between
+consecutive runs (any scenario boundary). The per-run results
+directory becomes `{scenario}__{model}-iter{n}/` for non-default
+scenarios so multi-scenario runs don't collide on the same
+`gpt-5.4-iter1/` slot ([evaluation/harness.py](evaluation/harness.py)).
+[evaluation/settings.ini](evaluation/settings.ini) flipped to
+`scenarios = all` for the E7 baseline; legacy single-scenario
+runs work via the existing `scenario =` field.
+[evaluation/reporting.py](evaluation/reporting.py) "Per-run rollup"
+table gained a leading `Scenario` column.
+
+#### Items NOT touched this session (still queued in agenda)
+
+The full Post-Phase B agenda below covers the rest:
+- **L5 / Q* / U2 / U3 / U4 / U5 / U6 / M2 / M3** — see agenda
+  for prioritisation. None are blocked by the work this session
+  shipped.
+
+#### E7 attempt #1 aborted — Spotify rate-limit hardening (2026-05-07)
+
+E7 was kicked off after the user re-authenticated Spotify; within the
+first batch the parallel search pool burst-saturated the per-token
+sliding-window quota and Spotify returned hard 429s past the
+3-attempt back-off cap (max sleep 30 s). The user flagged the risk
+that repeated bursty behaviour could get the account flagged. Run was
+killed, lock released, orphan playlists swept.
+
+**Root cause.** `_do_spotify_search` uses 5 parallel workers per
+batch with no per-call delay. For one user during normal app use that
+is fine; for a multi-scenario eval that fans out hundreds of searches
+in close succession against the same token, it tips the rolling-window
+guard within seconds.
+
+**Code shipped:**
+
+[core/src/playlist.py](core/src/playlist.py) gained two env-var hooks
+(eval-only, default off — production users see no change):
+
+- `SPOTIVIBE_SPOTIFY_SEARCH_SERIAL=1` → `_resolve_search_pool_size`
+  forces `max_workers=1` so the `ThreadPoolExecutor` runs serially.
+- `SPOTIVIBE_SPOTIFY_SEARCH_DELAY_S=0.5` → `_post_search_throttle`
+  sleeps after every search call (cache hit OR miss). Steady-state
+  rate ≈ 2 calls/s, well under Spotify's documented ≤ 6/s per-token
+  guidance.
+- 429 back-off cap in `_do_spotify_search` raised from 30 s → 90 s
+  when serial mode is on, so Retry-After headers up to 90 s are
+  honoured before the per-call retry budget exhausts.
+
+[evaluation/run_evaluation.py](evaluation/run_evaluation.py) sets both
+env vars via `os.environ.setdefault` before importing the production
+modules. Also added a 120 s **inter-scenario** cool-down (in addition
+to the existing 60 s inter-model cool-down) so a multi-scenario run
+gets a real "rolling window has fully drained" pause between
+scenarios.
+
+Tests: 9 in `TestSerialSearchModeResolvers`
+([test_playlist.py](core/tests/test_playlist.py)) cover env-var
+resolution (truthy / falsy / empty / unknown), pool-size resolver
+(default cap, capped by track count, never zero, serial forces 1),
+and throttle behaviour (no-op when unset / invalid / zero / negative;
+sleeps for positive). 845 core tests green (was 836).
+
+**Cost of the change at full E7 scope:**
+- Serial: 5× slower wall clock vs parallel (each search waits for
+  the previous to return).
+- 0.5 s/call delay: ≈ 0.5 s × N_searches additional per run.
+- 120 s inter-scenario gap × 10 boundaries: ≈ 20 min added.
+- For 4 models × 11 scenarios × ~30 searches per run × ~0.5 s:
+  ≈ 11 min of pure throttle delay + ~20 min cool-downs +
+  ~2 h serial Spotify time → **3-4 h total wall clock** (vs the
+  original 2-3 h estimate). Worth it to keep the account safe.
+
+**Status — E7 ready to retry after Spotify cool-down.** The eval
+was attempted twice on 2026-05-07; both times Spotify returned hard
+429s despite increasingly conservative throttling. The issue is
+likely a penalty window on the user token from the burst of searches
+earlier in the day (manual app testing + first unthrottled eval
+attempt). Current throttle settings after iterating:
+- Serial mode: `SPOTIVIBE_SPOTIFY_SEARCH_SERIAL=1` (1 worker)
+- Per-call delay: `SPOTIVIBE_SPOTIFY_SEARCH_DELAY_S=1.5` (≤ 0.67 calls/s)
+- Inter-model cooldown: 90 s
+- Inter-scenario cooldown: 120 s
+- 429 back-off cap: 90 s (up from 30 s)
+
+**Next attempt:** wait ≥ 1 hour from the last 429 (≈ 11:00 UTC
+2026-05-07), then re-run:
+```bash
+python evaluation/run_evaluation.py --no-confirm
+```
+If 429s persist even after a 1-hour cool-down, the remaining lever
+is to increase `SPOTIVIBE_SPOTIFY_SEARCH_DELAY_S` further (e.g. 2.0)
+or reduce the eval scope to fewer scenarios (`scenarios = default`
+in `settings.ini` instead of `all`).### Files touched at handoff
 
 Backend:
 - [core/src/trace.py](core/src/trace.py) (E1)

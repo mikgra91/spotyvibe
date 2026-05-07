@@ -28,6 +28,7 @@ Technologies & patterns used:
   a percentage, ensuring at least one new artist even at low percentages.
 """
 import copy
+import functools
 import json
 import logging
 import math
@@ -235,14 +236,37 @@ def normalize_history(profile):
     return profile
 
 
-def load_text_file(filepath):
-    """Load a plain text file and return its content."""
-    path = Path(filepath)
+# L4 (2026-05-07): per-process LRU cache so the prompt files under
+# ``prompts/*.txt`` are read from disk at most once each. They are
+# treated as immutable at runtime (a developer changing them mid-
+# session can call ``load_text_file.cache_clear()``); without the
+# cache, every Stage-3 batch (~10 per playlist) re-reads the same
+# four files and pays ~5 ms × 10 = ~50 ms / run for nothing.
+@functools.lru_cache(maxsize=32)
+def _load_text_file_cached(filepath_str: str) -> str:
+    path = Path(filepath_str)
     if not path.exists():
         raise FileNotFoundError(
-            f"{filepath} not found. Please create it."
+            f"{filepath_str} not found. Please create it."
         )
     return path.read_text(encoding="utf-8")
+
+
+def load_text_file(filepath):
+    """Load a plain text file and return its content (LRU-cached).
+
+    The cache key is the stringified path so callers can pass
+    ``Path`` objects without breaking memoisation. Use
+    ``load_text_file.cache_clear()`` (exposed below) to force a
+    re-read after editing a prompt file in a long-lived process.
+    """
+    return _load_text_file_cached(str(filepath))
+
+
+# Surface the underlying cache control on the public name so callers /
+# tests can invalidate without reaching into a private symbol.
+load_text_file.cache_clear = _load_text_file_cached.cache_clear  # type: ignore[attr-defined]
+load_text_file.cache_info = _load_text_file_cached.cache_info  # type: ignore[attr-defined]
 
 
 def collect_forbidden_artists(profile, normalizer=None):

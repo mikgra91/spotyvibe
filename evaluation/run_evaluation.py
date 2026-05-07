@@ -127,6 +127,12 @@ def load_settings() -> dict:
             # F8.2 (2026-05-01): selects which scenario from
             # evaluation/scenario.py to run. Empty/missing → "default".
             "scenario": cfg.get("evaluation", "scenario", fallback="").strip() or "default",
+            # E7 (2026-05-07): comma-separated multi-scenario list.
+            # When set, OVERRIDES the singular ``scenario`` field and
+            # the harness loops scenarios × models × iterations. The
+            # special value ``all`` expands to every scenario in
+            # ``SCENARIOS`` (alphabetical, "default" first).
+            "scenarios": cfg.get("evaluation", "scenarios", fallback="").strip(),
         },
     }
 
@@ -277,12 +283,35 @@ def main() -> int:
     models = settings["evaluation"]["models"]
     iterations = settings["evaluation"]["iterations"]
     scenario_name = settings["evaluation"].get("scenario", "default")
+    scenarios_raw = settings["evaluation"].get("scenarios", "") or ""
 
     # Validate the scenario name now (loud failure on typo) before
     # spending any OpenAI/Spotify quota.
-    from evaluation.scenario import get_scenario
+    from evaluation.scenario import get_scenario, SCENARIOS
+
+    # E7 (2026-05-07): expand the multi-scenario field if present.
+    # Precedence: ``scenarios`` (plural) wins over ``scenario`` so a
+    # template can opt into "run everything" without rewriting the
+    # singular field. ``all`` is the convenience for the canonical
+    # baseline run.
+    scenario_names: list[str]
+    if scenarios_raw:
+        if scenarios_raw.strip().lower() == "all":
+            # Stable order — default first so the report's "first row"
+            # is the legacy reference scenario.
+            scenario_names = (
+                ["default"]
+                + sorted(n for n in SCENARIOS if n != "default")
+            )
+        else:
+            scenario_names = [
+                s.strip() for s in scenarios_raw.split(",") if s.strip()
+            ]
+    else:
+        scenario_names = [scenario_name]
+
     try:
-        active_scenario = get_scenario(scenario_name)
+        active_scenarios = [get_scenario(n) for n in scenario_names]
     except KeyError as exc:
         print(f"\n  ❌ {exc}\n", file=sys.stderr)
         return 5
@@ -296,12 +325,12 @@ def main() -> int:
                   file=sys.stderr)
             return 6
         from dataclasses import replace
-        active_scenario = replace(
-            active_scenario,
-            seed_profile_path=args.seed_profile.resolve(),
-        )
+        active_scenarios = [
+            replace(s, seed_profile_path=args.seed_profile.resolve())
+            for s in active_scenarios
+        ]
 
-    estimate = estimate_cost(models, iterations)
+    estimate = estimate_cost(models, iterations) * len(active_scenarios)
     confirm_or_exit(estimate, models, iterations, args.no_confirm)
 
     # ── Sandbox setup ─────────────────────────────────────────────
@@ -318,6 +347,24 @@ def main() -> int:
     os.environ["SPOTYVIBE_APP_DIR"] = str(sandbox_dir)
     os.environ["DEBUG_MODE"] = "1"
     os.environ["RAG_ENABLED"] = "true"
+    # 2026-05-07: Spotify rate-limit hardening for the eval harness.
+    # The user-facing app keeps the prior 5-worker pool with no
+    # post-call sleep — these env vars are eval-only. Serial mode +
+    # 0.5 s per-call delay keeps the steady-state rate at ≤ 2 calls/s
+    # (vs Spotify's documented ≤ 6/s per-token guidance), which has
+    # two purposes:
+    #   1. The previous parallel + no-sleep pattern burst-saturated
+    #      the per-token sliding-window quota during a multi-scenario
+    #      eval, cascading into hard 429s and (per the user) risking
+    #      the account being flagged for unusual API behaviour.
+    #   2. Serial calls give Retry-After back-off a fair chance to
+    #      drain the window before the next call lands; parallel
+    #      back-off just delays the next burst by N workers.
+    # Tunable via env vars so a future low-traffic eval (single
+    # scenario / single model) can opt back into faster behaviour
+    # without code changes. See playlist._is_serial_search_mode.
+    os.environ.setdefault("SPOTIVIBE_SPOTIFY_SEARCH_SERIAL", "1")
+    os.environ.setdefault("SPOTIVIBE_SPOTIFY_SEARCH_DELAY_S", "1.5")
 
     from evaluation.harness import prepare_sandbox, run_for_model
 
@@ -343,8 +390,8 @@ def main() -> int:
     logger.info("Sandbox ready at %s", sandbox_dir)
     logger.info("Results will land in %s", results_dir)
     logger.info("Evaluating models: %s", ", ".join(models))
-    logger.info("Scenario: %s — %s", active_scenario.name,
-                active_scenario.description)
+    logger.info("Scenarios (%d): %s", len(active_scenarios),
+                ", ".join(s.name for s in active_scenarios))
 
     # ── Run the matrix ────────────────────────────────────────────
     summaries = []
@@ -355,35 +402,64 @@ def main() -> int:
     # searches can exhaust it and cause the next model to record 0 %
     # Spotify-found purely as a side effect. 60 s is enough for the rolling
     # window to drain in practice (raised from 15 s in Phase 2.6).
-    INTER_MODEL_COOLDOWN_S = 60
+    INTER_MODEL_COOLDOWN_S = 90
+    # 2026-05-07: longer inter-scenario cooldown. Crossing a scenario
+    # boundary means N models worth of search bursts have already
+    # landed against this token; a fresh "scenario start" with even
+    # the throttled serial-search mode can still tip the rolling
+    # window if it lands too soon. 120 s is empirically safe.
+    INTER_SCENARIO_COOLDOWN_S = 120
+    cooldown_skipped = True  # first iteration: nothing to cool down from
     try:
-        for model_idx, model in enumerate(models):
-            if model_idx > 0:
-                logger.info("Cooling down %ds before next model to let Spotify rate-limit window drain…",
-                            INTER_MODEL_COOLDOWN_S)
-                time.sleep(INTER_MODEL_COOLDOWN_S)
-            for iteration in range(1, iterations + 1):
-                logger.info("─── %s iteration %d/%d ───", model, iteration, iterations)
-                result = run_for_model(
-                    model=model,
-                    iteration=iteration,
-                    settings=settings,
-                    sandbox_dir=sandbox_dir,
-                    results_dir=results_dir,
-                    flask_app=flask_app,
-                    profile_mod=profile_mod,
-                    analysis_mod=analysis_mod,
-                    playlist_mod=playlist_mod,
-                    feedback_mod=feedback_mod,
-                    scn=active_scenario,
-                )
-                summaries.append(result)
+        for scn_idx, active_scenario in enumerate(active_scenarios):
+            if scn_idx > 0:
                 logger.info(
-                    "%s iter %d done in %.1fs — playlist=%d, status=%s, cleanup=%s",
-                    model, iteration, result.duration_s or 0,
-                    result.playlist_track_count, result.playlist_status,
-                    result.cleanup_status,
+                    "Cooling down %ds before next scenario to let Spotify rate-limit window drain…",
+                    INTER_SCENARIO_COOLDOWN_S,
                 )
+                time.sleep(INTER_SCENARIO_COOLDOWN_S)
+                # Don't double-sleep: the inter-model cooldown will
+                # already account for the gap to the first model of
+                # this scenario.
+                cooldown_skipped = True
+            logger.info(
+                "═══ Scenario: %s — %s ═══",
+                active_scenario.name, active_scenario.description,
+            )
+            for model in models:
+                if not cooldown_skipped:
+                    logger.info(
+                        "Cooling down %ds before next model to let Spotify rate-limit window drain…",
+                        INTER_MODEL_COOLDOWN_S,
+                    )
+                    time.sleep(INTER_MODEL_COOLDOWN_S)
+                cooldown_skipped = False
+                for iteration in range(1, iterations + 1):
+                    logger.info(
+                        "─── %s · %s · iter %d/%d ───",
+                        active_scenario.name, model, iteration, iterations,
+                    )
+                    result = run_for_model(
+                        model=model,
+                        iteration=iteration,
+                        settings=settings,
+                        sandbox_dir=sandbox_dir,
+                        results_dir=results_dir,
+                        flask_app=flask_app,
+                        profile_mod=profile_mod,
+                        analysis_mod=analysis_mod,
+                        playlist_mod=playlist_mod,
+                        feedback_mod=feedback_mod,
+                        scn=active_scenario,
+                    )
+                    summaries.append(result)
+                    logger.info(
+                        "%s · %s iter %d done in %.1fs — playlist=%d, status=%s, cleanup=%s",
+                        active_scenario.name, model, iteration,
+                        result.duration_s or 0,
+                        result.playlist_track_count, result.playlist_status,
+                        result.cleanup_status,
+                    )
     except KeyboardInterrupt:
         logger.warning("Interrupted by user — cleanup of in-flight run already ran in finally.")
 

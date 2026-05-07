@@ -823,3 +823,72 @@ class TestGetSpotifyAccessToken:
         mock_oauth.return_value = oauth
         from core.src.playlist import get_spotify_access_token
         assert get_spotify_access_token() is None
+
+
+class TestSerialSearchModeResolvers:
+    """2026-05-07: env-var resolvers that throttle Spotify search calls
+    during the eval harness without changing the user-facing app path."""
+
+    def test_serial_off_by_default(self, monkeypatch):
+        from core.src.playlist import _is_serial_search_mode
+        monkeypatch.delenv("SPOTIVIBE_SPOTIFY_SEARCH_SERIAL", raising=False)
+        assert _is_serial_search_mode() is False
+
+    def test_serial_on_for_truthy_values(self, monkeypatch):
+        from core.src.playlist import _is_serial_search_mode
+        for val in ("1", "true", "TRUE", "yes", "on"):
+            monkeypatch.setenv("SPOTIVIBE_SPOTIFY_SEARCH_SERIAL", val)
+            assert _is_serial_search_mode() is True, f"failed for {val!r}"
+
+    def test_serial_off_for_falsy_or_empty(self, monkeypatch):
+        from core.src.playlist import _is_serial_search_mode
+        for val in ("", "0", "no", "false", "off", "garbage"):
+            monkeypatch.setenv("SPOTIVIBE_SPOTIFY_SEARCH_SERIAL", val)
+            assert _is_serial_search_mode() is False, f"failed for {val!r}"
+
+    def test_pool_size_default_uses_min(self, monkeypatch):
+        from core.src.playlist import _resolve_search_pool_size
+        monkeypatch.delenv("SPOTIVIBE_SPOTIFY_SEARCH_SERIAL", raising=False)
+        assert _resolve_search_pool_size(5, 10) == 5
+        assert _resolve_search_pool_size(5, 3) == 3
+        assert _resolve_search_pool_size(5, 0) == 1
+
+    def test_pool_size_serial_forces_one(self, monkeypatch):
+        from core.src.playlist import _resolve_search_pool_size
+        monkeypatch.setenv("SPOTIVIBE_SPOTIFY_SEARCH_SERIAL", "1")
+        assert _resolve_search_pool_size(5, 10) == 1
+        assert _resolve_search_pool_size(5, 0) == 1
+
+    def test_post_search_throttle_no_op_when_unset(self, monkeypatch):
+        import core.src.playlist as pl
+        monkeypatch.delenv("SPOTIVIBE_SPOTIFY_SEARCH_DELAY_S", raising=False)
+        called = []
+        monkeypatch.setattr(pl.time, "sleep", lambda s: called.append(s))
+        pl._post_search_throttle()
+        assert called == []
+
+    def test_post_search_throttle_no_op_for_invalid(self, monkeypatch):
+        import core.src.playlist as pl
+        monkeypatch.setenv("SPOTIVIBE_SPOTIFY_SEARCH_DELAY_S", "notanumber")
+        called = []
+        monkeypatch.setattr(pl.time, "sleep", lambda s: called.append(s))
+        pl._post_search_throttle()
+        assert called == []
+
+    def test_post_search_throttle_no_op_for_zero_or_negative(self, monkeypatch):
+        import core.src.playlist as pl
+        called = []
+        monkeypatch.setattr(pl.time, "sleep", lambda s: called.append(s))
+        for val in ("0", "-1", "-0.5"):
+            monkeypatch.setenv("SPOTIVIBE_SPOTIFY_SEARCH_DELAY_S", val)
+            pl._post_search_throttle()
+        assert called == []
+
+    def test_post_search_throttle_sleeps_for_positive(self, monkeypatch):
+        import core.src.playlist as pl
+        monkeypatch.setenv("SPOTIVIBE_SPOTIFY_SEARCH_DELAY_S", "0.5")
+        called = []
+        monkeypatch.setattr(pl.time, "sleep", lambda s: called.append(s))
+        pl._post_search_throttle()
+        assert called == [0.5]
+

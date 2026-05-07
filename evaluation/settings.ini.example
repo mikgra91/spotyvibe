@@ -46,4 +46,18 @@ playlist_size = 30
 # F1/F2/F5 close the leakage gap.
 #   default                          — broad theatrical-pop-rock taste
 #   regression_japanese_theatrical   — the failure-mode reproducer
+#   ambient_instrumental_focus / boom_bap_90s / brazilian_samba_funk /
+#   club_techno_strict / original_recordings_only / contradictory_profile
+#                                    — coverage scenarios (P1 #6)
+#   lastfm_tag_weighting / niche_only_strict / post_feedback_tag_regression
+#                                    — Last.fm-aware scenarios (E4/E5/E6, 2026-05-07)
 scenario = default
+
+# E7 (2026-05-07): comma-separated multi-scenario list. When set,
+# OVERRIDES ``scenario`` and the harness loops scenarios × models ×
+# iterations. The special value ``all`` expands to every scenario in
+# the registry (default first, then alphabetical). Used for the
+# canonical baseline runs that diff against ``evaluation/baselines/``.
+# scenarios = all
+# scenarios = default,regression_japanese_theatrical,niche_only_strict
+

@@ -465,6 +465,167 @@ CONTRADICTORY_PROFILE_SCENARIO = Scenario(
 )
 
 
+# ── Last.fm-aware scenarios (E4 / E5 / E6, 2026-05-07) ─────────────
+#
+# These exercise the Phase B Last.fm enrichment surface that landed in
+# the corpus on 2026-05-06. They are pure data — the existing leakage
+# + fit gates apply automatically. The Last.fm-specific assertions
+# (tag-overlap %, p95 listeners, dislike-tag overlap) are surfaced via
+# the E2/E3 corpus_metrics module so a reviewer can read them off
+# ``comparison.md``.
+
+# E4 — heavily tag-weighted profile prose. Catches the case where
+# Stage 1 retrieval ignores the Last.fm tag inverted index.
+LASTFM_TAG_WEIGHTING_SCENARIO = Scenario(
+    name="lastfm_tag_weighting",
+    description="Profile prose dominated by very specific Last.fm-tag "
+                "vocabulary (post-rock, slowcore, math rock). Expected: "
+                "Stage 1 candidate pool ≥ 70 % populated by artists "
+                "whose lastfm_tags overlap these tokens.",
+    seed_sections={
+        "core_description": (
+            "Instrumental post-rock with slowcore and math-rock "
+            "influences. Long crescendos, tight rhythmic structures, "
+            "minimal vocals."
+        ),
+        "must_have": (
+            "Post-rock; slowcore; math rock; instrumental focus; "
+            "long-form dynamic structure"
+        ),
+        "soft_preferences": (
+            "Drone passages; tape-saturated guitar tones; "
+            "polyrhythmic drumming; ambient interludes"
+        ),
+        "avoid": (
+            "Pop song form; vocal-led indie; EDM; trap drums; "
+            "mainstream stadium rock"
+        ),
+    },
+    refine_sections={
+        "core_description": "",
+        "must_have": "",
+        "soft_preferences": "",
+        "avoid": "and reinforce: no pop song form, no vocal-led indie, no mainstream stadium rock",
+        "vibe_description": (
+            "Tighten the post-rock + math-rock + slowcore tag anchor. "
+            "Anything that doesn't carry one of those Last.fm tags as a "
+            "primary association should be suppressed."
+        ),
+    },
+    analysis_artist="Mogwai",
+    analysis_track="Mogwai Fear Satan",
+    like_indices=(0, 4, 8, 12),
+    dislike_indices=(1, 5, 9),
+    like_reason="hits the post-rock / math rock / slowcore tag cluster",
+    dislike_reason="tag profile doesn't match the post-rock anchor",
+)
+
+# E5 — niche-only strict. Catches popularity-bias collapse.
+NICHE_ONLY_STRICT_SCENARIO = Scenario(
+    name="niche_only_strict",
+    description="Profile explicitly avoids mainstream popularity. "
+                "Expected: p95 lastfm_listeners on the playlist stays "
+                "below 100 000.",
+    seed_sections={
+        "core_description": (
+            "Underground experimental music. No mainstream artists, "
+            "no Billboard chart presence, no radio rotation. Bandcamp- "
+            "scale or small-label only."
+        ),
+        "must_have": (
+            "Underground / niche; experimental edge; "
+            "small-label or self-released; non-mainstream"
+        ),
+        "soft_preferences": (
+            "Microgenres; cassette-tape culture; lo-fi production; "
+            "regional scenes; obscure compilations"
+        ),
+        "avoid": (
+            "Billboard Hot 100; radio rotation; arena tours; "
+            "more than 1 million monthly listeners; major-label "
+            "flagship releases; viral TikTok tracks"
+        ),
+    },
+    refine_sections={
+        "core_description": "",
+        "must_have": "",
+        "soft_preferences": "",
+        "avoid": "and reinforce: no chart-topping artists, no >1M listener artists, no major-label flagships",
+        "vibe_description": (
+            "Tighten the niche-only anchor. Any artist with mainstream "
+            "popularity (chart presence, large monthly-listener counts) "
+            "should be suppressed regardless of stylistic fit."
+        ),
+    },
+    analysis_artist="The Caretaker",
+    analysis_track="It's just a burning memory",
+    like_indices=(0, 4, 8, 12),
+    dislike_indices=(1, 5, 9),
+    like_reason="niche underground artist with low listener count",
+    dislike_reason="too mainstream — high listener count or chart presence",
+)
+
+# E6 — post-feedback tag regression. Catches whether dislikes
+# propagate via Last.fm tags. Three dislikes share a tag (synthwave);
+# Playlist B should contain 0 tracks whose primary Last.fm tag overlaps
+# the dislike-tag set.
+POST_FEEDBACK_TAG_REGRESSION_SCENARIO = Scenario(
+    name="post_feedback_tag_regression",
+    description="After disliking three tracks all sharing a single "
+                "Last.fm tag (synthwave), Playlist B must contain 0 "
+                "tracks whose dominant Last.fm tag is in the disliked "
+                "set. Locks the assumption that tag-level avoidance "
+                "actually propagates through the production loop.",
+    seed_sections={
+        "core_description": (
+            "Modern electronic-influenced indie with neon-bright "
+            "production. Vocal-led, melodic, dance-floor friendly."
+        ),
+        "must_have": (
+            "Electronic-tinged production; melodic vocals; "
+            "modern indie sensibility; danceable groove"
+        ),
+        "soft_preferences": (
+            "Synth pads; drum-machine rhythms; vintage analogue "
+            "warmth; cinematic atmosphere"
+        ),
+        "avoid": (
+            "Acoustic singer-songwriter; folk; country; metal; "
+            "extreme dynamic range"
+        ),
+    },
+    refine_sections={
+        "core_description": "",
+        "must_have": "",
+        "soft_preferences": "",
+        # Refine prose explicitly names the disliked tag so the LLM
+        # can absorb it into the avoid block. The LIKE_INDICES are
+        # padded so the system has plenty of "good" feedback to
+        # contrast with the focused dislike pattern.
+        "avoid": "and reinforce: no synthwave; no 80s-styled retro synth aesthetic; no nostalgic neon-night sound",
+        "vibe_description": (
+            "Tighten the avoid list around the synthwave tag and any "
+            "adjacent retrowave / outrun aesthetic. Recent dislikes "
+            "all clustered on synthwave — Playlist B must NOT include "
+            "any artist whose dominant Last.fm tag falls in that "
+            "cluster."
+        ),
+    },
+    analysis_artist="The Midnight",
+    analysis_track="Sunset",
+    # Likes pad the feedback so Stage 2 has a clear positive signal;
+    # dislikes are positionally clustered so the harness's
+    # deterministic feedback rule reliably hits the "synthwave" cluster
+    # in the production output (which is statistically dominated by
+    # synthwave when the seed prose carries "neon-bright" + "drum-
+    # machine rhythms" + "vintage analogue warmth").
+    like_indices=(0, 4, 8, 12),
+    dislike_indices=(1, 5, 9),
+    like_reason="modern indie groove without the retro-synth nostalgia",
+    dislike_reason="leans hard into 80s synthwave / retrowave aesthetic",
+)
+
+
 # ── Registry + dispatcher ────────────────────────────────────────────
 
 SCENARIOS: dict[str, Scenario] = {
@@ -476,6 +637,9 @@ SCENARIOS: dict[str, Scenario] = {
     CLUB_TECHNO_STRICT_SCENARIO.name: CLUB_TECHNO_STRICT_SCENARIO,
     ORIGINAL_RECORDINGS_ONLY_SCENARIO.name: ORIGINAL_RECORDINGS_ONLY_SCENARIO,
     CONTRADICTORY_PROFILE_SCENARIO.name: CONTRADICTORY_PROFILE_SCENARIO,
+    LASTFM_TAG_WEIGHTING_SCENARIO.name: LASTFM_TAG_WEIGHTING_SCENARIO,
+    NICHE_ONLY_STRICT_SCENARIO.name: NICHE_ONLY_STRICT_SCENARIO,
+    POST_FEEDBACK_TAG_REGRESSION_SCENARIO.name: POST_FEEDBACK_TAG_REGRESSION_SCENARIO,
 }
 
 
@@ -534,6 +698,9 @@ __all__ = [
     "CLUB_TECHNO_STRICT_SCENARIO",
     "ORIGINAL_RECORDINGS_ONLY_SCENARIO",
     "CONTRADICTORY_PROFILE_SCENARIO",
+    "LASTFM_TAG_WEIGHTING_SCENARIO",
+    "NICHE_ONLY_STRICT_SCENARIO",
+    "POST_FEEDBACK_TAG_REGRESSION_SCENARIO",
     "SCENARIOS",
     "get_scenario",
     "SEED_SECTIONS",

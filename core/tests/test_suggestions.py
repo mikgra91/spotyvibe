@@ -706,6 +706,28 @@ class TestLoadTextFile:
         with pytest.raises(FileNotFoundError):
             load_text_file(str(tmp_path / "nonexistent.txt"))
 
+    def test_caches_repeated_reads(self, tmp_path):
+        """L4 (2026-05-07): identical paths must hit the LRU cache so
+        Stage 3's per-batch prompt loads don't re-read four files
+        ten times each per playlist run."""
+        f = tmp_path / "cached.txt"
+        f.write_text("v1", encoding="utf-8")
+        # Clear any state from prior tests in the same session.
+        load_text_file.cache_clear()
+        first = load_text_file(str(f))
+        # Mutate the file on disk — the cache must NOT pick this up
+        # within the same session (that's the whole point of the cache).
+        f.write_text("v2", encoding="utf-8")
+        second = load_text_file(str(f))
+        assert first == second == "v1"
+        info = load_text_file.cache_info()
+        assert info.hits >= 1
+        # cache_clear lets a long-lived process reload after a manual
+        # prompt-file edit.
+        load_text_file.cache_clear()
+        third = load_text_file(str(f))
+        assert third == "v2"
+
 
 class TestNormalizeRationale:
     """Wave 3: rationale parsing tests."""

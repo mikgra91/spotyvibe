@@ -230,6 +230,15 @@ def write_comparison_report(results_dir: Path, repo_root: Path) -> Path:
         # bundles or DEBUG_MODE-off runs.
         agg["stage_metrics_a"] = meta.get("stage_metrics_a")
         agg["stage_metrics_b"] = meta.get("stage_metrics_b")
+        # E2/E3 (2026-05-07): Last.fm coverage + listener distribution
+        # rollups, populated by harness._extract_corpus_metrics. None
+        # when no corpus was loaded or the playlist was empty.
+        agg["corpus_metrics_a"] = meta.get("corpus_metrics_a")
+        agg["corpus_metrics_b"] = meta.get("corpus_metrics_b")
+        # Carry the scenario name through so multi-scenario runs can
+        # group rows in the report. Defaults to "default" for legacy
+        # summaries that pre-date the field.
+        agg["scenario_name"] = meta.get("scenario_name", "default")
         rows.append(agg)
 
     if not rows:
@@ -371,8 +380,8 @@ def write_comparison_report(results_dir: Path, repo_root: Path) -> Path:
     out += ["",
             "## Per-run rollup",
             "",
-            "| Model | Iter | Cost ($) | Wall (s) | p50 (s) | p95 (s) | Tracks | Spotify-found | Must-have cite | Stage2 | Status | Cleanup |",
-            "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|"]
+            "| Scenario | Model | Iter | Cost ($) | Wall (s) | p50 (s) | p95 (s) | Tracks | Spotify-found | Must-have cite | Stage2 | Status | Cleanup |",
+            "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|"]
     for r in rows:
         s2 = r["stage2"]
         s2_label = (
@@ -383,6 +392,7 @@ def write_comparison_report(results_dir: Path, repo_root: Path) -> Path:
         if r["error"]:
             status = f"error: {r['error'][:40]}"
         out.append(
+            f"| {r.get('scenario_name', 'default')} "
             f"| {r['model']} | {r['iteration']} "
             f"| {_fmt(r['total_cost_usd'])} "
             f"| {_fmt(r['playlist_total_wall_s'])} "
@@ -472,6 +482,66 @@ def write_comparison_report(results_dir: Path, repo_root: Path) -> Path:
                         f"| {m.get('tokens_in', 0)} "
                         f"| {m.get('tokens_out', 0)} |"
                     )
+            out.append("")
+
+    # E2/E3 (2026-05-07): Last.fm-aware coverage + listener distribution.
+    # Only printed when at least one row carries the rollup. The two
+    # metrics live on the same table since they share an axis (the
+    # final playlist) and a reader almost always wants to see both at
+    # once when sanity-checking a Phase B regression.
+    if any(r.get("corpus_metrics_a") or r.get("corpus_metrics_b") for r in rows):
+        from .corpus_metrics import (
+            LASTFM_TAG_COVERAGE_GATE,
+            NICHE_LISTENER_P95_GATE,
+        )
+        out += [
+            "",
+            "## Phase B coverage — Last.fm tags + listener distribution (E2/E3)",
+            "",
+            f"`Coverage` = % of corpus-matched tracks whose artist has "
+            f"`lastfm_tags` populated (gate: ≥ "
+            f"{LASTFM_TAG_COVERAGE_GATE * 100:.0f} %; sub-gate values are "
+            f"flagged with ⚠). `p95 listeners` is computed only over "
+            f"tracks with non-zero `lastfm_listeners` — `n=` shows the "
+            f"sample size. The `niche_only_strict` scenario expects p95 "
+            f"< {NICHE_LISTENER_P95_GATE:,}.",
+            "",
+        ]
+        for label_letter in ("a", "b"):
+            metrics_key = f"corpus_metrics_{label_letter}"
+            if not any(r.get(metrics_key) for r in rows):
+                continue
+            out.append(f"### Playlist {label_letter.upper()}")
+            out.append("")
+            out.append(
+                "| Scenario | Model | Iter | Tracks | Matched | Coverage | "
+                "Median listeners | p95 listeners | n |"
+            )
+            out.append(
+                "|---|---|---:|---:|---:|---:|---:|---:|---:|"
+            )
+            for r in rows:
+                m = r.get(metrics_key)
+                if not m:
+                    continue
+                cov = m.get("lastfm_tag_coverage_pct")
+                cov_str = (
+                    "—" if cov is None
+                    else (f"{cov * 100:.1f}%"
+                          + ("" if cov >= LASTFM_TAG_COVERAGE_GATE else " ⚠"))
+                )
+                med = m.get("lastfm_listeners_median")
+                p95 = m.get("lastfm_listeners_p95")
+                out.append(
+                    f"| {r.get('scenario_name', 'default')} "
+                    f"| {r['model']} | {r['iteration']} "
+                    f"| {m.get('total_tracks', 0)} "
+                    f"| {m.get('matched_in_corpus', 0)} "
+                    f"| {cov_str} "
+                    f"| {med if med is not None else '—'} "
+                    f"| {p95 if p95 is not None else '—'} "
+                    f"| {m.get('lastfm_listeners_sample_size', 0)} |"
+                )
             out.append("")
 
     out += ["", "## Eval-log row counts", "",
