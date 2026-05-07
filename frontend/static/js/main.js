@@ -89,6 +89,7 @@ window.clearAllFilters = clearAllFilters;
 window.updateFilterHint = updateFilterHint;
 window.applyAnalysisFilter = applyAnalysisFilter;
 window.applyAllAnalysisFilters = applyAllAnalysisFilters;
+window.updateAllFilterHints = updateAllFilterHints;
 window.getPlaylistMode = getPlaylistMode;
 window.onPlaylistModeChange = onPlaylistModeChange;
 window.getPlaylistModePayload = getPlaylistModePayload;
