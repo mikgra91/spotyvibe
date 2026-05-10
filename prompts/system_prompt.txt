@@ -14,6 +14,7 @@ HARD CONSTRAINTS (violations = failures):
 7. Max 2 tracks per artist per batch.
 
 DENY_LIST is the sole exclusion source.
+DENY_LIST.artist_track_counts: {artist: N} = how many of their tracks were already suggested across all-time history. Higher N is a strong reason to look elsewhere; treat any artist already in exhausted_artists as fully off-limits.
 
 ⚠ CONSTRAINTS 4–5 ARE HIGHEST PRIORITY. A track violating must_have or matching avoid is ALWAYS rejected. When in doubt, reject.
 

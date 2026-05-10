@@ -242,6 +242,7 @@ def chat_completions_create(
     messages: list,
     temperature: float = 0.7,
     response_format: dict | None = None,
+    prompt_cache_key: str | None = None,
 ) -> dict:
     """POST /v1/chat/completions — call the chat completions endpoint.
 
@@ -311,6 +312,16 @@ def chat_completions_create(
 
     if effective_response_format is not None:
         payload["response_format"] = effective_response_format
+
+    # C4 (2026-05-10) — `prompt_cache_key` is a routing hint that pins
+    # the request to a host whose KV cache already holds the same prefix.
+    # OpenAI auto-caches eligible prompts (>= 1024 tokens) but the cache
+    # is per-host; without this hint the router load-balances across
+    # hosts and most calls miss. With a stable key the hit rate stabilises.
+    # Only sent on OpenAI provider — non-OpenAI compatibility-mode
+    # endpoints may 400 on unknown fields.
+    if prompt_cache_key and _is_openai_provider():
+        payload["prompt_cache_key"] = prompt_cache_key
 
     try:
         return _request_json("POST", "/chat/completions", body=payload, retries=1)

@@ -62,8 +62,9 @@ Secrets are stored in the OS keychain (Windows Credential Manager / macOS Keycha
 | `BATCH_SIZE` | 10 | Tracks requested per GPT call. |
 | `DEFAULT_PLAYLIST_SIZE` | 10 | Default playlist size; the UI accepts 5–30 and clamps server-side in `/api/run`. |
 | `DEFAULT_NEW_ARTIST_PERCENTAGE` | 30 | Minimum % of each batch from artists not in history. |
-| `GPT_HISTORY_LIMIT` | 200 | Max history entries sent to GPT (bounds token usage). |
-| `EXHAUSTED_ARTIST_THRESHOLD` | 4 | Artists with ≥ this many tracks in history are marked `[EXHAUSTED]` in the exclusion block. |
+| `GPT_HISTORY_LIMIT` | 200 | Max history entries considered when building the deny set (bounds the aggregate-counts scope). |
+| `RECENT_VERBATIM_TRACKS` | 100 | C3 — only this many most-recent tracks render verbatim in `forbidden_tracks`. Older tracks are represented via the new `artist_track_counts` aggregate. |
+| `EXHAUSTED_ARTIST_THRESHOLD` | 4 | Artists with ≥ this many tracks in history are marked `[EXHAUSTED]` in the exclusion block. Computed from the full aggregate (within `GPT_HISTORY_LIMIT`), not just the recent verbatim slice. |
 | `MAX_CONSECUTIVE_EMPTY_BATCHES` | 3 | Breaks the loop after N all-filtered retries. |
 | `MAX_GPT_CALLS_PER_RUN` | 4 | Hard ceiling per generation run (lowered from 20 → 4 during Phase 2.6 — see comment in `config.py`). |
 | `DEFAULT_OPENAI_MODEL` | `gpt-5.4-mini` | Fallback model. |

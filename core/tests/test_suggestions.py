@@ -222,6 +222,87 @@ class TestBuildDenySetJson:
         deny = json.loads(_build_deny_set_json(profile, ephemeral_deny_tracks={"a b"}))
         assert deny["retry_forbidden_tracks"] == ["a b"]
 
+    def test_artist_track_counts_block_present(self):
+        # C3 (2026-05-10): every render carries the new aggregate, even
+        # when history is small enough to fit in the verbatim window.
+        profile = {
+            "history": {
+                "suggested_artists": ["artist x"],
+                "suggested_tracks": [
+                    {"artist": "artist x", "track": "t1"},
+                    {"artist": "artist x", "track": "t2"},
+                ],
+            },
+            "artists": {"rejected": []},
+            "feedback": {"disliked_artists": [], "disliked_tracks": []},
+        }
+        deny = json.loads(_build_deny_set_json(profile))
+        assert deny["artist_track_counts"] == {"artist x": 2}
+        # Verbatim block also still present for the recent slice.
+        assert deny["forbidden_tracks"] == {"artist x": ["t1", "t2"]}
+
+    def test_artist_track_counts_sorted_descending_by_count(self):
+        # Highest-signal artists first so smaller models hit them earliest.
+        profile = {
+            "history": {
+                "suggested_artists": ["a", "b", "c"],
+                "suggested_tracks": (
+                    [{"artist": "low", "track": f"t{i}"} for i in range(1)]
+                    + [{"artist": "high", "track": f"t{i}"} for i in range(5)]
+                    + [{"artist": "mid", "track": f"t{i}"} for i in range(3)]
+                ),
+            },
+            "artists": {"rejected": []},
+            "feedback": {"disliked_artists": [], "disliked_tracks": []},
+        }
+        deny = json.loads(_build_deny_set_json(profile))
+        assert list(deny["artist_track_counts"].keys()) == ["high", "mid", "low"]
+
+    def test_forbidden_tracks_trimmed_to_recent_window(self, monkeypatch):
+        # Use a non-default boundary (10) so the trim is unambiguously
+        # the code under test, not the default constant. With 30 historical
+        # tracks and RECENT_VERBATIM_TRACKS=10, only the latest 10 should
+        # appear verbatim — but the aggregate still reflects all 30.
+        monkeypatch.setattr("core.src.suggestions.RECENT_VERBATIM_TRACKS", 10)
+        history = (
+            [{"artist": "old", "track": f"o{i}"} for i in range(20)]
+            + [{"artist": "new", "track": f"n{i}"} for i in range(10)]
+        )
+        profile = {
+            "history": {"suggested_tracks": history, "suggested_artists": []},
+            "artists": {"rejected": []},
+            "feedback": {"disliked_artists": [], "disliked_tracks": []},
+        }
+        deny = json.loads(_build_deny_set_json(profile))
+        # Verbatim: only 'new' (the last 10); 'old' is past the window.
+        assert "old" not in deny["forbidden_tracks"]
+        assert "new" in deny["forbidden_tracks"]
+        assert len(deny["forbidden_tracks"]["new"]) == 10
+        # Aggregate covers everything still in GPT_HISTORY_LIMIT scope.
+        assert deny["artist_track_counts"]["old"] == 20
+        assert deny["artist_track_counts"]["new"] == 10
+        # Both old and new exhaust the threshold (4) — long-tail artists
+        # the verbatim block forgot are still surfaced as exhausted.
+        assert "old" in deny["exhausted_artists"]
+        assert "new" in deny["exhausted_artists"]
+
+    def test_exhausted_artists_drives_off_aggregate_not_recent_window(self):
+        # An artist with 5 tracks all in the older slice (beyond the
+        # verbatim window) must still be marked exhausted via the aggregate.
+        history = (
+            [{"artist": "buried", "track": f"b{i}"} for i in range(5)]
+            + [{"artist": "fresh", "track": f"f{i}"} for i in range(100)]
+        )
+        profile = {
+            "history": {"suggested_tracks": history, "suggested_artists": []},
+            "artists": {"rejected": []},
+            "feedback": {"disliked_artists": [], "disliked_tracks": []},
+        }
+        deny = json.loads(_build_deny_set_json(profile))
+        assert "buried" in deny["exhausted_artists"]
+        # And buried doesn't appear verbatim anymore.
+        assert "buried" not in deny["forbidden_tracks"]
+
 
 class TestBuildMessages:
     @patch("core.src.suggestions.load_text_file")

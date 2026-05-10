@@ -316,6 +316,25 @@ class TestProfilePromptSize:
         assert data["stage3_mode"] == "custom"
         assert data["stage3_resolved_model"] == "local-llama-3.1"
 
+    def test_error_path_still_surfaces_mode_and_resolved_model(self, client):
+        # Round 2 review (2026-05-10): if the prompt-size computation
+        # blows up after a profile loads, the cost-estimator UI must
+        # still receive the mode + resolved-model fields. Without this
+        # the frontend would silently revert to the dropdown value,
+        # which under Auto/Best displays the wrong model name.
+        import os
+        with patch.dict(os.environ, {"STAGE3_MODE": "best"}), \
+             patch("app.get_active_profile_id", return_value="pid"), \
+             patch("app.is_profile_trained", return_value=True), \
+             patch("app.load_profile", side_effect=RuntimeError("boom")):
+            resp = client.get("/api/profile/prompt-size")
+        assert resp.status_code == 500
+        data = resp.get_json()
+        assert data["trained"] is False
+        assert data["error"] == "boom"
+        assert data["stage3_mode"] == "best"
+        assert data["stage3_resolved_model"] == "gpt-5.4"
+
 
 class TestProfileData:
     @patch("app.get_active_profile_id", return_value="some-id")

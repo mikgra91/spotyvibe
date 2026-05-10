@@ -1153,32 +1153,79 @@ marked C* are the active ordering the user signed off 2026-05-08.
     surfacing the right number is the load-bearing fix; the gate is
     UX polish on top of it. Re-open if user testing shows people
     still clicking Generate when the estimate is high.
-- **C3 — OPEN-5 profile consolidation on overgrowth.** When profile
-  JSON exceeds a threshold (originally proposed 12 KB; revisit
-  against current shape), summarise older history into a per-artist
-  aggregate digest ("Beatles — 24 tracks suggested") that replaces
-  verbatim long-tail entries while keeping the recent ~60-100 tracks
-  verbatim for dedup safety. Caps prompt growth at saturation.
-  Design note 2026-05-08 (user-proposed): the per-artist count form
-  is the right replacement for the current 4-in-200 `[EXHAUSTED]`
-  binary — gives the model a finer "this artist is heavily explored"
-  signal than the binary tag, at significantly lower token cost
-  than the verbatim list. Pair the count with a threshold (e.g. ≥ 8
-  tracks → `[EXHAUSTED]`) so the exhaust signal stays binary at the
-  prompt level.
-- **C4 — Stage 3 prompt slimming + OpenAI prompt caching investigation.**
-  System prompt is ~5 KB and identical across batches in one /api/run.
-  Caching the cached portion at ~10 % of normal input cost is a
-  ~30 % Stage 3 input win **if** the OpenAI 2026 API tier exposes it.
-  First step: read the current Anthropic / OpenAI provider docs for
-  caching support on the gpt-5.x family. Touches
-  [prompts/song_user.txt](prompts/song_user.txt) /
-  [openai_http.py](core/src/openai_http.py).
-- **C5 — Compact JSON Stage 3 schema.** Verbose JSON (~80 tokens
-  per track) → single-line schema (`{"a":"X","t":"Y"}`, ~25 tokens).
-  Output side win ~60 %, but output is only ~30 % of total →
-  ~18 % overall. Risk: schema fragility / parser brittleness.
-  Lower priority than C1-C4.
+- ~~**C3 — OPEN-5 profile consolidation on overgrowth**~~ ✅ Shipped
+  2026-05-10. Verbatim `forbidden_tracks` block now caps at the most
+  recent `RECENT_VERBATIM_TRACKS = 100` entries; older history is
+  represented via a new per-artist aggregate `artist_track_counts`
+  (full-history scope, within `GPT_HISTORY_LIMIT`). `[EXHAUSTED]`
+  threshold unchanged at 4 — but driven by the broader aggregate, so
+  artists buried beyond the verbatim window still surface as exhausted.
+  - **Scope (corrected from initial claim):** `_build_deny_set_json`
+    is consumed by the **legacy `build_messages` path only** —
+    fires when RAG is disabled OR `emerging_only` mode is on. The
+    production Stage 3 (`select_tracks` + `track_select_*.txt`)
+    works on a pre-approved artist list and never sees DENY_LIST;
+    its per-track dedup is post-hoc via `filter_duplicate_suggestions`.
+    So C3's token saving applies to the legacy path; for the
+    dominant Stage 3 path the structural win is reuse of
+    `_compute_exhausted_artists` (which `filter_duplicate_suggestions`
+    calls — and which now derives from the aggregate, so artists
+    buried beyond a hypothetically-shrunken verbatim slice still
+    get filtered out). C4 is the load-bearing cost win for Stage 3.
+  - New `_aggregate_artist_track_counts` helper in
+    [core/src/suggestions.py](core/src/suggestions.py); both
+    `_compute_exhausted_artists` and `_build_deny_set_json` route
+    through it.
+  - Aggregate sorted desc by count so highest-signal entries surface
+    first under context-budget pressure.
+  - `system_prompt.txt` (legacy-path system prompt) gains one
+    descriptive line about the new `artist_track_counts` field.
+  - Tests: 4 new (aggregate present / sorted-desc / verbatim-trim /
+    exhaust-from-aggregate) in `TestBuildDenySetJson`. Existing
+    tests unchanged.
+  - Token saving on the **legacy path** at saturation: ~1.8 k tokens
+    per call (~$0.001 mini, ~$0.018 gpt-5.4 per playlist). Structural
+    win = bounded growth: verbatim block fixed at 100 forever,
+    regardless of profile age.
+- ~~**C4 — Stage 3 prompt-cache routing key**~~ ✅ Shipped
+  2026-05-10. Investigation finding: OpenAI auto-caches eligible
+  prefixes (≥ 1024 tokens) but the cache is per-host. Without a
+  routing hint the load balancer sprays requests across hosts and
+  hits sporadically — B1 trace inspection 2026-05-10 showed 0 % on
+  most batches and 71-76 % on the few that landed.
+  - `chat_completions_create` ([core/src/openai_http.py](core/src/openai_http.py))
+    gains optional `prompt_cache_key` parameter; routed to the
+    OpenAI payload only when the configured provider IS OpenAI
+    (compatibility-mode endpoints like Ollama may 400 on unknown
+    fields, so the field is gated on `_is_openai_provider()`).
+  - Stage 3 (`select_tracks` in
+    [core/src/suggestions.py](core/src/suggestions.py)) sends
+    `f"sv-stage3:{model}:{language}:{int(emerging_only)}"` —
+    constant per (model, language, emerging-only) triple, which
+    matches the system-prompt's invariance dimensions exactly.
+  - Tests: 3 new in `TestChatCompletionsCreate` covering
+    pass-through, omission when unset, omission on local providers.
+  - **Verification deferred to next eval.** The win shows up as a
+    higher and more *consistent* `cached_tokens / prompt_tokens`
+    ratio in the eval-log batch_summary records. R1's protocol can
+    measure this as a side-benefit when its sweep runs.
+- ~~**C5 — Compact JSON Stage 3 schema**~~ ❌ Deferred 2026-05-10
+  after risk assessment. Re-baselined estimate:
+  - Real saving on the dominant model (mini): ~$0.001 / playlist
+    (output tokens are a small share of total; rationale array is
+    the only field where compaction has meaningful weight).
+  - Touch points: `normalize_response`, `_strip_gpt_annotation`,
+    `update_profile`, `filter_duplicate_suggestions`, every test
+    that assembles a fake Stage 3 response, plus the prompt
+    template itself.
+  - Failure mode: the model returns a mixed shape (some entries
+    long, some short) under temperature noise — parser must accept
+    both, doubling the surface area of `normalize_response`.
+  - Cost-benefit: ~$0.001 saved vs days of prompt-engineering risk
+    is a bad ratio. Re-open only if R1 surfaces a different angle
+    (e.g. compact schema *also* improves mini's quality, not just
+    cost), in which case the change becomes load-bearing for a
+    quality fix and the parser surface-area cost is justified.
 
 #### R1 — Research spike: lift mini quality on deeper profiles
 

@@ -194,6 +194,47 @@ class TestChatCompletionsCreate:
         with pytest.raises(OpenAIUnsupportedModelError, match="not in the supported model list"):
             chat_completions_create(model="totally-fake-model", messages=[])
 
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"})
+    @patch("core.src.openai_http._request_json")
+    def test_passes_prompt_cache_key_to_payload(self, mock_req):
+        # C4 (2026-05-10): the routing hint must reach OpenAI verbatim
+        # so the cache router can pin the request to a host with the
+        # matching prefix already loaded.
+        mock_req.return_value = {"choices": [{"message": {"content": "hi"}}]}
+        chat_completions_create(
+            model="gpt-4.1-mini",
+            messages=[],
+            prompt_cache_key="sv-stage3:gpt-4.1-mini:English:0",
+        )
+        body = mock_req.call_args[1]["body"]
+        assert body["prompt_cache_key"] == "sv-stage3:gpt-4.1-mini:English:0"
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"})
+    @patch("core.src.openai_http._request_json")
+    def test_omits_prompt_cache_key_when_unset(self, mock_req):
+        # Default callers (analysis, profile-update) don't pass the hint;
+        # we must NOT inject a stray field that some compatibility-mode
+        # endpoints may reject.
+        mock_req.return_value = {"choices": [{"message": {"content": "hi"}}]}
+        chat_completions_create(model="gpt-4.1-mini", messages=[])
+        body = mock_req.call_args[1]["body"]
+        assert "prompt_cache_key" not in body
+
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"})
+    @patch("core.src.openai_http._is_openai_provider", return_value=False)
+    @patch("core.src.openai_http._request_json")
+    def test_omits_prompt_cache_key_on_local_provider(self, mock_req, _mock_is_openai):
+        # Local / OpenAI-compatibility-mode endpoints (Ollama, LM Studio)
+        # may 400 on unknown payload fields. The hint is OpenAI-only.
+        mock_req.return_value = {"choices": [{"message": {"content": "hi"}}]}
+        chat_completions_create(
+            model="llama3.1:8b",
+            messages=[],
+            prompt_cache_key="sv-stage3:llama3.1:8b:English:0",
+        )
+        body = mock_req.call_args[1]["body"]
+        assert "prompt_cache_key" not in body
+
 
 # ── extract_chat_content ─────────────────────────────────────────────
 

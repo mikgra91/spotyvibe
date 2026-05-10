@@ -2242,7 +2242,19 @@ def profile_prompt_size():
         })
     except Exception as exc:
         app.logger.warning("prompt-size endpoint failed: %s", exc)
-        return jsonify({"trained": False, "error": str(exc)}), 500
+        # L5: degrade gracefully — even when the prompt-size computation
+        # blows up, return the mode + resolved-model fields so the cost
+        # estimator UI doesn't silently revert to the dropdown value
+        # (which would show the wrong model under Auto/Best modes).
+        # Resolver runs against a None profile so any auto+feedback bias
+        # is lost on this fallback, but the static modes (fast/best/custom)
+        # still report correctly.
+        return jsonify({
+            "trained": False,
+            "error": str(exc),
+            "stage3_mode": stage3_mode,
+            "stage3_resolved_model": _resolve_stage3_model(None, mode=stage3_mode),
+        }), 500
 
 
 @app.route("/api/profile/export")

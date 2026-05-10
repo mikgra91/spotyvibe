@@ -37,6 +37,7 @@ import unicodedata
 from collections import defaultdict
 from pathlib import Path
 from config import (BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD,
+                    RECENT_VERBATIM_TRACKS,
                     STAGE3_OVER_REQUEST, STAGE3_FAST_MODEL, STAGE3_BEST_MODEL,
                     get_model, get_gpt_language, get_stage2_model, get_debug_mode,
                     get_stage3_mode)
@@ -293,6 +294,31 @@ def collect_forbidden_artists(profile, normalizer=None):
     return forbidden
 
 
+def _aggregate_artist_track_counts(profile, normalizer=None):
+    """Count suggested tracks per artist over the (capped) history window.
+
+    C3 (2026-05-10) — single source of truth for both `_compute_exhausted_artists`
+    and the new `artist_track_counts` block in `_build_deny_set_json`. The
+    GPT_HISTORY_LIMIT cap still applies (caller-side trim) so an unbounded
+    profile can't drive token cost up — verbatim render is bounded by
+    RECENT_VERBATIM_TRACKS, aggregate render by GPT_HISTORY_LIMIT.
+    """
+    if normalizer is None:
+        normalizer = lambda name: name.lower().strip()
+    tracks = profile.get("history", {}).get("suggested_tracks", [])
+    if len(tracks) > GPT_HISTORY_LIMIT:
+        tracks = tracks[-GPT_HISTORY_LIMIT:]
+    counts: dict = defaultdict(int)
+    for entry in tracks:
+        if isinstance(entry, dict):
+            a = normalizer(entry.get("artist", ""))
+        else:
+            a = normalizer(str(entry))
+        if a:
+            counts[a] += 1
+    return counts
+
+
 def _compute_exhausted_artists(profile, normalizer=None):
     """Compute exhausted artist keys from history (>= EXHAUSTED_ARTIST_THRESHOLD tracks).
 
@@ -303,50 +329,57 @@ def _compute_exhausted_artists(profile, normalizer=None):
     Returns:
         A set of normalized exhausted artist keys.
     """
-    if normalizer is None:
-        normalizer = lambda name: name.lower().strip()
-    tracks = profile.get("history", {}).get("suggested_tracks", [])
-    if len(tracks) > GPT_HISTORY_LIMIT:
-        tracks = tracks[-GPT_HISTORY_LIMIT:]
-    artist_counts: dict = defaultdict(int)
-    for entry in tracks:
-        if isinstance(entry, dict):
-            a = normalizer(entry.get("artist", ""))
-        else:
-            a = normalizer(str(entry))
-        if a:
-            artist_counts[a] += 1
-    return {a for a, c in artist_counts.items() if c >= EXHAUSTED_ARTIST_THRESHOLD}
+    counts = _aggregate_artist_track_counts(profile, normalizer)
+    return {a for a, c in counts.items() if c >= EXHAUSTED_ARTIST_THRESHOLD}
 
 
 def _build_deny_set_json(profile, ephemeral_deny_tracks=None):
     """Build a consolidated JSON deny set for the prompt.
 
+    SCOPE — only the legacy ``build_messages`` path consumes this block
+    (RAG disabled / emerging_only mode). The production Stage 3
+    (``select_tracks`` + ``track_select_*.txt``) operates on a
+    pre-approved artist list and does NOT see DENY_LIST; per-track dedup
+    for that path is enforced post-hoc by ``filter_duplicate_suggestions``.
+
     Merges all exclusion sources into a single structured block:
     - artists.rejected + feedback.disliked_artists → forbidden_artists
     - exhausted artists (computed from history) → exhausted_artists
     - history.suggested_tracks grouped by artist → forbidden_tracks
+      (limited to the most-recent ``RECENT_VERBATIM_TRACKS`` entries,
+      C3 2026-05-10 — older history is represented as counts only)
+    - artist_track_counts (C3): per-artist all-time aggregate over the
+      ``GPT_HISTORY_LIMIT`` window — replaces the verbatim long-tail
     - feedback.disliked_tracks → disliked_tracks
     - ephemeral_deny_tracks (retry-filtered, NOT persisted) → retry_forbidden_tracks
 
     GPT-4.1-mini in json_object mode processes JSON lookups more accurately
-    than prose exclusion lists. DENY_LIST is the single source of truth —
-    exclusion fields are stripped from the profile JSON before sending.
+    than prose exclusion lists. DENY_LIST is the single source of truth
+    for the legacy path; exclusion fields are stripped from the profile
+    JSON before sending.
     """
     # Forbidden artists (merged from all sources)
     forbidden_artists = collect_forbidden_artists(profile)
 
-    # Exhausted artists via history counts
-    exhausted = sorted(_compute_exhausted_artists(profile))
+    # C3 (2026-05-10): all-time per-artist counts (within the
+    # GPT_HISTORY_LIMIT cap). Drives both `exhausted_artists` and the
+    # new `artist_track_counts` block — long-tail history is represented
+    # by counts only, not verbatim track names, to keep prompt growth
+    # bounded as the profile matures.
+    artist_counts = _aggregate_artist_track_counts(profile)
+    exhausted = sorted({a for a, c in artist_counts.items() if c >= EXHAUSTED_ARTIST_THRESHOLD})
 
-    # Build track-by-artist grouping for forbidden_tracks
+    # Verbatim forbidden_tracks comes from the most-recent slice only
+    # (RECENT_VERBATIM_TRACKS). Older tracks are still represented via
+    # artist_track_counts, and once an artist trips EXHAUSTED_ARTIST_THRESHOLD
+    # the model is told to skip them entirely — so a track from 6 months
+    # ago can't reappear unless its artist count is genuinely low.
     tracks = profile.get("history", {}).get("suggested_tracks", [])
-    if len(tracks) > GPT_HISTORY_LIMIT:
-        tracks = tracks[-GPT_HISTORY_LIMIT:]
+    recent_tracks = tracks[-RECENT_VERBATIM_TRACKS:] if len(tracks) > RECENT_VERBATIM_TRACKS else tracks
 
     by_artist: dict = defaultdict(list)
 
-    for entry in tracks:
+    for entry in recent_tracks:
         if isinstance(entry, dict):
             a = entry.get("artist", "").lower().strip()
             t = entry.get("track", "").lower().strip()
@@ -369,10 +402,16 @@ def _build_deny_set_json(profile, ephemeral_deny_tracks=None):
 
     deny_set = {
         "forbidden_artists": sorted(forbidden_artists),
-        "exhausted_artists": sorted(exhausted),
+        "exhausted_artists": exhausted,
         "forbidden_tracks": {
             a: sorted(t) for a, t in sorted(by_artist.items()) if a != "_unmatched"
         },
+        # Sort descending by count so the highest-signal entries are seen
+        # first by the model — relevant under truncation / context-budget
+        # pressure on smaller models.
+        "artist_track_counts": dict(
+            sorted(artist_counts.items(), key=lambda kv: (-kv[1], kv[0]))
+        ),
         "disliked_tracks": {a: sorted(t) for a, t in sorted(disliked_tracks.items())},
     }
 
@@ -1437,6 +1476,14 @@ def select_tracks(
             "profile_updates": {"suggested_artists": [], "suggested_tracks": []},
         }
 
+    # C4 (2026-05-10) — stable cache-routing hint per (model, language,
+    # emerging_only). System prompt is invariant under that triple so the
+    # cache router consistently sends batches in the same /api/run to the
+    # same host. Without this, OpenAI's load balancer sprays requests
+    # across hosts and the auto-cache hits sporadically (B1 2026-05-08
+    # showed 71-76 % hit rate when it landed, 0 % otherwise).
+    _stage3_cache_key = f"sv-stage3:{stage3_model}:{gpt_language}:{int(bool(emerging_only))}"
+
     _t0 = _time.monotonic()
     response = chat_completions_create(
         model=stage3_model,
@@ -1446,6 +1493,7 @@ def select_tracks(
         # measured +80% cost on gpt-5.4, +89% on gpt-5.4-mini, with a
         # quality regression on must-have cite. Stage 3 uses plain json_object.
         response_format={"type": "json_object"},
+        prompt_cache_key=_stage3_cache_key,
     )
     latency_s = _time.monotonic() - _t0
 

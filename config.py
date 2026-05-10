@@ -64,6 +64,15 @@ DEFAULT_PLAYLIST_SIZE = 10
 # Maximum number of history entries sent to GPT to bound token usage
 GPT_HISTORY_LIMIT = 200
 
+# C3 (2026-05-10) — How many of the most-recent suggested tracks are sent
+# verbatim in the DENY_LIST.forbidden_tracks block. Tracks older than this
+# window are still represented via the new artist_track_counts aggregate
+# (per-artist counts) plus the [EXHAUSTED] tag, so dedup of recent runs is
+# preserved while long-tail history no longer bloats the prompt.
+# 100 ≈ 3-4 typical 30-track playlists of verbatim safety. Saves ~2.8 k
+# tokens per Stage 3 batch at saturation vs the old 200-cap verbatim render.
+RECENT_VERBATIM_TRACKS = 100
+
 # When an artist already has this many tracks in history, GPT is told to
 # skip them entirely and look for new artists instead.
 EXHAUSTED_ARTIST_THRESHOLD = 4
