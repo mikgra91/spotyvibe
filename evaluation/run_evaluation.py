@@ -399,6 +399,17 @@ def main() -> int:
     os.environ.setdefault("SPOTIVIBE_SPOTIFY_SEARCH_SERIAL", "1")
     os.environ.setdefault("SPOTIVIBE_SPOTIFY_SEARCH_DELAY_S", "1.5")
 
+    # L5 (2026-05-10): the L5 Stage 3 selector resolves the model based on
+    # STAGE3_MODE. Production default is `fast` which IGNORES the
+    # per-iteration `OPENAI_MODEL` override the harness sets at line 615
+    # of harness.py — so without this, every iteration would silently
+    # collapse onto STAGE3_FAST_MODEL regardless of `models =` in
+    # settings.ini. `custom` makes the resolver respect OPENAI_MODEL,
+    # restoring the per-iter behaviour the eval needs to compare models.
+    # ``setdefault`` so a user testing a specific mode (e.g. STAGE3_MODE=auto
+    # for tier-switching validation) can still override from the shell.
+    os.environ.setdefault("STAGE3_MODE", "custom")
+
     from evaluation.harness import prepare_sandbox, run_for_model
 
     try:
