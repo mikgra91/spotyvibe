@@ -51,7 +51,7 @@
 .rag-update-banner > button { flex: 0 0 auto; }
 
 /* ── Learn more collapsible ────────────────────────────────────────── */
-.learn-more { margin-top: var(--sp-2); font-size: var(--fs-sm); }
+.learn-more { margin-top: var(--sp-2); font-size: calc(var(--fs-sm) - 2px); }
 .learn-more > summary {
     color: var(--primary);
     cursor: pointer;

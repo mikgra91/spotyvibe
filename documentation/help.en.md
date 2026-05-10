@@ -230,8 +230,11 @@ Open **Settings** from the menu to customize how SpotyVibe works for you.
 
 Available settings include:
 
+- **Suggestion model strategy**  
+  Pick how SpotyVibe chooses the model: **Fast** (always cheap mini), **Best** (always premium), **Auto** (cheap until you've given feedback, then premium), or **Custom** (use the model you select below — required for local LLMs).
+
 - **Used Model**  
-  Choose which AI model SpotyVibe uses.
+  Choose which AI model SpotyVibe uses. Greyed out unless the strategy above is set to **Custom**.
 
 - **Playlist Size**  
   Set how many tracks SpotyVibe should aim to generate.

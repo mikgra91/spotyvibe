@@ -230,8 +230,11 @@ Falls deine Sitzung später abläuft, verbinde dich einfach erneut.
 
 Verfügbare Einstellungen:
 
+- **Modell-Strategie für Vorschläge**
+  Wähle, wie SpotyVibe das Modell bestimmt: **Schnell** (immer das günstige Mini), **Beste** (immer Premium), **Automatisch** (günstig bis du Feedback gegeben hast, danach Premium) oder **Benutzerdefiniert** (verwendet das unten ausgewählte Modell — nötig für lokale LLMs).
+
 - **Verwendetes Modell**
-  Wähle, welches KI-Modell SpotyVibe verwendet.
+  Wähle, welches KI-Modell SpotyVibe verwendet. Ausgegraut, sofern die Strategie oben nicht auf **Benutzerdefiniert** steht.
 
 - **Playlist-Größe**
   Lege fest, wie viele Tracks SpotyVibe generieren soll.

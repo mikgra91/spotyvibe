@@ -66,14 +66,19 @@ Secrets are stored in the OS keychain (Windows Credential Manager / macOS Keycha
 | `EXHAUSTED_ARTIST_THRESHOLD` | 4 | Artists with ≥ this many tracks in history are marked `[EXHAUSTED]` in the exclusion block. |
 | `MAX_CONSECUTIVE_EMPTY_BATCHES` | 3 | Breaks the loop after N all-filtered retries. |
 | `MAX_GPT_CALLS_PER_RUN` | 4 | Hard ceiling per generation run (lowered from 20 → 4 during Phase 2.6 — see comment in `config.py`). |
-| `DEFAULT_OPENAI_MODEL` | `gpt-5.4` | Fallback model. |
+| `DEFAULT_OPENAI_MODEL` | `gpt-5.4-mini` | Fallback model. |
+| `STAGE3_FAST_MODEL` | `gpt-5.4-mini` | Stage 3 model used by the **Fast** strategy (and by **Auto** on a cold profile). |
+| `STAGE3_BEST_MODEL` | `gpt-5.4` | Stage 3 model used by the **Best** strategy (and by **Auto** once `feedback.disliked_tracks` ≥ 1). |
+| `STAGE3_MODE_DEFAULT` | `fast` | Initial Stage 3 strategy for a fresh install — matches pre-L5 behaviour (always mini). |
 | `PROFILE_IMPORT_MAX_BYTES` | 10 MB | Per-request cap for profile import. |
 | `GENERAL_REQUEST_MAX_BYTES` | 1 MB | Flask `MAX_CONTENT_LENGTH` for all other endpoints. |
 
 **Credential keys (keyring):** `OPENAI_API_KEY`, `SPOTIPY_CLIENT_ID`, `SPOTIPY_CLIENT_SECRET`.
 
 **Settings keys (`settings.conf`):**
-`OPENAI_MODEL`, `DEBUG_MODE`, `PLAYLIST_SIZE`, `NEW_ARTIST_PERCENTAGE`, `GPT_LANGUAGE`, `ONBOARDING_COMPLETED`, `ACTIVE_PROFILE_ID`, `UI_LANGUAGE`, `LLM_BASE_URL`, `PROVIDER_PRESET`.
+`OPENAI_MODEL`, `STAGE3_MODE`, `DEBUG_MODE`, `PLAYLIST_SIZE`, `NEW_ARTIST_PERCENTAGE`, `GPT_LANGUAGE`, `ONBOARDING_COMPLETED`, `ACTIVE_PROFILE_ID`, `UI_LANGUAGE`, `LLM_BASE_URL`, `PROVIDER_PRESET`.
+
+`STAGE3_MODE` (L5 — 2026-05-08) governs Stage 3 model selection. Values: `fast` (always `STAGE3_FAST_MODEL`), `best` (always `STAGE3_BEST_MODEL`), `auto` (fast for cold profile, best once `feedback.disliked_tracks` ≥ 1), `custom` (use whatever `OPENAI_MODEL` resolves to — covers local LLMs). Resolution lives in `core.src.suggestions._resolve_stage3_model`. Default is `fast` so existing installs see no behaviour change; users opt into Auto / Best / Custom from the Settings modal.
 
 `LLM_BASE_URL` and `PROVIDER_PRESET` support pointing the app at any OpenAI-compatible endpoint (Ollama, LM Studio, Groq, OpenRouter, or a custom `/v1` URL).
 

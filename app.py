@@ -1919,6 +1919,13 @@ def write_settings():
     if "model" in data:
         payload["OPENAI_MODEL"] = data["model"]
 
+    # L5 (2026-05-08): Stage 3 model strategy. Validated against
+    # config.STAGE3_MODES so a malformed payload never wedges the pipeline.
+    if "stage3_mode" in data:
+        from config import STAGE3_MODES, STAGE3_MODE_DEFAULT
+        raw = (data.get("stage3_mode") or "").strip().lower()
+        payload["STAGE3_MODE"] = raw if raw in STAGE3_MODES else STAGE3_MODE_DEFAULT
+
     if "debug_mode" in data:
         payload["DEBUG_MODE"] = "true" if data["debug_mode"] else ""
 

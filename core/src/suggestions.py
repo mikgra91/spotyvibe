@@ -37,8 +37,9 @@ import unicodedata
 from collections import defaultdict
 from pathlib import Path
 from config import (BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD,
-                    STAGE3_OVER_REQUEST,
-                    get_model, get_gpt_language, get_stage2_model, get_debug_mode)
+                    STAGE3_OVER_REQUEST, STAGE3_FAST_MODEL, STAGE3_BEST_MODEL,
+                    get_model, get_gpt_language, get_stage2_model, get_debug_mode,
+                    get_stage3_mode)
 from .utils import strip_code_fences, debug_log
 from .openai_http import chat_completions_create, extract_chat_content
 from .rag import score_artists, score_artists_stratified, format_candidate_pool_block
@@ -898,6 +899,34 @@ def normalize_response(result):
     return result
 
 
+def _resolve_stage3_model(profile: dict | None, *, mode: str | None = None) -> str:
+    """Pick the Stage 3 model based on the configured strategy + profile state.
+
+    L5 (2026-05-08). Modes: "fast" → STAGE3_FAST_MODEL, "best" →
+    STAGE3_BEST_MODEL, "auto" → fast for cold profile / best once
+    ``feedback.disliked_tracks`` carries ≥ 1 entry, "custom" → whatever
+    ``get_model()`` resolves (the existing OPENAI_MODEL path; covers
+    local LLMs).
+
+    ``mode`` override is for tests; production resolves via
+    ``get_stage3_mode()``.
+    """
+    resolved_mode = (mode or get_stage3_mode() or "").strip().lower()
+    if resolved_mode == "best":
+        return STAGE3_BEST_MODEL
+    if resolved_mode == "custom":
+        return get_model()
+    if resolved_mode == "auto":
+        feedback = (profile or {}).get("feedback", {}) if isinstance(profile, dict) else {}
+        disliked = feedback.get("disliked_tracks") if isinstance(feedback, dict) else None
+        if isinstance(disliked, list) and len(disliked) >= 1:
+            return STAGE3_BEST_MODEL
+        return STAGE3_FAST_MODEL
+    # "fast" + any unknown / typo'd value (get_stage3_mode() already
+    # falls back to default, this is belt-and-braces for direct callers).
+    return STAGE3_FAST_MODEL
+
+
 def _strip_gpt_annotation(artist: str, annotation_words: set) -> str:
     """Strip trailing parenthetical text from an artist name if it looks like
     GPT meta-commentary rather than a legitimate part of the name.
@@ -1279,13 +1308,18 @@ def select_tracks(
                         "(provider=%s)", get_llm_provider_preset())
     except Exception as _exc:  # pragma: no cover
         logger.debug("local-prompt-variant lookup failed (%s) — using cloud variant", _exc)
+    # L5 (2026-05-08): resolve the Stage 3 model once per call so the
+    # validation block + the chat completion + the trace + the prompt log
+    # all reference the same model. ``profile`` is the input the resolver
+    # uses for "auto" mode — feedback-aware downgrade/upgrade decision.
+    stage3_model = _resolve_stage3_model(profile)
     # Phase 2.5 (2026-04-27): {validation_block} moved out of the system
     # prompt into a per-request prepend on the user message. The validation
     # block is per-request data (model-specific verification reminder) and
     # keeping it in the system prompt broke OpenAI's prompt-prefix caching
     # (50 % discount on the cached prefix). System prompt is now invariant
     # across all requests for a given (model, language) pair.
-    validation_block = _get_validation_block(get_model())
+    validation_block = _get_validation_block(stage3_model)
     system_prompt = system_prompt.replace("{batch_size}", str(effective_batch_size))
     system_prompt = system_prompt.replace("{min_new_artists}", str(min_new_artists))
     system_prompt = system_prompt.replace("{gpt_language}", gpt_language)
@@ -1405,7 +1439,7 @@ def select_tracks(
 
     _t0 = _time.monotonic()
     response = chat_completions_create(
-        model=get_model(),
+        model=stage3_model,
         messages=messages,
         temperature=temperature,
         # OPEN-3 (2026-04-28): json_schema variant evaluated and reverted —
@@ -1426,7 +1460,7 @@ def select_tracks(
             _s3_usage = (response or {}).get("usage") if isinstance(response, dict) else None
             trace.append("stage3_batches", {
                 "batch_num": batch_num,
-                "model": get_model(),
+                "model": stage3_model,
                 "system": system_prompt,
                 "user": user_message,
                 "approved_artists": list(approved_artist_names),
@@ -1456,7 +1490,7 @@ def select_tracks(
     # gate behind debug mode (2026-04-28).
     logger.info(
         "[Stage 3 prompt] system=%d chars, user=%d chars, model=%s",
-        len(system_prompt), len(user_message), get_model(),
+        len(system_prompt), len(user_message), stage3_model,
     )
     if get_debug_mode():
         debug_log("Stage 3 user message", [], user_message)

@@ -69,7 +69,14 @@ When you open SpotyVibe, a **Getting Started** card appears on the home page wit
 
 ### 2. Pick a model
 
-☰ → **⚙️ Settings**. Default is `gpt-5.4`. Other options: `gpt-5.4-mini`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`.
+☰ → **⚙️ Settings**. Default is `gpt-5.4-mini`. Other options: `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`.
+
+**Suggestion model strategy** (above the model dropdown) lets you pick how the model is chosen:
+
+- **Fast (cheap)** — always `gpt-5.4-mini`. Lowest cost per playlist (~$0.04). This is the default and matches SpotyVibe's behaviour before the strategy picker shipped.
+- **Best (premium)** — always `gpt-5.4`. Highest quality, ~$0.10–0.15 per playlist.
+- **Auto (smart)** — Fast on a fresh profile; once you've disliked at least one track, the next generation upgrades to Best. Saves money on early generations and only spends the premium budget once your feedback gives the better model something to work with.
+- **Custom** — uses whatever you set in the model dropdown below. Required for local LLMs (Ollama, LM Studio). Picking any of the three preset modes greys out the dropdown but **preserves your custom model value** so switching back to Custom restores it.
 
 The Settings modal also exposes:
 

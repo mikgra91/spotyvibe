@@ -26,7 +26,15 @@ redirect_uri = http://127.0.0.1:5000/callback
 # workload; raises OpenAIUnsupportedModelError if re-added).
 # gpt-4o was dropped 2026-05-02: deferred until enrichment Phase B/D land
 # and a fresh canonical eval baseline exists (next-steps.md P0 #2).
-models = gpt-5.4,gpt-5.4-mini,gpt-4.1,gpt-4.1-mini
+# gpt-4.1-mini dropped 2026-05-08 (A2): E7 baseline showed Playlist A = 0
+# tracks for 3 of 4 scenarios (schema collapse / context overflow on the
+# Phase B corpus). Re-add only after a separate triage proves it salvageable.
+# gpt-4.1 dropped 2026-05-08: cost ≈ gpt-5.4-mini ($0.10-0.17 vs $0.07-0.09)
+# but must-have cite 57-81 % vs mini's 70-100 % vs gpt-5.4's 90-100 %; failed
+# Playlist B (= 0 tracks) on post_feedback_tag_regression — same fail mode as
+# gpt-4.1-mini. No coverage mini doesn't already provide. Re-add only if a
+# 5.x-family regression surfaces that needs cross-family confirmation.
+models = gpt-5.4,gpt-5.4-mini
 
 # Number of full cycles per model. Start with 1; bump to 3+ if you want
 # averaging to smooth out single-run variance.

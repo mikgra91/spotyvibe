@@ -7,6 +7,7 @@ from core.src.suggestions import (
     _build_deny_set_json,
     _migrate_suggested_tracks,
     _normalize_key,
+    _resolve_stage3_model,
     _strip_gpt_annotation,
     build_messages,
     call_gpt,
@@ -547,6 +548,64 @@ class TestNormalizeResponseSchemaCollapse:
         sc = normalized["_schema_collapse"]
         assert sc == {"eq_artist": 0, "placeholder_token": 0,
                       "dup_in_batch": 0, "total": 0}
+
+
+class TestResolveStage3Model:
+    """L5 (2026-05-08) — verify the Stage 3 model selector returns the
+    correct model under each mode + profile shape, including the
+    feedback-aware "auto" boundary.
+    """
+
+    def test_fast_mode_returns_mini_regardless_of_profile(self):
+        cold = {}
+        loaded = {"feedback": {"disliked_tracks": [{"artist": "X", "track": "Y"}] * 5}}
+        assert _resolve_stage3_model(cold, mode="fast") == "gpt-5.4-mini"
+        assert _resolve_stage3_model(loaded, mode="fast") == "gpt-5.4-mini"
+
+    def test_best_mode_returns_full_regardless_of_profile(self):
+        cold = {}
+        loaded = {"feedback": {"disliked_tracks": [{"artist": "X", "track": "Y"}] * 5}}
+        assert _resolve_stage3_model(cold, mode="best") == "gpt-5.4"
+        assert _resolve_stage3_model(loaded, mode="best") == "gpt-5.4"
+
+    def test_auto_cold_profile_returns_mini(self):
+        # No feedback → cold → mini.
+        assert _resolve_stage3_model({}, mode="auto") == "gpt-5.4-mini"
+        assert _resolve_stage3_model({"feedback": {}}, mode="auto") == "gpt-5.4-mini"
+        assert _resolve_stage3_model(
+            {"feedback": {"disliked_tracks": []}}, mode="auto"
+        ) == "gpt-5.4-mini"
+
+    def test_auto_one_dislike_promotes_to_best(self):
+        # B1 boundary: as soon as the user has disliked anything, the
+        # post-feedback path runs on gpt-5.4 to avoid the mini Playlist B
+        # collapse measured 2026-05-08.
+        profile = {"feedback": {"disliked_tracks": [{"artist": "X", "track": "Y"}]}}
+        assert _resolve_stage3_model(profile, mode="auto") == "gpt-5.4"
+
+    def test_auto_many_dislikes_returns_best(self):
+        profile = {
+            "feedback": {
+                "disliked_tracks": [{"artist": f"A{i}", "track": f"T{i}"} for i in range(20)]
+            }
+        }
+        assert _resolve_stage3_model(profile, mode="auto") == "gpt-5.4"
+
+    def test_custom_mode_uses_get_model(self):
+        with patch("core.src.suggestions.get_model", return_value="local-llama-3.1"):
+            assert _resolve_stage3_model({}, mode="custom") == "local-llama-3.1"
+            # Profile state is irrelevant under custom — user said "always
+            # this model"; respect it even on a feedback-rich profile.
+            loaded = {"feedback": {"disliked_tracks": [{"artist": "X", "track": "Y"}] * 5}}
+            assert _resolve_stage3_model(loaded, mode="custom") == "local-llama-3.1"
+
+    def test_unknown_mode_falls_back_to_fast(self):
+        # Defensive: a typo'd settings value must not wedge the pipeline.
+        assert _resolve_stage3_model({}, mode="garbage") == "gpt-5.4-mini"
+        assert _resolve_stage3_model({}, mode="") == "gpt-5.4-mini"
+
+    def test_none_profile_treated_as_cold_under_auto(self):
+        assert _resolve_stage3_model(None, mode="auto") == "gpt-5.4-mini"
 
 
 class TestStripGptAnnotation:

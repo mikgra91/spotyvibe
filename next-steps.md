@@ -922,6 +922,357 @@ Tests:
 
 Doc: this file (`next-steps.md`) — handoff section + agenda updates.
 
+## 🆕 Session 4 deliverables — 2026-05-08
+
+E7 baseline executed (commit `cd15d8b`). 4 scenarios × 4 models × 1 iter,
+all on `corpus_version=2026-05-06` Last.fm-enriched corpus. Results
+copied to `evaluation/baselines/2026-05-08_lastfm/` (16 summary.json +
+`comparison.md`). Trace bundles consumed for analysis but not yet
+copied alongside the baseline (the source `evaluation/results/`
+timestamped dir was not preserved).
+
+### E7 headline outcomes
+
+| Gate | Result |
+|---|---|
+| Leakage (B vs feedback) | **PASS 16/16** — Phase B + harness rework working as intended |
+| Phase B coverage (Last.fm tags ≥ 75 %) | **PASS** on 12/13 rows (1 row at 50 % with n=2 — sample-size noise, not a regression) |
+| Completion (≥ 95 % requested) | **FAIL 30/32** playlists `under` or `empty` |
+| niche_only_strict p95 listeners < 100 k (Playlist A) | **FAIL 3/3** models (215 k / 215 k / 891 k) |
+| lastfm_tag_weighting Spotify-found rate | **collapsed 7-27 %** (Stage 3 picks tracks not on Spotify) |
+| Fit-check (decade_avoid) | **1 fail**: gpt-5.4 post_feedback_tag_regression B → 3× bardeux 1988 |
+| `gpt-4.1-mini` Playlist A | **3/4 scenarios returned 0 tracks** — model effectively dead at this corpus scale |
+
+Latency dominator: **Stage 3 (track select) = 30-180 s** per playlist,
+3-4 orders of magnitude above RAG retrieve (0.1 s) and 1 order above
+Spotify verify (10-50 s). Cost: gpt-5.4 ≈ 3× gpt-5.4-mini ≈ 30×
+gpt-4.1-mini. gpt-4.1-mini is cheap because it returns nothing.
+
+### Plan reconciliation
+
+Walking remaining open items in the original "Suggested execution
+order" against E7 data:
+
+- ~~**Q1 — cost-bundle re-baseline**~~ **strikethrough.** The decision
+  gate ("if `gpt-5.4-mini` for Stage 3 holds quality, Q1's cost-bundle
+  work is largely moot") is already satisfied by E7: gpt-5.4-mini
+  matches gpt-5.4 on completion + leakage, lags 5-15 pp on must-have
+  cite, costs 30 % as much. Running another full baseline burns Spotify
+  quota for an answer the data already gives. Replaced by **B1** below.
+- ~~**Q3 — Wikidata Phase D (country / era facts)**~~ **strikethrough
+  until data demands it.** The decision gate ("if country-constrained
+  scenarios pass on enriched corpus, Phase D may be unnecessary") is
+  satisfied — none of the failures observed (under-fill, niche bias,
+  off-Spotify tracks) are country / era shaped. Phase D is a wrong-key
+  fix for the locks we have.
+- **L5 — Stage 3 model downgrade probe** retained but flipped to
+  data-driven: the answer is largely visible already; B1 below confirms
+  it on a focused sample before a default-flip lands.
+- **U3 — track-progress UI** retained, unaffected by eval failures
+  (independent UX win — the L3 SSE backend it depends on is shipped).
+- **Q2 — Last.fm `getSimilar` similarity facet** retained but stays
+  gated; not a fix for the failures we see.
+
+### New A-series priorities (surfaced by E7) — 🔴 P0
+
+These eclipse the remaining agenda on ROI. Each is independently
+grabbable.
+
+- **A1 — Under-fill root cause: `MAX_GPT_CALLS_PER_RUN = 4` is the
+  binding constraint at `playlist_size = 30`.** ✅ Diagnosed 2026-05-08.
+  - [config.py:88](config.py#L88) caps Stage 3 calls at 4. Eval runs
+    target 30 tracks ([evaluation/settings.ini](evaluation/settings.ini#L36)).
+    Theoretical max output: 4 × (BATCH_SIZE 10 + STAGE3_OVER_REQUEST 2)
+    = 48 raw candidates. Observed Spotify-found rate: 7-67 %. Even at
+    100 % Spotify-found this barely clears the 95 % completion gate
+    (29 tracks needed); at the observed rates it cannot.
+  - The cap's existing comment ("Bump back to 20 once the canonical
+    seed reliably hits ≥ 80 % Spotify-found on the first 1-2 batches")
+    pre-dates Phase B. Phase B did not lift Spotify-found above 80 %
+    in tag-weighted scenarios (E7 lastfm_tag_weighting: 7-27 %), so
+    the precondition the cap waits on is still not met.
+  - Confirmed via summary.json: gpt-4.1 default Playlist A → 4 Stage 3
+    calls, only 2 Spotify-verify calls fired (two batches were entirely
+    filtered as already-known); gpt-4.1-mini default → 3 Stage 3 calls
+    yielded 1547 output tokens total (~515/call) → schema collapse,
+    not retrieval starvation.
+  - **Resolution split:** the *real* problem is upstream (Stage 3 must
+    pick Spotify-resolvable tracks → that's A4). For eval-measurement
+    integrity, two free eval-only knobs unblock the completion-gate
+    signal:
+    1. Lower `playlist_size` to 15 in [evaluation/settings.ini](evaluation/settings.ini)
+       (matches the cap's design assumption).
+    2. OR introduce an eval-only env-var override
+       (`SPOTIVIBE_MAX_GPT_CALLS_PER_RUN`) plumbed through
+       [config.py](config.py) so eval can run with `=10` while
+       production stays at `=4`.
+    Recommend (1) for B1 — keeps prod config unchanged, keeps the
+    guardrail honest, surfaces the real Spotify-found problem instead
+    of masking it with more retries.
+- **A2 — Drop `gpt-4.1-mini` from the eval models list.** Returns 0
+  tracks 3/4 scenarios; either the prompt size exceeds its context for
+  this corpus or it fails Stage 3 schema. Either way it's not a viable
+  default and it currently inflates the "models tested" count without
+  producing data. Single-line edit to
+  [evaluation/settings.ini](evaluation/settings.ini) +
+  [evaluation/settings.ini.example](evaluation/settings.ini.example).
+  Re-add later if a separate triage proves it salvageable.
+- **A3 — niche_only_strict bias fix.** Three Playlist A's hit p95
+  215 k-891 k listeners despite explicit avoid prose ("avoid Billboard
+  chart, avoid radio rotation, avoid > 1 M monthly listeners"). The
+  Last.fm popularity precedence in `_artist_popularity()` ranks
+  popular artists *higher* in the RAG pool — but nothing in Stage 1 /
+  Stage 2 inverts that ranking when avoid prose explicitly names a
+  popularity ceiling. Likely needs either a Stage 1 popularity filter
+  triggered by avoid-vocabulary detection, or a Stage 2 prompt
+  enhancement that surfaces listener counts to the avoid LLM.
+- **A4 — lastfm_tag_weighting Spotify-found collapse.** Stage 3 picked
+  tracks (cite OK) but only 7-27 % verified on Spotify. Likely RAG
+  returned niche / regional artists whose tracks aren't on the
+  user's market or whose names don't normalise cleanly to Spotify's
+  catalogue. Mitigation candidates:
+  1. Pre-verify-on-Spotify gate during retrieval (expensive).
+  2. Spotify-presence score baked into the corpus build (cheap, one
+     pre-compute pass).
+  3. Stage 3 prompt: bias toward high-listener-count artists when
+     `lastfm_tag_weighting`-class scenarios fire. Risks contradicting
+     A3's direction; resolve before implementing.
+
+### B-series — measurement before code
+
+- ~~**B1 — Acceptance test for Stage 3 default switch.**~~ ✅ Executed
+  2026-05-08 (8 of 12 planned runs landed before a Spotify token
+  penalty cascade — Retry-After ≈ 14 h — forced a kill). Results in
+  [evaluation/baselines/2026-05-08_b1_stage3_downgrade/](evaluation/baselines/2026-05-08_b1_stage3_downgrade/)
+  including a hand-written `summary.md`. Verdict:
+  - **Playlist A (generation):** gpt-5.4-mini wins decisively — mean
+    14.3/15 tracks vs gpt-5.4's 11.0/15, ~50 % faster, ~10× cheaper.
+  - **Playlist B (post-feedback regen):** gpt-5.4-mini *collapses* —
+    mean 3.7/15 vs gpt-5.4's 8.3/15. The post-feedback profile prose
+    is too nuanced for mini to generalise.
+  - **Quality gates** (leakage, fit): no regression on either model.
+  - **niche scenario:** only gpt-5.4 collected (2 iters); both fail
+    the p95 < 100 k listener gate (215 k twice). A3 confirmed needed.
+  → **L5 cannot default-flip unconditionally.** Two viable paths:
+  (1) two-tier Stage 3 — mini on initial generation, gpt-5.4 once
+  the profile carries non-trivial feedback weight; (2) keep gpt-5.4
+  default + expose mini as optional fast/cheap mode. Spec before
+  implementing.
+  → **Operational note:** next eval kickoff blocked until the
+  Spotify user token clears (≥ 14 h from 2026-05-08T18:54 UTC →
+  not before 2026-05-09T08:54 UTC). The 1.5 s/serial throttle in
+  place is not enough to prevent burst penalties under multi-iter
+  runs; consider raising inter-iter cooldowns or moving to a
+  service-account token before the next baseline.
+
+### Revised execution order (post-E7)
+
+1. ✅ **A1** — under-fill root-cause analysed 2026-05-08 (cap is
+   `MAX_GPT_CALLS_PER_RUN = 4`).
+2. ✅ **A2** — gpt-4.1-mini dropped from `evaluation/settings.ini`.
+3. ✅ **B1** — Stage 3 model comparison run 2026-05-08 (8/12 runs;
+   Spotify token-penalty kill on the rest). Verdict: A wins for mini,
+   B wins for gpt-5.4 — see strikethrough above.
+4. **L5 spec — two-tier Stage 3.** Cheap to spec, no eval cost. Switch
+   Stage 3 model based on a profile-feedback-weight heuristic (e.g.
+   `len(profile.feedback.disliked_tracks) > N` → gpt-5.4, else mini).
+   Lock in the threshold from B1 data. Implement after the spec is
+   reviewed.
+5. **A3 — niche-bias fix.** Stage 1 popularity-aware filter triggered
+   by avoid-vocabulary detection; OR Stage 2 prompt enhancement that
+   surfaces listener counts. Decide direction from a one-shot manual
+   experiment before coding.
+6. **A4 — Spotify-resolvability lift.** Cheapest direction: bake a
+   Spotify-presence score into the corpus build so RAG ranks it.
+   Confirm against the Last.fm tag-weighting scenario (current
+   Spotify-found 7-27 %).
+7. **U3** — track-progress UI (no eval cost, parallelisable).
+8. **L5 implementation** — only after step 4 spec lands.
+9. **Q2 / OPEN-*** — re-evaluate against the post-A3/A4 baseline; only
+   pursue if a measurable gap remains.
+
+### Cost-control programme — 2026-05-08
+
+End goal: a 30-track suggestion stays under **$0.10 consistently**,
+and never *skyrockets* as the user's profile grows. E7 + B1 data shows
+mini already lands ~$0.04/playlist and gpt-5.4 ~$0.08-0.15/playlist;
+the latter is the failure mode to fix. Six levers, ranked. Items
+marked C* are the active ordering the user signed off 2026-05-08.
+
+- ~~**C1 — L5 two-tier Stage 3 default**~~ ✅ Shipped 2026-05-10 as
+  Path 3 (UI + selector machinery, no behaviour change for existing
+  users). Settings modal exposes `Fast / Best / Auto / Custom`;
+  default = `fast` (= today's behaviour, always mini). Auto escalates
+  to `gpt-5.4` once `feedback.disliked_tracks` ≥ 1. Custom respects
+  the existing `OPENAI_MODEL` field (local LLMs unaffected).
+  Picking a preset greys the model dropdown but preserves its value
+  (Q3 = option 2, user-confirmed).
+  - Selector: `core.src.suggestions._resolve_stage3_model`
+    ([core/src/suggestions.py](core/src/suggestions.py)).
+  - Config: `STAGE3_FAST_MODEL`, `STAGE3_BEST_MODEL`,
+    `STAGE3_MODE_DEFAULT`, `STAGE3_MODES`, `get_stage3_mode`,
+    `set_stage3_mode` ([config.py](config.py)).
+  - UI: 4-radio group in
+    [settings_modal.html](frontend/templates/modals/settings_modal.html);
+    enable/disable wiring + persistence in
+    [modals.js](frontend/static/js/modules/modals.js).
+  - Tests: 8 selector unit tests + 4 config getter/setter unit tests
+    + 3 Playwright settings-modal tests
+    ([test_modals.py](frontend/tests/test_modals.py)).
+  - **Telemetry deferred.** Per-run perf-log column for
+    `stage3_mode` / `stage3_model` was scoped but skipped — the app
+    isn't in production, so the telemetry would not accumulate; add
+    when there are real users to learn from.
+  - **Default-flip to `auto` deferred** until C3 + C4 land. With
+    today's gpt-5.4 cost ($0.08-0.15 per playlist), `auto` would
+    push post-feedback runs above the user's $0.10 ceiling. R1
+    (mini-quality research) may eliminate the need for the flip
+    entirely.
+- **C2 — Per-run cost preview UI.** Before generation: show
+  estimate based on profile size + chosen model + playlist size
+  (e.g. "≈ $0.04"). If the estimate exceeds a configurable cap
+  (default $0.15) prompt "Switch to fast mode for $0.04?".
+  Touches [generate_section.html](frontend/templates/generate_section.html)
+  + a new `/api/cost_estimate` route in [app.py](app.py).
+  Goal is *predictability* of spend; the structural fixes (C1, C3)
+  do the actual saving.
+- **C3 — OPEN-5 profile consolidation on overgrowth.** When profile
+  JSON exceeds a threshold (originally proposed 12 KB; revisit
+  against current shape), summarise older history into a per-artist
+  aggregate digest ("Beatles — 24 tracks suggested") that replaces
+  verbatim long-tail entries while keeping the recent ~60-100 tracks
+  verbatim for dedup safety. Caps prompt growth at saturation.
+  Design note 2026-05-08 (user-proposed): the per-artist count form
+  is the right replacement for the current 4-in-200 `[EXHAUSTED]`
+  binary — gives the model a finer "this artist is heavily explored"
+  signal than the binary tag, at significantly lower token cost
+  than the verbatim list. Pair the count with a threshold (e.g. ≥ 8
+  tracks → `[EXHAUSTED]`) so the exhaust signal stays binary at the
+  prompt level.
+- **C4 — Stage 3 prompt slimming + OpenAI prompt caching investigation.**
+  System prompt is ~5 KB and identical across batches in one /api/run.
+  Caching the cached portion at ~10 % of normal input cost is a
+  ~30 % Stage 3 input win **if** the OpenAI 2026 API tier exposes it.
+  First step: read the current Anthropic / OpenAI provider docs for
+  caching support on the gpt-5.x family. Touches
+  [prompts/song_user.txt](prompts/song_user.txt) /
+  [openai_http.py](core/src/openai_http.py).
+- **C5 — Compact JSON Stage 3 schema.** Verbose JSON (~80 tokens
+  per track) → single-line schema (`{"a":"X","t":"Y"}`, ~25 tokens).
+  Output side win ~60 %, but output is only ~30 % of total →
+  ~18 % overall. Risk: schema fragility / parser brittleness.
+  Lower priority than C1-C4.
+
+#### R1 — Research spike: lift mini quality on deeper profiles
+
+**Why this matters.** B1 (2026-05-08) showed mini collapses on
+Playlist B (mean 3.7/15 vs gpt-5.4's 8.3/15) once the profile carries
+non-trivial feedback. C1 (L5 Auto) reacts to that by escalating to
+gpt-5.4 — which pushes post-feedback runs past the user's $0.10
+budget ($0.08-0.15/playlist on gpt-5.4 vs $0.04 on mini). If a
+*prompt-side* or *data-preparation-side* change can keep mini
+viable on deeper profiles, the escalation in C1 becomes unnecessary
+or moves later in the profile-maturity timeline → the cost cap
+holds without quality regression.
+
+**Scope.** Not a feature ticket — a research spike. The "how" is
+deliberately open. Likely directions to test:
+
+- Prompt restructuring: shrink + sharpen the Stage 3 system prompt
+  so mini spends less context on instructions and more on the
+  candidate pool / profile signal.
+- Profile-shape transformation: reformulate the post-refine profile
+  prose into a structure mini handles better (e.g. bullet-form
+  taste anchors vs free prose; explicit positive/negative signal
+  separation; weighted tag list vs narrative).
+- Few-shot examples: inject 1-2 worked examples into the Stage 3
+  prompt so mini has a concrete pattern to match.
+- Decomposition: split Stage 3 on deeper profiles into "draft" +
+  "refine" sub-calls with mini, total still cheaper than a single
+  gpt-5.4 call.
+- Avoid-block compression: today's `forbidden_tracks` block is the
+  largest non-system input (see C3); a more compact representation
+  may free model capacity for the actual selection task.
+
+**Verification protocol.** Hold model fixed at `gpt-5.4-mini`. For
+each candidate change:
+
+1. Run the existing eval scenarios + the B1-equivalent post-feedback
+   scenario, **multiple iterations** (≥ 3, ideally 5) to smooth
+   single-run variance — the B1 mini variance was 1-7 tracks on B,
+   averaging matters.
+2. Measure: completion rate (Playlist B), must-have cite, fit-check,
+   leakage, total cost. The **B-playlist completion uplift** is
+   the headline metric — that's the bug R1 is trying to fix.
+3. Threshold for declaring success: mini Playlist B mean ≥ 80 % of
+   gpt-5.4's mean *and* leakage / fit gates still pass. Anything
+   short reopens C1 default-flip.
+4. Run baseline (current prompt) alongside each variant in the
+   same eval session so the comparison isn't time-confounded.
+
+**Operational considerations.** Each run burns Spotify quota; the
+B1 attempt hit a 14 h Retry-After block at run 7/12. For an R1
+sweep with 5 prompt variants × 4 scenarios × 5 iter = 100 runs,
+the Spotify token will need either a longer cooldown stack
+(≥ 15 min inter-iter), a separate eval-only Spotify app credential,
+or a prompt-only sub-experiment that bypasses Spotify verification
+entirely (Stage 3 output → leakage / fit checks only, no playlist
+creation). Decide between these before starting R1.
+
+**Output.** A short report (`evaluation/research/2026-MM-DD_mini_quality.md`)
+that either (a) recommends a prompt / data change to ship + an
+updated C1 default-flip threshold, or (b) rules out prompt-side
+fixes and confirms C1 escalation is the correct path. R1 is
+*finished* when one of those two is decided — not when every
+candidate has been exhausted.
+
+**Status.** Spec'd 2026-05-08. Execution gated on the cost
+programme (C1-C4) reaching a usable baseline first — R1 needs
+prompt-caching / consolidation already landed so the variant
+experiments aren't measuring the wrong baseline.
+
+#### Deferred — `GPT_HISTORY_LIMIT` 200 → 100 (kept in mind)
+
+The "lower the suggested-tracks history cap" lever was scoped 2026-05-08
+and **not landed**. Reasons:
+
+- 100 tracks ≈ 3 × 30-track playlists; on the 4th run a user could see
+  re-surfaced tracks already in their playlist. Disliked tracks are not
+  affected (separate bucket — `feedback.disliked_tracks`, governed by
+  `MAX_SONG_LIST_SIZE = 100`), but routine "we already suggested this
+  to you" memory does shrink.
+- Cost win on mini is small (~$0.0016/playlist); win on gpt-5.4 is
+  ~$0.028/playlist but L5 makes that path rare.
+- The aggregation mechanism (per-artist counts) **better solves the
+  same scaling problem** without dropping per-track memory — but
+  belongs in C3, not standalone.
+
+Re-open if a user-visible "spend ceiling" forces structural cuts that
+C3 alone doesn't deliver.
+
+#### Adjacent concern — `MAX_SONG_LIST_SIZE = 100` (dislike persistence)
+
+Out-of-scope for the cost programme but flagged 2026-05-08. The
+persistent disliked-tracks list is capped at 100 entries. Power users
+with hundreds of dislikes would see oldest dislikes drop off, raising
+the "we re-suggested a song you actively disliked" risk. Worth a
+separate look once the cost programme stabilises.
+
+### Operational gates — Spotify user-token health
+
+B1 (2026-05-08) hit a 14-hour Retry-After penalty after only the 7th
+of 12 planned runs, despite the serial+1.5 s+90 s cooldown stack
+already in place. The next eval kickoff must:
+
+1. Wait ≥ 14 h from 2026-05-08T18:54 UTC (i.e. not before
+   2026-05-09T08:54 UTC).
+2. Consider a longer inter-iter cooldown (≥ 15 min) or a service-
+   account / app-credentials token to keep the user token off the
+   penalty list.
+3. If a third consecutive run hits a Retry-After > 1 h, abandon eval
+   on the user token and use a separate Spotify app credential for
+   the harness.
+
 ## 🆕 Post-Phase B agenda — 2026-05-06
 
 Corpus is now Last.fm-enriched (see verification above). End goals from
@@ -981,21 +1332,22 @@ breakdown to size optimisation wins.
 
 ### Q — Quality (uses new corpus directly) 🟠 P1
 
-- **Q1 — Re-baseline cost-bundle** (was P6-EVAL, see below). Now
-  unblocked by E7. Validate the ~36 % cost reduction hypothesis on
-  the enriched retrieval, not the legacy one. Decide if `gpt-4.1-mini`
-  remains usable for Stage 3 once Last.fm tags carry semantic load.
+- ~~**Q1 — Re-baseline cost-bundle**~~ ✅ Superseded 2026-05-08 by E7 +
+  the new **B1** focused probe (see Session 4 deliverables above). E7
+  already shows gpt-5.4-mini matches gpt-5.4 on completion + leakage at
+  ~30 % cost; gpt-4.1-mini is non-viable (0 tracks, 3/4 scenarios). No
+  separate cost-bundle re-baseline needed.
 - **Q2 — Last.fm `getSimilar` similarity facet.** Deferred from Phase B
   shipping. Adds a per-artist similarity vector, useful for "expand
   pool around liked artists" without an LLM call. Cost: ~1 extra
   Last.fm call per enriched artist (~145k extra calls — re-uses
   Phase B's cumulative-budget abort). Gate behind Q1 unless E7 shows
   retrieval recall is the binding constraint.
-- **Q3 — Wikidata Phase D — country + era facts.** Was item #9 above.
-  Re-prioritise behind E7 results: if `regression_japanese_theatrical`
-  (existing) and the new `country_constrained` scenarios all pass on
-  the enriched corpus, Phase D may be unnecessary. Decide from data,
-  not plan.
+- ~~**Q3 — Wikidata Phase D — country + era facts.**~~ Strikethrough
+  2026-05-08. Decision gate satisfied: none of the E7 failures
+  (under-fill, niche bias, off-Spotify rate) are country / era shaped.
+  Phase D would be a wrong-key fix. Re-open only if a future scenario
+  surfaces a country / era miss that A3 / A4 don't address.
 - **Q4 — Tag-precedence audit.** `_artist_popularity()` now prefers
   `_lastfm_popularity()` over the MB proxy. Confirm with a 1-shot
   query that the precedence is observable on a known mainstream-vs-

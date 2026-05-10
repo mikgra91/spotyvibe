@@ -10,6 +10,26 @@ import { el } from './dom.js';
 
 const CRED_KEYS = ['OPENAI_API_KEY', 'SPOTIPY_CLIENT_ID', 'SPOTIPY_CLIENT_SECRET'];
 
+// L5 (2026-05-08): Stage 3 strategy UI helper. When a preset mode
+// (fast / best / auto) is selected the model dropdown is greyed out
+// because those modes ignore the user's chosen model — leaving it
+// active would be misleading. "Custom" re-enables the dropdown so the
+// user-supplied model (incl. local LLMs) stays in charge. The user's
+// custom model value is preserved across mode switches (Q3 = option 2).
+function _applyStage3ModeUi(mode) {
+    const usingCustom = (mode === 'custom');
+    const modelSelect = el('settings-model');
+    const modelFreeText = el('settings-model-freetext');
+    const fetchBtn = el('btnFetchModels');
+    const modeBtn = el('btnModelMode');
+    [modelSelect, modelFreeText, fetchBtn, modeBtn].forEach((node) => {
+        if (!node) return;
+        node.disabled = !usingCustom;
+        node.setAttribute('aria-disabled', usingCustom ? 'false' : 'true');
+        node.classList.toggle('stage3-mode-disabled', !usingCustom);
+    });
+}
+
 export async function clearCredential(key) {
     const ok = await showConfirm(i18n('cred.remove_confirm', 'Remove {key}?').replace('{key}', key));
     if (!ok) return;
@@ -162,6 +182,24 @@ export async function openSettings() {
         modelStatus.textContent = i18n('settings.model_status', '✓ Using: {model}').replace('{model}', data.model || 'gpt-5.4-mini');
         modelStatus.className = 'cred-status set';
 
+        // L5 (2026-05-08): Stage 3 strategy. Check the persisted radio + grey
+        // out the model dropdown when a preset (fast/best/auto) is active —
+        // those modes ignore the dropdown value at request time, so leaving
+        // it editable would be misleading.
+        const stage3Mode = data.stage3_mode || 'fast';
+        const stage3Radio = document.querySelector(`input[name="stage3_mode"][value="${stage3Mode}"]`);
+        if (stage3Radio) stage3Radio.checked = true;
+        _applyStage3ModeUi(stage3Mode);
+        const stage3Row = el('stage3ModeRow');
+        if (stage3Row && !stage3Row.dataset.boundChange) {
+            stage3Row.addEventListener('change', (e) => {
+                const target = e.target;
+                if (target && target.name === 'stage3_mode') {
+                    _applyStage3ModeUi(target.value);
+                }
+            });
+            stage3Row.dataset.boundChange = '1';
+        }
 
     } catch (e) { /* ignore */ }
 
@@ -200,6 +238,15 @@ export async function saveSettings() {
     const modelSelect = el('settings-model');
     if (modelSelect.value) {
         payload.model = modelSelect.value;
+    }
+
+    // L5 (2026-05-08): persist Stage 3 strategy. The selected radio is the
+    // source of truth; preset modes (fast/best/auto) ignore the model dropdown
+    // at request time, so we still send the dropdown value alongside so a
+    // later switch back to "custom" finds the user's stored choice intact.
+    const stage3Selected = document.querySelector('input[name="stage3_mode"]:checked');
+    if (stage3Selected) {
+        payload.stage3_mode = stage3Selected.value;
     }
 
     if (State.debugControlsAvailable) {

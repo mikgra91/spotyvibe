@@ -112,6 +112,21 @@ DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
 # for local providers where a separate mini variant may not exist.
 STAGE2_MODEL = "gpt-5.4-mini"
 
+# L5 (2026-05-08) — Stage 3 model strategy. Four user-selectable modes:
+#   "fast"   → STAGE3_FAST_MODEL  (always mini; today's behaviour, default)
+#   "best"   → STAGE3_BEST_MODEL  (always gpt-5.4)
+#   "auto"   → mini for cold profile; gpt-5.4 once profile carries
+#              ≥ 1 disliked track (B1 baseline 2026-05-08 showed mini
+#              collapses past that boundary on Playlist B regeneration)
+#   "custom" → use whatever model the user configured via OPENAI_MODEL
+#              (the existing free-form path; covers local LLMs too)
+# Path 3 ship: default = "fast" so existing users see no behaviour
+# change; the UI exposes Auto / Best / Custom as opt-in alternatives.
+STAGE3_FAST_MODEL = "gpt-5.4-mini"
+STAGE3_BEST_MODEL = "gpt-5.4"
+STAGE3_MODE_DEFAULT = "fast"
+STAGE3_MODES = ("fast", "best", "auto", "custom")
+
 # Number of candidate artists retrieved by Stage 1 code-side retrieval (P1.1).
 # Intentionally larger than a single batch so Stage 2 + Stage 3 have room to
 # be selective without starving the playlist.
@@ -318,7 +333,7 @@ DEBUG_TRACE_DIR = _APP_DIR / "debug"            # F9 (2026-05-01): per-run trace
 CREDENTIALS_KEYS = ["OPENAI_API_KEY", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET"]
 
 # Non-secret keys — stored in settings.conf
-SETTINGS_KEYS = ["OPENAI_MODEL", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE", "GPT_LANGUAGE", "ONBOARDING_COMPLETED", "ACTIVE_PROFILE_ID", "UI_LANGUAGE", "LLM_BASE_URL", "PROVIDER_PRESET", "RAG_ENABLED"]
+SETTINGS_KEYS = ["OPENAI_MODEL", "STAGE3_MODE", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE", "GPT_LANGUAGE", "ONBOARDING_COMPLETED", "ACTIVE_PROFILE_ID", "UI_LANGUAGE", "LLM_BASE_URL", "PROVIDER_PRESET", "RAG_ENABLED"]
 
 # Maximum length for profile display names
 MAX_PROFILE_NAME_LEN = 40
@@ -483,6 +498,24 @@ def get_model():
     return os.getenv("OPENAI_MODEL") or DEFAULT_OPENAI_MODEL
 
 
+def get_stage3_mode() -> str:
+    """Return the configured Stage 3 model strategy.
+
+    Falls back to STAGE3_MODE_DEFAULT for empty / unrecognised values so a
+    typo in settings.conf never wedges the pipeline.
+    """
+    raw = (os.getenv("STAGE3_MODE", "") or "").strip().lower()
+    return raw if raw in STAGE3_MODES else STAGE3_MODE_DEFAULT
+
+
+def set_stage3_mode(mode: str) -> None:
+    """Persist the Stage 3 model strategy. Unknown values reset to default."""
+    cleaned = (mode or "").strip().lower()
+    if cleaned not in STAGE3_MODES:
+        cleaned = STAGE3_MODE_DEFAULT
+    _persist_setting("STAGE3_MODE", cleaned)
+
+
 def get_debug_mode():
     """Return True if debug mode is enabled."""
     return os.getenv("DEBUG_MODE", "").lower() in ("1", "true", "on")
@@ -553,6 +586,7 @@ def get_settings():
     """Return non-secret settings for the Settings UI."""
     return {
         "model": get_model(),
+        "stage3_mode": get_stage3_mode(),
         "debug_mode": get_debug_mode(),
         "playlist_size": get_playlist_size(),
         "new_artist_percentage": get_new_artist_percentage(),

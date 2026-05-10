@@ -1,0 +1,127 @@
+{
+  "model": "gpt-5.4",
+  "iteration": 3,
+  "started_at": "2026-05-08T15:24:24.583247+00:00",
+  "scenario_name": "default",
+  "finished_at": "2026-05-08T15:29:17.145613+00:00",
+  "duration_s": 292.56,
+  "profile_id": "d32c5115-8ee2-428d-8a7e-d7885ec26d20",
+  "playlist_id": null,
+  "playlist_url": null,
+  "playlist_b_id": null,
+  "playlist_b_url": null,
+  "seed_train_status": "ok",
+  "analysis_status": "ok",
+  "playlist_status": "ok",
+  "feedback_status": "ok",
+  "refine_train_status": "ok",
+  "playlist_b_status": "ok",
+  "leakage_status": "pass",
+  "fit_status": "pass",
+  "cleanup_status": "ok",
+  "completion_a_status": "under",
+  "completion_b_status": "under",
+  "trace_a_path": "C:\\git\\spotyvibe\\evaluation\\results\\20260508-145519\\gpt-5.4-iter3\\trace_A.json",
+  "trace_b_path": "C:\\git\\spotyvibe\\evaluation\\results\\20260508-145519\\gpt-5.4-iter3\\trace_B.json",
+  "stage_metrics_a": {
+    "rag_retrieve": {
+      "duration_s": 0.5955,
+      "calls": 1,
+      "tokens_in": 0,
+      "tokens_out": 0
+    },
+    "stage2_avoid": {
+      "duration_s": 3.2914,
+      "calls": 1,
+      "tokens_in": 425,
+      "tokens_out": 176
+    },
+    "stage3_select": {
+      "duration_s": 103.2622,
+      "calls": 4,
+      "tokens_in": 10043,
+      "tokens_out": 6638
+    },
+    "spotify_verify": {
+      "duration_s": 38.646,
+      "calls": 4,
+      "tokens_in": 0,
+      "tokens_out": 0
+    }
+  },
+  "stage_metrics_b": {
+    "rag_retrieve": {
+      "duration_s": 0.6445,
+      "calls": 1,
+      "tokens_in": 0,
+      "tokens_out": 0
+    },
+    "stage2_avoid": {
+      "duration_s": 1.1369,
+      "calls": 1,
+      "tokens_in": 400,
+      "tokens_out": 153
+    },
+    "stage3_select": {
+      "duration_s": 77.3666,
+      "calls": 4,
+      "tokens_in": 10193,
+      "tokens_out": 4982
+    },
+    "spotify_verify": {
+      "duration_s": 40.976,
+      "calls": 4,
+      "tokens_in": 0,
+      "tokens_out": 0
+    }
+  },
+  "corpus_metrics_a": {
+    "total_tracks": 13,
+    "matched_in_corpus": 13,
+    "lastfm_tag_populated": 13,
+    "lastfm_tag_coverage_pct": 1.0,
+    "lastfm_listeners_median": 183202,
+    "lastfm_listeners_p95": 252942,
+    "lastfm_listeners_sample_size": 13,
+    "passed_tag_coverage": true
+  },
+  "corpus_metrics_b": {
+    "total_tracks": 8,
+    "matched_in_corpus": 8,
+    "lastfm_tag_populated": 8,
+    "lastfm_tag_coverage_pct": 1.0,
+    "lastfm_listeners_median": 35688,
+    "lastfm_listeners_p95": 49598,
+    "lastfm_listeners_sample_size": 8,
+    "passed_tag_coverage": true
+  },
+  "seed_train_chars": 1403,
+  "analysis_genre_count": 2,
+  "analysis_style_tag_count": 6,
+  "playlist_track_count": 13,
+  "likes_applied": 5,
+  "dislikes_applied": 3,
+  "refine_train_chars": 3213,
+  "playlist_b_track_count": 8,
+  "leakage": {
+    "rejected_artist_count": 0,
+    "disliked_track_count": 0,
+    "dislike_pattern_count": 0,
+    "total_leaks": 0,
+    "total_tracks": 8,
+    "passed": true,
+    "hits": []
+  },
+  "fit": {
+    "decade_avoid_count": 0,
+    "total_fails": 0,
+    "total_tracks": 8,
+    "checks_applied": [
+      "decade_avoid"
+    ],
+    "passed": true,
+    "hits": []
+  },
+  "error": null,
+  "eval_log_lines": 53
+}
