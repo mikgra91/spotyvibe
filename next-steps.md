@@ -1128,14 +1128,31 @@ marked C* are the active ordering the user signed off 2026-05-08.
     push post-feedback runs above the user's $0.10 ceiling. R1
     (mini-quality research) may eliminate the need for the flip
     entirely.
-- **C2 — Per-run cost preview UI.** Before generation: show
-  estimate based on profile size + chosen model + playlist size
-  (e.g. "≈ $0.04"). If the estimate exceeds a configurable cap
-  (default $0.15) prompt "Switch to fast mode for $0.04?".
-  Touches [generate_section.html](frontend/templates/generate_section.html)
-  + a new `/api/cost_estimate` route in [app.py](app.py).
-  Goal is *predictability* of spend; the structural fixes (C1, C3)
-  do the actual saving.
+- ~~**C2 — Per-run cost preview UI**~~ ✅ Shipped 2026-05-10. Most of
+  the cost-estimator widget already existed (`cost_estimate.js`,
+  `costEstimateCard` in
+  [settings_modal.html](frontend/templates/modals/settings_modal.html)
+  + the popover under Generate); the gap was that it read the model
+  from the dropdown — wrong for L5 preset modes (Fast / Best / Auto)
+  which ignore the dropdown at request time.
+  - Backend: `/api/profile/prompt-size` now returns `stage3_mode`
+    + `stage3_resolved_model` ([app.py:2181-2243](app.py#L2181-L2243)).
+    The resolver runs against the *active profile*, so when Auto
+    escalates after a dislike the API returns `gpt-5.4` and the cost
+    figure jumps from ~$0.04 to ~$0.10 visibly *before* the user
+    clicks Generate.
+  - Frontend:
+    [cost_estimate.js](frontend/static/js/modules/cost_estimate.js)
+    `_getModel(sizes)` and `estimate(...)` now prefer the resolved
+    model over the dropdown when mode ≠ `custom`.
+  - Tests: 3 endpoint tests (`TestProfilePromptSize`) in
+    [test_app.py](core/tests/test_app.py) cover the cold-untrained,
+    auto-with-dislikes, and custom-mode paths.
+  - **Hard cost gate deferred** — the "Switch to fast mode for $0.04?"
+    prompt above a configurable cap is not yet wired. The estimator
+    surfacing the right number is the load-bearing fix; the gate is
+    UX polish on top of it. Re-open if user testing shows people
+    still clicking Generate when the estimate is high.
 - **C3 — OPEN-5 profile consolidation on overgrowth.** When profile
   JSON exceeds a threshold (originally proposed 12 KB; revisit
   against current shape), summarise older history into a per-artist

@@ -262,6 +262,61 @@ class TestProfileStatus:
         assert data["no_profile"] is True
 
 
+class TestProfilePromptSize:
+    """L5 (2026-05-10) — /api/profile/prompt-size must surface the
+    Stage 3 mode + the model the resolver would pick under that mode,
+    so the cost estimator (cost_estimate.js) doesn't quietly under- or
+    over-state the run cost when a preset mode is in effect.
+    """
+
+    def test_untrained_still_returns_mode_and_resolved_model(self, client):
+        # `get_stage3_mode` is imported lazily inside the route so the patch
+        # target is `config.get_stage3_mode` itself — verified by reading
+        # the route body (no module-level bind in app.py).
+        import os
+        with patch.dict(os.environ, {"STAGE3_MODE": "fast"}), \
+             patch("app.get_active_profile_id", return_value=""), \
+             patch("app.is_profile_trained", return_value=False):
+            resp = client.get("/api/profile/prompt-size")
+        data = resp.get_json()
+        assert data["trained"] is False
+        # Even on a cold/missing profile, the UI needs to know which model
+        # the next generation would touch under the active mode.
+        assert data["stage3_mode"] == "fast"
+        assert data["stage3_resolved_model"] == "gpt-5.4-mini"
+
+    def test_auto_resolves_to_best_when_profile_has_dislikes(self, client):
+        loaded_profile = {
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {"disliked_tracks": [{"artist": "X", "track": "Y"}]},
+        }
+        import os
+        with patch.dict(os.environ, {"STAGE3_MODE": "auto"}), \
+             patch("app.get_active_profile_id", return_value="pid"), \
+             patch("app.is_profile_trained", return_value=True), \
+             patch("app.load_profile", return_value=loaded_profile), \
+             patch("app.build_messages", return_value=[
+                 {"role": "system", "content": "sys"},
+                 {"role": "user", "content": "usr"},
+             ]), \
+             patch("app.normalize_history"):
+            resp = client.get("/api/profile/prompt-size")
+        data = resp.get_json()
+        assert data["trained"] is True
+        assert data["stage3_mode"] == "auto"
+        assert data["stage3_resolved_model"] == "gpt-5.4"
+
+    def test_custom_mode_returns_get_model_value(self, client):
+        import os
+        with patch.dict(os.environ, {"STAGE3_MODE": "custom", "OPENAI_MODEL": "local-llama-3.1"}), \
+             patch("app.get_active_profile_id", return_value=""), \
+             patch("app.is_profile_trained", return_value=False):
+            resp = client.get("/api/profile/prompt-size")
+        data = resp.get_json()
+        assert data["stage3_mode"] == "custom"
+        assert data["stage3_resolved_model"] == "local-llama-3.1"
+
+
 class TestProfileData:
     @patch("app.get_active_profile_id", return_value="some-id")
     @patch("app.load_profile")

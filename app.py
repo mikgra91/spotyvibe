@@ -2202,8 +2202,21 @@ def profile_prompt_size():
     full profile JSON and expects an updated profile back. The estimator uses
     profile size × 2 plus a fixed system-prompt overhead.
     """
+    # L5 (2026-05-10): even on an untrained profile, the cost estimator
+    # needs to know which model Stage 3 *would* pick under the active
+    # strategy so the dropdown-vs-actual mismatch (Auto / Best ignore the
+    # dropdown) doesn't quietly under- or over-state the cost. Surface
+    # mode + resolved model on every shape of the response.
+    from core.src.suggestions import _resolve_stage3_model
+    from config import get_stage3_mode
+    stage3_mode = get_stage3_mode()
+
     if not get_active_profile_id() or not is_profile_trained():
-        return jsonify({"trained": False})
+        return jsonify({
+            "trained": False,
+            "stage3_mode": stage3_mode,
+            "stage3_resolved_model": _resolve_stage3_model(None, mode=stage3_mode),
+        })
     try:
         profile = load_profile()
         normalize_history(profile)
@@ -2224,6 +2237,8 @@ def profile_prompt_size():
             "pool_chars": components.get("pool", 0),
             "feedback_chars": components.get("feedback", 0),
             "ai_update_chars": ai_update_chars,
+            "stage3_mode": stage3_mode,
+            "stage3_resolved_model": _resolve_stage3_model(profile, mode=stage3_mode),
         })
     except Exception as exc:
         app.logger.warning("prompt-size endpoint failed: %s", exc)

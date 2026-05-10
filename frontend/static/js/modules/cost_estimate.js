@@ -78,11 +78,18 @@ export function resetSessionSpend() {
 }
 
 export async function estimate({ model, profileText, tracks }) {
+    const sizes = await getPromptSize();
+    // L5 (2026-05-10): if a mode-resolved model surfaces from the backend,
+    // override any caller-supplied model so the rendered estimate aligns
+    // with what Stage 3 will actually invoke. ``model`` from the caller
+    // becomes a fallback — used only when the mode is "custom" (where
+    // the dropdown value is the source of truth) or no sizes are loaded.
+    if (sizes && sizes.stage3_resolved_model && sizes.stage3_mode !== 'custom') {
+        model = sizes.stage3_resolved_model;
+    }
     const pricing = await getPricing();
     const prices = (pricing.models || {})[model];
     if (!prices) return null;
-
-    const sizes = await getPromptSize();
 
     let profileTokens;
     let perBatchIn;
@@ -139,7 +146,15 @@ function _getProfileText() {
     }).join('\n');
 }
 
-function _getModel() {
+function _getModel(sizes) {
+    // L5 (2026-05-10): when the backend has surfaced the Stage 3-resolved
+    // model (mode-aware — preset modes ignore the dropdown), prefer that
+    // so the cost estimate matches what /api/run will actually charge.
+    // Falls through to the dropdown / freetext when we have no resolved
+    // value (cold load, untrained profile, custom mode).
+    if (sizes && sizes.stage3_resolved_model && sizes.stage3_mode !== 'custom') {
+        return sizes.stage3_resolved_model;
+    }
     const freetext = el('settings-model-freetext');
     if (freetext && !freetext.classList.contains('hidden')) return freetext.value.trim();
     const select = el('settings-model');
