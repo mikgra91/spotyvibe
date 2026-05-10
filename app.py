@@ -893,6 +893,13 @@ def run_pipeline():
                         stage1_candidate_count=len(_stage1_candidates) if _use_staged_pipeline else None,
                         stage2_approved_count=len(_approved_names) if _use_staged_pipeline else None,
                         schema_collapse=schema_collapse,
+                        # Tier 1 (2026-05-10) — diagnostics from llm_meta:
+                        # system_fingerprint detects silent OpenAI model rolls;
+                        # prompt_hashes catches inadvertent prompt drift;
+                        # stage3_mode audits the L5 selector at call time.
+                        system_fingerprint=llm_meta.get("system_fingerprint"),
+                        prompt_hashes=llm_meta.get("prompt_hashes"),
+                        stage3_mode=llm_meta.get("stage3_mode"),
                     )
                 except Exception as _exc:  # pragma: no cover — never break a run
                     logger.warning("log_batch_summary skipped: %s", _exc)

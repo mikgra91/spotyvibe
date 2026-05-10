@@ -5,6 +5,7 @@ import pytest
 
 from core.src.suggestions import (
     _build_deny_set_json,
+    _hash_messages_for_audit,
     _migrate_suggested_tracks,
     _normalize_key,
     _resolve_stage3_model,
@@ -631,6 +632,54 @@ class TestNormalizeResponseSchemaCollapse:
                       "dup_in_batch": 0, "total": 0}
 
 
+class TestHashMessagesForAudit:
+    """Tier 1 (2026-05-10) — prompt-prefix hashes catch drift between
+    runs and let the eval log group calls by cache-eligible prefix.
+    """
+
+    def test_hashes_system_and_user_separately(self):
+        msgs = [
+            {"role": "system", "content": "you are a helpful assistant"},
+            {"role": "user", "content": "hello"},
+        ]
+        h = _hash_messages_for_audit(msgs)
+        assert "system_md5" in h and len(h["system_md5"]) == 16
+        assert "user_md5" in h and len(h["user_md5"]) == 16
+        assert h["system_md5"] != h["user_md5"]
+
+    def test_identical_input_yields_identical_hash(self):
+        msgs1 = [{"role": "system", "content": "X"}, {"role": "user", "content": "Y"}]
+        msgs2 = [{"role": "system", "content": "X"}, {"role": "user", "content": "Y"}]
+        assert _hash_messages_for_audit(msgs1) == _hash_messages_for_audit(msgs2)
+
+    def test_different_content_yields_different_hash(self):
+        msgs1 = [{"role": "system", "content": "X"}, {"role": "user", "content": "Y1"}]
+        msgs2 = [{"role": "system", "content": "X"}, {"role": "user", "content": "Y2"}]
+        h1 = _hash_messages_for_audit(msgs1)
+        h2 = _hash_messages_for_audit(msgs2)
+        # System unchanged, user changed.
+        assert h1["system_md5"] == h2["system_md5"]
+        assert h1["user_md5"] != h2["user_md5"]
+
+    def test_only_first_system_and_first_user_hashed(self):
+        # Defensive: a multi-turn message list shouldn't blow up the
+        # field map; we only care about the first occurrence of each role.
+        msgs = [
+            {"role": "system", "content": "first system"},
+            {"role": "user", "content": "first user"},
+            {"role": "assistant", "content": "reply"},
+            {"role": "user", "content": "second user"},
+        ]
+        h = _hash_messages_for_audit(msgs)
+        assert set(h.keys()) == {"system_md5", "user_md5"}
+
+    def test_empty_or_malformed_returns_empty(self):
+        assert _hash_messages_for_audit([]) == {}
+        assert _hash_messages_for_audit(None) == {}
+        # Malformed entries are skipped silently (telemetry must not crash).
+        assert _hash_messages_for_audit([{"no": "role"}, "string"]) == {}
+
+
 class TestResolveStage3Model:
     """L5 (2026-05-08) — verify the Stage 3 model selector returns the
     correct model under each mode + profile shape, including the
@@ -816,6 +865,45 @@ class TestCallGpt:
 
         result = call_gpt([{"role": "user", "content": "test"}])
         assert result["playlist"] == []
+
+    @patch("core.src.suggestions.debug_log")
+    @patch("core.src.suggestions.get_model", return_value="gpt-4o")
+    @patch("core.src.suggestions.extract_chat_content")
+    @patch("core.src.suggestions.chat_completions_create")
+    def test_meta_carries_tier1_diagnostics(self, mock_create, mock_extract, mock_model, mock_log):
+        # Tier 1 (2026-05-10): system_fingerprint + prompt_hashes must
+        # propagate via the meta dict so eval_log.batch_summary can
+        # detect silent OpenAI model rolls and prompt drift.
+        mock_create.return_value = {
+            "usage": {"prompt_tokens": 100, "completion_tokens": 50},
+            "system_fingerprint": "fp_abc123",
+        }
+        mock_extract.return_value = '{"playlist": [], "new_artists": [], "profile_updates": {"suggested_artists": [], "suggested_tracks": []}}'
+        msgs = [
+            {"role": "system", "content": "system prompt"},
+            {"role": "user", "content": "user message"},
+        ]
+        result, meta = call_gpt(msgs, return_meta=True)
+        assert meta["system_fingerprint"] == "fp_abc123"
+        assert "system_md5" in meta["prompt_hashes"]
+        assert "user_md5" in meta["prompt_hashes"]
+        assert meta["usage"]["prompt_tokens"] == 100
+        assert meta["latency_s"] >= 0
+
+    @patch("core.src.suggestions.debug_log")
+    @patch("core.src.suggestions.get_model", return_value="gpt-4o")
+    @patch("core.src.suggestions.extract_chat_content")
+    @patch("core.src.suggestions.chat_completions_create")
+    def test_meta_handles_missing_system_fingerprint(self, mock_create, mock_extract, mock_model, mock_log):
+        # Local LLMs (Ollama, LM Studio) don't return system_fingerprint.
+        # The meta must surface None rather than KeyError-ing telemetry.
+        mock_create.return_value = {
+            "usage": {"prompt_tokens": 50, "completion_tokens": 25},
+            # no system_fingerprint key
+        }
+        mock_extract.return_value = '{"playlist": []}'
+        result, meta = call_gpt([{"role": "user", "content": "x"}], return_meta=True)
+        assert meta["system_fingerprint"] is None
 
     @patch("core.src.suggestions.debug_log")
     @patch("core.src.suggestions.get_model", return_value="gpt-4o")

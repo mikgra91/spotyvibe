@@ -938,6 +938,32 @@ def normalize_response(result):
     return result
 
 
+def _hash_messages_for_audit(messages: list) -> dict:
+    """Tier 1 (2026-05-10) — md5-hash the system + user prompt prefixes.
+
+    Used by the eval log to detect (a) prompt drift between runs without
+    diffing whole trace bundles and (b) which calls hit the same prefix
+    (relevant to OpenAI's prompt cache routing). Returns short hex
+    digests so the row stays compact. Failures (malformed messages,
+    encoding glitches) yield ``None`` rather than crashing telemetry.
+    """
+    import hashlib as _hl
+    out: dict = {}
+    try:
+        for m in messages or []:
+            if not isinstance(m, dict):
+                continue
+            role = m.get("role")
+            content = m.get("content") or ""
+            if role in ("system", "user") and content:
+                key = f"{role}_md5"
+                if key not in out:
+                    out[key] = _hl.md5(content.encode("utf-8")).hexdigest()[:16]
+    except Exception:
+        return {}
+    return out
+
+
 def _resolve_stage3_model(profile: dict | None, *, mode: str | None = None) -> str:
     """Pick the Stage 3 model based on the configured strategy + profile state.
 
@@ -1014,7 +1040,18 @@ def call_gpt(messages, temperature=0.7, return_meta=False):
     debug_log("Suggestion Generation", messages, raw_content)
 
     usage = response.get("usage") if isinstance(response, dict) else None
-    meta = {"usage": usage, "latency_s": latency_s}
+    # Tier 1 (2026-05-10): surface system_fingerprint + prompt-prefix
+    # hashes so the eval log can detect (a) silent OpenAI model rolls and
+    # (b) any prompt drift across runs. Both fields are diagnostic-only;
+    # missing values stay None for non-OpenAI providers.
+    system_fp = response.get("system_fingerprint") if isinstance(response, dict) else None
+    prompt_hashes = _hash_messages_for_audit(messages)
+    meta = {
+        "usage": usage,
+        "latency_s": latency_s,
+        "system_fingerprint": system_fp,
+        "prompt_hashes": prompt_hashes,
+    }
 
     content = strip_code_fences(raw_content)
 
@@ -1502,6 +1539,10 @@ def select_tracks(
 
     # F9 (2026-05-01): per-batch Stage 3 capture. Multiple batches
     # accumulate via trace.append so a diagnosis can walk batch-by-batch.
+    # Tier 1 (2026-05-10): system_fingerprint + stage3_mode added so
+    # post-mortems can detect (a) silent OpenAI model rolls and
+    # (b) the L5 selector's resolved-mode at call time.
+    _s3_system_fp = (response or {}).get("system_fingerprint") if isinstance(response, dict) else None
     try:
         from core.src import trace
         if trace.is_active():
@@ -1509,6 +1550,8 @@ def select_tracks(
             trace.append("stage3_batches", {
                 "batch_num": batch_num,
                 "model": stage3_model,
+                "stage3_mode": get_stage3_mode(),
+                "system_fingerprint": _s3_system_fp,
                 "system": system_prompt,
                 "user": user_message,
                 "approved_artists": list(approved_artist_names),
@@ -1545,7 +1588,17 @@ def select_tracks(
         debug_log("Stage 3 raw response", [], raw_content)
 
     usage = response.get("usage") if isinstance(response, dict) else None
-    meta = {"usage": usage, "latency_s": latency_s}
+    # Tier 1 (2026-05-10): same diagnostic fields as call_gpt's meta.
+    # _s3_system_fp captured above. Stage 3's prompt-prefix is the
+    # invariant-per-call portion C4's `prompt_cache_key` hints on, so
+    # tracking the hash gives a per-batch view of cache eligibility.
+    meta = {
+        "usage": usage,
+        "latency_s": latency_s,
+        "system_fingerprint": _s3_system_fp,
+        "prompt_hashes": _hash_messages_for_audit(messages),
+        "stage3_mode": get_stage3_mode(),
+    }
 
     content = strip_code_fences(raw_content)
     if not content:

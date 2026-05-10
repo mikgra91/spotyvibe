@@ -1,9 +1,21 @@
-# Validation run — 2026-05-10 (Option A — partial)
+# Validation run — 2026-05-10 (Option A — partial, INVALID for cross-model comparison)
 
 **Generated:** 2026-05-10. Per-iter `summary.json` artefacts were
 removed after the analysis; the source raw files remain in
 `evaluation/results/20260510-134821/` if a deeper re-analysis is ever
 needed.
+
+> **🚨 KNOWN INVALID — Tier-0 post-mortem 2026-05-10:** every iter in
+> this run executed `gpt-5.4-mini` regardless of the `models =` setting
+> in `evaluation/settings.ini`. Root cause: the harness's
+> `os.environ.setdefault("STAGE3_MODE", "custom")` no-oped because
+> `config.ensure_env()` had already loaded the user's pinned
+> `STAGE3_MODE='fast'` from `settings.conf`, and the L5 selector
+> ignores `OPENAI_MODEL` under `fast`. **Cross-model rows in this
+> report (gpt-5.4 vs mini) are mini-vs-mini comparisons.** Mini-only
+> aggregates (n=6) remain trustworthy. Fixed in
+> [run_evaluation.py:411](evaluation/run_evaluation.py#L411) —
+> `setdefault` replaced with explicit assign on the same date.
 
 **Run:** `evaluation/results/20260510-134821/`. Killed mid-niche-iter-2
 when the Spotify access token expired (~1.5 h into the run, 1 h TTL).

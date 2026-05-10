@@ -304,6 +304,9 @@ def log_batch_summary(
     stage1_candidate_count: int | None = None,
     stage2_approved_count: int | None = None,
     schema_collapse: dict | None = None,
+    system_fingerprint: str | None = None,
+    prompt_hashes: dict | None = None,
+    stage3_mode: str | None = None,
 ) -> None:
     """Append a single ``kind: "batch_summary"`` row to the eval log.
 
@@ -411,6 +414,12 @@ def log_batch_summary(
         "stage1_candidate_count": stage1_candidate_count,
         "stage2_approved_count": stage2_approved_count,
         "schema_collapse": schema_collapse,
+        # Tier 1 (2026-05-10) — diagnostics for OpenAI model-roll detection
+        # + prompt-drift detection + L5 mode auditing. None when the
+        # provider didn't surface the field (local LLMs, older snapshots).
+        "system_fingerprint": system_fingerprint,
+        "prompt_hashes": prompt_hashes or {},
+        "stage3_mode": stage3_mode,
     }
 
     eval_log_path.parent.mkdir(parents=True, exist_ok=True)

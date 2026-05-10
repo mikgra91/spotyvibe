@@ -406,9 +406,18 @@ def main() -> int:
     # collapse onto STAGE3_FAST_MODEL regardless of `models =` in
     # settings.ini. `custom` makes the resolver respect OPENAI_MODEL,
     # restoring the per-iter behaviour the eval needs to compare models.
-    # ``setdefault`` so a user testing a specific mode (e.g. STAGE3_MODE=auto
-    # for tier-switching validation) can still override from the shell.
-    os.environ.setdefault("STAGE3_MODE", "custom")
+    #
+    # Why force-override (not setdefault): config.ensure_env() runs
+    # load_dotenv(SETTINGS_FILE) which seeds os.environ from the user's
+    # persisted settings.conf — and a user who has set STAGE3_MODE via the
+    # Settings UI will have it pinned. setdefault would silently honour
+    # that pin and corrupt every comparative eval run (Tier-0 root cause
+    # of the 2026-05-10 validation: every "gpt-5.4" iter actually ran
+    # mini because the user's settings.conf had STAGE3_MODE='fast').
+    # The eval explicitly opts into `custom` semantics; users who want to
+    # validate Auto / Fast / Best behaviour should write a separate
+    # smoke test rather than re-purpose the comparative harness.
+    os.environ["STAGE3_MODE"] = "custom"
 
     from evaluation.harness import prepare_sandbox, run_for_model
 

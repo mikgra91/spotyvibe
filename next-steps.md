@@ -1322,6 +1322,167 @@ with hundreds of dislikes would see oldest dislikes drop off, raising
 the "we re-suggested a song you actively disliked" risk. Worth a
 separate look once the cost programme stabilises.
 
+### Validation eval (2026-05-10) — Tier-0 root-cause + Tier-1 logging
+
+#### What surfaced
+
+A focused B2-style validation run was kicked off 2026-05-10 to verify
+C1-C4 had not regressed quality. 7 of 12 iters landed before the
+Spotify access token expired mid-run (1 h TTL, eval ran ~1.5 h).
+Initial analysis flagged a **−25 pp drop in `gpt-5.4` must-have-cite**
+vs B1 (B1: 97 % → validation: 71.8 %). After investigation this
+turned out to be a measurement artefact, not a real regression.
+
+#### Tier-0 root cause — settings persistence + setdefault no-op
+
+Trace bundles for the validation `gpt-5.4-iter*` runs all show
+`model: gpt-5.4-mini` in their per-batch records. The validation
+**never ran gpt-5.4** at all. Cause chain:
+
+1. Earlier on 2026-05-10 the Settings POST was exercised end-to-end
+   (Auto → Best → Fast). The final POST persisted
+   `STAGE3_MODE='fast'` to `~/AppData/Local/spotyvibe/settings.conf`.
+2. The eval harness imports production code on startup;
+   `config.ensure_env()` runs `load_dotenv(SETTINGS_FILE)` and seeds
+   `os.environ["STAGE3_MODE"] = "fast"` before any harness code runs.
+3. The eval-side guard
+   `os.environ.setdefault("STAGE3_MODE", "custom")` no-oped because
+   the key was already set.
+4. Stage 3 fired → `_resolve_stage3_model(...)` returned
+   `STAGE3_FAST_MODEL` (mini) regardless of the harness's per-iter
+   `OPENAI_MODEL=gpt-5.4` override.
+
+Fix shipped same day in
+[evaluation/run_evaluation.py](evaluation/run_evaluation.py):
+`setdefault` replaced with explicit assign + a long comment
+explaining why the eval needs unconditional `custom` semantics.
+
+**What survives from the validation analysis:**
+- mini default cite mean ≈ 73.9 % over n=6 (n=3 from each "model
+  group", both actually mini). Stable vs B1's 77.3 %.
+- No leakage / fit regression on any of the 7 successful iters.
+- B1's "mini collapses on Playlist B" finding remains the only
+  data point on the gpt-5.4 vs mini quality axis. Validation
+  cannot speak to it because both rows are mini-on-mini.
+
+**What does NOT survive:**
+- The "−25 pp gpt-5.4 cite drop" was mini being measured as gpt-5.4.
+- The "Playlist B mini-collapse not reproduced" claim is also void —
+  both groups in validation were mini, so neither could refute the
+  collapse hypothesis.
+
+#### Tier-1 logging — shipped 2026-05-10 alongside the analysis
+
+Three new diagnostic fields surface in every `batch_summary` row of
+`eval.jsonl` and on every `stage3_batches` entry of `trace_A.json`:
+
+- **`system_fingerprint`** (string, OpenAI-only) — the model snapshot
+  identifier OpenAI returns alongside `usage`. When this changes
+  between runs, OpenAI rolled a model update silently. Today's
+  codebase NEVER captured this value, so the "did the model drift?"
+  hypothesis was unanswerable. Now it is.
+- **`prompt_hashes`** (`{system_md5, user_md5}`, both 16 hex chars) —
+  short MD5 prefixes of the system + user message strings. Lets
+  post-mortem analysis confirm "the prompts were byte-identical
+  between runs" without diffing whole trace bundles. Also useful
+  for grouping calls by cache-eligibility — same `system_md5` =
+  same OpenAI prompt-cache key on the auto-cache side.
+- **`stage3_mode`** (string) — the L5 selector's mode at call time.
+  Direct readout to detect the same setdefault-bug class of mistake:
+  if eval rows show `stage3_mode='fast'` instead of `'custom'`, the
+  comparative model is wrong before any further analysis happens.
+
+Helper: `_hash_messages_for_audit` in
+[core/src/suggestions.py](core/src/suggestions.py); 5 unit tests in
+`TestHashMessagesForAudit`. `chat_completions_create` already
+returned `system_fingerprint` in its response dict — Tier 1 just
+plumbs it through `meta` → `_emit_batch_summary` →
+`log_batch_summary` so the eval log captures it. Two new tests in
+`TestCallGpt` cover the meta-propagation + the local-LLM
+"no fingerprint" fallback.
+
+#### Further investigation — how to study OpenAI prompt handling
+
+Once a fresh eval lands with Tier-1 logging in place, several
+investigation paths open up. Recipes below.
+
+- **Detect a model roll.** `jq -r '.system_fingerprint' eval.jsonl |
+  sort -u`. If the set grows from one run to the next, OpenAI rolled
+  a snapshot mid-run or between runs. Cross-reference with cite-rate
+  changes per fingerprint to attribute quality drift correctly.
+
+- **Verify prompt invariance across batches in one /api/run.** `jq
+  -r '.prompt_hashes.system_md5' eval.jsonl | uniq -c`. The system
+  prompt for Stage 3 is invariant under (model, language,
+  emerging_only); the user-message hash should change per batch
+  (deny set + accepted-tracks block grow). If `system_md5` differs
+  within one run something corrupts the prompt-prefix and OpenAI's
+  auto-cache cannot hit. C4's `prompt_cache_key` only helps when the
+  prefix itself is stable.
+
+- **Audit the L5 selector at call time.** `jq -r
+  '.model + " " + .stage3_mode' eval.jsonl | sort -u`. Surface the
+  (resolved-model, mode) pairs the eval actually exercised.
+  `stage3_mode='fast'` in a comparative eval is the bug Tier 0
+  caught — fail fast next time.
+
+- **Group calls by cache-prefix and inspect hit rates per group.**
+  `jq -r '[.prompt_hashes.system_md5, .cached_tokens // 0,
+  .usage.prompt_tokens // 0] | @csv' eval.jsonl`. If the same
+  `system_md5` shows ≥ 1 call with `cached_tokens=0` AND ≥ 1 call
+  with `cached_tokens > 0`, OpenAI's routing flipped the request
+  to a different host within the eligibility window. That's the
+  primary failure mode C4's `prompt_cache_key` is supposed to fix —
+  we can now measure whether it does.
+
+- **Attribute cite-rate drift to (model, fingerprint, prompt_hash).**
+  Combine the per-batch `rationale_stats.must_have_cite_rate` field
+  with `system_fingerprint` + `prompt_hashes.user_md5`. If cite
+  varies wildly within a single (fingerprint, system_md5) bucket,
+  the variance is in the model's stochastic output — not in the
+  prompt or model snapshot. That's the temperature-sensitivity
+  baseline R1's Tier-3 experiment would formalise.
+
+- **Read OpenAI's published model spec / system card.** The
+  `system_fingerprint` returned alongside each call maps to a
+  documented snapshot. When something unexpected happens, look up
+  the snapshot in OpenAI's release notes — there may be a public
+  changelog explaining the behaviour change. The codebase doesn't
+  need to encode this; it's a manual investigation step that the
+  fingerprint capture finally enables.
+
+- **Capture per-track rationale text (deferred, not in Tier 1).**
+  Today `rationale_stats` aggregates type counts and a binary
+  must-have-cite flag. The full `arg` text per rationale entry is
+  in `trace_A.json` per batch, but absent from the eval-log row.
+  If R1's prompt-engineering work needs to inspect WHAT the model
+  cited (e.g. is it citing soft_preferences when must_have was
+  available?), surface a `rationale_args` array on `batch_summary`
+  too. ~1-2 KB / batch, gated on `debug_mode`.
+
+- **Determinism floor experiment (Tier 3, eval cost).** Issue
+  10-20 identical Stage 3 calls at `temperature=0` (or via the
+  `seed` parameter on gpt-5.x) against the SAME pool. Variance
+  floor on cite rate sets the n threshold for any future
+  measurement. If the floor variance is > 5 pp, B1's n=3 mean of
+  97 % was lucky — and we should never have shipped a design
+  decision on n=3 cite numbers.
+
+#### Operational lessons
+
+1. **Never use `setdefault` for env vars that are pre-seeded by
+   `load_dotenv`.** Production code's settings.conf can pin the
+   key before harness code runs. Force-override or refuse to start.
+2. **Persisted settings are toxic for eval reproducibility.** The
+   harness should snapshot `~/AppData/Local/spotyvibe/settings.conf`
+   at start and either restore it post-run OR refuse to run if it
+   contains anything other than the eval's expected baseline.
+   Filed as a follow-up.
+3. **Trace bundles are the source of truth for "what model
+   actually ran".** `summary.json`'s `model` field reflects the
+   *configured* model; `trace_A.json` per-batch `model` field
+   reflects what was actually sent. When in doubt, trust the trace.
+
 ### Operational gates — Spotify user-token health
 
 B1 (2026-05-08) hit a 14-hour Retry-After penalty after only the 7th
