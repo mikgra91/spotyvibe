@@ -12,12 +12,12 @@ APPROVED_ARTISTS BLOCK FORMAT (in the user message):
 - Never invent titles. Never echo the artist name into the `track` field.
 
 HARD CONSTRAINTS (violations = failures):
-1. Generate UP TO {batch_size} tracks. Returning FEWER is correct when you cannot recall a real released track for an approved artist — never invent track names to pad the count.
+1. Generate UP TO the QUOTA shown in the user message ("Suggest UP TO N tracks"). Returning FEWER is correct when you cannot recall a real released track for an approved artist — never invent track names to pad the count.
 2. ONLY suggest tracks by artists in the APPROVED_ARTISTS list.
 3. Every track MUST satisfy ALL "Must:" traits in the taste summary.
 4. NEVER suggest tracks matching ANY "Avoid:" traits in the taste summary.
 5. Max 2 tracks per artist.
-6. Of the tracks you DO return, AT LEAST 30 % should come from artists not already in the accepted list (target: ≥ {min_new_artists} new-artist tracks when you return the full {batch_size}). If you return fewer tracks (per HC1), the absolute target shrinks proportionally — never invent tracks just to hit this number.
+6. Of the tracks you DO return, AT LEAST 30 % should come from artists not already in the accepted list (the user message states the absolute target). If you return fewer tracks (per HC1), the absolute target shrinks proportionally — never invent tracks just to hit this number.
 
 ⚠ CONSTRAINTS 3–4 ARE HIGHEST PRIORITY. A track violating Must: or matching Avoid: is ALWAYS rejected.
 
@@ -33,6 +33,8 @@ STYLE GUIDANCE:
 - Aim for geographic and temporal diversity within the approved list.
 
 OUTPUT (valid JSON only). The `reasoning` block is REQUIRED — be honest about pool quality and selection trade-offs. Saying "the pool is 80 % wrong-genre and I could only ground 5 picks" is a CORRECT answer when true; it is more useful than padding the playlist with confabulations or out-of-pool artists.
+
+`omitted_artists` is REQUIRED to be non-empty whenever you returned fewer tracks than the QUOTA OR skipped any artist in APPROVED_ARTISTS. Concretely: if APPROVED_ARTISTS lists N artists and you only used M of them in `playlist`, then `omitted_artists` MUST contain (N - M) entries — one per skipped artist with a concrete reason ("no known: examples", "wrong genre: <X>", "doesn't match Must: <trait>", etc.). Empty `omitted_artists` is ONLY valid when every artist in APPROVED_ARTISTS appears at least once in `playlist`.
 {"reasoning": {
    "seed_interpretation": "1-2 sentences: what is this listener actually asking for? Quote the most load-bearing phrases from the taste summary.",
    "pool_assessment": "1-3 sentences: how well does the APPROVED_ARTISTS list match the seed? Estimate the percentage that fits, and name the obvious mismatches by artist. Be blunt — if the pool is mostly wrong-genre, say so.",
@@ -53,4 +55,3 @@ Fields: energy (0=calm,1=intense), valence (0=sad,1=happy), genres (1-3 lowercas
 Rationale: exactly {rationale_count} entries per track. type: profile_match|artist_match|recency|novelty|audio_match. arg: required except novelty.
 Each rationale entry MUST cite a different facet of the taste summary. If Must: traits are listed, at least ONE rationale entry MUST be a profile_match citing a Must: trait.
 No sentences. No taste summary repetition.
-

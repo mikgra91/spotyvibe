@@ -4,5 +4,8 @@ TASTE SUMMARY:
 {taste_summary}
 {recent_feedback}
 {audio_filters_block}
-Suggest UP TO {batch_size} tracks. Return only JSON matching the schema.
+Suggest UP TO {batch_size} tracks (≥ {min_new_artists} from new artists). Return only JSON matching the schema.
 
+REMINDER (highest-priority output rule, do not skip):
+- Each rationale entry MUST cite a different facet of the taste summary above.
+- If "Must:" traits appear in the taste summary, AT LEAST ONE rationale entry per track MUST be type=profile_match with `arg` quoting a Must: trait verbatim.

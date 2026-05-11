@@ -1451,8 +1451,7 @@ investigation paths open up. Recipes below.
   need to encode this; it's a manual investigation step that the
   fingerprint capture finally enables.
 
-- **Capture per-track rationale text (deferred, not in Tier 1).**
-  Today `rationale_stats` aggregates type counts and a binary
+- **Capture per-track rationale text (deferred, not in Tier 1).** Today `rationale_stats` aggregates type counts and a binary
   must-have-cite flag. The full `arg` text per rationale entry is
   in `trace_A.json` per batch, but absent from the eval-log row.
   If R1's prompt-engineering work needs to inspect WHAT the model
@@ -1776,3 +1775,93 @@ quality gap. If Phase B + the eval workflow rework above do **not**
 materially improve dislike rate and instruction adherence, the rework
 question reopens — at that point the call is a product decision, not a
 technical one.
+
+## 🆕 Session 2026-05-11 PM — R1 spike (partial, Spotify 429-blocked)
+
+Full analysis: [`evaluation/baselines/2026-05-11_r1_partial/summary.md`](evaluation/baselines/2026-05-11_r1_partial/summary.md).
+Trace bundles: `evaluation/results/20260511-120655/gpt-5.4-mini-iter1/`
+(R1 iter 1) and `evaluation/results/20260511-120118/` (R1.2-rejection).
+
+### Prompt edits shipped (`prompts/track_select_{system,user,system_local}.txt`)
+
+- **R1.1** ✅ Must-have cite rule re-stated as a `REMINDER` block at the
+  END of `track_select_user.txt` (most-recent instruction at output
+  time). Effect at n=1: cite_rate 1.0 on high-confidence batches.
+- **R1.3** ✅ `omitted_artists` REQUIRED non-empty with ≥ (N − M)
+  entries whenever any APPROVED_ARTISTS entry was skipped. Effect at
+  n=1: mini produced its first-ever ≥ 5-entry omission block (28 of 40
+  artists per batch with concrete reasons).
+- **R1.2** ❌ REJECTED. Tightening "no known: examples" from "OMIT
+  unless you recall" to "ALWAYS OMIT" collapsed playlist to 0 / 15 in
+  iter 0 (40 / 40 artists omitted). Reverted before iter 1. Re-open
+  only after `top_tracks_overlay` coverage expansion.
+
+### UI fix (carried in unstaged working tree)
+
+`frontend/static/css/components.css` had a stray `i` at the top from
+the previous session that broke CSS parsing — fixed. The header
+`#spotifyStatusPill` removal + body `provider-pills.js` "Spotify
+connected" restore from the previous session is correct as shipped.
+
+### Iter-1 numbers (gpt-5.4-mini, n=1, do NOT base design on these)
+
+| Metric | post_fix baseline (n=3) | R1 iter 1 (n=1) | Δ |
+|---|---|---|---|
+| Playlist A | 13.0 / 15 | 12 / 15 | -7 pp |
+| Playlist B | 4.3 / 15 | **6 / 15** | **+11 pp** |
+| Cite-rate mean | 86 % | 82 % | -4 pp (within variance) |
+| Spotify-found | 40 % | 31 % | -9 pp ⚠️ |
+| Cache hit (total) | 53 % | 48 % | -5 pp (REMINDER shifts boundary by 1 chunk) |
+| `system_md5` unique | 1 | 1 | ✅ stable |
+| `stage3_mode` | custom | custom | ✅ stable |
+
+### Why iter 2 / iter 3 did not land
+
+Spotify 429 on iter 2 batch 2 with `Retry-After=5199 s` (87 min). The
+harness 90 s back-off cap cannot recover. Eval killed at 14:31 UTC per
+[Operational gates](#operational-gates---spotify-user-token-health)
+rule 3. The post_fix run earlier the morning (70 min wall) + this
+run's first iter exhausted the user-token's daily/hourly burst budget.
+No further evals possible today.
+
+### What we learned about how mini reads the prompt
+
+R1.3's forced `omitted_artists` block gave us the first scaled view of
+mini's omission reasoning. From iter 1 batch 1: *"The pool is only a
+partial fit, roughly 30-40 % usable … The clearest matches are
+Charlotte Sands, Kenny Holland, Fiuk, and SB19; several others look
+like they may be wrong-genre, too niche to ground confidently, or not
+recallable enough to avoid confabulation."* Five confirmed behaviours:
+
+1. Mini parses `known:` annotations correctly; treats absence as a
+   strong omission signal.
+2. It self-assesses pool quality realistically (~35 % usable).
+3. With the R1.1 REMINDER in place it prefers omission over
+   confabulation — 8 well-grounded picks instead of 12 weak ones.
+4. It cites Must: traits verbatim when R1.1 is binding (cite 1.0 on
+   high-confidence batches).
+5. It does **not** compensate for B-pool thinning after dislikes prune
+   the candidate set — so the structural fix for B-collapse is **A6
+   (RAG re-retrieve on empty batches)**, not more prompt-engineering.
+
+### Next-session execution order (when Spotify quota recovers)
+
+1. **R1 re-baseline at n≥3** — `default × gpt-5.4-mini × 3 iter`
+   (~35 min, ~$0.40). Confirm / reject the +11 pp B-completion and
+   −9 pp Spotify-found hypotheses. Ship R1.1+R1.3 if cite ≥ 86 % AND
+   Spotify-found within ±5 pp of baseline (40 %).
+2. **R1 verification on gpt-5.4 at n=3** (~35 min, ~$0.70). Expected
+   no-op (gpt-5.4 already did what R1.3 demands per post_fix); verify
+   empirically.
+3. **OP1 (new, P1)** — provision separate Spotify dev-app credential
+   for the eval harness; isolate eval token from interactive session.
+   Removes the "two evals per day max" ceiling that blocked this run.
+4. **OP2 (new, P2)** — `.spotify-cache` disappears between sessions
+   (2nd confirmed occurrence). Investigate harness teardown +
+   AV / OS interaction. ~20 min spike.
+5. **A6 (P1)** — RAG re-retrieve on consecutive empty Stage-3 batches.
+   This run's iter 1 reinforces that B-pool starvation is the dominant
+   Playlist-B failure mode on mini.
+6. **R1.2 deferred (P2)** — re-open once `top_tracks_overlay` covers
+   ≥ 80 % of typical RAG-retrieve pools.
+

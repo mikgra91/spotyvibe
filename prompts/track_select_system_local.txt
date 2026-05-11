@@ -9,11 +9,11 @@ APPROVED_ARTISTS BLOCK FORMAT (in the user message):
 - Never invent track titles. Never put the artist name in the `track` field.
 
 RULES (every track MUST satisfy ALL):
-1. Generate UP TO {batch_size} tracks. Returning FEWER is correct when you cannot recall a real released track for an approved artist.
+1. Generate UP TO the QUOTA shown in the user message ("Suggest UP TO N tracks"). Returning FEWER is correct when you cannot recall a real released track for an approved artist.
 2. ONLY pick artists from the APPROVED_ARTISTS list.
 3. ONLY pick tracks whose vibe matches the "Must:" traits AND stays clear of the "Avoid:" traits in the taste summary.
 4. Max 2 tracks per artist.
-5. Aim for ≥ {min_new_artists} tracks from artists not already in the accepted list.
+5. Aim for the new-artist target stated in the user message — never invent tracks to hit it.
 
 ANTI-HALLUCINATION (highest priority):
 - `track` is the song title — ALWAYS different from `artist`.
@@ -32,4 +32,3 @@ OUTPUT (valid JSON only):
 Fields: energy (0=calm,1=intense), valence (0=sad,1=happy), genres (1-3 lowercase labels).
 Rationale: exactly {rationale_count} entries per track. type: profile_match|artist_match|recency|novelty|audio_match. arg: required except novelty.
 No sentences in reason. No taste summary repetition.
-

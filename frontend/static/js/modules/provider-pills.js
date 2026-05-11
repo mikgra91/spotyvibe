@@ -27,17 +27,13 @@ function renderSpotifyPills() {
     if (!container) return;
     const pills = [];
     const authStatus = State.spotifyAuthStatus;
-    // 2026-05-10: skip the "Spotify connected" pill — duplicate of the
-    // header status pill (#spotifyStatusPill, U6). Only render the body
-    // pill when the state is actionable so the user has a big, clearly
-    // labelled click target for fixing disconnections / missing creds.
-    if (authStatus === 'not_authenticated') {
+    if (authStatus === 'authenticated') {
+        pills.push(pill('ok', i18n('pill.spotify_connected', 'Spotify connected')));
+    } else if (authStatus === 'not_authenticated') {
         pills.push(`<button class="status-pill status-pill--warn status-pill--clickable" onclick="connectSpotify()" title="${escHtml(i18n('pill.click_to_connect', 'Click to connect'))}">${escHtml(i18n('pill.spotify_not_connected', 'Spotify not connected'))}</button>`);
     } else if (authStatus === 'not_configured') {
         pills.push(`<button class="status-pill status-pill--err status-pill--clickable" onclick="openCredentials()" title="${escHtml(i18n('pill.click_to_setup', 'Click to set up'))}">${escHtml(i18n('pill.credentials_missing', 'Credentials missing'))}</button>`);
-    } else if (authStatus !== 'authenticated') {
-        // unknown / loading / any other non-OK state — surface as warn so
-        // the user knows the status check is still pending.
+    } else {
         pills.push(pill('warn', i18n('pill.status_unknown', 'Status unknown')));
     }
     container.innerHTML = pills.join('');

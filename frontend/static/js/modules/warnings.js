@@ -77,34 +77,10 @@ export function renderComponentWarnings() {
         }
     }
 
-    // U6 (2026-05-07): live Spotify-connected badge in the header. Mirrors
-    // State.spotifyAuthStatus into a class on the pill so the green/red
-    // dot reflects the current session state. Refreshed on every
-    // checkSpotifyAuth() call (page load, focus, visibilitychange — see U1).
-    const pill = el('spotifyStatusPill');
-    if (pill) {
-        const status = State.spotifyAuthStatus;
-        let stateClass, labelKey, labelEn;
-        if (status === 'authenticated') {
-            stateClass = 'spotify-status-connected';
-            labelKey = 'nav.spotify_status_connected';
-            labelEn = 'Spotify connected';
-        } else if (status === 'not_authenticated' || status === 'not_configured') {
-            stateClass = 'spotify-status-disconnected';
-            labelKey = 'nav.spotify_status_disconnected';
-            labelEn = 'Spotify not connected';
-        } else {
-            stateClass = 'spotify-status-unknown';
-            labelKey = 'nav.spotify_status_unknown';
-            labelEn = 'Spotify status unknown';
-        }
-        pill.classList.remove('spotify-status-connected', 'spotify-status-disconnected', 'spotify-status-unknown');
-        pill.classList.add(stateClass);
-        const localized = i18n(labelKey, labelEn);
-        pill.setAttribute('aria-label', localized);
-        pill.setAttribute('title', localized);
-        pill.setAttribute('data-i18n-attr', `aria-label:${labelKey},title:${labelKey}`);
-    }
+    // 2026-05-11: header Spotify status pill removed — duplicate of the
+    // body provider pill (#spotifyStatusPills, provider-pills.js). The
+    // body pill is the larger, clearer click target the user wants to
+    // keep. The header element no longer exists.
 }
 
 function openCredentials() {
