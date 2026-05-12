@@ -100,3 +100,13 @@ Context is the budget for a session. Blow it and the session ends mid-task. Rule
 - **Avoid `git stash`** (see rule 6). Pop re-injects file contents.
 - **Delegate to subagents only when genuinely useful** — they re-derive context, which is often more expensive than inline work on tasks the parent already understands.
 - **When context gets tight, tell the user.** Offer to `/compact` or checkpoint-and-resume, rather than silently degrading.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- ALWAYS read graphify-out/GRAPH_REPORT.md before reading any source files, running grep/glob searches, or answering codebase questions. The graph is your primary map of the codebase.
+- IF graphify-out/wiki/index.md EXISTS, navigate it instead of reading raw files
+- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
