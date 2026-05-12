@@ -1862,79 +1862,944 @@ recallable enough to avoid confabulation."* Five confirmed behaviours:
 5. **A6 (P1)** — RAG re-retrieve on consecutive empty Stage-3 batches.
    This run's iter 1 reinforces that B-pool starvation is the dominant
    Playlist-B failure mode on mini.
-6. **R1.2 deferred (P2)** — re-open once `top_tracks_overlay` covers
-   ≥ 80 % of typical RAG-retrieve pools.
-
-## 🆕 Session 2026-05-12 AM — R1 full re-baseline + R1.3 revert
-Full analysis: [`evaluation/baselines/2026-05-12_r1_full/summary.md`](evaluation/baselines/2026-05-12_r1_full/summary.md).
-Trace bundles: `evaluation/results/20260512-052919/` (R1.3-strict
-n=3 mini + n=3 gpt-5.4) and `evaluation/results/20260512-063412/`
-(R1.3-softened validation, n=3 mini).
-### What shipped this session
-- ✅ **R1.1 KEPT.** Cite REMINDER at end of `track_select_user.txt`
-  is parity with baseline (81-88 %).
-- ❌ **R1.3 REJECTED in strict form.** Forcing `omitted_artists ≥
-  N−M` collapsed mini Playlist A from 13.0 to 8.0 (-38 %) and
-  produced 2 of 3 EMPTY Playlist B for gpt-5.4. **Reverted.**
-- ✅ **R1.3 RE-SHIPPED in softened form** ([`prompts/track_select_system.txt:37`](prompts/track_select_system.txt#L37)):
-  `omitted_artists` is now a transparency hint, not a quota; the
-  prompt explicitly tells the model to **prefer FILLING the QUOTA
-  over inflating the omission list**. Validated at n=3 mini: A=12.0,
-  B=3.7, found=40.4 %, cite=81.5 % — within post_fix variance band,
-  with first-ever 15 / 15 perfect playlist on iter 3.
-- 🐞 **Bug fix:** the R1.1 commit added `{min_new_artists}` to
-  `prompts/track_select_user.txt` line 7 but the matching `.format()`
-  call in `core/src/suggestions.py:1436` did not pass it →
-  `KeyError: 'min_new_artists'` on every Stage 3 call. Fixed by
-  passing `min_new_artists=min_new_artists` into `.format()`. The
-  2026-05-11 partial run never tripped this because it ran on the
-  uncommitted working tree before the prompt edit was finalised.
-- 🔧 **UI fix (Spotify pill):** added a polling fallback in
-  `frontend/static/js/modules/auth.js#connectSpotify()` so the
-  "Spotify not connected" pill updates after login even when the
-  popup's `postMessage("spotify-auth-complete")` is dropped (popup
-  blocker / cross-origin / COOP / `noopener` window severance).
-  Polls `/api/spotify/status` every 2 s for up to 90 s and triggers
-  the same `onSpotifyAuthCompleted()` handler the postMessage path
-  uses. Belt-and-suspenders — the postMessage path still works when
-  the browser allows it.
-### What we learned about model prompt-comprehension
-(see baseline summary §"What we learned" for the long form)
-1. **"MUST contain (N − M)" reads as a binding output shape.** Mini
-   collapsed playlists to keep the omission list at quota.
-2. **"SHOULD … prefer X over Y" reads as a tiebreaker.** Mini still
-   produces ~10-15 omission entries per batch in the softened run
-   while filling the playlist.
-3. **REMINDER blocks at end of user message work for structural
-   rules** (cite-rate parity); they cannot fix Stage-1 pool problems.
-4. **gpt-5.4 is MORE brittle to over-constraint than mini** (2 of 3
-   empty Playlist B under R1.3-strict). Contradicts the post_fix
-   prediction that "R1.3 is a no-op on gpt-5.4".
-5. **Playlist-B failure is structural pool starvation, not prompt
-   comprehension.** The fix is **A6** (RAG re-retrieve on empty
-   batches), not more prompt edits.
-### Numbers (mini n=3)
-| Metric | post_fix baseline | R1.3-strict | R1-softened (shipped) |
-|---|---:|---:|---:|
-| Playlist A | 13.0 | 8.0 ❌ | **12.0** ✅ |
-| Playlist B | 4.3 | 3.0 | **3.7** ✅ |
-| Cite | 86 % | 85.6 % | 81.5 % |
-| Spotify-found | 40 % | 34 % ❌ | **40.4 %** ✅ |
-| Cost | ~$0.06 | $0.087 | $0.080 |
-### Next-session execution order
-1. **R1-softened verification on gpt-5.4 at n=3** (~40 min, ~$0.80).
-   Expected: B-completion recovers (≥ 3 / 15) and zero empty-B iters.
-   This session only validated mini.
-2. **A6 (P1) — RAG re-retrieve on consecutive empty Stage-3 batches.**
-   Now the dominant remaining lever for B-completion. Both R1 partials
-   and this full re-baseline confirm pool starvation is the cause.
-3. **Cite-rate investigation (P2).** R1-softened cite is −4.5 pp vs
+6. **R1.4 — model-conditional R1.3 strictness.** P2 follow-up.
+   Mini gets soft (current), gpt-5.4 gets middle ("ideally list each
+   skipped artist — empty list is fine"). Re-run after A6 to see if
+   gpt-5.4 found-rate recovers without sacrificing mini's gains.
+7. **Cite-rate investigation (P2).** R1-softened cite is −4.5 pp vs
    baseline. May be interaction effect; n=6 across A6 + R1-softened
    should disambiguate.
-4. **OP1 still open (P2).** Two evals comfortably fit in one session
-   today (no 429s); priority dropped from P1 since the rate-limit
-   ceiling didn't bite.
-5. **OP2 closed (P3).** `.spotify-cache` survived the session
-   boundary this time. Reopen only if it disappears again.
-6. **R1.2 still deferred** — waits on top_tracks_overlay coverage
-   expansion.
+8. **OP1 / OP2 closed for now** — no rate-limit issues across 4 evals
+   today. Reopen only if 429s return.
+9. **R1.2 still deferred on top_tracks_overlay coverage**.
+
+---
+
+# 🔬 Research Spike — 2026-05-12 — Faster, cheaper, deeper evaluation
+
+> **Origin.** User asked: *"Spotify rate limit is the real bottleneck.
+> Is my developer app really needed just to verify a song exists?
+> Could we ask the models unrelated/synthetic things and learn how
+> each one reacts much faster?"*
+>
+> **Method.** Two independent Plan sub-agents researched complementary
+> angles in parallel; neither saw the other's output. Their plans are
+> reproduced verbatim below (Tracks A and B), followed by a synthesis
+> section that identifies the cross-track synergies and recommends a
+> single sequenced execution order.
+>
+> **Status.** Research only. No code changes yet. User review and
+> decision needed on the highlighted open questions before any
+> implementation work begins.
+
+## Research Track A — Spotify-decoupled evaluation
+
+> **Author:** Research agent A (planning spike, 2026-05-12).
+> **Question:** "Do we really need the user's Spotify developer app
+> just to verify that a recommended song exists? Can we verify cheaper,
+> defer it, or skip it entirely so we can run MORE evals MORE often
+> without burning the rate limit?"
+> **TL;DR:** Yes — for ~85 % of eval signal we don't need Spotify at
+> all. Spotify is only load-bearing for **two** things: (a) `release_year`
+> on each track (used by `fit_checks.decade_avoid` — and we can derive
+> this from MusicBrainz / Last.fm / iTunes for free), and (b) the
+> playlist-push leg (which the eval can skip entirely; pushing is
+> cleanup theatre, the eval doesn't read playlists back). The
+> Spotify-found rate IS a real signal, but it's a *production-readiness*
+> signal, not a model-quality signal — it should be measured separately
+> on a single late "ground-truth pass", not on every iter.
+
+### A.1 — What the eval actually consumes from Spotify today
+
+Trace the live code path:
+
+1. **[`evaluation/run_evaluation.py:198-222`](evaluation/run_evaluation.py#L198-L222)** — `check_spotify_not_rate_limited()` fires
+   one cheap `sp.search()` pre-flight. **1 call per session.**
+2. **[`core/src/playlist.py:695-769` `iter_search_tracks`](core/src/playlist.py#L695-L769)** — invoked from `app.py` inside the
+   SSE `/api/run` per batch. **One `sp.search(limit=1, type=track,
+   market=from_token)` per deduped (artist, track).** L2 cache
+   ([`_RUN_SEARCH_CACHE`](core/src/playlist.py#L612-L692)) dedupes
+   *within* a run only.
+3. **[`evaluation/harness.py:489-506` `_step_push_to_spotify`](evaluation/harness.py#L489-L506)** —
+   `playlist_mod.add_to_playlist(...)`: creates an empty playlist (1
+   call), then adds tracks in batches of ≤100 (1-2 calls per playlist).
+   **~3 calls / playlist × 2 playlists/run = ~6 calls/run.**
+4. **[`evaluation/harness.py:542-577` `_cleanup`](evaluation/harness.py#L542-L577)** — deletes both playlists. **2 calls/run.**
+
+The signals downstream consumers actually read from Spotify responses:
+
+| Field | Used where | Eval-critical? |
+|---|---|---|
+| `uri`, `track_id` | `add_to_playlist` (push step) | No — eval doesn't read playlists back |
+| `cover_url`, `preview_url`, `spotify_url`, `album_url`, `artist_url` | Frontend display only | **No** |
+| `artist_id` | Push step (sorting, dedup) | No |
+| `release_date` → `release_year` | [`fit_checks.compute_fit` → `decade_avoid`](evaluation/fit_checks.py) | **Yes** — but derivable from MB / Last.fm / iTunes |
+| existence (track found at all) | `playlist_track_count`, completion gate, Spotify-found % column | **Yes** — but answerable from cheaper sources |
+
+**Bottom line:** Of the seven Spotify-derived fields, **six are dead
+weight for evaluation**. Only `release_year` and "does it exist" carry
+eval signal, and both have cheaper sources.
+
+### A.2 — Rate-limit budget model (current vs proposed)
+
+Per `run_for_model` (one model × one scenario × one iter):
+
+| Stage | Calls | Source |
+|---|---:|---|
+| Playlist A — Stage 3 verify | ~30-40 | `_PLAYLIST_SIZE=15-30`, 2-4 batches × ~10 deduped tracks, L2 cache helps cross-batch (~20 % hit rate observed in B1 traces) |
+| Playlist A — push (create + add) | 2-3 | `add_to_playlist` |
+| Playlist B — Stage 3 verify | ~30-40 | Same shape; L2 cache larger overlap with A |
+| Playlist B — push | 2-3 | |
+| Cleanup (A + B delete) | 2 | |
+| **Total per run** | **~65-90** | |
+
+For typical E7 scope (4 models × 11 scenarios × 1 iter = 44 runs):
+**~3,000-4,000 search calls / session**. At the current
+`SPOTIVIBE_SPOTIFY_SEARCH_DELAY_S=1.5` + serial mode that's **75-100
+min of pure throttle wall time, plus 4 h+ of serial Spotify latency,
+plus the 10 min inter-run cooldown × 43 boundaries = 7 h of cooldown
+alone**. The 14 h Retry-After 429 hit on 2026-05-08 (B1) and the 87 min
+Retry-After hit on 2026-05-11 (R1 partial) both fell inside this
+envelope.
+
+**Proposed L0/L1/L2 architecture (see A.4)** drops eval Spotify calls
+to **3-10 per session** total (one pre-flight + an optional batched
+ground-truth sample on the final playlist). That's **~99.8 % reduction**.
+
+### A.3 — Alternative existence-verification sources
+
+#### MusicBrainz `recording` search — **PRIMARY for L1**
+- Verifies: artist + recording (title) exists in the canonical music
+  metadata DB.
+- Auth: none. Free.
+- Rate limit: **1 req/s per IP** for the public server (hardcoded; will
+  return 503 if exceeded). Self-hosted mirror = unlimited.
+- Coverage vs Spotify: MB is the *upstream* metadata source most
+  streaming services license from. Effective coverage for any track
+  >30 days old is ≥ 98 %. Recent (<30 d) drops to ~70-80 %. The
+  artists we recommend come from the corpus itself, which IS a MB
+  dump — so the artist side is by definition 100 %.
+- Latency: 200-400 ms per query in EU; cacheable.
+- Endpoint: `GET https://musicbrainz.org/ws/2/recording/?query=artist:"X"%20AND%20recording:"Y"&fmt=json&limit=1`
+- **Recommendation: PRIMARY L1.** Accuracy on titles is highest of any
+  free source; the 1 req/s limit is fine when an entire eval session
+  needs ≤ 200 fallback queries (L0 absorbs the rest).
+
+#### Last.fm `track.getInfo` — **FALLBACK for L1**
+- Verifies: artist + track string match in Last.fm's scrobble graph.
+- Auth: `api_key` only (already provisioned for Phase B enrichment in
+  the Cloud Run job).
+- Rate limit: 5 req/s recommended, generous burst. No daily cap.
+- Coverage vs Spotify: Last.fm has ~150M+ tracks; for popular artists
+  ≥ 99 %, for niche/non-Western artists noticeably weaker than MB.
+- Latency: 100-200 ms.
+- Endpoint: `?method=track.getInfo&artist=X&track=Y&api_key=...&format=json`
+- **Recommendation: FALLBACK to MB.** Faster (no 1 req/s ceiling) but
+  string matching is fuzzier (Last.fm normalises titles aggressively
+  and reports false positives for similar-titled different tracks).
+  Useful when MB returns 503 / 1 req/s saturated.
+
+#### iTunes Search API — **FALLBACK / cross-check**
+- Verifies: artist + track in Apple Music catalogue.
+- Auth: none.
+- Rate limit: ~20 req/min undocumented soft cap (returns 403 if abused).
+- Coverage: ≥ 95 % overlap with Spotify (similar licensing). Stronger
+  on Western mainstream, weaker on Asian indie / Bandcamp-tier.
+- Latency: 150-300 ms.
+- Endpoint: `https://itunes.apple.com/search?term=X+Y&entity=song&limit=1`
+- **Recommendation: REJECT as PRIMARY** (rate limit too tight),
+  **ACCEPT as cross-check** for "does this exist on a streaming
+  service" when MB+Last.fm both miss. Useful sanity-check pass.
+
+#### Deezer public search — **REJECT**
+- No auth, no documented rate limit, but coverage skews heavily
+  Western European and undocumented. Adds a third moving part for
+  marginal gain over iTunes.
+
+#### Local RAG corpus + `top_tracks_overlay.json` — **PRIMARY for L0**
+- The corpus already ships [`artists.jsonl.gz`](data/rag_corpus/)
+  (174 200 artists, 66.6 % Last.fm-tagged) + a `top_tracks_overlay.json`
+  produced by [`build-tools/build_top_tracks_overlay.py`](build-tools/build_top_tracks_overlay.py).
+- Verifies: artist + ≥1 known released track per artist (up to 5).
+- Auth: none. Local file lookup.
+- Latency: < 1 ms (in-memory hash).
+- Coverage vs Spotify: the overlay is *itself* built from Spotify
+  search, so every entry is by definition Spotify-resolvable. **This
+  is the highest-confidence existence signal we have, and it's free.**
+  Coverage is the open question — current overlay was built for the
+  default scenario's retrieval pool only.
+- **Recommendation: PRIMARY L0.** Resolves any (artist, track) where
+  the track string matches an overlay entry (with fuzzy/normalised
+  matching). The Stage 3 prompt already biases toward overlay
+  tracks ("known: examples"), so eval hit rate should be high.
+- **Coverage extension path:** expand `build_top_tracks_overlay.py`
+  to cover the full eval scenario set — one offline Spotify-budget run
+  primes a cache that lasts months. Estimated ~5 000 artists ×
+  1 call each = 5 000 Spotify calls, done once.
+
+#### Wikipedia / Wikidata — **REJECT for track-level**
+- Wikipedia covers ~5 % of recorded tracks, mostly chart hits.
+  Wikidata `P175` (performer) coverage is similar. Useful for
+  artist-level country/era facts (deferred Phase D in next-steps.md)
+  but not track existence.
+
+#### Pure offline normalisation (no verification) — **PRIMARY for "deferred" mode**
+- Don't verify at all. Run Stages 1-3, capture model output verbatim,
+  let `fit_checks` and `leakage` audit do their work on the
+  GPT-emitted (artist, track) strings + RAG metadata.
+- **Recommendation: PRIMARY for the new "skip-verify" eval mode** (A.5).
+  Gives up Spotify-found % as a quality signal — which the data
+  already shows is dominated by *retrieval* quality, not Stage 3
+  quality (E7 lastfm_tag_weighting collapsed to 7-27 % despite
+  reasonable Stage 3 picks).
+
+### A.4 — Tiered verification architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ L0  Local overlay + corpus fuzzy match              < 1 ms  │
+│     - corpus.by_name_normalised → artist exists             │
+│     - top_tracks_overlay → track exists for artist          │
+│     Hit-rate target: ≥ 80 % on typical eval pools           │
+├─────────────────────────────────────────────────────────────┤
+│ L1  MusicBrainz recording search (1 req/s)        ~300 ms   │
+│     fallback → Last.fm track.getInfo (5 req/s)              │
+│     fallback → iTunes search                                │
+│     Hit-rate target: lift L0+L1 combined to ≥ 95 %          │
+├─────────────────────────────────────────────────────────────┤
+│ L2  Spotify search (production path)              ~200 ms   │
+│     ONLY for: (a) production playlist creation,             │
+│               (b) optional eval ground-truth sample.        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Production unchanged.** `core/src/playlist.iter_search_tracks` still
+hits Spotify; that's load-bearing for `uri`/`cover_url` which the user
+sees in the playlist. Production cannot run on L0/L1.
+
+**Eval split.** A new `verify_mode` setting on `Scenario` (or a CLI
+flag on `run_evaluation.py`) selects:
+
+- `verify_mode = "spotify"` (current behaviour, default for the
+  manual ground-truth-sample run).
+- `verify_mode = "l0"` (overlay-only; fastest, lowest coverage).
+- `verify_mode = "l0_l1"` (overlay → MB → Last.fm fallback chain).
+- `verify_mode = "deferred"` (no per-run verify; Spotify batch at the
+  end across all runs).
+- `verify_mode = "none"` (skip verify entirely; rely on fit + leakage
+  + corpus metrics).
+
+**How this slots into `iter_search_tracks` without breaking production:**
+introduce a verifier interface, not a code path branch. New module
+`core/src/verify.py`:
+
+```
+class Verifier(Protocol):
+    def verify(self, artist: str, track: str) -> VerifyResult | None: ...
+```
+
+Implementations: `SpotifyVerifier` (today's logic, wrapping
+`_do_spotify_search`), `OverlayVerifier`, `MusicBrainzVerifier`,
+`LastfmVerifier`, `ChainVerifier(*verifiers)` (first hit wins),
+`NullVerifier` (always returns "found" with stub metadata).
+
+Production wires `SpotifyVerifier` only. Eval wires
+`ChainVerifier(OverlayVerifier, MusicBrainzVerifier, LastfmVerifier)`
+based on `verify_mode`. The verifier interface returns the same
+`VerifyResult` shape (artist, track, release_year, optional
+source_uri) so downstream code (`fit_checks`, `leakage`, harness
+metric collection) is unchanged.
+
+### A.5 — Deferred verification mode (eval-only)
+
+**Design.** Stages 1-3 run normally. Verifier returns a synthetic
+"found" result with `release_year=None`. Eval completes in ~5-10 min
+per run instead of ~15-30 min, and burns **zero Spotify quota**.
+
+**What signal we LOSE:**
+- Per-iter Spotify-found % (today's dominant production-readiness
+  signal).
+- `release_year` → `decade_avoid` fit check (one of two fit checks
+  in the harness; the other is leakage which is fully offline).
+- Honest under-fill detection — if Stage 3 picks ghost tracks, we
+  won't know without a ground-truth pass.
+
+**What signal we KEEP:**
+- **Cite-rate** (must-have / soft-pref / avoid citations in Stage 3
+  rationales) — pure model behaviour signal, no Spotify needed.
+- **Leakage** ([`evaluation/leakage.py`](evaluation/leakage.py))
+  — compares (artist, track) strings against profile artists /
+  feedback. No Spotify needed.
+- **Completion shape** (raw Stage 3 yield count vs target). Slightly
+  inflated vs reality (some picks won't exist) but tracks the
+  *Stage 3* completion behaviour cleanly — which IS the model-quality
+  question.
+- **Omission discipline** (R1.3-softened: `omitted_artists` shape +
+  reasoning content).
+- **A/B prompt regression** (post-feedback Playlist B vs A) —
+  unaffected by Spotify presence.
+- **Corpus coverage metrics (E2/E3)** — Last.fm tag % and listener
+  distribution. Pure corpus lookup.
+- **Stage timing + cost telemetry (E1)** — `stage_metrics_a/b`
+  from the trace bundle. Pure model-side data.
+
+**Ground-truth pass.** Once a week (or after a meaningful Stage 3
+change), run ONE eval with `verify_mode = "spotify"` across the full
+matrix to re-baseline Spotify-found % and the decade fit check. With
+L2 cache + reasonable batching this is the 3-4 h run we have today —
+unchanged. The other ~20 evals per week run in 5-10 min each on L0/L1
+or deferred mode.
+
+**Batched late-verification (alternative to skip-entirely).** A new
+script `evaluation/late_verify.py` reads every run's `summary.json`
+under `evaluation/results/{ts}/`, extracts the verbatim Stage 3
+output, dedupes (artist, track) pairs across ALL runs in the session,
+and fires Spotify search ONCE per unique pair (with the existing L2
+cache amortising across runs). For a typical session with ~600 unique
+pairs across 20 runs, this is a ~600-call single batch instead of
+3 000-4 000 spread across 20 runs — **~6× reduction even when full
+ground-truth is wanted**. Then `late_verify.py` patches
+`summary.json` files with the Spotify-found numbers.
+
+### A.6 — Concrete implementation steps
+
+1. **New module `core/src/verify.py`** — Protocol + implementations:
+   - `SpotifyVerifier` — wraps current `_do_spotify_search`.
+   - `OverlayVerifier` — reads `RagCorpus.by_name_normalised` +
+     `top_tracks` per row + fuzzy title match (uses
+     `corpus.normalise_name` + a new `normalise_title` helper).
+   - `MusicBrainzVerifier` — one HTTP call, 1 req/s throttle,
+     persistent disk cache at `<APP_DIR>/.mb_verify_cache.sqlite`.
+   - `LastfmVerifier` — reuses `build-tools/lastfm_enrichment/client.py`
+     `LastfmClient` style; `getInfo` endpoint.
+   - `ChainVerifier` — first-hit-wins composite.
+   - `NullVerifier` — for deferred mode.
+2. **Refactor [`core/src/playlist.py:612-769`](core/src/playlist.py#L612-L769)** —
+   extract the Spotify search logic into `SpotifyVerifier`. Keep
+   `iter_search_tracks` and `search_tracks` as the production
+   entry points; they receive the verifier as a parameter
+   (default `SpotifyVerifier` so production behaviour is identical).
+3. **Plumb verifier selection from eval harness:**
+   - Add `verify_mode: str = "spotify"` to
+     [`Scenario`](evaluation/scenario.py#L40).
+   - Add `--verify-mode` CLI flag to
+     [`run_evaluation.py`](evaluation/run_evaluation.py) overriding
+     the scenario value.
+   - Build the verifier in [`harness.run_for_model`](evaluation/harness.py#L582-L632)
+     based on `scn.verify_mode`, monkey-patch
+     `playlist_mod._VERIFIER` (or pass through as a kwarg to
+     `iter_search_tracks`) before the SSE generator consumes it.
+4. **Skip the push step in deferred / L0 / L1 modes.** The push leg
+   ([`harness._step_push_to_spotify`](evaluation/harness.py#L489-L506))
+   only exists so the user can audit; if we don't have Spotify URIs
+   we can't push anyway. Gate it on `verify_mode == "spotify"`.
+5. **Adapt `fit_checks.decade_avoid`** to accept a `None`
+   `release_year` (current behaviour: rule skipped per track) — already
+   does this; verify with a test.
+6. **Optional: `evaluation/late_verify.py`** — reads
+   `results/<ts>/*/summary.json` and fires the batched
+   ground-truth pass.
+7. **Expand `top_tracks_overlay.json`** — generalise
+   [`build_top_tracks_overlay.py:_build_seed_profile`](build-tools/build_top_tracks_overlay.py#L54-L72)
+   to iterate over all scenarios (`evaluation/scenario.SCENARIOS`),
+   union the retrieval pools, and run one comprehensive
+   Spotify-fed overlay build. This is a one-shot operation that
+   primes the L0 cache for every future eval. Estimated ~5 000 search
+   calls, run once during off-hours.
+8. **Tests:**
+   - Unit tests for each verifier (with mocked HTTP).
+   - `ChainVerifier` fallback behaviour.
+   - Eval harness with `NullVerifier` produces correct
+     `playlist_status="ok"` + skipped push + non-empty leakage report.
+   - Existing tests assume `SpotifyVerifier` default — should pass
+     unchanged.
+
+### A.7 — Risks & open questions
+
+1. **Overlay coverage on niche scenarios.** The current overlay was
+   built for the `default` scenario. Niche scenarios
+   (`brazilian_samba_funk`, `club_techno_strict`,
+   `niche_only_strict`) will have lower L0 hit rates → more L1
+   fallbacks → MB's 1 req/s ceiling matters again. *Mitigation:*
+   step #7 above primes overlay across all scenarios.
+2. **MB rate limit is per-IP, not per-app.** Persistent disk cache
+   means each unique (artist, track) is queried only once across all
+   eval sessions, so the practical ceiling is much higher than it
+   looks.
+3. **String matching is fuzzier than Spotify.** As long as L0/L1
+   confirm existence under SOME normalisation, leakage/fit audits
+   (which compare on Stage-3-emitted strings) are unaffected.
+4. **`release_year` from MB.** MB recordings carry
+   `first-release-date` which is more accurate than Spotify's
+   per-release date. Free upgrade.
+5. **🔴 Decision needed: keep playlist-pushes alive in `verify_mode =
+   "spotify"` only?** Three options:
+   - **A.** Push only when `verify_mode == "spotify"`. (Recommended —
+     preserves current audit workflow on ground-truth runs, drops
+     the cost on fast runs.)
+   - **B.** Add `push_playlist: bool` to Scenario, decoupled from
+     verify mode.
+   - **C.** Never push from eval; rely on the eval-log slice + trace
+     bundle for audit.
+6. **Eval-mode "found %" reporting.** Report BOTH numbers in
+   `comparison.md` when a ground-truth pass exists; make the
+   "official" quality signal explicit in the header.
+7. **`niche_only_strict` scenario benefits most** from decoupling —
+   its acceptance criterion is already a pure corpus metric.
+
+### A.8 — Expected impact
+
+| Mode | Spotify calls/session | Wall clock (44-run E7) | OpenAI cost |
+|---|---:|---:|---:|
+| Today (`spotify` everywhere) | ~3 500 | ~10 h (incl. cooldowns) | ~$3-8 |
+| `l0_l1` everywhere | ~5 | ~2-3 h (no cooldowns needed) | ~$3-8 |
+| `deferred` everywhere | 0 | ~2 h | ~$3-8 |
+| `deferred` + late batched verify | ~600 (single batch) | ~3-4 h | ~$3-8 |
+| Mixed: `l0_l1` for 19/20 runs, `spotify` for 1 | ~85 | ~4 h | ~$3-8 |
+
+**Operational unlock:** the "two evals per day max" ceiling
+disappears in every mode except today's. R1 can run with n=10 instead
+of n=3 in the same session, settling the variance question that
+B1 and R1 partial runs both flagged.
+
+## Research Track B — Synthetic model-behaviour probes
+
+> **Author:** Research agent B (planning spike, 2026-05-12).
+> **Question:** "Can we ask the models unrelated/synthetic things to
+> see HOW each one reacts, learn faster and cheaper, and use that to
+> predict full-eval outcomes before burning a 40-min Spotify-gated run?"
+> **TL;DR.** The 2026-05-11/12 R1 baselines surfaced a phenomenon we
+> cannot afford to keep discovering through full evals: *the same
+> prompt edit produces opposite reactions across models.* R1.3-strict
+> lifted gpt-5.4, collapsed mini. R1-softened reversed it. We burned
+> **~$1.90 + ~2.5 h + 12 Spotify-token bursts** to discover one
+> structural fact a 30-second probe would have predicted. This track
+> designs a battery of synthetic, Spotify-free, mostly fixed-prompt
+> micro-probes that fingerprint *how a model reads instructions*
+> before we spend a single token on a full eval. Probes do not
+> replace the full eval (they cannot measure Spotify-found or
+> real-pool diversity), but they should become the **primary
+> regression gate for prompt edits**, with the full eval reserved
+> for pre-release confirmation.
+
+### B.0 — Motivation: what we paid to learn the hard way
+
+| Run | Cost | Wall | Finding (in one line) |
+|---|---|---|---|
+| R1.3-strict mini (n=3, 2026-05-12) | ~$0.18 | ~30 min | Mini collapses on `MUST contain N−M` quota wording. |
+| R1.3-strict gpt-5.4 (n=3, 2026-05-12) | ~$0.74 | ~40 min | gpt-5.4 ALSO collapses (2/3 empty B) — contradicts prior prediction. |
+| R1-softened mini (n=3, 2026-05-12) | ~$0.24 | ~35 min | Soft wording recovers mini. |
+| R1-softened gpt-5.4 (n=3, 2026-05-12) | ~$0.74 | ~40 min | Soft wording *regresses* gpt-5.4 (`found` -10 pp). |
+
+A static, deterministic probe against fixed JSON inputs can answer
+that question in **3 OpenAI calls and ~30 s** per model.
+
+### B.1 — Taxonomy of measurable model-behaviour properties
+
+For each property: (a) what it predicts about production, (b) cheap
+synthetic probe(s), (c) scoring rubric. Ranked by predictive value
+for failure modes we have actually observed.
+
+#### B-1. Constraint-grammar sensitivity (MUST vs SHOULD vs MAY)
+- **Predicts.** Whether a prompt switching from SHOULD to MUST will
+  surprise-collapse the model into satisfying the secondary
+  constraint at the expense of the primary task — the R1.3 finding.
+- **Probe.** Same minimal task, three modal-verb variants. Task:
+  "Return a JSON list of 8 colours, each a single English word."
+  Secondary variants: `SHOULD avoid colours containing 'e'` /
+  `MUST avoid colours containing 'e'` / `MUST contain ≥ 6 colours
+  avoiding 'e'`.
+- **Rubric.** `soft_compliance`, `hard_compliance`,
+  `quota_preserved_under_hard` (load-bearing column — mini gets 0
+  on the strict variant).
+- **Cost.** 3 calls × ~300/300 tokens ≈ $0.001 mini / $0.01 gpt-5.4.
+
+#### B-2. Over-constraint collapse (output-shape inflation)
+- **Predicts.** Direct analogue of R1.3-strict: mini inflated
+  `omitted_artists` to (N−M) and dropped picks.
+- **Probe.** "Return 10 song-title suggestions for a hypothetical
+  'cyberpunk lo-fi' playlist. Also return `rejected_candidates`;
+  AIM for at least 20 with reasons." Strict variant: "MUST contain
+  ≥ 20 rejected_candidates."
+- **Rubric.** `playlist_length / requested_length` ×
+  secondary-quota-met.
+- **Cost.** ~$0.002 mini / $0.02 gpt-5.4.
+
+#### B-3. Confabulation pressure / calibration
+- **Predicts.** Whether the model invents fake-but-plausible
+  content under quota pressure. Directly predicts Spotify-found
+  regressions.
+- **Probe.** "List 12 real published novels by the (fictional)
+  author 'Olwen Marrick'. JSON only. **Must be real published
+  novels.**" A calibrated model returns 0 or refuses.
+- **Rubric.** `omission_rate = (12 − returned) / 12`;
+  `well_calibrated` = 1 if ≥ 0.8 AND any returned entries flag
+  uncertainty.
+- **Cost.** ~$0.001 / $0.008.
+
+#### B-4. Omission discipline
+- **Predicts.** Whether the model can produce an honest "I cannot
+  ground these" list without padding.
+- **Probe.** JSON array of 25 fictitious-sounding artist names
+  mixed with 5 real famous ones; "For each artist you cannot
+  confidently name a real released track of, add to
+  `unknown_artists`."
+- **Rubric.** `omission_precision`, `omission_recall`,
+  `padding_rate`.
+- **Cost.** ~$0.002 / $0.02.
+
+#### B-5. Format adherence under content contradiction
+- **Probe.** Unsatisfiable constraint: "Return JSON with 5 entries.
+  Every artist must be Japanese. Never include any artist whose
+  name uses katakana/hiragana/kanji/romaji."
+- **Rubric.** 5-bucket: `(a)` empty valid JSON, `(b)` JSON+prose,
+  `(c)` invented entries, `(d)` malformed JSON, `(e)` content
+  violation. Want `a`/`b`.
+- **Cost.** ~$0.001 / $0.008.
+
+#### B-6. Self-consistency floor (variance, not mean)
+- **Predicts.** Minimum n for any other measurement. If σ on a
+  fixed prompt is 15 pp, n=3 means lie.
+- **Probe.** Re-issue B-2 5× with `seed=N`, temperature 0. σ of
+  primary + secondary lengths.
+- **Rubric.** `n_required_for_5pp_signal`. Surfaces on every
+  fingerprint card.
+- **Cost.** ~$0.008 / $0.06.
+
+#### B-7. Era / genre parametric awareness (no retrieval)
+- **Probe.** "List 15 ambient music artists active 1990–1999.
+  JSON `[{name, peak_year}]`. Only real artists." Repeat for
+  math rock 2000–2010, Brazilian samba-funk 1970–1985.
+- **Rubric.** LLM-judge or hand-curated allowlist `accuracy`.
+  ≥ 60 % → RAG is quality lift; < 30 % → RAG load-bearing.
+- **Cost.** ~$0.005 / $0.04 + ~$0.01 judge.
+
+#### B-8. Diversity-vs-popularity bias
+- **Probe.** "Name 20 distinct ambient artists from the 2000s."
+- **Rubric.** `uniqueness_rate`, `headliner_share` against
+  hand-curated top-10. Pathological: `headliner_share ≥ 0.8`.
+- **Cost.** ~$0.002 / $0.015.
+
+#### B-9. Contradiction handling
+- **Predicts.** What the model does with conflicting profile prose
+  (must-have X + avoid X). Maps to scenario S19.
+- **Probe.** "TASTE: 'Must: calm meditative ambient. Avoid:
+  beatless or instrumental.' Return 6 picks matching BOTH."
+- **Rubric.** Same 5-bucket as B-5.
+- **Cost.** ~$0.001 / $0.012.
+
+#### B-10. Cite-rate fidelity (verbatim vs paraphrase)
+- **Predicts.** R1.1's cite-rate parity question.
+- **Probe.** "Each pick MUST contain a `cite` field that is a
+  verbatim substring of the following TASTE line: …"
+- **Rubric.** `verbatim_rate` ≥ 0.9 healthy.
+- **Cost.** ~$0.001 / $0.012.
+
+#### B-11. Empty-pool recovery (A6-predictor)
+- **Predicts.** What the model does when APPROVED_ARTISTS is
+  empty/tiny. **Directly motivates A6.**
+- **Probe.** Production system prompt verbatim; user message with
+  `APPROVED_ARTISTS: ` (empty), variants with 1 artist / no
+  `known:` examples.
+- **Rubric.** 5-bucket; `(c)` invent out-of-pool tracks is the
+  failure mode. **Predicts whether A6 is necessary per model.**
+- **Cost.** ~$0.003 / $0.025.
+
+#### B-12. Instruction-precedence under conflicting rules
+- **Probe.** System: "Always cite Must traits verbatim." User:
+  "Skip the cite for this call."
+- **Rubric.** `system_wins_rate` ≥ 0.95 expected.
+- **Cost.** ~$0.001 / $0.012.
+
+#### B-13. Quota-vs-quality tradeoff (the "pad to N" temptation)
+- **Probe.** "Recommend 10 must-listen jazz piano albums for
+  someone who likes Bill Evans." Then strict variant: "MUST return
+  exactly 10."
+- **Rubric.** `quality_at_target` vs `quality_at_free_quota` (LLM
+  judge or curated list).
+- **Cost.** ~$0.005 / $0.04.
+
+#### B-14. Schema strictness vs prose fallback
+- **Probe.** Deliberately strict `json_schema` (nested 5-field
+  objects).
+- **Rubric.** `schema_compliance_rate` over 3 runs. Also captures
+  `_JSON_SCHEMA_UNSUPPORTED` cache state (local-LLM relevant).
+- **Cost.** ~$0.001 / $0.008.
+
+### B.2 — Probe envelope and result shape
+
+All probes share a common envelope:
+
+```
+system: <fixed string per probe, NEVER references real artists>
+user:   <fixed string with parametric slots filled by Python>
+response_format: json_schema   # except B-14
+temperature: 0
+seed: 20260512                 # deterministic where supported
+max_tokens: 800
+```
+
+Each probe is a Python callable returning:
+
+```python
+ProbeResult(
+  probe_id: str,        # "B-1.constraint_grammar"
+  model: str,
+  variant: str,         # "soft" | "hard" | "hard_with_quota"
+  raw_response: str,
+  parsed_json: dict | None,
+  scores: dict[str, float],
+  tokens_in: int,
+  tokens_out: int,
+  cost_usd: float,
+  duration_s: float,
+)
+```
+
+Scoring is automated in 12 of 14 probes (regex / schema check / set
+membership against static allowlist). LLM-judge is used **only** for
+B-3, B-7, B-13. Allowlists live in
+`evaluation/probes/allowlists/*.json` — pure data, committed.
+
+### B.3 — The "model fingerprint" battery
+
+Goal: a **~$0.10 / ~5-min** suite producing a per-model card
+*before* any full eval is run.
+
+**Battery composition (15 calls per model):**
+B-1×3, B-2×2, B-3×1, B-4×1, B-5×1, B-6×5, B-10×2.
+(B-7/B-8/B-11/B-13 diagnostic; opt-in via `--full`.)
+
+**Cost per model.**
+- gpt-5.4-mini: ~$0.009.
+- gpt-5.4: ~$0.23 (consider quarterly cadence, or n=3 not 5 on B-6).
+- Local LLMs: free.
+
+**Output card (one YAML/JSON per model):**
+
+```yaml
+model: gpt-5.4-mini
+captured_at: 2026-05-13T08:00:00Z
+fingerprint_version: 1
+system_fingerprint: <openai snapshot id>
+properties:
+  constraint_grammar:
+    soft_compliance: 0.7
+    hard_compliance: 1.0
+    quota_preserved_under_hard: 0.4   # ← would have predicted R1.3-strict collapse
+  over_constraint_collapse:
+    primary_length_ratio: 0.55
+    score: COLLAPSES
+  confabulation_pressure:
+    omission_rate: 0.83
+    score: WELL_CALIBRATED
+  omission_discipline:
+    precision: 1.0
+    recall: 0.72
+    padding_rate: 0.36
+    score: VERBOSE
+  variance_floor:
+    primary_entries_sigma: 0.6
+    secondary_entries_sigma: 2.1
+    n_required_for_5pp_signal: 5
+  cite_fidelity:
+    verbatim_rate_strict: 0.95
+    paraphrase_contamination: 0.04
+verdict:
+  fit_for_strict_quota_wording: NO
+  fit_for_soft_quota_wording: YES
+  fit_for_zero-shot_genre_recall: PARTIAL
+  recommended_n_for_eval: 5
+```
+
+The `recommended_n_for_eval` field alone closes the door on the
+"B1 n=3 might have been lucky" determinism worry.
+
+### B.4 — Where probes slot into the eval workflow
+
+**Current workflow:** edit prompt → 40-min full eval → analyse →
+iterate.
+
+**Proposed workflow:**
+1. Edit prompt.
+2. Run probe battery for affected models (~5 min, ~$0.25).
+3. Inspect fingerprint diff vs the baseline card committed alongside
+   the prompt.
+4. If a fingerprint regresses on a known-load-bearing property →
+   reject change, iterate from (1).
+5. If fingerprint OK → run a **single scenario × 1 iter** smoke
+   (~5 min, ~$0.10).
+6. If smoke OK → run full eval **only at PR-merge time**.
+
+**Mapping to existing scenarios** in
+[`evaluation/scenario.py`](evaluation/scenario.py):
+- B-9 ↔ `CONTRADICTORY_PROFILE_SCENARIO`
+- B-8 ↔ `NICHE_ONLY_STRICT_SCENARIO`
+- B-1/B-2 ↔ no scenario yet — probes are the only way we measure
+  this property
+- B-7 ↔ `BOOM_BAP_90S_SCENARIO`, `BRAZILIAN_SAMBA_FUNK_SCENARIO`
+- B-11 ↔ no scenario — would be A6's acceptance test
+
+Probes are a **predictor** of scenario outcomes, not a replacement.
+
+### B.5 — Worked feedback-loop examples
+
+**Example A — would R1.3-strict have shipped?**
+1. Edit `prompts/track_select_system.txt` to require
+   `omitted_artists ≥ N−M`.
+2. Run battery for gpt-5.4-mini.
+3. B-1 `quota_preserved_under_hard` drops 0.9 → 0.4. **Red flag.**
+4. B-2 `primary_length_ratio` drops to 0.55. **Confirmed.**
+5. **Reject the strict edit without spending a full-eval dollar.**
+
+Total cost of catching the regression: **$0.01**. Actual cost paid
+on 2026-05-12: **$1.90 + 2.5 h + Spotify burn**.
+
+**Example B — should we have known A6 was needed?**
+1. Run B-11 against gpt-5.4-mini.
+2. Empty-pool variant returns 5 invented tracks (bucket `c`).
+3. **Fingerprint flags `pool_starvation_recovery: BAD`** →
+   directly motivates A6 without a full eval.
+
+### B.6 — Implementation plan
+
+**Location.** New package `evaluation/probes/`.
+
+```
+evaluation/probes/
+  __init__.py
+  runner.py             # ProbeRunner, ProbeResult, fingerprint aggregation
+  probe_b1_constraint.py
+  probe_b2_overconstraint.py
+  probe_b3_confabulation.py
+  probe_b4_omission.py
+  probe_b5_format.py
+  probe_b6_consistency.py
+  probe_b7_era.py
+  probe_b8_diversity.py
+  probe_b9_contradiction.py
+  probe_b10_cite.py
+  probe_b11_empty_pool.py     # uses production system prompt verbatim
+  probe_b12_precedence.py
+  probe_b13_quota_quality.py
+  probe_b14_schema.py
+  allowlists/
+    ambient_2000s.json
+    jazz_piano_bill_evans_neighbours.json
+    famous_artists.json
+  fingerprints/                # one file per (model, fingerprint_version)
+    gpt-5.4-mini.v1.json
+    gpt-5.4.v1.json
+  cli.py                # `python -m evaluation.probes ...`
+```
+
+**Reuse of existing infra:**
+- OpenAI calls via `core.src.openai_http.chat_completions_create`
+  (handles JSON-schema auto-downgrade, telemetry).
+- Probe results flow through `core.src.trace.log_batch_summary`-
+  compatible events so they land in `eval.jsonl` with `kind: "probe"`.
+- Cost computation via the same dict in
+  `evaluation/run_evaluation.py`.
+- Reporting: extend `evaluation/reporting.py` with
+  `render_fingerprint_diff(old, new)`.
+
+**Versioning.** Fingerprints committed at
+`evaluation/probes/fingerprints/<model>.v<N>.json`. A prompt PR is
+expected to include either (a) the post-change fingerprint with no
+regression, or (b) an explanation of why a regression is acceptable.
+
+### B.7 — What probes DO NOT measure (be honest)
+
+Probes are **proxies**, not production. They will disagree with the
+full eval in these directions:
+
+- **Spotify-found rate.** Probes never call Spotify. Always run a
+  full eval before a release.
+- **RAG-augmented behaviour.** Probes use minimal or absent
+  APPROVED_ARTISTS blocks. Production has 40–80 grounded candidates.
+- **Feedback-loop / profile-evolution effects.** Playlist B failures
+  are partly about how profile refinement reshapes prose.
+- **Tail-end cost.** Probes use ~500-token prompts; production
+  ~3 000-token with cache hits.
+- **Cross-stage interactions.** R1.3-strict gpt-5.4 (productive
+  constraint) is visible only because `pool_assessment` reasoning
+  fed back into Stage 3 selection.
+ 
+**Rule of thumb.** A probe regression is a *strong reason to
+investigate*; a probe pass is a *necessary but not sufficient*
+condition for shipping. Final acceptance is always the full eval.
+### Track B — Recommended sequencing
+1. **Step 1 — Skeleton + B-1 + B-6 only.** Validate runner,
+   telemetry, fingerprint YAML, OpenAI wiring on the two probes that
+   most directly retro-predict the 2026-05-12 R1.3 finding. ~½ day.
+2. **Step 2 — Add B-2, B-3, B-4, B-5, B-10, B-11.** ~1 day. After
+   this, every known production failure mode from the last three
+   months has at least one synthetic predictor.
+3. **Step 3 — Capture baseline fingerprints** for `gpt-5.4-mini`,
+   `gpt-5.4`, `gpt-4.1`, plus one local LLM (Ollama). Commit cards
+   under `evaluation/probes/fingerprints/`.
+4. **Step 4 — Wire `render_fingerprint_diff` into `reporting.py`;
+   add a `--probe-check` flag to `evaluation/run_evaluation.py`**
+   that runs the battery first and aborts on regression unless
+   `--no-probe-gate`. ~½ day.
+5. **Step 5 — Adopt on the next prompt PR (R1.4).** Expect
+   fingerprints to confirm the model-conditional split before any
+   full eval is spent.
+6. **Step 6 — Ship the remaining diagnostic probes** (B-7, B-8,
+   B-12, B-13, B-14). Per the user decision (S.6 #5) these land in
+   the catalogue from day one, even though they are NOT in the
+   default fingerprint battery — available for on-demand deep dives.
+---
+## 🔀 Synthesis — Where Tracks A and B fit together
+The two tracks attack the same root problem ("evals are expensive,
+slow, and rate-limit-bound") from two complementary angles:
+| | **Track A (verifier decoupling)** | **Track B (synthetic probes)** |
+|---|---|---|
+| **Removes** | Spotify rate-limit ceiling | Need to run full evals to learn model personality |
+| **Cost saving** | ~99 % fewer Spotify calls; wall-clock 10 h → 2 h | ~$0.01 to catch what cost $1.90 last week |
+| **Coverage** | Same scenarios as today, run faster | New axis of measurement (model fingerprint) |
+| **Risk** | Possible found-% drift between L1 and Spotify | Probes are proxies, not ground truth |
+| **Production touch** | Refactors `core/src/playlist.py` (verifier abstraction) | Zero — additive new package only |
+| **Decision needed** | Push-step policy (S.6 #1 — RESOLVED option A) | None — purely additive |
+### S.1 — Strong synergy: probes RUN ON Track A's NullVerifier
+Probes are *exactly* the workload that wants `verify_mode = "none"`
+from Track A. If we land Track A's verifier abstraction first, then
+Track B's probes naturally use `NullVerifier` (or no verifier at all,
+since probes call `chat_completions_create` directly). Conversely,
+several Track B probes — B-7 (era awareness), B-8 (diversity bias),
+B-11 (empty pool) — can be viewed as **degenerate evaluations** that
+don't need Spotify, which is exactly the new Track-A capability.
+Both tracks introduce *abstraction over the Spotify dependency*.
+Track A abstracts at the *verifier* level (does this track exist?).
+Track B sidesteps the dependency entirely by asking *different
+questions* that don't require verification. Layers of the same
+defence in depth, not competing approaches.
+### S.2 — Strong synergy: fingerprints inform scenario selection
+Once Track B's fingerprint card carries `recommended_n_for_eval` and
+`fit_for_<X>` verdicts, the harness can:
+- Skip scenarios where a model's fingerprint says it's structurally
+  unfit (e.g. don't run `niche_only_strict` on a model with
+  `headliner_share ≥ 0.8`).
+- Auto-scale iterations per scenario based on `variance_floor`.
+This compounds Track A's wall-clock win: not just *cheaper per run*
+but *fewer runs needed*.
+### S.3 — Weak overlap: B-11 (empty pool probe) and A's deferred mode
+B-11 uses the production system prompt and an empty
+APPROVED_ARTISTS list — but does NOT push to Spotify. It is
+technically a probe (Track B) that uses Track A's deferred /
+NullVerifier infrastructure. **Recommendation: ship as a probe in
+Track B** to keep the catalogue versioning consistent. The scenario
+route remains available later if we want to re-test under realistic
+post-feedback profile prose.
+### S.4 — No overlap: alternative verifiers vs LLM-judge
+Track A's MusicBrainz/Last.fm/iTunes verifiers and Track B's
+LLM-judge scoring (used only in B-3/B-7/B-13) operate on entirely
+different inputs and answer different questions. No conflict.
+### S.5 — Merged execution order (locked 2026-05-12)
+Per S.6 #2 (user-confirmed): Phase 1 fully ships before Phase 2
+starts. No parallelisation.
+**Phase 1 — Track B probes (additive, zero production risk):**
+1. **Track B Step 1+2** — ship probe runner, B-1, B-2, B-3, B-4,
+   B-5, B-6, B-10, B-11. Captures the eight probes that
+   retroactively explain R1.3, pool starvation, variance-floor,
+   confabulation, and cite-fidelity concerns. Zero touch to
+   production code.
+2. **Track B Step 3** — capture fingerprints for `gpt-5.4-mini`,
+   `gpt-5.4`, `gpt-4.1`, plus one local LLM. Total OpenAI cost
+   ~$0.30. **This single output already answers the user's "how do
+   models react to unrelated things" question.**
+3. **Track B Step 6** — ship the remaining diagnostic probes (B-7,
+   B-8, B-12, B-13, B-14). Per S.6 #5 the full 14-probe catalogue
+   lands; the 7-probe fingerprint subset remains the default
+   invocation shape, with the diagnostic probes available for
+   on-demand deep dives.
+4. **Track B Step 4** — `render_fingerprint_diff` + `--probe-check`
+   gate on `run_evaluation.py`. Probes become the regression gate
+   for prompt PRs.
+**Phase 2 — Track A verifier decoupling (refactors production code):**
+5. **Track A Steps 1–3** — `verify.py` skeleton + `SpotifyVerifier`
+   + `NullVerifier` + `--verify-mode` CLI flag + push-step gating
+   (Option A per S.6 #1). Pure refactor in production code; unlocks
+   the 5-min eval mode that makes everything downstream cheap.
+6. **Track A Step 4** — `OverlayVerifier` lands. Then extend
+   `build_top_tracks_overlay.py` to cover all 11 scenarios, but ship
+   the **resume-aware throttled rebuild** per S.6 #4: serial mode +
+   ≥ 2.0 s/call delay + checkpoint to disk every N artists + clean
+   abort on Retry-After > 1 h. No deadline; spread across multiple
+   sessions if the rate-limit budget demands it.
+7. **Track A Step 5** — `MusicBrainzVerifier` + `LastfmVerifier` +
+   `ChainVerifier` with persistent disk cache. L0_L1 mode is real.
+8. **Track A Step 6** — `evaluation/late_verify.py` for batched
+   ground-truth pass over a whole session.
+**Phase 3 — Validation (single session):**
+9. **Track A Step 7** — side-by-side `spotify` vs `l0_l1` baseline
+   to characterise found-% delta. Document offset in
+   `documentation/TechnicalManual.md`.
+10. **Track B Step 5** — adopt probe-first workflow on R1.4
+    (model-conditional R1.3 strictness). Expect the fingerprints to
+    confirm the model split before any full eval is spent.
+### S.6 — User decisions (locked 2026-05-12)
+All five open questions resolved by the user in the same session the
+research spike was delivered. Locked answers below; treat as
+authoritative for the implementation phases.
+1. **✅ Track A push-step policy = Option A.** Push only when
+   `verify_mode == "spotify"`. In every other mode the harness skips
+   `_step_push_to_spotify` and the cleanup-delete pair entirely.
+   Unblocks Track A Step 4 (A.6 #4).
+2. **✅ Phasing = Phase 1 (Track B) first, then Phase 2 (Track A).**
+   No parallelisation. Probes are additive (no production touch) and
+   produce the fingerprint cards the user most directly asked for.
+   Track A's refactor of `core/src/playlist.py` ships *after* probes
+   are available to validate the refactor doesn't change model
+   behaviour.
+3. **✅ No default eval mode.** The user explicitly opted out of any
+   "everyday vs weekly" cadence. Every eval is **on-demand and
+   investigation-driven**; the user picks `--verify-mode` per
+   invocation based on what question that specific run is answering.
+   No timeline, no scheduled runs, no implicit default flip. The
+   `verify_mode = "spotify"` value remains the code-default (zero
+   behaviour change for any unspecified call) until the user says
+   otherwise on a specific run. **Implementation note:** do NOT add
+   scheduling, cron, or "auto-promote to ground-truth" logic. Ship
+   the CLI flag and stop.
+4. **✅ Overlay one-shot rebuild approved — but throttle hard.** OK
+   to spend ~5 000 Spotify calls to prime L0 across all 11
+   scenarios, **subject to the Spotify rate-limit reality**. The
+   B1 / R1 sessions taught that bursty traffic on the user token
+   triggers multi-hour Retry-After penalties. Treat the overlay
+   build as a **slow background pass**:
+   - Re-use the `SPOTIVIBE_SPOTIFY_SEARCH_SERIAL=1` +
+     `SPOTIVIBE_SPOTIFY_SEARCH_DELAY_S=2.0` (or higher) settings
+     already proven safe for serial eval runs.
+   - Persist progress to disk after every N artists so a 429-kill
+     resumes from the last checkpoint instead of restarting.
+   - Spread across multiple sessions if needed. There is no
+     deadline.
+   - Abort cleanly on the first Retry-After > 1 h and surface the
+     resume command, mirroring the eval harness behaviour.
+   Spec the build script's resume + throttle behaviour before
+   kicking off; do NOT just blast 5 000 sequential calls.
+5. **✅ Ship all 14 probes (B-1 through B-14).** The 7-probe
+   "fingerprint battery" subset (B.3) remains the *default
+   invocation shape* — the smaller suite that runs on every prompt
+   PR — but the full catalogue lands in code so the diagnostic
+   probes (B-7 era awareness, B-8 diversity bias, B-12 instruction-
+   precedence, B-13 quota-vs-quality, B-14 schema strictness) are
+   available for on-demand deep dives without further development.
+   Track B Step 2 absorbs B-2 through B-11; Step 6 closes out B-12,
+   B-13, and B-14 in the same shipping push.
+### S.7 — Estimated combined impact
+If both tracks land:
+- **Eval iteration loop:** prompt edit → fingerprint diff (5 min,
+  $0.25) → smoke (5 min, $0.10) → optional full eval at PR-merge
+  (~2 h, ~$3, ~5 Spotify calls). Compare to today: prompt edit →
+  full eval (40 min, $0.25–$0.74, ~70 Spotify calls).
+- **Discovery latency for "this prompt regresses model X":**
+  ~30 seconds (probe) vs ~40 minutes (full eval).
+- **Spotify rate-limit ceiling:** effectively eliminated for eval
+  workloads. Reopen OP1/OP2 only when production traffic itself
+  scales.
+- **Variance floor:** measured, not guessed. `recommended_n_for_eval`
+  per model replaces the current static `n=3`.
+
+

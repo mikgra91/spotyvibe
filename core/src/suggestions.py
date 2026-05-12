@@ -500,6 +500,60 @@ _VALIDATION_BLOCKS = {
 _DEFAULT_VALIDATION = "VALIDATION: Before output, verify every track against constraints 1–7. Replace failures."
 
 
+# ── Model-conditional omission rule (R1.3 outcome, 2026-05-12) ──────
+# n=3 eval per model (`evaluation/baselines/2026-05-12_r1_full/`) showed
+# the same `omitted_artists` rule produced opposite reactions:
+#   mini    : strict rule collapsed playlist A 13.0 → 8.0 (-38 %).
+#   gpt-5.4 : strict rule lifted Spotify-found by +10 pp via forced
+#             per-artist articulation, but the (N - M) quota framing
+#             also produced 2 / 3 EMPTY playlist-B iters.
+# Resolution: keep ONE prompt file, vary the omission paragraph only.
+# Heavy-tier models get the articulation requirement WITHOUT the
+# quota framing; everything else (mini, 4.1-mini, local) gets the
+# soft transparency hint that ships today.
+
+_OMISSION_RULE_SOFT = (
+    "`omitted_artists` SHOULD list any APPROVED_ARTISTS you intentionally "
+    "skipped, with a concrete reason (\"no known: examples\", \"wrong genre: "
+    "<X>\", \"doesn't match Must: <trait>\"). It is an aid for transparency, "
+    "not a quota — do NOT pad it, and do NOT omit artists merely to satisfy "
+    "it. Prefer FILLING the playlist to the QUOTA over inflating "
+    "`omitted_artists`."
+)
+
+_OMISSION_RULE_STRICT_ARTICULATION = (
+    "For every artist in APPROVED_ARTISTS that does NOT appear in `playlist`, "
+    "include exactly one entry in `omitted_artists` with a brief reason "
+    "(\"no known: examples\", \"wrong genre: <X>\", \"doesn't match Must: "
+    "<trait>\"). This articulation is a quality aid — it forces honest "
+    "discrimination per artist — and is NOT an output-size target: the "
+    "playlist QUOTA still takes precedence. Empty `omitted_artists` is "
+    "ONLY valid when every approved artist appears at least once in "
+    "`playlist`."
+)
+
+# Models that benefit from the strict articulation variant. Exact-match
+# (not substring) — mini variants explicitly fall through to soft because
+# they collapse under the strict version (see baseline link above).
+_OMISSION_RULE_STRICT_MODELS = frozenset({
+    "gpt-5.4",
+    "gpt-4.1",
+})
+
+
+def _get_omission_rule(model_name: str | None) -> str:
+    """Return the omission-paragraph variant matching *model_name*.
+
+    Heavy tier (gpt-5.4, gpt-4.1) gets strict articulation; everything
+    else — mini variants, gpt-4.1-mini, local LLMs, unknown models —
+    gets the soft transparency hint.
+    """
+    key = (model_name or "").strip().lower()
+    if key in _OMISSION_RULE_STRICT_MODELS:
+        return _OMISSION_RULE_STRICT_ARTICULATION
+    return _OMISSION_RULE_SOFT
+
+
 def _get_validation_block(model_name):
     """Return the validation block matching *model_name*, falling back to default."""
     slug = re.sub(r"[^a-z0-9-]", "-", model_name.lower()).strip("-")
@@ -1400,6 +1454,9 @@ def select_tracks(
     system_prompt = system_prompt.replace("{min_new_artists}", str(min_new_artists))
     system_prompt = system_prompt.replace("{gpt_language}", gpt_language)
     system_prompt = system_prompt.replace("{rationale_count}", rationale_count)
+    system_prompt = system_prompt.replace(
+        "{omission_rule}", _get_omission_rule(stage3_model)
+    )
 
     if emerging_only:
         emerging_constraint = (

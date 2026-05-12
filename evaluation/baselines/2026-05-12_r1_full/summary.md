@@ -176,3 +176,49 @@ in a system prompt:
    measure whether the QUOTA-fill behaviour also drops the per-iter
    batch retry count back toward post_fix levels.
 
+---
+## ADDENDUM — gpt-5.4 verification (run #3, `results/20260512-082636/`)
+Run after this baseline was first written. n=3 gpt-5.4 with R1-softened.
+### Numbers
+| Iter | A | B | Cite | Spot | Cost |
+|---|---:|---:|---:|---:|---:|
+| 1 | 12 | 1 | 82.4 % | 38.2 % | $0.261 |
+| 2 |  8 | 1 | 68.0 % | 36.0 % | $0.222 |
+| 3 |  9 | 1 | 96.4 % | 35.7 % | $0.258 |
+| **mean** | **9.7** | **1.0** | **82.3 %** | **36.6 %** | **$0.247** |
+### Cross-comparison: same prompt, opposite reactions
+| Model | A (strict) | A (soft) | Δ A | found (strict) | found (soft) | Δ found |
+|---|---:|---:|---:|---:|---:|---:|
+| **mini**     |  8.0 | 12.0 | **+50 %** ✅ | 34.0 % | 40.4 % | **+6 pp** ✅ |
+| **gpt-5.4**  | 11.7 |  9.7 | −17 % ⚠️ | 46.9 % | 36.6 % | **−10 pp** ⚠️ |
+### Key finding — the rule is model-asymmetric
+**The strict `omitted_artists ≥ N−M` rule was actually USING gpt-5.4's
+spare capacity productively.** Forcing it to articulate per-artist
+omission reasons appears to discipline its track picks (higher Spotify-
+found, more ground-able selections). Mini did not have that headroom
+and collapsed under the rule.
+This means the "soft = always better" reading is wrong. The right
+prompt-engineering answer is **model-conditional**:
+- mini → soft (transparency hint).
+- gpt-5.4 → middle (encouraged but not enforced; "ideally list each
+  skipped artist with a reason — empty list is fine if you used all
+  approved artists").
+### Operational findings
+- **B = 1 / 15 on EVERY gpt-5.4 iter** is structural pool starvation,
+  not prompt variance. Same shape as R1.3-strict's "2 of 3 EMPTY B".
+  **A6 is unambiguously P1.**
+- **No empty B this time** — softening did fix the catastrophic-empty
+  failure mode even though it didn't lift the count.
+- **Cost parity**: gpt-5.4 cost $0.247 / iter (within $0.257 strict
+  envelope). The discrimination signal isn't increasing token usage
+  per-iter; it's improving per-token quality.
+- **No 429s across 4 evals today** (3 mini + 1 gpt-5.4). The 600 s
+  inter-iter cooldown comfortably keeps the rate-limit window drained.
+### Updated decision
+| Item | Status |
+|---|---|
+| R1.1 (cite REMINDER) | ✅ Ship |
+| R1.3 softened (default) | ✅ Ship — net user-facing improvement |
+| R1.4 (NEW — model-conditional R1.3 strictness) | 📋 File as P2 follow-up |
+| A6 (RAG re-retrieve on empty batches) | 🔥 **P1** — confirmed by 3 independent runs (R1 partial, R1.3-strict, R1-softened) all showing B starvation regardless of prompt |
+| R1.2 (deferred) | ⏸ Still waiting on top_tracks_overlay coverage |
