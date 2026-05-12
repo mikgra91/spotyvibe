@@ -1,4 +1,4 @@
-import { checkCredentialStatus, checkSpotifyAuth, connectSpotify, toggleSpotifyConnection, fetchSettingsState } from './modules/auth.js';
+import { checkCredentialStatus, checkSpotifyAuth, connectSpotify, toggleSpotifyConnection, fetchSettingsState, onSpotifyAuthCompleted } from './modules/auth.js';
 import { renderComponentWarnings } from './modules/warnings.js';
 import { toggleAccordion, prefillTrainFields, updateTrainToggleLabel, toggleTrainBody, startImportProfile, exportProfile, submitProfile, sendTrainProfile, saveProfileDirect, resetProfileToHistory, bindProfileImportInput, checkProfileStatus, loadProfileList, switchProfile, toggleCreateProfile, createNewProfile, deleteCurrentProfile, initCustomProfileDropdown, toggleProfileMenu, initProfileMenu, updateSeedCardState } from './modules/profile.js';
 import { toggleHistoryBody, loadHistory } from './modules/history.js';
@@ -187,10 +187,8 @@ window.toggleVoice = Voice.toggleVoice;
 // Listen for spotify auth popup callback
 window.addEventListener('message', async (e) => {
     if (e.data === 'spotify-auth-complete') {
-        await checkSpotifyAuth();
-        renderComponentWarnings();
+        await onSpotifyAuthCompleted();
         updateSeedCardState();
-        if (typeof window.refreshGettingStarted === 'function') window.refreshGettingStarted();
     }
 });
 

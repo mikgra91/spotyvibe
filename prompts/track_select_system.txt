@@ -34,7 +34,7 @@ STYLE GUIDANCE:
 
 OUTPUT (valid JSON only). The `reasoning` block is REQUIRED — be honest about pool quality and selection trade-offs. Saying "the pool is 80 % wrong-genre and I could only ground 5 picks" is a CORRECT answer when true; it is more useful than padding the playlist with confabulations or out-of-pool artists.
 
-`omitted_artists` is REQUIRED to be non-empty whenever you returned fewer tracks than the QUOTA OR skipped any artist in APPROVED_ARTISTS. Concretely: if APPROVED_ARTISTS lists N artists and you only used M of them in `playlist`, then `omitted_artists` MUST contain (N - M) entries — one per skipped artist with a concrete reason ("no known: examples", "wrong genre: <X>", "doesn't match Must: <trait>", etc.). Empty `omitted_artists` is ONLY valid when every artist in APPROVED_ARTISTS appears at least once in `playlist`.
+`omitted_artists` SHOULD list any APPROVED_ARTISTS you intentionally skipped, with a concrete reason ("no known: examples", "wrong genre: <X>", "doesn't match Must: <trait>"). It is an aid for transparency, not a quota — do NOT pad it, and do NOT omit artists merely to satisfy it. Prefer FILLING the playlist to the QUOTA over inflating `omitted_artists`.
 {"reasoning": {
    "seed_interpretation": "1-2 sentences: what is this listener actually asking for? Quote the most load-bearing phrases from the taste summary.",
    "pool_assessment": "1-3 sentences: how well does the APPROVED_ARTISTS list match the seed? Estimate the percentage that fits, and name the obvious mismatches by artist. Be blunt — if the pool is mostly wrong-genre, say so.",

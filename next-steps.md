@@ -1865,3 +1865,76 @@ recallable enough to avoid confabulation."* Five confirmed behaviours:
 6. **R1.2 deferred (P2)** — re-open once `top_tracks_overlay` covers
    ≥ 80 % of typical RAG-retrieve pools.
 
+## 🆕 Session 2026-05-12 AM — R1 full re-baseline + R1.3 revert
+Full analysis: [`evaluation/baselines/2026-05-12_r1_full/summary.md`](evaluation/baselines/2026-05-12_r1_full/summary.md).
+Trace bundles: `evaluation/results/20260512-052919/` (R1.3-strict
+n=3 mini + n=3 gpt-5.4) and `evaluation/results/20260512-063412/`
+(R1.3-softened validation, n=3 mini).
+### What shipped this session
+- ✅ **R1.1 KEPT.** Cite REMINDER at end of `track_select_user.txt`
+  is parity with baseline (81-88 %).
+- ❌ **R1.3 REJECTED in strict form.** Forcing `omitted_artists ≥
+  N−M` collapsed mini Playlist A from 13.0 to 8.0 (-38 %) and
+  produced 2 of 3 EMPTY Playlist B for gpt-5.4. **Reverted.**
+- ✅ **R1.3 RE-SHIPPED in softened form** ([`prompts/track_select_system.txt:37`](prompts/track_select_system.txt#L37)):
+  `omitted_artists` is now a transparency hint, not a quota; the
+  prompt explicitly tells the model to **prefer FILLING the QUOTA
+  over inflating the omission list**. Validated at n=3 mini: A=12.0,
+  B=3.7, found=40.4 %, cite=81.5 % — within post_fix variance band,
+  with first-ever 15 / 15 perfect playlist on iter 3.
+- 🐞 **Bug fix:** the R1.1 commit added `{min_new_artists}` to
+  `prompts/track_select_user.txt` line 7 but the matching `.format()`
+  call in `core/src/suggestions.py:1436` did not pass it →
+  `KeyError: 'min_new_artists'` on every Stage 3 call. Fixed by
+  passing `min_new_artists=min_new_artists` into `.format()`. The
+  2026-05-11 partial run never tripped this because it ran on the
+  uncommitted working tree before the prompt edit was finalised.
+- 🔧 **UI fix (Spotify pill):** added a polling fallback in
+  `frontend/static/js/modules/auth.js#connectSpotify()` so the
+  "Spotify not connected" pill updates after login even when the
+  popup's `postMessage("spotify-auth-complete")` is dropped (popup
+  blocker / cross-origin / COOP / `noopener` window severance).
+  Polls `/api/spotify/status` every 2 s for up to 90 s and triggers
+  the same `onSpotifyAuthCompleted()` handler the postMessage path
+  uses. Belt-and-suspenders — the postMessage path still works when
+  the browser allows it.
+### What we learned about model prompt-comprehension
+(see baseline summary §"What we learned" for the long form)
+1. **"MUST contain (N − M)" reads as a binding output shape.** Mini
+   collapsed playlists to keep the omission list at quota.
+2. **"SHOULD … prefer X over Y" reads as a tiebreaker.** Mini still
+   produces ~10-15 omission entries per batch in the softened run
+   while filling the playlist.
+3. **REMINDER blocks at end of user message work for structural
+   rules** (cite-rate parity); they cannot fix Stage-1 pool problems.
+4. **gpt-5.4 is MORE brittle to over-constraint than mini** (2 of 3
+   empty Playlist B under R1.3-strict). Contradicts the post_fix
+   prediction that "R1.3 is a no-op on gpt-5.4".
+5. **Playlist-B failure is structural pool starvation, not prompt
+   comprehension.** The fix is **A6** (RAG re-retrieve on empty
+   batches), not more prompt edits.
+### Numbers (mini n=3)
+| Metric | post_fix baseline | R1.3-strict | R1-softened (shipped) |
+|---|---:|---:|---:|
+| Playlist A | 13.0 | 8.0 ❌ | **12.0** ✅ |
+| Playlist B | 4.3 | 3.0 | **3.7** ✅ |
+| Cite | 86 % | 85.6 % | 81.5 % |
+| Spotify-found | 40 % | 34 % ❌ | **40.4 %** ✅ |
+| Cost | ~$0.06 | $0.087 | $0.080 |
+### Next-session execution order
+1. **R1-softened verification on gpt-5.4 at n=3** (~40 min, ~$0.80).
+   Expected: B-completion recovers (≥ 3 / 15) and zero empty-B iters.
+   This session only validated mini.
+2. **A6 (P1) — RAG re-retrieve on consecutive empty Stage-3 batches.**
+   Now the dominant remaining lever for B-completion. Both R1 partials
+   and this full re-baseline confirm pool starvation is the cause.
+3. **Cite-rate investigation (P2).** R1-softened cite is −4.5 pp vs
+   baseline. May be interaction effect; n=6 across A6 + R1-softened
+   should disambiguate.
+4. **OP1 still open (P2).** Two evals comfortably fit in one session
+   today (no 429s); priority dropped from P1 since the rate-limit
+   ceiling didn't bite.
+5. **OP2 closed (P3).** `.spotify-cache` survived the session
+   boundary this time. Reopen only if it disappears again.
+6. **R1.2 still deferred** — waits on top_tracks_overlay coverage
+   expansion.

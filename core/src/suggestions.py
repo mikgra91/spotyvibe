@@ -1437,6 +1437,7 @@ def select_tracks(
         approved_artists=artists_str,
         taste_summary=taste_summary,
         batch_size=effective_batch_size,
+        min_new_artists=min_new_artists,
         recent_feedback=feedback_summary,
         audio_filters_block=audio_filters_block,
     )
