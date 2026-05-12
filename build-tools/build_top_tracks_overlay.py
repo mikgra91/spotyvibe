@@ -38,7 +38,7 @@ import config  # noqa: E402
 from core.src.rag.corpus import RagCorpus  # noqa: E402
 from core.src.rag.retrieval import retrieve_candidates  # noqa: E402
 from core.src.playlist import get_spotify_client  # noqa: E402
-from evaluation.scenario import SEED_SECTIONS  # noqa: E402
+from evaluation.scenario import SEED_SECTIONS, SCENARIOS  # noqa: E402
 
 logger = logging.getLogger("build_top_tracks_overlay")
 
@@ -51,25 +51,58 @@ def _split_section(value: str) -> list[str]:
     return [p for p in parts if p]
 
 
-def _build_seed_profile() -> dict:
+def _build_seed_profile(seed_sections: dict | None = None) -> dict:
     """Construct the minimal profile shape that retrieve_candidates expects.
 
-    Mirrors the canonical eval seed (``evaluation/scenario.SEED_SECTIONS``)
-    so the overlay we build is exactly the set of artists the harness
-    will retrieve.
+    When *seed_sections* is None, defaults to the canonical scenario's
+    seed (back-compat with the single-scenario rebuild path). Passing a
+    specific scenario's ``seed_sections`` lets the multi-scenario
+    overlay build prime L0 across every scenario the eval harness can
+    target.
     """
+    sec = seed_sections if seed_sections is not None else SEED_SECTIONS
     return {
         "preferences": {
-            "core_description": SEED_SECTIONS.get("core_description", ""),
-            "must_have": _split_section(SEED_SECTIONS.get("must_have", "")),
-            "soft_preferences": _split_section(SEED_SECTIONS.get("soft_preferences", "")),
-            "avoid": _split_section(SEED_SECTIONS.get("avoid", "")),
+            "core_description": sec.get("core_description", ""),
+            "must_have": _split_section(sec.get("must_have", "")),
+            "soft_preferences": _split_section(sec.get("soft_preferences", "")),
+            "avoid": _split_section(sec.get("avoid", "")),
         },
         "artists": {"confirmed": [], "rejected": [], "moderate": []},
         "history": {"suggested_artists": [], "suggested_tracks": []},
         "feedback": {"liked_tracks": [], "disliked_tracks": []},
         "meta": {},
     }
+
+
+def _union_candidates_across_scenarios(corpus, scenario_names: list[str],
+                                        target_size: int) -> list:
+    """For each named scenario, run Stage 1 retrieval and union the
+    candidate sets (deduped by mbid, ordered by first appearance).
+    """
+    seen_mbids: set[str] = set()
+    union: list = []
+    for scn_name in scenario_names:
+        scn = SCENARIOS.get(scn_name)
+        if scn is None:
+            logger.warning("Skipping unknown scenario: %s", scn_name)
+            continue
+        profile = _build_seed_profile(scn.seed_sections)
+        cands = retrieve_candidates(
+            corpus, profile,
+            deny_keys=set(),
+            target_size=target_size,
+            popularity_penalty=0.4,
+        )
+        new = 0
+        for a in cands:
+            if a.mbid and a.mbid not in seen_mbids:
+                seen_mbids.add(a.mbid)
+                union.append(a)
+                new += 1
+        logger.info("  scenario=%s — %d candidates (%d new in union, %d total)",
+                    scn_name, len(cands), new, len(union))
+    return union
 
 
 def _fetch_top_tracks(sp, spotify_id: str, max_tracks: int) -> list[str]:
@@ -192,12 +225,28 @@ def main() -> int:
     parser.add_argument("--max-tracks", type=int, default=5,
                         help="Top tracks per artist to write into the overlay.")
     parser.add_argument("--throttle-ms", type=int, default=210,
-                        help="Sleep between Spotify calls (ms). 4.7 req/s = 210 ms.")
+                        help="Sleep between Spotify calls (ms). 4.7 req/s = 210 ms. "
+                             "Multi-scenario runs should use --throttle-ms 2000+ "
+                             "per S.6 #4 to stay well under Spotify's rolling "
+                             "rate-limit ceiling.")
     parser.add_argument("--dry-run", action="store_true",
                         help="Build the overlay in memory; print stats; do not write the file.")
     parser.add_argument("--release-lock", action="store_true",
                         help="Force-release a stale run lock left behind by a "
                              "hard-killed previous run, then exit.")
+    parser.add_argument("--scenarios", default="",
+                        help="S.6 #4: comma-separated scenario names OR 'all' to "
+                             "iterate every scenario in SCENARIOS, union the "
+                             "retrieval pools, and build one combined overlay. "
+                             "Default empty = legacy single-scenario behaviour.")
+    parser.add_argument("--resume", action="store_true",
+                        help="S.6 #4: read the existing overlay file and skip "
+                             "every artist already present. Lets a multi-session "
+                             "build pick up where a 429-kill left off.")
+    parser.add_argument("--checkpoint-every", type=int, default=25,
+                        help="S.6 #4: flush the overlay to disk after every N "
+                             "successful fetches so a 429-kill never loses more "
+                             "than N artists of work. Default 25.")
     args = parser.parse_args()
 
     # Same lock kind as the eval harness: both write to the user's
@@ -231,23 +280,68 @@ def main() -> int:
     logger.info("Loading corpus from %s", corpus_path)
     corpus = RagCorpus.load(corpus_path)
 
-    profile = _build_seed_profile()
-    logger.info("Running Stage 1 retrieve_candidates (target_size=%d)…", args.target_size)
-    candidates = retrieve_candidates(
-        corpus, profile,
-        deny_keys=set(),
-        target_size=args.target_size,
-        popularity_penalty=0.4,
-    )
-    logger.info("Retrieved %d candidates (%d with spotify_id, %d without).",
+    # ── Candidate set ────────────────────────────────────────────
+    if args.scenarios.strip():
+        if args.scenarios.strip().lower() == "all":
+            scn_names = sorted(SCENARIOS.keys())
+        else:
+            scn_names = [s.strip() for s in args.scenarios.split(",") if s.strip()]
+        logger.info("Multi-scenario mode — unioning candidates across %d scenarios: %s",
+                    len(scn_names), ", ".join(scn_names))
+        candidates = _union_candidates_across_scenarios(
+            corpus, scn_names, args.target_size,
+        )
+    else:
+        profile = _build_seed_profile()
+        logger.info("Running Stage 1 retrieve_candidates (target_size=%d)…",
+                    args.target_size)
+        candidates = retrieve_candidates(
+            corpus, profile,
+            deny_keys=set(),
+            target_size=args.target_size,
+            popularity_penalty=0.4,
+        )
+    logger.info("Final candidate set: %d artists (%d with spotify_id, %d without).",
                 len(candidates),
                 sum(1 for a in candidates if a.spotify_id),
                 sum(1 for a in candidates if not a.spotify_id))
 
-    sp = get_spotify_client()
+    out_path = rag_dir / "top_tracks_overlay.json"
+
+    # S.6 #4: resume from an existing overlay if present.
     overlay: dict[str, list[str]] = {}
+    if args.resume and out_path.exists():
+        try:
+            overlay = json.loads(out_path.read_text(encoding="utf-8"))
+            if not isinstance(overlay, dict):
+                logger.warning("Existing overlay at %s is not a dict — starting fresh.",
+                                out_path)
+                overlay = {}
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Could not read existing overlay (%s) — starting fresh.", exc)
+            overlay = {}
+        before = len(candidates)
+        candidates = [a for a in candidates if a.mbid and a.mbid not in overlay]
+        logger.info("--resume — skipping %d/%d already-fetched artists; %d remaining.",
+                    before - len(candidates), before, len(candidates))
+
+    def _checkpoint(reason: str) -> None:
+        if args.dry_run:
+            return
+        try:
+            out_path.write_text(
+                json.dumps(overlay, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            logger.info("  ✓ checkpoint (%s): %d entries → %s",
+                        reason, len(overlay), out_path.name)
+        except OSError as exc:
+            logger.error("Checkpoint write failed: %s", exc)
+
+    sp = get_spotify_client()
     n_fetched = 0
     n_empty = 0
+    _RETRY_AFTER_ABORT_SEC = 3600  # S.6 #4 — abort on Retry-After > 1 h
     # Endpoint choice (2026-04-27): /v1/artists/{id}/top-tracks returns
     # 403 Forbidden for apps without Extended Quota Mode (the default
     # for newly-created Development Mode apps post-Nov-2024). The
@@ -256,22 +350,54 @@ def main() -> int:
     # is effectively the artist's most-played catalogue, which is what
     # we want for the `known:` grounding block. One call per artist
     # (vs. two for the resolve→top-tracks path), so it's also faster.
+    from spotipy.exceptions import SpotifyException
+    aborted = False
     for i, a in enumerate(candidates, 1):
-        tracks = _search_top_tracks_by_name(sp, a.name, args.max_tracks)
+        try:
+            tracks = _search_top_tracks_by_name(sp, a.name, args.max_tracks)
+        except SpotifyException as exc:
+            # S.6 #4: clean abort on Retry-After > 1 h — checkpoint first.
+            if exc.http_status == 429:
+                try:
+                    retry_after = int(exc.headers.get("Retry-After", "0"))
+                except (TypeError, ValueError):
+                    retry_after = 0
+                if retry_after > _RETRY_AFTER_ABORT_SEC:
+                    logger.error(
+                        "Spotify Retry-After=%ds exceeds 1 h ceiling — "
+                        "checkpointing and aborting. Resume with: "
+                        "python build-tools/build_top_tracks_overlay.py "
+                        "--resume --scenarios %s --throttle-ms %d",
+                        retry_after,
+                        args.scenarios or "''",
+                        args.throttle_ms,
+                    )
+                    _checkpoint("retry-after abort")
+                    aborted = True
+                    break
+                # Smaller backoff — log and keep going.
+                logger.warning("Spotify 429 — sleeping %ds before retry", retry_after or 60)
+                time.sleep(max(retry_after, 60))
+                continue
+            raise
         if tracks:
             overlay[a.mbid] = tracks
             n_fetched += 1
         else:
             n_empty += 1
         if i % 10 == 0:
-            logger.info("  progress: %d/%d (overlay size=%d)", i, len(candidates), len(overlay))
+            logger.info("  progress: %d/%d (overlay size=%d)",
+                        i, len(candidates), len(overlay))
+        if n_fetched > 0 and (n_fetched % args.checkpoint_every == 0):
+            _checkpoint(f"every-{args.checkpoint_every}")
         time.sleep(args.throttle_ms / 1000.0)
 
-    out_path = rag_dir / "top_tracks_overlay.json"
     logger.info(
-        "Built overlay: %d artists with tracks, %d empty results.",
-        n_fetched, n_empty,
+        "Built overlay: %d artists with tracks, %d empty results%s.",
+        n_fetched, n_empty, " (ABORTED)" if aborted else "",
     )
+    if aborted:
+        return 5
     if args.dry_run:
         logger.info("--dry-run: NOT writing %s", out_path)
         # Print first 5 entries for sanity check.

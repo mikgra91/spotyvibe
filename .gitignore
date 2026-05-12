@@ -25,4 +25,5 @@ test-results/
 evaluation/settings.ini
 evaluation/results/
 evaluation/sandbox/
+evaluation/probes/results/
 evaluation/.run.lock

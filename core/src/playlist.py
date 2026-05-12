@@ -117,6 +117,37 @@ def _post_search_throttle() -> None:
         time.sleep(delay)
 
 
+# Track A (2026-05-12): pluggable existence verifier. ``None`` =
+# production default (use the embedded ``_do_spotify_search`` path
+# unchanged). When non-``None``, ``iter_search_tracks`` calls
+# ``_VERIFIER.verify(track)`` instead — the eval harness installs a
+# ``SpotifyVerifier`` / ``NullVerifier`` / future ``OverlayVerifier``
+# in a try/finally so production callers (the Flask SSE endpoint) are
+# untouched. See ``core/src/verify.py`` for the Protocol contract.
+_VERIFIER = None
+
+
+def set_verifier(verifier) -> None:
+    """Install a verifier for the next ``iter_search_tracks`` call(s).
+
+    Pass ``None`` (or call ``clear_verifier``) to revert to the
+    production Spotify path. NOT thread-safe — the eval harness is
+    expected to set this once at the top of a run-for-model loop.
+    """
+    global _VERIFIER
+    _VERIFIER = verifier
+
+
+def get_verifier():
+    """Return the currently-installed verifier or ``None``."""
+    return _VERIFIER
+
+
+def clear_verifier() -> None:
+    """Convenience alias for ``set_verifier(None)``."""
+    set_verifier(None)
+
+
 # L2 (2026-05-06): per-run search-result cache. ``None`` when caching
 # is off; ``{}`` when bracketed by ``start_run_search_cache()`` /
 # ``end_run_search_cache()``. The cache is single-flight, matching the
@@ -736,8 +767,18 @@ def iter_search_tracks(tracks):
         requests_session=shared_session,
     )
 
-    def search_one(t):
-        return _do_spotify_search(t, shared_sp)
+    # Track A (2026-05-12) — verifier-swap hook. Production sets no
+    # verifier so ``_VERIFIER`` is None and we go through the existing
+    # Spotify path unchanged. The eval harness installs a verifier
+    # (Spotify, Null, …) via ``set_verifier`` in a try/finally so
+    # ``app.py``'s SSE caller always sees the production path.
+    _v = _VERIFIER
+    if _v is None:
+        def search_one(t):
+            return _do_spotify_search(t, shared_sp)
+    else:
+        def search_one(t):
+            return _v.verify(t)
 
     try:
         with ThreadPoolExecutor(max_workers=pool_size) as executor:

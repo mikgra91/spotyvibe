@@ -1,6 +1,80 @@
-# Next Steps — 2026-05-04
+# Next Steps — 2026-05-04 (last refresh 2026-05-12)
 
 Consolidated forward plan. Open tasks, decisions, and gated research items.
+
+## 🎯 Next logical steps (post-2026-05-12 — Tracks A+B fully shipped)
+
+Tracks A (verifier decoupling) and B (synthetic probes) are functionally
+complete: probe runner + 8 probes + fingerprint diff + `--probe-check`
+gate; `Spotify` / `Null` / `Overlay` / `l0_l1` verifier modes with the
+push-step gated per S.6 #1; SQLite-cached MB + Last.fm verifiers;
+`evaluation/late_verify.py`; multi-scenario resume-aware overlay
+rebuild script. 1032 core tests green. **The remaining work is
+operational (real budget spend), validation runs (Phase 3), and two
+production-code follow-ups that the captured fingerprints made
+obvious.** Pick the next item by what investigation you're running.
+
+### 🔴 N1 — A6 trigger condition widening (production fix, surfaced by B-11)
+The B-11 fingerprints captured 2026-05-12 show **every model
+confabulates** when `len(approved_artists) == 1` and that artist has no
+`known:` tracks (bucket_c on mini / gpt-5.4 / gpt-4.1 alike). The
+system prompt's "OMIT that artist unless you are sure of a real
+released track" rule is being ignored at the single-artist boundary.
+Today's A6 trigger condition only fires at `== 0`. **Action:** in
+`core/src/suggestions.py` widen A6's pool-starvation refusal to
+`len(approved_artists) <= 1` (or `== 1 AND no known: tracks present`).
+Validate with `python -m evaluation.probes --model gpt-5.4-mini
+--probes B-11 --confirm` showing `bucket_a` on the
+`single_artist_no_known` variant. Estimated cost to validate: ~$0.001.
+
+### 🔴 N2 — `iterations` default bump (config fix, surfaced by B-6)
+B-6 `n_required_for_5pp_signal` per model: gpt-4.1 = 5, gpt-5.4 = 19,
+gpt-5.4-mini = 85. Today's `iterations = 3` in
+[evaluation/settings.ini](evaluation/settings.ini) is noise on every
+gpt-5.4 / mini row. **Action:** either (a) bump the static default to
+`5` and note the per-model recommendation in the eval README, or (b)
+wire `Fingerprint.probes[B-6].scores.n_required_for_5pp_signal` into
+`harness.run_for_model` to scale iterations per model automatically.
+Option (b) is the cleaner long-term answer — would close out the
+"variance floor" question from §S.7.
+
+### 🟠 N3 — Phase 3 validation runs (per §S.5 items 9-10)
+Both validation runs are now unblocked but require real eval budget:
+- **Track A Step 7** — side-by-side `--verify-mode spotify` vs
+  `--verify-mode l0_l1` baseline on the canonical scenario to measure
+  the found-% drift. Document the offset in
+  `documentation/TechnicalManual.md`. Estimated cost: 2× normal eval
+  spend (~$0.50 for the four-model row).
+- **Track B Step 5** — adopt the probe-first workflow on R1.4
+  (model-conditional R1.3 strictness). Expect the existing v1
+  fingerprints to confirm the model split before any full eval is
+  spent. Estimated cost: $0.11 for the probe pass, then the full eval
+  only if the probe-diff comes back green.
+
+### 🟠 N4 — Multi-scenario overlay rebuild (operations, S.6 #4)
+Code is shipped (`build_top_tracks_overlay.py --scenarios all --resume
+--throttle-ms 2000`). **Trigger needed:** estimated ~5 000 Spotify
+calls over 1-3 sessions; ≥ 2.0 s/call throttle keeps you under the
+rolling-window quota. Without this, `--verify-mode overlay` and the
+L0 leg of `--verify-mode l0_l1` have lower hit rates on niche
+scenarios. No deadline; spread across multiple sessions as quota
+permits.
+
+### 🟡 N5 — Coverage of the local-LLM fingerprint slot
+Track B's Step 3 captured cards for the three OpenAI models. The
+locked plan calls out "plus one local LLM (Ollama)" as the fourth
+baseline. Skipped because no local model is currently part of the
+eval roster. Land this **only** when a local model lands in
+`evaluation/settings.ini`.
+
+### 🟢 N6 — Documentation refresh
+Each of the above leaves user-facing docs untouched. Once N3 lands
+(validation numbers in hand), refresh
+[documentation/TechnicalManual.md](documentation/TechnicalManual.md)
+with the verifier-mode matrix, the probe-gate workflow, and the
+recommended-n table. Out of scope until validation data exists.
+
+---
 
 > **Documentation cleanup (2026-05-04):** Six working documents were consolidated
 > into `documentation/TechnicalManual.md` and this file, then deleted. See
@@ -2629,19 +2703,77 @@ full eval in these directions:
 investigate*; a probe pass is a *necessary but not sufficient*
 condition for shipping. Final acceptance is always the full eval.
 ### Track B — Recommended sequencing
-1. **Step 1 — Skeleton + B-1 + B-6 only.** Validate runner,
-   telemetry, fingerprint YAML, OpenAI wiring on the two probes that
-   most directly retro-predict the 2026-05-12 R1.3 finding. ~½ day.
-2. **Step 2 — Add B-2, B-3, B-4, B-5, B-10, B-11.** ~1 day. After
-   this, every known production failure mode from the last three
-   months has at least one synthetic predictor.
-3. **Step 3 — Capture baseline fingerprints** for `gpt-5.4-mini`,
-   `gpt-5.4`, `gpt-4.1`, plus one local LLM (Ollama). Commit cards
-   under `evaluation/probes/fingerprints/`.
-4. **Step 4 — Wire `render_fingerprint_diff` into `reporting.py`;
-   add a `--probe-check` flag to `evaluation/run_evaluation.py`**
-   that runs the battery first and aborts on regression unless
-   `--no-probe-gate`. ~½ day.
+1. ~~**Step 1 — Skeleton + B-1 + B-6 only.**~~ ✅ Done 2026-05-12
+   (shipped as part of the combined Step 1+2 push below).
+2. ~~**Step 2 — Add B-2, B-3, B-4, B-5, B-10, B-11.**~~ ✅ Done 2026-05-12.
+   New package [evaluation/probes/](evaluation/probes/) with `runner.py`
+   (ProbeResult / Fingerprint / `run_probe` / `run_battery` /
+   `aggregate_fingerprint` / pricing table / lenient JSON parser with
+   code-fence stripping), all 8 probe modules
+   (`probe_b1_constraint.py` through `probe_b11_empty_pool.py`), the
+   B-4 allowlist at `allowlists/famous_artists.json` (5 famous + 25
+   fictitious), and a CLI at `python -m evaluation.probes` (dry-run by
+   default; `--confirm` required for real billing; `--battery default`
+   = all 8 probes, `--battery minimal` = B-1 + B-6,
+   `--probes B-1,B-6` for ad-hoc selection). B-6 reuses B-2's strict
+   prompt and adds a custom `aggregate()` that emits sigma + an
+   `n_required_for_5pp_signal` field for the fingerprint card. B-11
+   loads the production system prompt verbatim and tests two pool
+   shapes (`empty_pool`, `single_artist_no_known`). Zero touch to
+   production code — runner accepts an injectable `openai_call` so
+   tests never reach OpenAI; default uses
+   `core.src.openai_http.chat_completions_create`. 35-test suite in
+   [core/tests/test_evaluation_probes.py](core/tests/test_evaluation_probes.py)
+   covers runner envelope + token/cost bookkeeping + call-failure
+   isolation + code-fence parse + each probe's success/failure rubric
+   + fingerprint custom-aggregator routing + CLI dry-run path +
+   unknown-probe-prefix exit. Default-battery dry-run reports 16 calls
+   / ~$0.004 estimated for gpt-5.4-mini. 962 core tests green (was
+   927). **Out of scope (Step 4 / Step 6):** `--probe-check` gate on
+   `run_evaluation.py` and the diagnostic-only probes (B-7, B-8, B-12,
+   B-13, B-14).
+3. ~~**Step 3 — Capture baseline fingerprints**~~ ✅ Done 2026-05-12.
+   Three v1 cards captured live and committed under
+   [evaluation/probes/fingerprints/](evaluation/probes/fingerprints/):
+   `gpt-5.4-mini.v1.json` ($0.004 / 84 s), `gpt-5.4.v1.json` ($0.060
+   / 105 s), `gpt-4.1.v1.json` ($0.049 / 56 s) — ~$0.11 total. **Two
+   structural findings already returned more value than the
+   $1.90 R1.3 spike:** (a) B-1 `quota_preserved_under_hard` =
+   mini 0.00 vs gpt-5.4 / gpt-4.1 1.00 — retroactively predicts the
+   R1.3-strict collapse; (b) B-11 `single_artist_no_known` =
+   **bucket_c (confabulates) on ALL THREE models** — directly motivates
+   widening A6's trigger condition to `len(approved_artists) <= 1`,
+   not `== 0`. B-6 `n_required_for_5pp_signal` differs 17× across
+   models (gpt-4.1=5, gpt-5.4=19, mini=85), demonstrating that the
+   static `iterations=3` in `evaluation/settings.ini` understates
+   noise on the mini and gpt-5.4 rows of every full eval. Ollama
+   local-LLM baseline deferred — no eval-relevant local model
+   currently in use.
+4. ~~**Step 4 — Wire `render_fingerprint_diff` + `--probe-check` gate.**~~
+   ✅ Done 2026-05-12. New [evaluation/probes/diff.py](evaluation/probes/diff.py)
+   ships `render_fingerprint_diff(baseline, new)` (markdown table:
+   probe / variant / baseline / new / Delta / Direction / Flag) and
+   `detect_regressions(baseline, new, *, extra_tolerance=0.0)`
+   returning `Regression` objects. Direction-of-improvement is
+   hard-coded in `DIRECTION` per (probe_id, score) — 32 directional
+   scores covering all 8 probes; counts (`returned_count`,
+   `declared_count`, etc.) are intentionally informational. Default
+   tolerance 0.05 with per-score overrides for B-6's count metrics
+   (e.g. `n_required_for_5pp_signal` tolerates a ±5-run drift, not
+   ±0.05). [run_evaluation.py](evaluation/run_evaluation.py) gained
+   `--probe-check` + `--no-probe-gate` flags and a `run_probe_gate()`
+   helper invoked AFTER scenario validation but BEFORE
+   `confirm_or_exit`; missing baseline → informational warning, no
+   abort. Aborts with exit code 7 on regression unless override.
+   ASCII-only output (no Δ / ❌ / ✅) so Windows cp1252 consoles
+   don't UnicodeEncodeError. 10 new tests in
+   [test_evaluation_probes.py](core/tests/test_evaluation_probes.py)
+   cover directional regress + tolerance + informational-skip + B-6
+   count-tolerance override + markdown rendering + baseline-path
+   conventions. Smoke-tested: self-diff of all three captured
+   baselines yields 0 regressions; injected R1.3-style regression
+   on gpt-5.4's `quota_preserved_under_hard` is detected exactly.
+   972 core tests green (was 962).
 5. **Step 5 — Adopt on the next prompt PR (R1.4).** Expect
    fingerprints to confirm the model-conditional split before any
    full eval is spent.
@@ -2699,11 +2831,14 @@ different inputs and answer different questions. No conflict.
 Per S.6 #2 (user-confirmed): Phase 1 fully ships before Phase 2
 starts. No parallelisation.
 **Phase 1 — Track B probes (additive, zero production risk):**
-1. **Track B Step 1+2** — ship probe runner, B-1, B-2, B-3, B-4,
-   B-5, B-6, B-10, B-11. Captures the eight probes that
-   retroactively explain R1.3, pool starvation, variance-floor,
-   confabulation, and cite-fidelity concerns. Zero touch to
-   production code.
+1. ~~**Track B Step 1+2**~~ ✅ Done 2026-05-12 — probe runner +
+   B-1, B-2, B-3, B-4, B-5, B-6, B-10, B-11 shipped in
+   [evaluation/probes/](evaluation/probes/) with 35-test coverage
+   ([core/tests/test_evaluation_probes.py](core/tests/test_evaluation_probes.py)).
+   Captures every probe that retroactively explains R1.3, pool
+   starvation, variance-floor, confabulation, and cite-fidelity
+   concerns. Zero touch to production code. CLI:
+   `python -m evaluation.probes --model <m> --battery default --confirm`.
 2. **Track B Step 3** — capture fingerprints for `gpt-5.4-mini`,
    `gpt-5.4`, `gpt-4.1`, plus one local LLM. Total OpenAI cost
    ~$0.30. **This single output already answers the user's "how do
@@ -2713,24 +2848,128 @@ starts. No parallelisation.
    lands; the 7-probe fingerprint subset remains the default
    invocation shape, with the diagnostic probes available for
    on-demand deep dives.
-4. **Track B Step 4** — `render_fingerprint_diff` + `--probe-check`
-   gate on `run_evaluation.py`. Probes become the regression gate
-   for prompt PRs.
+4. ~~**Track B Step 4**~~ ✅ Done 2026-05-12 — `render_fingerprint_diff` +
+   `detect_regressions` in [evaluation/probes/diff.py](evaluation/probes/diff.py),
+   `--probe-check` / `--no-probe-gate` flags wired into
+   [run_evaluation.py](evaluation/run_evaluation.py) (exit code 7 on
+   regression). Probes ARE now the regression gate for prompt PRs.
+   Phase 1 complete.
 **Phase 2 — Track A verifier decoupling (refactors production code):**
-5. **Track A Steps 1–3** — `verify.py` skeleton + `SpotifyVerifier`
-   + `NullVerifier` + `--verify-mode` CLI flag + push-step gating
-   (Option A per S.6 #1). Pure refactor in production code; unlocks
-   the 5-min eval mode that makes everything downstream cheap.
-6. **Track A Step 4** — `OverlayVerifier` lands. Then extend
-   `build_top_tracks_overlay.py` to cover all 11 scenarios, but ship
-   the **resume-aware throttled rebuild** per S.6 #4: serial mode +
-   ≥ 2.0 s/call delay + checkpoint to disk every N artists + clean
-   abort on Retry-After > 1 h. No deadline; spread across multiple
-   sessions if the rate-limit budget demands it.
-7. **Track A Step 5** — `MusicBrainzVerifier` + `LastfmVerifier` +
-   `ChainVerifier` with persistent disk cache. L0_L1 mode is real.
-8. **Track A Step 6** — `evaluation/late_verify.py` for batched
-   ground-truth pass over a whole session.
+5. ~~**Track A Steps 1–3**~~ ✅ Done 2026-05-12. New
+   [core/src/verify.py](core/src/verify.py) ships the `Verifier`
+   `Protocol` + `SpotifyVerifier` (thin wrapper around
+   `_do_spotify_search` — zero Spotify-behaviour change) + `NullVerifier`
+   (synthesises `("found", track)` with all Spotify-shaped enrichment
+   keys as `None` so downstream `release_year` parsing + SSE-event
+   builder never KeyError). [playlist.py](core/src/playlist.py) gained
+   module-level `_VERIFIER = None` + `set_verifier()` / `get_verifier()`
+   / `clear_verifier()`; `iter_search_tracks` picks the worker function
+   via a single `if _VERIFIER is None` branch so the production
+   Spotify path stays byte-for-byte identical when no verifier is
+   installed. [scenario.py](evaluation/scenario.py) gained
+   `verify_mode: str = "spotify"` (default preserves current behaviour
+   across all 11 scenarios — pinned by a new test).
+   [run_evaluation.py](evaluation/run_evaluation.py) gained
+   `--verify-mode {spotify,null}` flag applied via
+   `dataclasses.replace` after `--seed-profile` so the two compose.
+   [harness.run_for_model](evaluation/harness.py) now (a) installs
+   the scenario-selected verifier on `playlist_mod` before the first
+   Stage-3 call, (b) gates BOTH `_step_push_to_spotify` invocations
+   (playlist A + playlist B) on `scn.verify_mode == "spotify"` per
+   S.6 #1, (c) `clear_verifier()`s in the outer `finally` so a leaked
+   verifier can never bleed into the next model's run. `app.py` is
+   untouched — the production SSE endpoint never sees the new path.
+   14 new tests across [test_verify.py](core/tests/test_verify.py) +
+   [test_evaluation_scenario.py](core/tests/test_evaluation_scenario.py)
+   cover Protocol satisfaction (`runtime_checkable`), NullVerifier
+   passthrough + key shape + non-mutation, SpotifyVerifier delegation,
+   the playlist module slot + clear alias, end-to-end
+   `iter_search_tracks` with NullVerifier proving the Spotify path is
+   NOT called, and `verify_mode` field default + replace-override
+   contract. 986 core tests green (was 972). **Out of scope (S.5 #6-7
+   queued next):** OverlayVerifier + MusicBrainzVerifier + LastfmVerifier
+   + ChainVerifier + late_verify.py + overlay rebuild across all 11
+   scenarios.
+6. ~~**Track A Step 4**~~ ✅ Done 2026-05-12 (`OverlayVerifier` + rebuild script).
+   [verify.py](core/src/verify.py) now ships `OverlayVerifier` +
+   `normalise_title` helper (lowercases, strips diacritics, drops
+   trailing parenthetical / bracketed annotations like
+   ``"(Remastered 2024)"``, collapses punctuation + whitespace).
+   Lookup is O(1) on `RagCorpus.by_name_normalised` then equality OR
+   either-side substring match against the artist's `top_tracks`. On
+   hit, returns Spotify-shaped enrichment with all keys `None` plus
+   audit breadcrumbs `verified_by="overlay"` and `overlay_match=<the
+   matched overlay title>`. `--verify-mode overlay` wired through
+   [run_evaluation.py](evaluation/run_evaluation.py) →
+   [scenario.verify_mode](evaluation/scenario.py) →
+   [harness.run_for_model](evaluation/harness.py) (overlay mode pulls
+   the live corpus via `suggestions.get_rag_corpus()` and falls back
+   to `NullVerifier` with a warning when no RAG corpus is loaded).
+   Push step skipped in overlay mode (S.6 #1 — `verify_mode ==
+   "spotify"` gate already covers every non-spotify mode). 15 new
+   tests in [test_verify.py](core/tests/test_verify.py) covering
+   `normalise_title` (lowercase / parens-stripping / punctuation /
+   diacritics / whitespace / empty), `OverlayVerifier` exact match /
+   remaster suffix / case + punctuation insensitivity / artist-missing
+   / empty-top-tracks / title-missing / empty fields / Protocol
+   satisfaction / non-mutation. 1001 core tests green (was 986).
+   **S.6 #4 rebuild script — code shipped 2026-05-12, execution
+   deferred.** [build_top_tracks_overlay.py](build-tools/build_top_tracks_overlay.py)
+   gained `--scenarios all|<comma-list>` (unions
+   `retrieve_candidates` pools across multiple scenarios, deduped by
+   mbid), `--resume` (reads existing overlay and skips fetched
+   mbids — multi-session safe), and `--checkpoint-every N` (flush
+   overlay to disk every N successful fetches; default 25 so a crash
+   loses ≤ 25 artists). The per-artist loop catches
+   `SpotifyException(429)`, checkpoints + exits with code 5 when
+   `Retry-After > 3600 s`, and prints the exact `--resume` command
+   for the next session. Default `--throttle-ms 210` preserved for
+   single-scenario back-compat; help text steers multi-scenario runs
+   toward `≥ 2000 ms`. **Operations task still pending user
+   trigger:** actually run
+   `python build-tools/build_top_tracks_overlay.py --scenarios all
+   --resume --throttle-ms 2000` and let the multi-session build
+   complete. Today's overlay (built for `default` scenario) remains
+   the data source `OverlayVerifier` reads until the rebuild lands;
+   niche scenarios will see lower L0 hit rates in the meantime.
+7. ~~**Track A Step 5**~~ ✅ Done 2026-05-12.
+   [verify.py](core/src/verify.py) now ships `MusicBrainzVerifier`
+   (one `/ws/2/recording` HTTP call per (artist, track) miss; 1 req/s
+   throttle with slack; persistent SQLite cache at
+   `<APP_DIR>/.verify_cache.sqlite`; clean abort on `Retry-After > 90 s`
+   to honour MB's polite-API contract), `LastfmVerifier` (track.getInfo
+   via `LASTFM_API_KEY`; short-circuits to not_found when the key is
+   unset so the chain falls through cleanly), and `ChainVerifier`
+   (first-hit-wins composite, exception-tolerant per constituent so a
+   misbehaving verifier never breaks the chain). The shared
+   `_SqliteVerifyCache` namespaces rows by verifier name + lowercases
+   the (artist, title) key for case-insensitive cache hits. New
+   `--verify-mode l0_l1` choice wires
+   `Overlay → MusicBrainz → Lastfm` in
+   [run_evaluation.py](evaluation/run_evaluation.py) and
+   [harness.py](evaluation/harness.py); L0 short-circuit means
+   second-and-later eval sessions on the same scenario pay zero
+   MusicBrainz quota. 18 new tests cover SQLite cache round-trip /
+   verifier-namespacing / cross-instance persistence; MB hit + miss +
+   cache-skip + Retry-After abort; Last.fm no-key path + hit + error-6
+   cache; Chain first-hit / fall-through / all-miss / exception
+   isolation / empty rejection / Protocol satisfaction.
+8. ~~**Track A Step 6**~~ ✅ Done 2026-05-12. New
+   [evaluation/late_verify.py](evaluation/late_verify.py) walks a
+   completed session's per-run dirs, extracts every unique
+   `(artist, track)` from each `eval.jsonl`'s `batch_summary` rows
+   (case-insensitive dedup), runs `SpotifyVerifier` against the
+   deduped set, and writes `late_verify.json` next to the slice
+   with `{total, found, not_found, errors, results: [...] }`.
+   Idempotent (skip when `late_verify.json` exists); `--force`
+   re-verifies. CLI accepts either a session root or a single per-run
+   dir. 13 new tests in
+   [test_late_verify.py](core/tests/test_late_verify.py) cover
+   batch-summary extraction + case-insensitive dedup + non-batch-row
+   skipping + malformed-JSON skipping + empty-field skipping +
+   verify_tracks success/exception bookkeeping + writeback +
+   idempotence + force + discover_run_dirs (session root vs per-run
+   dir).
 **Phase 3 — Validation (single session):**
 9. **Track A Step 7** — side-by-side `spotify` vs `l0_l1` baseline
    to characterise found-% delta. Document offset in

@@ -155,6 +155,65 @@ def estimate_cost(models: list[str], iterations: int) -> float:
     return sum(_PER_CYCLE_USD.get(m, 0.05) for m in models) * iterations
 
 
+def run_probe_gate(models: list[str], *, allow_regressions: bool) -> int:
+    """Run the Track B probe battery against each model and diff against
+    the committed baseline. Returns the exit code the caller should
+    propagate (0 = pass, 7 = regression with gate enforced). Never
+    raises — every error path is a no-op that prints and continues.
+
+    Cost: ~$0.10 per model (default 8-probe battery, 16 calls).
+    """
+    from evaluation.probes import cli as _probes_cli
+    from evaluation.probes import runner as _probes_runner
+    from evaluation.probes import diff as _probes_diff
+
+    fingerprints_dir = HERE / "probes" / "fingerprints"
+    modules = _probes_cli._BATTERIES["default"]
+
+    total_regressions: list[_probes_diff.Regression] = []
+    print("\n  Probe gate — Track B battery against each model:\n")
+    for model in models:
+        baseline_path = _probes_diff.baseline_path_for(
+            model, fingerprints_dir=fingerprints_dir,
+        )
+        if not baseline_path.exists():
+            print(f"  ⚠ {model}: no baseline at {baseline_path.name} — "
+                  f"capture one with `python -m evaluation.probes --model "
+                  f"{model} --battery default --confirm` and copy the "
+                  f"fingerprint.json into evaluation/probes/fingerprints/. "
+                  f"Gate is informational only for this model.")
+            continue
+
+        print(f"  Running probes for {model}…")
+        results = _probes_runner.run_battery(modules, model)
+        new_fp = _probes_runner.aggregate_fingerprint(
+            results,
+            model=model,
+            captured_at=datetime.now(timezone.utc).isoformat(),
+            probe_modules=modules,
+        ).to_dict()
+        baseline = _probes_diff.load_fingerprint(baseline_path)
+        print(_probes_diff.render_fingerprint_diff(baseline, new_fp))
+        regressions = _probes_diff.detect_regressions(baseline, new_fp)
+        if regressions:
+            print(f"\n  ❌ {len(regressions)} regression(s) for {model}:")
+            for r in regressions:
+                print(f"    - {r.describe()}")
+            total_regressions.extend(regressions)
+        else:
+            print(f"\n  ✅ {model}: no regressions vs baseline.")
+
+    if total_regressions and not allow_regressions:
+        print(f"\n  Aborting full eval — {len(total_regressions)} probe "
+              f"regression(s) across {len(models)} model(s). "
+              f"Re-run with --no-probe-gate to override.")
+        return 7
+    if total_regressions:
+        print(f"\n  ⚠ {len(total_regressions)} regression(s) — gate "
+              f"override (--no-probe-gate) in effect; continuing.")
+    return 0
+
+
 def confirm_or_exit(estimate: float, models: list[str], iterations: int,
                     no_confirm: bool) -> None:
     msg = (
@@ -284,6 +343,32 @@ def main() -> int:
                              "Use to evaluate against a stateful (anonymised "
                              "production) profile. Overrides any "
                              "scenario.seed_profile_path.")
+    parser.add_argument("--verify-mode",
+                        choices=["spotify", "null", "overlay", "l0_l1"],
+                        default=None,
+                        help="Track A: which existence verifier the harness "
+                             "should install. 'spotify' = ground-truth via "
+                             "Spotify search (production default; pushes "
+                             "tagged [EVAL] playlists). 'null' = treat every "
+                             "Stage-3 pick as found, skip Spotify entirely, "
+                             "skip the playlist-push step. 'overlay' = "
+                             "verify against the RAG corpus's top_tracks "
+                             "overlay (L0 — cheap offline check; falls back "
+                             "to not_found for artists or titles missing "
+                             "from the overlay). 'overlay' also skips the "
+                             "push step. Overrides any scenario.verify_mode "
+                             "for this invocation.")
+    parser.add_argument("--probe-check", action="store_true",
+                        help="Run the Track B probe battery against every "
+                             "configured model BEFORE the full eval, diff "
+                             "against the committed baseline at "
+                             "evaluation/probes/fingerprints/<model>.v1.json, "
+                             "and abort on regression (unless --no-probe-gate).")
+    parser.add_argument("--no-probe-gate", action="store_true",
+                        help="With --probe-check, print the diff but never "
+                             "abort. Use to ship a deliberately-regressing "
+                             "prompt change with full visibility of what "
+                             "regressed.")
     args = parser.parse_args()
 
     # ── Run-lock escape hatch ─────────────────────────────────────
@@ -363,7 +448,30 @@ def main() -> int:
             for s in active_scenarios
         ]
 
+    # Track A: --verify-mode overrides scenario.verify_mode for THIS
+    # invocation. Applied after --seed-profile so the two flags compose
+    # cleanly (anonymised profile + null verifier = the cheapest mode).
+    if args.verify_mode is not None:
+        from dataclasses import replace
+        active_scenarios = [
+            replace(s, verify_mode=args.verify_mode) for s in active_scenarios
+        ]
+
     estimate = estimate_cost(models, iterations) * len(active_scenarios)
+
+    # Probe gate (Track B Step 4) - cheap fingerprint check against the
+    # committed baseline before any full-eval billing. Spends ~$0.10/model
+    # in the worst case; aborts the run on regression unless the user
+    # explicitly opted into --no-probe-gate.
+    if args.probe_check:
+        import config as _cfg
+        _cfg.load_config()
+        gate_rc = run_probe_gate(
+            models, allow_regressions=args.no_probe_gate,
+        )
+        if gate_rc != 0:
+            return gate_rc
+
     confirm_or_exit(estimate, models, iterations, args.no_confirm)
 
     # ── Sandbox setup ─────────────────────────────────────────────

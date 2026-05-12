@@ -62,6 +62,16 @@ class Scenario:
     like_reason: str
     dislike_reason: str
     seed_profile_path: Path | None = None
+    # Track A (2026-05-12): which verifier the harness should install
+    # for this scenario. Default ``"spotify"`` preserves current
+    # behaviour — Stage 3 picks are validated against the live Spotify
+    # search and pushed to a tagged playlist. ``"null"`` skips Spotify
+    # entirely (every pick is treated as found, push step is skipped
+    # per S.6 #1); used for fast / cheap evals and probe-adjacent runs
+    # where the model output itself is the unit under test. The
+    # ``run_evaluation.py --verify-mode`` CLI flag overrides this
+    # per-invocation.
+    verify_mode: str = "spotify"
 
 
 # ── Default scenario — broad theatrical-pop-rock ────────────────────

@@ -93,3 +93,28 @@ def test_regression_scenario_mirrors_production_failure():
     # Enough dislikes to plausibly trigger F4 auto-escalation on
     # repeated playlist-B leakage.
     assert len(REGRESSION_JAPANESE_SCENARIO.dislike_indices) >= 3
+
+
+# ── Track A: verify_mode field ───────────────────────────────────────
+
+
+def test_verify_mode_defaults_to_spotify():
+    """Every existing scenario must still default to the production
+    Spotify verifier — Phase 2 is an opt-in change, never a silent flip."""
+    from evaluation.scenario import SCENARIOS
+    for name, scn in SCENARIOS.items():
+        assert scn.verify_mode == "spotify", (
+            f"scenario '{name}' has unexpected verify_mode={scn.verify_mode!r}"
+        )
+
+
+def test_verify_mode_override_via_replace():
+    """run_evaluation.py's --verify-mode flag relies on dataclasses.replace
+    to override the scenario field. Pin the override mechanic so a
+    future refactor doesn't break the CLI without a failing test."""
+    from dataclasses import replace
+    from evaluation.scenario import DEFAULT_SCENARIO
+    overridden = replace(DEFAULT_SCENARIO, verify_mode="null")
+    assert overridden.verify_mode == "null"
+    # Original untouched (frozen=True dataclass).
+    assert DEFAULT_SCENARIO.verify_mode == "spotify"

@@ -631,6 +631,57 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
     else:
         per_run_dir = results_dir / f"{model}-iter{iteration}"
 
+    # Track A (2026-05-12): install the scenario's verifier on the
+    # production playlist module BEFORE any Stage 3 call. ``None`` would
+    # leave the production Spotify path active; the harness always sets
+    # a verifier explicitly so the choice is auditable in the trace.
+    # The matching ``clear_verifier()`` lives in the outer ``finally``.
+    try:
+        from core.src.verify import (
+            NullVerifier, OverlayVerifier,
+            MusicBrainzVerifier, LastfmVerifier, ChainVerifier,
+        )
+        if scn.verify_mode == "null":
+            playlist_mod.set_verifier(NullVerifier())
+        elif scn.verify_mode == "overlay":
+            # Pull the live corpus singleton — the harness has already
+            # set it via the production startup wiring. If somehow None
+            # (eval running without RAG), fall back to Null + log.
+            from core.src import suggestions as _suggestions_mod
+            corpus = _suggestions_mod.get_rag_corpus()
+            if corpus is None:
+                logger.warning(
+                    "verify_mode=overlay requested but RAG corpus is "
+                    "None — falling back to NullVerifier."
+                )
+                playlist_mod.set_verifier(NullVerifier())
+            else:
+                playlist_mod.set_verifier(OverlayVerifier(corpus))
+        elif scn.verify_mode == "l0_l1":
+            # Chain: Overlay (cheap, offline) -> MusicBrainz -> Lastfm.
+            # Lastfm only fires when LASTFM_API_KEY is set; otherwise it
+            # short-circuits to not_found and the chain ends at MB.
+            from core.src import suggestions as _suggestions_mod
+            chain: list = []
+            corpus = _suggestions_mod.get_rag_corpus()
+            if corpus is not None:
+                chain.append(OverlayVerifier(corpus))
+            chain.append(MusicBrainzVerifier())
+            chain.append(LastfmVerifier())
+            playlist_mod.set_verifier(ChainVerifier(chain))
+        else:
+            # "spotify" (default) — explicit no-op: keep the embedded
+            # path. SpotifyVerifier is constructed lazily by the search
+            # loop today, not here, so we leave _VERIFIER = None which
+            # preserves the existing fast-path. This branch exists so a
+            # future verify_mode that DOES want SpotifyVerifier installed
+            # (e.g. to wire a custom spotipy client) can be added here.
+            playlist_mod.clear_verifier()
+    except Exception as exc:                                            # noqa: BLE001
+        logger.warning("Verifier install failed (%s) — falling back "
+                       "to production Spotify path.", exc)
+        playlist_mod.clear_verifier()
+
     try:
         # ── 0. Profile creation ──────────────────────────────────
         ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
@@ -708,7 +759,10 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
             raise
 
         # ── 3b. Push to Spotify (tagged name for cleanup) ────────
-        if tracks:
+        # S.6 #1: skipped unless verify_mode == "spotify" — without
+        # Spotify URIs there is nothing to push and the audit playlist
+        # is the whole point of the spotify-mode side-effect.
+        if tracks and scn.verify_mode == "spotify":
             try:
                 pl_name = f"[EVAL] {model} {ts}"
                 profile = profile_mod.load_profile()
@@ -777,7 +831,8 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
             # Push playlist B to Spotify under a tagged name so the
             # user can audit it manually if leakage flags something
             # unexpected. Cleanup deletes both at the end.
-            if tracks_b:
+            # S.6 #1: gated on verify_mode == "spotify" (see playlist A).
+            if tracks_b and scn.verify_mode == "spotify":
                 try:
                     pl_b_name = f"[EVAL] {model} {ts} — B"
                     profile = profile_mod.load_profile()
@@ -862,7 +917,17 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
         logger.exception("run_for_model crashed for %s iter %d", model, iteration)
 
     finally:
+        # Track A: always restore the production default. A leaked
+        # verifier on the playlist module would change the next
+        # run-for-model's behaviour silently.
+        try:
+            playlist_mod.clear_verifier()
+        except Exception:                                               # noqa: BLE001
+            pass
+
         # ── Cleanup — ALWAYS runs ────────────────────────────────
+        # _cleanup is a no-op for ``None`` playlist_id, so it is safe to
+        # call even when verify_mode != "spotify" (push was skipped).
         result.cleanup_status = _cleanup(
             playlist_id, profile_id, playlist_mod, profile_mod,
             playlist_b_id=playlist_b_id,
