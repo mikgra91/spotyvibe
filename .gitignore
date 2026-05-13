@@ -27,3 +27,7 @@ evaluation/results/
 evaluation/sandbox/
 evaluation/probes/results/
 evaluation/.run.lock
+
+# Graphify (local knowledge graph)
+.graphify_detect.json
+graphify-out/
