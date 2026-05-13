@@ -1403,6 +1403,53 @@ def select_tracks(
     """
     import time as _time
 
+    # ── A6 (2026-05-13) — pool-starvation refusal ──────────────────────
+    # Empirical evidence: B-11 probe fingerprints captured 2026-05-12
+    # (gpt-4.1, gpt-5.4, gpt-5.4-mini) all returned `bucket_c`
+    # (confabulated tracks) on the `single_artist_no_known` variant —
+    # i.e. when the approved pool is one artist with no `known:`
+    # examples, every model ignored the system prompt's "OMIT that
+    # artist unless you are sure of a real released track" rule.
+    # Refuse early — without burning an LLM call — when the pool is too
+    # thin to ground a pick:
+    #   • len == 0 → nothing to draw from at all.
+    #   • len == 1 AND no `known:` tracks anywhere in the overlay → the
+    #     model has nothing to ground on and provably confabulates.
+    # Returning an empty playlist surfaces the starvation upstream
+    # (app.py treats this as "no tracks this batch" and the
+    # consecutive_empty_batches counter handles retry / abort).
+    _a6_artists = list(approved_artist_names or [])
+    _a6_overlay = approved_top_tracks or {}
+    _a6_known_total = 0
+    for _name in _a6_artists:
+        _key = (_name or "").lower().strip()
+        _tracks = _a6_overlay.get(_key) or []
+        _a6_known_total += sum(1 for _t in _tracks if isinstance(_t, str) and _t.strip())
+    if not _a6_artists or (len(_a6_artists) == 1 and _a6_known_total == 0):
+        _a6_reason = "empty_pool" if not _a6_artists else "single_artist_no_known"
+        logger.warning(
+            "[Stage 3] A6 pool-starvation refusal (reason=%s, n_artists=%d, "
+            "n_known_tracks=%d) — returning empty playlist without LLM call.",
+            _a6_reason, len(_a6_artists), _a6_known_total,
+        )
+        _a6_meta = {
+            "latency_s": 0.0,
+            "usage": None,
+            "model": _resolve_stage3_model(profile),
+            "system_fingerprint": None,
+            "prompt_hashes": None,
+            "stage3_mode": get_stage3_mode(),
+            "refusal_reason": _a6_reason,
+        }
+        return (
+            {
+                "playlist": [],
+                "new_artists": [],
+                "profile_updates": {"suggested_artists": [], "suggested_tracks": []},
+            },
+            _a6_meta,
+        )
+
     # Stage 3 is gated to non-emerging runs in app.py; the over-request
     # buffer is the only one reachable here. emerging_only is still threaded
     # through so the function stays reusable if/when staged emerging support

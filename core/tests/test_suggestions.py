@@ -1327,14 +1327,14 @@ class TestSelectTracks:
 
     def test_returns_tuple_result_meta(self):
         profile = self._make_profile()
-        result, meta = self._call(["Good Band"], "Must: hooks.", 10, profile)
+        result, meta = self._call(["Good Band", "Other Band"], "Must: hooks.", 10, profile)
         assert isinstance(result, dict)
         assert "playlist" in result
         assert "latency_s" in meta
 
     def test_result_normalized(self):
         profile = self._make_profile()
-        result, _ = self._call(["Good Band"], "Must: hooks.", 10, profile)
+        result, _ = self._call(["Good Band", "Other Band"], "Must: hooks.", 10, profile)
         # normalize_response lowercases artist/track
         assert result["playlist"][0]["artist"] == "good band"
 
@@ -1347,14 +1347,16 @@ class TestSelectTracks:
 
         with patch("core.src.suggestions.chat_completions_create", side_effect=_fake_create):
             with patch("core.src.suggestions.extract_chat_content", return_value=""):
-                result, meta = select_tracks(["Artist"], "summary", 5, self._make_profile())
+                result, meta = select_tracks(
+                    ["Artist A", "Artist B"], "summary", 5, self._make_profile()
+                )
         assert result["playlist"] == []
         assert meta["latency_s"] >= 0
 
     def test_prompt_components_captured(self):
         from core.src.suggestions import get_last_prompt_components
         profile = self._make_profile()
-        self._call(["Good Band"], "Must: hooks.", 10, profile)
+        self._call(["Good Band", "Other Band"], "Must: hooks.", 10, profile)
         components = get_last_prompt_components()
         assert components is not None
         assert components["pool"] > 0   # approved artists block
@@ -1383,7 +1385,7 @@ class TestSelectTracks:
         with patch("core.src.suggestions.chat_completions_create", side_effect=_fake_create):
             with patch("core.src.suggestions.extract_chat_content",
                        side_effect=lambda r: r["choices"][0]["message"]["content"]):
-                select_tracks(["Good Band"], "Must: hooks.", 10, self._make_profile())
+                select_tracks(["Good Band", "Other Band"], "Must: hooks.", 10, self._make_profile())
 
         system_msg = captured["messages"][0]["content"]
         expected = 10 + STAGE3_OVER_REQUEST
@@ -1418,7 +1420,7 @@ class TestSelectTracks:
         with patch("core.src.suggestions.chat_completions_create", side_effect=_fake_create):
             with patch("core.src.suggestions.extract_chat_content",
                        side_effect=lambda r: r["choices"][0]["message"]["content"]):
-                select_tracks(["Good Band"], "Must: hooks.", 10, profile)
+                select_tracks(["Good Band", "Other Band"], "Must: hooks.", 10, profile)
 
         user_msg = captured["messages"][1]["content"]
         # The "Recent user feedback" header is build_feedback_summary's
@@ -1496,6 +1498,146 @@ class TestSelectTracks:
         user_msg = next(m["content"] for m in captured["messages"] if m["role"] == "user")
         assert 'known: "one", "two"' in user_msg
         assert "no track examples available" in user_msg
+
+
+class TestSelectTracksA6PoolStarvationRefusal:
+    """A6 (2026-05-13) — pool-starvation refusal gate.
+
+    Motivated by B-11 fingerprints: every model (gpt-4.1, gpt-5.4,
+    gpt-5.4-mini) confabulated tracks when the approved pool was a
+    single artist with no `known:` examples. The widened gate refuses
+    early — without burning an LLM call — for both `len == 0` and
+    `len == 1 AND no known: tracks`.
+    """
+
+    def _make_profile(self):
+        return {
+            "preferences": {"must_have": ["hooks"], "soft_preferences": [], "avoid": []},
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {"liked_tracks": [], "disliked_tracks": []},
+            "artists": {"confirmed": [], "rejected": []},
+            "meta": {},
+        }
+
+    def test_empty_pool_refuses_without_llm_call(self):
+        from core.src.suggestions import select_tracks
+        from unittest.mock import patch
+
+        called = {"n": 0}
+
+        def _fake_create(**_kw):
+            called["n"] += 1
+            return {"choices": [{"message": {"content": "{}"}}], "usage": None}
+
+        with patch("core.src.suggestions.chat_completions_create", side_effect=_fake_create):
+            result, meta = select_tracks([], "summary", 5, self._make_profile())
+
+        assert called["n"] == 0, "A6 must refuse before any LLM call when pool is empty"
+        assert result["playlist"] == []
+        assert result["new_artists"] == []
+        assert result["profile_updates"] == {"suggested_artists": [], "suggested_tracks": []}
+        assert meta["refusal_reason"] == "empty_pool"
+        assert meta["latency_s"] == 0.0
+        assert meta["usage"] is None
+
+    def test_single_artist_no_known_refuses_without_llm_call(self):
+        from core.src.suggestions import select_tracks
+        from unittest.mock import patch
+
+        called = {"n": 0}
+
+        def _fake_create(**_kw):
+            called["n"] += 1
+            return {"choices": [{"message": {"content": "{}"}}], "usage": None}
+
+        with patch("core.src.suggestions.chat_completions_create", side_effect=_fake_create):
+            # No overlay supplied → no known tracks → refusal.
+            result, meta = select_tracks(["Brian Eno"], "summary", 5, self._make_profile())
+
+        assert called["n"] == 0, "A6 must refuse before any LLM call (single, no known)"
+        assert result["playlist"] == []
+        assert meta["refusal_reason"] == "single_artist_no_known"
+
+    def test_single_artist_with_overlay_empty_list_refuses(self):
+        """Overlay supplied but artist's entry is empty list — still no known
+        grounding, so the gate must fire."""
+        from core.src.suggestions import select_tracks
+        from unittest.mock import patch
+
+        called = {"n": 0}
+
+        def _fake_create(**_kw):
+            called["n"] += 1
+            return {"choices": [{"message": {"content": "{}"}}], "usage": None}
+
+        with patch("core.src.suggestions.chat_completions_create", side_effect=_fake_create):
+            result, meta = select_tracks(
+                ["Brian Eno"], "summary", 5, self._make_profile(),
+                approved_top_tracks={"brian eno": []},
+            )
+
+        assert called["n"] == 0
+        assert meta["refusal_reason"] == "single_artist_no_known"
+        assert result["playlist"] == []
+
+    def test_single_artist_with_known_tracks_does_not_refuse(self):
+        """Single artist BUT with `known:` examples → grounded enough; the
+        gate must NOT fire and the LLM call must proceed."""
+        from core.src.suggestions import select_tracks
+        from unittest.mock import patch
+        import json as _json
+
+        called = {"n": 0}
+        good_payload = _json.dumps({
+            "playlist": [{"artist": "Brian Eno", "track": "An Ending (Ascent)"}],
+            "new_artists": [],
+            "profile_updates": {"suggested_artists": [], "suggested_tracks": []},
+        })
+
+        def _fake_create(**_kw):
+            called["n"] += 1
+            return {"choices": [{"message": {"content": good_payload}}],
+                    "usage": {"prompt_tokens": 50, "completion_tokens": 25, "total_tokens": 75}}
+
+        with patch("core.src.suggestions.chat_completions_create", side_effect=_fake_create):
+            with patch("core.src.suggestions.extract_chat_content",
+                       side_effect=lambda r: r["choices"][0]["message"]["content"]):
+                result, meta = select_tracks(
+                    ["Brian Eno"], "summary", 5, self._make_profile(),
+                    approved_top_tracks={"brian eno": ["An Ending (Ascent)"]},
+                )
+
+        assert called["n"] == 1, "single artist with known tracks must reach the LLM"
+        assert "refusal_reason" not in meta
+        assert result["playlist"], "expected non-empty playlist on grounded single-artist call"
+
+    def test_two_artists_no_overlay_does_not_refuse(self):
+        """Two artists with no overlay → still has cross-pool diversity to
+        ground reasoning on; the gate must NOT fire."""
+        from core.src.suggestions import select_tracks
+        from unittest.mock import patch
+        import json as _json
+
+        called = {"n": 0}
+        good_payload = _json.dumps({
+            "playlist": [{"artist": "Foo", "track": "Bar"}],
+            "new_artists": [],
+            "profile_updates": {"suggested_artists": [], "suggested_tracks": []},
+        })
+
+        def _fake_create(**_kw):
+            called["n"] += 1
+            return {"choices": [{"message": {"content": good_payload}}], "usage": None}
+
+        with patch("core.src.suggestions.chat_completions_create", side_effect=_fake_create):
+            with patch("core.src.suggestions.extract_chat_content",
+                       side_effect=lambda r: r["choices"][0]["message"]["content"]):
+                _, meta = select_tracks(
+                    ["Foo", "Baz"], "summary", 5, self._make_profile(),
+                )
+
+        assert called["n"] == 1
+        assert "refusal_reason" not in meta
 
 
 class TestFormatApprovedArtistsBlock:

@@ -751,34 +751,36 @@ def iter_search_tracks(tracks):
     if not unique_tracks:
         return
 
-    oauth = get_spotify_oauth()
-    token_info = oauth.validate_token(oauth.cache_handler.get_cached_token())
-    if not token_info:
-        logger.error("Spotify token unavailable — cannot search tracks")
-        for t in unique_tracks:
-            yield "not_found", f"{t['artist']} - {t['track']}"
-        return
-    access_token = token_info["access_token"]
-
-    pool_size = _resolve_search_pool_size(5, len(unique_tracks))
-    shared_session = _make_pooled_session(pool_size)
-    shared_sp = spotipy.Spotify(
-        auth=access_token,
-        requests_session=shared_session,
-    )
-
-    # Track A (2026-05-12) — verifier-swap hook. Production sets no
-    # verifier so ``_VERIFIER`` is None and we go through the existing
-    # Spotify path unchanged. The eval harness installs a verifier
-    # (Spotify, Null, …) via ``set_verifier`` in a try/finally so
-    # ``app.py``'s SSE caller always sees the production path.
+    # N3 (2026-05-13): Track-A verifier abstraction bug-fix. Previously
+    # the Spotify-token fetch + spotipy client construction ran
+    # unconditionally BEFORE the ``_VERIFIER`` check below, which made
+    # the entire null / overlay / l0_l1 verify path effectively dead
+    # whenever no Spotify token was available (e.g. CI machine, or the
+    # cache vanished — see OP2). Resolve which verifier is active FIRST;
+    # only fall through to the Spotify-token branch when no alternative
+    # verifier is installed.
     _v = _VERIFIER
-    if _v is None:
-        def search_one(t):
-            return _do_spotify_search(t, shared_sp)
-    else:
+    pool_size = _resolve_search_pool_size(5, len(unique_tracks))
+    shared_session = None
+    if _v is not None:
         def search_one(t):
             return _v.verify(t)
+    else:
+        oauth = get_spotify_oauth()
+        token_info = oauth.validate_token(oauth.cache_handler.get_cached_token())
+        if not token_info:
+            logger.error("Spotify token unavailable — cannot search tracks")
+            for t in unique_tracks:
+                yield "not_found", f"{t['artist']} - {t['track']}"
+            return
+        access_token = token_info["access_token"]
+        shared_session = _make_pooled_session(pool_size)
+        shared_sp = spotipy.Spotify(
+            auth=access_token,
+            requests_session=shared_session,
+        )
+        def search_one(t):
+            return _do_spotify_search(t, shared_sp)
 
     try:
         with ThreadPoolExecutor(max_workers=pool_size) as executor:
@@ -807,7 +809,8 @@ def iter_search_tracks(tracks):
                     app_log(f"Spotify search miss (possible LLM hallucination): {result_data}")
                     yield "not_found", result_data
     finally:
-        shared_session.close()
+        if shared_session is not None:
+            shared_session.close()
 
 
 def search_tracks(tracks, on_progress=None):

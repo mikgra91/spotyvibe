@@ -369,6 +369,14 @@ def main() -> int:
                              "abort. Use to ship a deliberately-regressing "
                              "prompt change with full visibility of what "
                              "regressed.")
+    parser.add_argument("--iterations", type=int, default=None,
+                        help="Override [evaluation] iterations from "
+                             "settings.ini for this invocation. Useful when "
+                             "the model's B-6 n_required_for_5pp_signal "
+                             "fingerprint indicates the static default is "
+                             "noise (gpt-4.1=5, gpt-5.4=19, gpt-5.4-mini=85 "
+                             "as of 2026-05-12 v1 fingerprints). Cost scales "
+                             "linearly with this value.")
     args = parser.parse_args()
 
     # ── Run-lock escape hatch ─────────────────────────────────────
@@ -400,6 +408,20 @@ def main() -> int:
     settings = load_settings()
     models = settings["evaluation"]["models"]
     iterations = settings["evaluation"]["iterations"]
+    # N2 (2026-05-13): allow CLI override of the iterations count. B-6
+    # fingerprint shows the static default of 5 is well below the
+    # n_required_for_5pp_signal floor for gpt-5.4 (19) and gpt-5.4-mini
+    # (85); override here when an investigation needs a tighter
+    # variance signal on one of those rows.
+    if args.iterations is not None:
+        if args.iterations < 1:
+            print(f"\n  [ERROR] --iterations must be >= 1 (got {args.iterations}).\n",
+                  file=sys.stderr)
+            return 2
+        if args.iterations != iterations:
+            print(f"\n  [INFO] --iterations override: settings.ini={iterations} "
+                  f"-> runtime={args.iterations}")
+        iterations = args.iterations
     scenario_name = settings["evaluation"].get("scenario", "default")
     scenarios_raw = settings["evaluation"].get("scenarios", "") or ""
 
@@ -529,35 +551,58 @@ def main() -> int:
 
     from evaluation.harness import prepare_sandbox, run_for_model
 
+    # N3 (2026-05-13): Spotify cache / 429 pre-flight is required only
+    # when at least one active scenario actually verifies via Spotify
+    # (push step + Spotify-search verifier). All-null / overlay / l0_l1
+    # runs are decoupled from Spotify and must succeed on a machine
+    # that has never authorized — that is the entire point of the
+    # Track-A verifier abstraction.
+    _needs_spotify = any(s.verify_mode == "spotify" for s in active_scenarios)
+
     try:
-        prepare_sandbox(sandbox_dir, settings)
+        prepare_sandbox(sandbox_dir, settings,
+                        require_spotify_cache=_needs_spotify)
     except Exception as exc:
         logger.error("Sandbox setup failed: %s", exc)
-        print(f"\n  ❌ Sandbox setup failed: {exc}\n", file=sys.stderr)
+        print(f"\n  [ERROR] Sandbox setup failed: {exc}\n", file=sys.stderr)
         return 3
 
     # ── Spotify 429 pre-flight ────────────────────────────────────────
     # Fire one test search BEFORE burning any OpenAI quota.  A 429 here
     # means Spotify has imposed a penalty window that our per-call back-off
     # cap (90 s) cannot drain — aborting now saves money and avoids a run
-    # full of partial failures.
+    # full of partial failures. Skipped when no active scenario uses the
+    # Spotify verifier (Track A): no Spotify calls = no 429 risk worth
+    # paying a pre-flight call for.
     import config as _cfg_tmp  # noqa: F401
     _cfg_tmp.load_config()
-    blocked_for_s = check_spotify_not_rate_limited()
-    if blocked_for_s is not None:
-        h, rem = divmod(blocked_for_s, 3600)
-        m = rem // 60
-        msg = (
-            f"\n  ❌ Spotify search API returned 429 — account is rate-limited.\n"
-            f"     Retry-After: {blocked_for_s:,} s  (~{h}h {m:02d}m)\n"
-            f"     Re-run after the block expires.  No OpenAI quota was burned.\n"
+    if _needs_spotify:
+        blocked_for_s = check_spotify_not_rate_limited()
+        if blocked_for_s is not None:
+            h, rem = divmod(blocked_for_s, 3600)
+            m = rem // 60
+            msg = (
+                f"\n  [ERROR] Spotify search API returned 429 - account is rate-limited.\n"
+                f"     Retry-After: {blocked_for_s:,} s  (~{h}h {m:02d}m)\n"
+                f"     Re-run after the block expires.  No OpenAI quota was burned.\n"
+            )
+            logger.error(
+                "Spotify 429 pre-flight: blocked for %d s (~%dh %02dm). Aborting.",
+                blocked_for_s, h, m,
+            )
+            print(msg, file=sys.stderr)
+            return 7
+    else:
+        logger.info(
+            "Spotify 429 pre-flight skipped: no active scenario uses verify_mode='spotify'."
         )
-        logger.error(
-            "Spotify 429 pre-flight: blocked for %d s (~%dh %02dm). Aborting.",
-            blocked_for_s, h, m,
-        )
-        print(msg, file=sys.stderr)
-        return 7
+        # N3 (2026-05-13): tell app.py's /api/run pipeline to skip its
+        # production-side "Spotify is not connected" pre-check too.
+        # Without this, run_pipeline aborts with status=error even
+        # though the rest of the harness (sandbox setup, 429 pre-flight,
+        # push step) is already Spotify-decoupled. Set BEFORE importing
+        # ``app`` so the env var is visible to its request-handler scope.
+        os.environ["SPOTYVIBE_SKIP_SPOTIFY_CONNECT"] = "1"
 
     # Now safe to import production code — _APP_DIR resolves to sandbox.
     import config  # noqa: F401  — load + apply env overrides
@@ -600,7 +645,13 @@ def main() -> int:
     #
     # The inter-scenario cooldown is subsumed by the per-run cooldown
     # (every scenario boundary is also a run boundary).
-    INTER_RUN_COOLDOWN_S = 600  # 10 minutes
+    # N3 (2026-05-13): the 10-minute cooldown exists solely to drain
+    # Spotify's rolling-window quota between bursts of search calls.
+    # When NO active scenario uses verify_mode='spotify' (null /
+    # overlay / l0_l1) there is zero Spotify search traffic, so the
+    # cooldown is pure dead weight — a 10-iter run would idle for
+    # ~90 minutes with no benefit. Skip it in that case.
+    INTER_RUN_COOLDOWN_S = 600 if _needs_spotify else 0  # 10 minutes
     is_first_run = True
     try:
         for scn_idx, active_scenario in enumerate(active_scenarios):
@@ -610,7 +661,7 @@ def main() -> int:
             )
             for model in models:
                 for iteration in range(1, iterations + 1):
-                    if not is_first_run:
+                    if not is_first_run and INTER_RUN_COOLDOWN_S > 0:
                         logger.info(
                             "Cooling down %ds (%.1f min) before next run to let "
                             "Spotify rate-limit window fully drain…",

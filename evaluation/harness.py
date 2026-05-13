@@ -144,7 +144,8 @@ def _user_real_app_dir() -> Path:
     return Path(base) / "spotyvibe"
 
 
-def prepare_sandbox(sandbox_dir: Path, settings: dict) -> None:
+def prepare_sandbox(sandbox_dir: Path, settings: dict,
+                    *, require_spotify_cache: bool = True) -> None:
     """Populate the sandbox app dir before any production import runs.
 
     Copies (or hardlinks where possible) just enough state from the
@@ -152,22 +153,36 @@ def prepare_sandbox(sandbox_dir: Path, settings: dict) -> None:
     RAG retrieval has its corpus. Writes fresh ``.credentials`` and
     ``settings.conf`` from the harness settings.
 
-    Raises ``RuntimeError`` if Spotify cache is missing — in that case
-    the user has to authorize via the dev server once first.
+    Raises ``RuntimeError`` if Spotify cache is missing AND
+    ``require_spotify_cache`` is True — in that case the user has to
+    authorize via the dev server once first. Pass
+    ``require_spotify_cache=False`` from non-Spotify verify modes
+    (``null`` / ``overlay``) so a cheap probe-style eval can run on a
+    machine that has never authorized Spotify (e.g. CI). Missing cache
+    in that mode is logged as a warning, never raised.
     """
     sandbox_dir.mkdir(parents=True, exist_ok=True)
     real = _user_real_app_dir()
 
-    # 1) Spotify token cache — required, never re-create
+    # 1) Spotify token cache — copied when present; whether absence is
+    # fatal depends on the caller's verify-mode (see require_spotify_cache).
     src_cache = real / ".spotify-cache"
-    if not src_cache.exists():
+    if src_cache.exists():
+        shutil.copy2(src_cache, sandbox_dir / ".spotify-cache")
+        logger.info("Copied Spotify cache from %s", src_cache)
+    elif require_spotify_cache:
         raise RuntimeError(
             f"Spotify cache not found at {src_cache}. Run the app once "
             "(`python app.py`) and authorize Spotify in the browser, then re-run "
             "the evaluation."
         )
-    shutil.copy2(src_cache, sandbox_dir / ".spotify-cache")
-    logger.info("Copied Spotify cache from %s", src_cache)
+    else:
+        logger.warning(
+            "Spotify cache not found at %s — proceeding without it because "
+            "the active verify_mode does not require Spotify. The push step "
+            "and any Spotify-touching production code will be skipped or "
+            "fail gracefully.", src_cache,
+        )
 
     # 2) RAG corpus — hardlink the file so 100 MB isn't duplicated.
     # Falls back to copy on cross-volume / permission errors.

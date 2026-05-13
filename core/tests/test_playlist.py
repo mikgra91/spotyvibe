@@ -892,3 +892,75 @@ class TestSerialSearchModeResolvers:
         pl._post_search_throttle()
         assert called == [0.5]
 
+
+# ── N3 (2026-05-13): iter_search_tracks verifier-precedence bug-fix ──
+
+class TestIterSearchTracksVerifierPrecedence:
+    """Regression test for the bug discovered 2026-05-13.
+
+    Before the fix, ``iter_search_tracks`` validated the Spotify token
+    BEFORE checking ``_VERIFIER``. When the harness installed a
+    ``NullVerifier`` (via ``--verify-mode null``) AND the spotify cache
+    was missing (OP2), every track came back as ``"not_found"`` — the
+    null path was effectively dead. The fix: resolve the verifier
+    first; only validate the Spotify token when no alternative
+    verifier is installed.
+    """
+
+    def setup_method(self):
+        # Make sure no stale verifier from a previous test bleeds in.
+        from core.src import playlist as pl
+        pl.clear_verifier()
+
+    def teardown_method(self):
+        from core.src import playlist as pl
+        pl.clear_verifier()
+
+    def test_null_verifier_yields_found_without_spotify_token(self, monkeypatch):
+        """With a NullVerifier installed, no Spotify token lookup must
+        happen and every track must come back as ``found`` (NullVerifier
+        treats every track as existing)."""
+        from core.src import playlist as pl
+        from core.src.verify import NullVerifier
+
+        # Sentinel: if the production token-fetch path is touched, blow up.
+        def _explode(*a, **kw):
+            raise AssertionError(
+                "iter_search_tracks must not call get_spotify_oauth() "
+                "when a verifier is installed"
+            )
+
+        monkeypatch.setattr(pl, "get_spotify_oauth", _explode)
+
+        pl.set_verifier(NullVerifier())
+        tracks = [
+            {"artist": "X", "track": "Y"},
+            {"artist": "A", "track": "B"},
+        ]
+        results = list(pl.iter_search_tracks(tracks))
+        assert len(results) == 2
+        for kind, _payload in results:
+            assert kind == "found", \
+                f"NullVerifier should yield 'found', got {kind}"
+
+    def test_no_verifier_still_requires_spotify_token(self, monkeypatch):
+        """Backwards-compat: production (no verifier installed) must
+        keep the existing token-required behaviour — missing token
+        yields 'not_found' for every track."""
+        from core.src import playlist as pl
+
+        # No verifier installed; mock the oauth path to return no token.
+        class _FakeCache:
+            def get_cached_token(self):
+                return None
+
+        class _FakeOAuth:
+            cache_handler = _FakeCache()
+            def validate_token(self, _t):
+                return None
+
+        monkeypatch.setattr(pl, "get_spotify_oauth", lambda: _FakeOAuth())
+
+        results = list(pl.iter_search_tracks([{"artist": "X", "track": "Y"}]))
+        assert results == [("not_found", "X - Y")]
+

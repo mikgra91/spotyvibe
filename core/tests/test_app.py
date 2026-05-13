@@ -577,6 +577,52 @@ class TestRunPipeline:
         data = resp.data.decode()
         assert "spotify is not connected" in data.lower()
 
+    @patch("app.get_spotify_auth_status", return_value="not_authenticated")
+    @patch("app.is_profile_trained", return_value=True)
+    def test_skip_spotify_check_env_var_bypasses_connect_gate(
+        self, mock_trained, mock_spotify, client, monkeypatch
+    ):
+        """N3 (2026-05-13): when ``SPOTYVIBE_SKIP_SPOTIFY_CONNECT=1`` is
+        set, ``/api/run`` must NOT short-circuit on a missing Spotify
+        connection. The eval harness uses this seam together with
+        ``--verify-mode null`` so a probe-style run can exercise the
+        full Stage 1+2+3 pipeline on a machine that has never
+        authorized Spotify (no OAuth cache, no live token).
+        """
+        import os as _os
+        monkeypatch.setenv("SPOTYVIBE_SKIP_SPOTIFY_CONNECT", "1")
+        # The full pipeline will still error later (no profile data
+        # loaded, etc.) — what we're asserting here is that the early
+        # Spotify-connect gate is BYPASSED, i.e. the response body does
+        # NOT contain the "spotify is not connected" error sentinel.
+        resp = client.post(
+            "/api/run",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        body = resp.data.decode().lower()
+        assert "spotify is not connected" not in body, (
+            "SPOTYVIBE_SKIP_SPOTIFY_CONNECT=1 must bypass the connect-gate"
+        )
+
+    def test_skip_spotify_check_only_active_when_env_truthy(self, monkeypatch):
+        """Defensive: the seam is opt-in only. Empty / unset / '0' /
+        'no' / 'false' must keep the production behaviour."""
+        import os
+        for falsy in ("", "0", "no", "false", "  ", "off"):
+            monkeypatch.setenv("SPOTYVIBE_SKIP_SPOTIFY_CONNECT", falsy)
+            val = os.environ.get("SPOTYVIBE_SKIP_SPOTIFY_CONNECT", "").strip().lower()
+            assert val not in ("1", "true", "yes"), (
+                f"falsy value {falsy!r} must not enable the bypass"
+            )
+        # Truthy values:
+        for truthy in ("1", "true", "yes", "YES", "True"):
+            monkeypatch.setenv("SPOTYVIBE_SKIP_SPOTIFY_CONNECT", truthy)
+            val = os.environ.get("SPOTYVIBE_SKIP_SPOTIFY_CONNECT", "").strip().lower()
+            assert val in ("1", "true", "yes"), (
+                f"truthy value {truthy!r} must enable the bypass"
+            )
+
     @patch("app.save_run")
     @patch("app.add_to_playlist")
     @patch("app.iter_search_tracks")
@@ -793,7 +839,6 @@ class TestRunHistoryEndpoints:
         resp = client.get("/api/runs")
         assert resp.status_code == 200
         assert resp.get_json()["runs"] == []
-
 
 
 class TestOnboardingEndpoints:
@@ -1504,3 +1549,81 @@ class TestSseErrorClassification:
         payload = self._parse(_sse_error("plain string error"))
         assert payload == {"type": "error", "message": "plain string error"}
 
+
+class TestNullUriDedupeRegression:
+    """N3d (2026-05-13) — Track-A verifier-swap regression test.
+
+    ``NullVerifier`` returns ``uri=None`` for every track. Before the
+    fix, ``app.py`` deduped by URI so every subsequent track was
+    silently dropped (cache-less evals reported playlist=1). The fix
+    falls back to (artist, track) when uri is falsy. This test pins
+    the behaviour: 10 distinct (artist, track) tuples with
+    ``uri=None`` must all be retained.
+    """
+
+    @patch("app.save_run")
+    @patch("app.add_to_playlist")
+    @patch("app.iter_search_tracks")
+    @patch("app.filter_duplicate_suggestions")
+    @patch("app.call_gpt")
+    @patch("app.save_profile")
+    @patch("app.update_profile")
+    @patch("app.normalize_history")
+    @patch("app.load_profile")
+    @patch("app.get_new_artist_percentage", return_value=30)
+    @patch("app.get_playlist_size", return_value=10)
+    @patch("app.get_debug_mode", return_value=False)
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    @patch("app.is_profile_trained", return_value=True)
+    def test_null_uri_does_not_dedupe_to_one_track(
+        self, _mock_trained, _mock_spotify, _mock_debug, _mock_size,
+        _mock_percentage, mock_load, mock_norm, mock_update,
+        _mock_save, mock_gpt, mock_filter, mock_search, mock_add,
+        _mock_save_run, client,
+    ):
+        mock_load.return_value = {
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {},
+            "preferences": {},
+        }
+        mock_norm.return_value = mock_load.return_value
+        picks = [
+            {"artist": f"artist-{i}", "track": f"track-{i}", "reason": "r"}
+            for i in range(10)
+        ]
+        mock_gpt.return_value = (
+            {
+                "playlist": list(picks),
+                "new_artists": [p["artist"] for p in picks],
+                "profile_updates": {"suggested_artists": [], "suggested_tracks": []},
+            },
+            {"usage": None, "latency_s": 0.0},
+        )
+        mock_filter.return_value = {
+            "playlist": list(picks),
+            "new_artists": [p["artist"] for p in picks],
+            "profile_updates": {"suggested_artists": [], "suggested_tracks": []},
+        }
+        mock_update.return_value = mock_load.return_value
+        # NullVerifier-shaped output: every track has uri=None.
+        mock_search.side_effect = lambda *_a, **_kw: iter(
+            [("found",
+              {"artist": p["artist"], "track": p["track"], "uri": None,
+               "cover_url": None})
+             for p in picks]
+        )
+        mock_add.return_value = {"url": "https://open.spotify.com/playlist/test", "added": 10}
+
+        resp = client.post(
+            "/api/run",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        data = resp.data.decode()
+        # Each of the 10 distinct artists must appear in the SSE
+        # stream. Pre-fix only artist-0 made it through.
+        for i in range(10):
+            assert f"artist-{i}" in data, (
+                f"artist-{i} missing — null-uri dedup regression "
+                "(only one track survives instead of all 10)"
+            )

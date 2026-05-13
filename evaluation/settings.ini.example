@@ -36,9 +36,13 @@ redirect_uri = http://127.0.0.1:5000/callback
 # 5.x-family regression surfaces that needs cross-family confirmation.
 models = gpt-5.4,gpt-5.4-mini
 
-# Number of full cycles per model. Start with 1; bump to 3+ if you want
-# averaging to smooth out single-run variance.
-iterations = 1
+# Number of full cycles per model. The static default is 5 (N2,
+# 2026-05-13): below this and gpt-4.1's natural run-to-run variance
+# masks any prompt change you might make. For tighter signal on
+# gpt-5.4 use 19; gpt-5.4-mini's full variance floor is 85 (per the
+# B-6 self-consistency probe — gpt-4.1=5, gpt-5.4=19, mini=85). Use
+# --iterations <n> on run_evaluation.py to override per-run.
+iterations = 5
 
 # Tracks per generated playlist.
 playlist_size = 30

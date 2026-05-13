@@ -100,9 +100,20 @@ def test_regression_scenario_mirrors_production_failure():
 
 def test_verify_mode_defaults_to_spotify():
     """Every existing scenario must still default to the production
-    Spotify verifier — Phase 2 is an opt-in change, never a silent flip."""
+    Spotify verifier — Phase 2 is an opt-in change, never a silent flip.
+
+    Exemption: ``starved_pool_a6`` (N1, 2026-05-13) intentionally
+    defaults to ``null`` because the scenario's purpose is to exercise
+    the A6 pre-LLM refusal gate in ``select_tracks`` — no Stage-3
+    output is expected to make it to Spotify verification, and a
+    ``"spotify"`` default would mask the value of running this
+    reproducer on a machine without Spotify OAuth configured.
+    """
     from evaluation.scenario import SCENARIOS
+    _exempt = {"starved_pool_a6"}
     for name, scn in SCENARIOS.items():
+        if name in _exempt:
+            continue
         assert scn.verify_mode == "spotify", (
             f"scenario '{name}' has unexpected verify_mode={scn.verify_mode!r}"
         )

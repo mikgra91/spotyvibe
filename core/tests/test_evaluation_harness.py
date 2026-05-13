@@ -534,4 +534,85 @@ class TestExtractCorpusMetrics:
         assert result["matched_in_corpus"] == 0
 
 
+# ── P1 #6: prepare_sandbox(require_spotify_cache=...) ────────────────
 
+class TestPrepareSandboxRequireSpotifyCache:
+    """N3 (2026-05-13) — ``prepare_sandbox(require_spotify_cache=...)``.
+
+    The Track-A verifier abstraction means non-spotify verify modes
+    (null / overlay / l0_l1) don't need a working Spotify token. The
+    sandbox-setup step honors this so a machine that has never run the
+    Spotify OAuth flow can still execute probe-style evals.
+    """
+
+    def _settings(self):
+        return {
+            "openai": {"api_key": "sk-test"},
+            "spotify": {
+                "client_id": "x", "client_secret": "y",
+                "redirect_uri": "http://127.0.0.1:5000/callback",
+            },
+            "evaluation": {
+                "models": ["gpt-5.4-mini"], "iterations": 1,
+                "playlist_size": 5, "scenario": "default",
+            },
+        }
+
+    def test_require_true_raises_when_cache_missing(self, tmp_path, monkeypatch):
+        from evaluation import harness
+        fake_real = tmp_path / "fake-app-dir"
+        fake_real.mkdir()
+        monkeypatch.setattr(harness, "_user_real_app_dir", lambda: fake_real)
+
+        import pytest
+        with pytest.raises(RuntimeError, match="Spotify cache not found"):
+            harness.prepare_sandbox(
+                tmp_path / "sandbox", self._settings(),
+                require_spotify_cache=True,
+            )
+
+    def test_require_false_proceeds_when_cache_missing(self, tmp_path, monkeypatch, caplog):
+        """Missing cache + require=False must log a warning and proceed."""
+        from evaluation import harness
+        fake_real = tmp_path / "fake-app-dir"
+        fake_real.mkdir()
+        monkeypatch.setattr(harness, "_user_real_app_dir", lambda: fake_real)
+
+        sandbox = tmp_path / "sandbox"
+        with caplog.at_level("WARNING"):
+            harness.prepare_sandbox(
+                sandbox, self._settings(),
+                require_spotify_cache=False,
+            )
+        assert sandbox.exists()
+        assert not (sandbox / ".spotify-cache").exists()
+        assert any("Spotify cache not found" in rec.message for rec in caplog.records)
+
+    def test_existing_cache_is_still_copied_when_require_false(self, tmp_path, monkeypatch):
+        """When the cache DOES exist, require=False should still copy it —
+        the flag is about gracefully tolerating absence, not skipping a
+        present cache."""
+        from evaluation import harness
+        fake_real = tmp_path / "fake-app-dir"
+        fake_real.mkdir()
+        (fake_real / ".spotify-cache").write_text('{"access_token":"x"}', encoding="utf-8")
+        monkeypatch.setattr(harness, "_user_real_app_dir", lambda: fake_real)
+
+        sandbox = tmp_path / "sandbox"
+        harness.prepare_sandbox(
+            sandbox, self._settings(),
+            require_spotify_cache=False,
+        )
+        assert (sandbox / ".spotify-cache").read_text(encoding="utf-8") == '{"access_token":"x"}'
+
+    def test_default_keeps_require_true(self, tmp_path, monkeypatch):
+        """Backwards compatibility: callers that don't pass the kwarg
+        must continue to get the hard requirement (no silent behaviour flip)."""
+        from evaluation import harness
+        fake_real = tmp_path / "fake-app-dir"
+        fake_real.mkdir()
+        monkeypatch.setattr(harness, "_user_real_app_dir", lambda: fake_real)
+
+        import pytest
+        with pytest.raises(RuntimeError, match="Spotify cache not found"):
+            harness.prepare_sandbox(tmp_path / "sandbox", self._settings())

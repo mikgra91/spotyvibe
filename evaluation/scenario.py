@@ -636,6 +636,93 @@ POST_FEEDBACK_TAG_REGRESSION_SCENARIO = Scenario(
 )
 
 
+# N1 (2026-05-13) — A6 pool-starvation in-pipeline reproducer.
+#
+# Synthetic profile designed to drive Stage 1 + Stage 2 to a near-empty
+# approved pool, so the A6 pool-starvation refusal gate in
+# ``core/src/suggestions.py::select_tracks`` has the opportunity to
+# fire in a real harness run (the unit tests cover the gate in
+# isolation; this scenario exercises it via the production code path).
+#
+# Construction strategy:
+#   - ``must_have`` names a deliberately narrow micro-genre slice
+#     (Hungarian-language extreme metal). Stage 1 retrieves a very
+#     small candidate set because the corpus has few matching artists.
+#   - ``avoid`` contains BROAD prose ("English-language vocals",
+#     "Western artists", "non-Hungarian acts") that Stage 2 evaluates
+#     against each Stage-1 candidate one by one. The expected outcome
+#     is that Stage 2 rejects all but 0-1 artists.
+#
+# Expected harness outcomes (one or more):
+#   1. Stage 3 logs ``[Stage 3] A6 pool-starvation refusal (reason=...)``
+#      AT LEAST ONCE during the playlist-A loop.
+#   2. ``playlist_a_tracks`` is small (likely 0-3) and
+#      ``completion_a_status`` is ``"under"`` or ``"empty"``.
+#
+# Caveats:
+#   - Depends on what the live corpus contains; if more Hungarian
+#     extreme-metal artists land after enrichment, Stage 1 may now
+#     retrieve enough to defeat the construction.
+#   - For a deterministic in-pipeline test (no corpus dependency)
+#     prefer ``test_suggestions.py::TestSelectTracksA6PoolStarvationRefusal``.
+
+STARVED_POOL_SCENARIO = Scenario(
+    name="starved_pool_a6",
+    description=(
+        "N1 / A6 in-pipeline reproducer. Narrow must_have + broad avoid "
+        "prose drives Stage 1 + Stage 2 to an empty / single-artist "
+        "approved pool, where the A6 pool-starvation refusal gate is "
+        "expected to fire in core/src/suggestions.py::select_tracks."
+    ),
+    seed_sections={
+        "core_description": (
+            "Hungarian-language extreme metal only. Independent "
+            "Hungarian acts singing in Hungarian. No translations, no "
+            "English vocals."
+        ),
+        "must_have": (
+            "Hungarian-language vocals; Hungarian act; "
+            "extreme metal subgenres (black, death, doom); "
+            "small-label or self-released"
+        ),
+        "soft_preferences": (
+            "Folk-metal influences; traditional Hungarian instruments; "
+            "atmospheric production"
+        ),
+        "avoid": (
+            "English-language vocals; Western artists; American artists; "
+            "British artists; non-Hungarian acts; major-label flagship "
+            "releases; pop production; mainstream metal"
+        ),
+    },
+    refine_sections={
+        "core_description": "",
+        "must_have": "",
+        "soft_preferences": "",
+        "avoid": (
+            "and reinforce: no English vocals; no Western or American "
+            "artists; only Hungarian-language Hungarian acts"
+        ),
+        "vibe_description": (
+            "Tighten the Hungarian-only language constraint. Any artist "
+            "singing in English or based outside Hungary must be "
+            "rejected regardless of stylistic fit."
+        ),
+    },
+    analysis_artist="Tormentor",
+    analysis_track="Anno Domini",
+    like_indices=(0,),
+    dislike_indices=(1,),
+    like_reason="Hungarian-language extreme metal -- fits perfectly",
+    dislike_reason="English vocals or non-Hungarian act -- rejected",
+    # No Spotify push needed; the scenario's purpose is to exercise the
+    # A6 pre-LLM gate, not to verify track existence. Defaults to null
+    # so the harness skips the push step and the Spotify pre-flight,
+    # making the run usable on a machine without Spotify OAuth set up.
+    verify_mode="null",
+)
+
+
 # ── Registry + dispatcher ────────────────────────────────────────────
 
 SCENARIOS: dict[str, Scenario] = {
@@ -650,6 +737,7 @@ SCENARIOS: dict[str, Scenario] = {
     LASTFM_TAG_WEIGHTING_SCENARIO.name: LASTFM_TAG_WEIGHTING_SCENARIO,
     NICHE_ONLY_STRICT_SCENARIO.name: NICHE_ONLY_STRICT_SCENARIO,
     POST_FEEDBACK_TAG_REGRESSION_SCENARIO.name: POST_FEEDBACK_TAG_REGRESSION_SCENARIO,
+    STARVED_POOL_SCENARIO.name: STARVED_POOL_SCENARIO,
 }
 
 
@@ -711,6 +799,7 @@ __all__ = [
     "LASTFM_TAG_WEIGHTING_SCENARIO",
     "NICHE_ONLY_STRICT_SCENARIO",
     "POST_FEEDBACK_TAG_REGRESSION_SCENARIO",
+    "STARVED_POOL_SCENARIO",
     "SCENARIOS",
     "get_scenario",
     "SEED_SECTIONS",

@@ -36,6 +36,11 @@
 | 2026-05-13 | **N2 — `iterations` 3 → 5 default + `--iterations` CLI override** | — | — | — | — | — | — | (no eval cost) | ✅ — config-only |
 | 2026-05-13 | Probe smoke (post-N1+N2) — gpt-5.4-mini full battery | n/a | n/a | n/a | n/a | n/a | n/a | $0.004 | ✅ — 0 true regressions; 2 noise-flags (B-1 soft −0.125 single-run, B-6 n_required 85 → 97 ±tolerance); **2 IMPROVED** (B-1 `quota_preserved_under_hard` 0.0 → 1.0 ✨, B-1 `secondary_quota_met` 0.0 → 1.0) |
 | 2026-05-13 | Probe smoke (post-N1+N2) — gpt-5.4 full battery | — | — | — | — | — | — | $0.061 | ✅ — **0 regressions**, n_required improved 19 → 13 |
+| 2026-05-13 | **N3a — `prepare_sandbox(require_spotify_cache=False)`** + harness wires it on non-spotify verify modes | n/a | n/a | n/a | n/a | n/a | n/a | (no eval cost) | ✅ — 4 new tests; unblocks probe-style evals on machines without Spotify OAuth |
+| 2026-05-13 | **N3b — `app.py /api/run` env-var seam** (`SPOTYVIBE_SKIP_SPOTIFY_CONNECT=1`) | n/a | n/a | n/a | n/a | n/a | n/a | (no eval cost) | ✅ — 2 new tests; harness sets it automatically when `--verify-mode != spotify` |
+| 2026-05-13 | **N3c — `iter_search_tracks` verifier-precedence bug-fix** in `core/src/playlist.py` | n/a | n/a | n/a | n/a | n/a | n/a | (no eval cost) | ✅ — 2 regression tests. The Track-A verifier swap was dead code: token-fetch ran BEFORE the `_VERIFIER` check, so a missing Spotify cache + `--verify-mode null` returned `not_found` for every track instead of routing through `NullVerifier` |
+| 2026-05-13 | **starved_pool_a6 synthetic scenario** (`evaluation/scenario.py`) | n/a | n/a | n/a | n/a | n/a | n/a | (no eval cost) | ✅ — registered in `SCENARIOS`; `verify_mode="null"` default; 1 contract-test exemption added |
+| 2026-05-13 | **starved_pool_a6 run** — mini, n=1, `--verify-mode null` (FIRST cache-less eval on this machine) | 1 (under) | empty | 100 % | — | — | — | $0.058 | ✅ — Pipeline ran. A6 did **NOT** fire (pool was 29-31 artists, never ≤ 1). Surfaced **HC2 confab pattern**: model repeatedly picked "dalriada", "sear bliss", "aetherius obscuritas" (real Hungarian-language metal acts) **outside** the approved pool — 4 HC2 violations dropped 13 picks total. Scenario design exercises out-of-pool confabulation, not pool-starvation. |
 
 \* Asterisked rows come from a run with a known Tier-0 invalidation.
 
@@ -180,15 +185,135 @@ battery on gpt-5.4-mini + gpt-5.4 verified 2026-05-13).
 
 ---
 
+### N3a — `prepare_sandbox` conditional `.spotify-cache` requirement — 2026-05-13
+**What shipped.**
+- `evaluation/harness.py::prepare_sandbox()` gained
+  `require_spotify_cache: bool = True` kwarg. When True (default,
+  back-compat), missing cache still raises `RuntimeError`. When
+  False, missing cache is logged as a WARNING and sandbox setup
+  proceeds.
+- `evaluation/run_evaluation.py` computes
+  `_needs_spotify = any(s.verify_mode == "spotify" for s in
+  active_scenarios)` and passes that to `prepare_sandbox`. Also
+  guards the 429 pre-flight on the same flag — no Spotify calls = no
+  429 risk worth paying a pre-flight for.
+- 4 new tests in
+  `TestPrepareSandboxRequireSpotifyCache` (cache-missing+require-True
+  raises, cache-missing+require-False logs+proceeds, cache-present
+  copies regardless, default keeps require-True).
+
+**Why.** The OP2 issue ("Spotify cache disappears between sessions")
+recurred during this session — the cache was present at session
+start, gone by the time the first eval kicked off (3rd confirmed
+occurrence). Without this fix, every null/overlay eval is gated on a
+live Spotify OAuth even though the actual verification path doesn't
+need it.
+
+---
+
+### N3b — `app.py /api/run` Spotify-connect env-var seam — 2026-05-13
+**What shipped.**
+- `app.py::run_pipeline()` now checks
+  `SPOTYVIBE_SKIP_SPOTIFY_CONNECT` (truthy values: `1`, `true`,
+  `yes`) BEFORE the `spotify_status != "authenticated"` short-circuit.
+  When set, the pipeline proceeds even without a live Spotify
+  connection — Stage 1+2+3 + analysis still run; only the push step
+  would fail (and that's already gated on `verify_mode == spotify`).
+- `evaluation/run_evaluation.py` sets the env var automatically when
+  no active scenario uses `verify_mode="spotify"`. Same scope as the
+  prior `SPOTYVIBE_APP_DIR` / `RAG_ENABLED` / `DEBUG_MODE` env
+  injections, set BEFORE `import app`.
+- 2 new tests in `test_app.py::TestRunEndpoint`: the bypass DOES skip
+  the connect-gate when the env var is truthy; falsy / unset values
+  preserve production behaviour.
+
+**Why.** Found while running the first cache-less null-verify eval:
+sandbox setup succeeded (thanks to N3a) but the pipeline aborted
+with "Spotify is not connected" before any LLM call. The env-var
+seam matches the existing eval-harness pattern of passing through
+side-channels rather than monkey-patching production code.
+
+---
+
+### N3c — `iter_search_tracks` verifier-precedence bug-fix — 2026-05-13
+**What shipped (1 production code change, 2 regression tests).**
+`core/src/playlist.py::iter_search_tracks()`: reorder so the
+`_VERIFIER` check happens FIRST. Only fall through to the
+`get_spotify_oauth() + validate_token()` branch when no alternative
+verifier is installed. `shared_session` is constructed lazily and
+the `finally` close-call is now guarded with `is not None`.
+
+**Why.** Discovered while debugging why the first cache-less eval
+returned 0 verified tracks despite `--verify-mode null` being active.
+Trace: token lookup ran before the verifier check, yielded
+`("not_found", ...)` for every track on missing token, and bypassed
+the installed `NullVerifier` entirely. The Track-A abstraction was
+effectively dead code under the exact conditions it was designed for
+(CI / cache-less environment). This is **structurally a 2026-05-12
+regression** in the verifier-swap rollout that no prior eval caught
+because every prior run had a working Spotify cache.
+
+**Regression tests.** Two pytest-level tests pin the fix:
+1. `NullVerifier` installed → `get_spotify_oauth()` MUST NOT be
+   called (sentinel raises `AssertionError` if touched); every track
+   yields `"found"`.
+2. No verifier installed + no token → production path still yields
+   `"not_found"` (back-compat).
+
+---
+
+### starved_pool_a6 synthetic scenario — 2026-05-13
+**What shipped.**
+- New `STARVED_POOL_SCENARIO` in `evaluation/scenario.py`
+  (registered as `starved_pool_a6`). Narrow `must_have` (Hungarian-
+  language extreme metal) + broad `avoid` (English vocals, Western
+  artists, mainstream metal) designed to drive Stage 1 + Stage 2 to
+  an empty / single-artist approved pool so A6 has the opportunity
+  to fire in-pipeline.
+- `verify_mode="null"` default so the scenario is usable on a
+  machine without Spotify OAuth. `test_verify_mode_defaults_to_spotify`
+  in the contract suite gained an explicit exemption for this name.
+
+**First run result (mini, n=1, `--verify-mode null`).** $0.058,
+wall 23 s, status=`ok`, completion_a=`under` (1/15 tracks).
+**A6 did NOT fire** — Stage 1 retrieved 41 candidates and Stage 2
+approved 29-31 of them across batches, well above the
+`len ≤ 1` threshold. **Instead the scenario exposed a different
+production behaviour**: 4 `[HC2 VIOLATION]` events dropped 13 picks
+total — the model insisted on picking real Hungarian-language metal
+artists (`dalriada`, `sear bliss`, `aetherius obscuritas`,
+`mrbid carnage`) that are NOT in the approved pool. HC2 enforcement
+caught them all.
+
+**Caveats / next iterations.**
+- The corpus contains 174 200 artists; the Hungarian-extreme-metal
+  intersection is still ~30 even under the narrowest prose this
+  scenario carries. To reliably reach `len ≤ 1` we'd need either an
+  even more extreme intersection (era + region + language + label
+  size, etc.) or a `seed_profile_path` fixture that bypasses
+  Stage 1+2 entirely.
+- For deterministic A6 unit-level coverage the
+  `TestSelectTracksA6PoolStarvationRefusal` suite remains
+  authoritative.
+
+**Bonus side-finding.** The repeated HC2 violations on `dalriada`
+suggest a corpus-naming mismatch: the model knows the band exists
+but the Stage 1 retrieval keys differ (probably accent stripping or
+alias miss). Worth a future spike if HC2 violations on the same
+artist persist across iterations.
+
+---
+
 ## Open validation runs (cost-gated)
 
 | Item | Required to validate | Estimated cost | Estimated wall |
 |---|---|---:|---:|
-| **N1 in-pipeline (A6 firing in production scenario)** | Build a scenario that reliably prunes the approved pool to ≤ 1 artist (e.g. extreme avoid-prose + 1-artist seed); run with `--iterations 5` | ~$0.05 + dev time | ~30 min |
+| **N1 in-pipeline (A6 firing in production scenario)** | Tighten `starved_pool_a6` further OR build a `seed_profile_path` fixture that injects a 1-artist-no-known profile directly | ~$0.05 + dev time | ~30 min |
 | **N3 Track A Step 7** — verifier drift | `--verify-mode spotify` vs `--verify-mode l0_l1` side-by-side on `default` scenario | ~$0.50 | ~90 min |
-| **N3 Track B Step 5** — R1.4 probe-first | Run probe battery × 3 models against an R1.4-modified prompt; full eval only if diff is green | ~$0.11 probes, then ~$0.60 eval if green | ~30 min probes + ~90 min eval |
-| **N4 Multi-scenario overlay rebuild** | `build_top_tracks_overlay.py --scenarios all --resume --throttle-ms 2000` | $0 (Spotify quota, no $) | 1-3 sessions × ~3 h |
-| **N5 Local-LLM v1 fingerprint** | One Ollama / llama.cpp model in `settings.ini`, then run probe battery | $0 (local) | ~60 min |
+| **N3 Track B Step 5** — R1.4 probe-first | ✅ DONE 2026-05-13 — gpt-5.4 + gpt-5.4-mini probe batteries vs v1 baseline returned 0 true regressions; R1.4 (model-conditional omission rule) ships unchanged | — | — |
+| **N4 Multi-scenario overlay rebuild** | `build_top_tracks_overlay.py --scenarios all --resume --throttle-ms 2000` — **BLOCKED** by OP2: `.spotify-cache` missing again as of 2026-05-13 09:15 | $0 (Spotify quota, no $) | 1-3 sessions × ~3 h |
+| **~~N5~~ Local-LLM v1 fingerprint** | (User decision: skipped this session) | — | — |
+| **OP2 — `.spotify-cache` disappearance** | Reproduce + locate which process is deleting the file (3rd confirmed occurrence). N3a/N3b/N3c make many evals survive the disappearance, but the root cause should still be tracked. | $0 | ~30 min spike |
 
 ---
 
@@ -203,4 +328,7 @@ After each evaluation run or probe-battery capture:
    verdict 🛑 REJECTED and link back to the source summary.
 4. Keep the cost convention (`~$N`) — round to two significant figures.
 5. Keep cells aligned (`right` for numbers, `centre` for status icons).
+
+
+
 

@@ -161,7 +161,17 @@ These are rough estimates kept in `_PER_CYCLE_USD` in `run_evaluation.py`. The h
 
 - **New scenario** — edit `scenario.py`. Keep one canonical scenario per harness invocation; do not branch by model.
 - **New per-feature row kind** — add a new `kind: "<feature>_summary"` writer in `core/src/eval_log.py`, emit it from the production code path, then update `reporting.py::summarise_run` to aggregate it. The comparison table picks up new feature columns automatically as long as they live under `feature_costs_usd` / `feature_latency_s`.
-- **More iterations** — set `[evaluation] iterations = 3` to run each model 3× and average. The reporting layer still produces one row per `(model, iteration)`; you can group by model in pandas.
+- **More iterations** — set `[evaluation] iterations = 5` (the current default since N2, 2026-05-13) to run each model 5× and average, or pass `--iterations <n>` on the command line to override per-run. The reporting layer still produces one row per `(model, iteration)`; you can group by model in pandas.
+
+  **Per-model variance floors (B-6 fingerprint, v1 2026-05-12).** The B-6 `n_required_for_5pp_signal` probe measures how many iterations are needed to detect a 5-pp prompt-change effect above the model's own run-to-run noise:
+
+  | Model         | `n_required_for_5pp_signal` | Recommended `--iterations`                    |
+  |---------------|----------------------------:|-----------------------------------------------|
+  | gpt-4.1       |                           5 | 5 (default — sufficient)                      |
+  | gpt-5.4       |                          19 | 19 for prompt A/B; 5 OK for cost-only changes |
+  | gpt-5.4-mini  |                          85 | 85 only when investigating mini specifically — full sweep is ~17× the default cost |
+
+  Refresh these numbers by re-running `python -m evaluation.probes --model <m> --probes B-6 --confirm` and inspecting `evaluation/probes/fingerprints/<m>.v1.json`.
 - **Different model set** — `[evaluation] models = gpt-5.4,gpt-5.4-mini` to skip a model. List order is preserved in the report.
 
 ## Architecture

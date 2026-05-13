@@ -724,9 +724,20 @@ def run_pipeline():
                 )
                 return
 
-            # Verify Spotify is connected before starting the expensive GPT pipeline
+            # Verify Spotify is connected before starting the expensive GPT pipeline.
+            # N3 (2026-05-13): the eval harness can opt out of this check
+            # by setting the env var ``SPOTYVIBE_SKIP_SPOTIFY_CONNECT=1``
+            # before importing this module. Used together with
+            # ``--verify-mode null`` (or any non-spotify verifier) so a
+            # probe-style run can exercise the full Stage-1+2+3 pipeline
+            # on a machine that has never authorized Spotify. NEVER set
+            # this in a user-facing context — the production flow needs
+            # Spotify to push the verified playlist.
             spotify_status = get_spotify_auth_status()
-            if spotify_status != "authenticated":
+            _skip_spotify_check = os.environ.get(
+                "SPOTYVIBE_SKIP_SPOTIFY_CONNECT", ""
+            ).strip().lower() in ("1", "true", "yes")
+            if spotify_status != "authenticated" and not _skip_spotify_check:
                 yield _sse(
                     "error",
                     message="Spotify is not connected. Please connect via ⚙️ Settings first.",
@@ -1401,10 +1412,25 @@ def run_pipeline():
                         )
 
 
+                # N3d (2026-05-13) — Track-A verifier-swap bug-fix.
+                # Production (SpotifyVerifier) returns a unique URI per
+                # track, so dedup-by-URI is safe. NullVerifier (used by
+                # `--verify-mode null` / probe-style evals) returns
+                # ``uri=None`` for every track — the URI-set then
+                # contains a single ``None`` and every subsequent track
+                # is silently dropped (collapsed to playlist=1). Fall
+                # back to a (artist, track) dedup key when uri is
+                # falsy so the verifier-swap path actually accumulates
+                # tracks.
                 for t in found:
-                    if t["uri"] not in verified_uris:
+                    _uri = t.get("uri")
+                    _key = _uri if _uri else (
+                        (t.get("artist") or "").lower().strip(),
+                        (t.get("track") or "").lower().strip(),
+                    )
+                    if _key not in verified_uris:
                         verified_tracks.append(t)
-                        verified_uris.add(t["uri"])
+                        verified_uris.add(_key)
                 _run_state["tracks_found"] = len(verified_tracks)
 
                 # Keep run state updated so the cancel endpoint can report progress
