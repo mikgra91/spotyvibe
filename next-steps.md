@@ -1,6 +1,188 @@
-# Next Steps — 2026-05-04 (last refresh 2026-05-12)
+# Next Steps — 2026-05-04 (last refresh 2026-05-13)
 
 Consolidated forward plan. Open tasks, decisions, and gated research items.
+
+---
+
+## 🚧 OPEN — Start here (2026-05-13)
+
+> If you are the next agent: read this section first. Everything below
+> "Historical context" is finished work kept for traceability.
+
+### 🔴 OPEN-1 — Fix playlist under-fill (real bottleneck)
+**Symptom (measured 2026-05-13 step 7 evals).** Across both
+real-verify modes (`spotify`, `l0_l1`), only **1/10 iterations** hit
+the ≥ 15-track completion gate. Terminal event in nearly every
+under-filled run is *"Reached GPT call limit (4). Stopping with N
+verified track(s)."* This is upstream of verify-mode choice and is
+the single largest quality drag the harness currently surfaces.
+
+**Two cheap experiments, run in this order:**
+
+1. **Conditional batch-budget bump (4 → 6).** Only when
+   `verified < 60 % of target after batch 3`. Touch
+   [app.py run_pipeline()](app.py) — the loop that emits
+   `"Reached GPT call limit"`. Expected mean-cost delta: ≈ +$0.05
+   gpt-5.4 / +$0.018 gpt-5.4-mini on the runs that currently fail
+   completion, ~ $0 on runs that already complete. Re-run against
+   the `evaluation/results/20260513-090518/` (spotify-mode) baseline
+   at n=5 per model.
+2. **Adaptive ask size.** When a batch's Spotify-found rate drops
+   below 40 %, ask for `ceil(remaining / 0.4)` next batch instead
+   of `remaining`. Logic already partially exists in the bad-pool
+   retry — verify the threshold is low enough.
+
+**Gates.** Must non-regress on must-have-cite (vs the 2026-05-13
+spotify baseline of 83.4 % mean across both models), leakage, and
+fit-check. See `documentation/VerifyModes.md` for the rule.
+
+### 🟠 OPEN-2 — `.spotify-cache` disappearance (OP2, recurring)
+3rd confirmed occurrence on 2026-05-13. N3a/N3b/N3c make most evals
+survive without the cache, but the root cause is unresolved. ~30 min
+spike: instrument the path (`%LOCALAPPDATA%\spotyvibe\.spotify-cache`)
+with a `WatchService` or simple polling-logger to capture which
+process unlinks it. No budget cost.
+
+### 🟠 OPEN-3 — N4: Multi-scenario overlay rebuild (operational)
+Code shipped (`build_top_tracks_overlay.py --scenarios all --resume
+--throttle-ms 2000`). Needs ~5 000 Spotify calls spread across 1–3
+sessions at ≥ 2.0 s/call. **Without this**, `--verify-mode overlay`
+and the L0 leg of `l0_l1` have lower hit rates on niche scenarios.
+Blocked by OP2 today.
+
+### 🟡 OPEN-4 — Documentation refresh (N6)
+`documentation/VerifyModes.md` shipped 2026-05-13 (new). Still owed
+in `documentation/TechnicalManual.md`: verifier-mode matrix,
+probe-gate workflow, recommended-n-iterations table. Trigger after
+OPEN-1 lands so the recommended-config block reflects the new batch
+budget.
+
+### 🟢 OPEN-5 — Local-LLM v1 fingerprint (N5, parked)
+Track B's Step 3 captured fingerprints for the three OpenAI models.
+Land the 4th (local Ollama) only when a local model is added to
+`evaluation/settings.ini`. Skipped by user this session.
+
+### ⛔ NOT-DOING — `verify_mode=l0_l1` promotion
+Decided 2026-05-13 on the strength of the step-7 three-mode
+comparison: l0_l1 regresses must-have-cite by −1.7 pp vs
+`spotify` (81.7 % vs 83.4 %). The "no regression — ever" rule
+(`AGENTS.md`) blocks promotion regardless of the +6.5 pp Spotify-found
+and −30 % wall-time wins. Experiment parked; rationale in
+[documentation/VerifyModes.md](documentation/VerifyModes.md).
+Revisit only after tightening the MB gate (require non-empty
+`lastfm_tags` or `release-id`, not just a recording hit).
+
+---
+
+## 📈 Executive summary — improvement trajectory
+
+Distilled from `evaluation/baselines/HISTORY.md`. Numbers are
+playlist-A track count and must-have-cite % (gpt-5.4-mini unless
+noted), with cost-per-run for context. The story is one of
+**measurement maturity first, structural fixes second, prompt work
+last** — the biggest wins came from making the harness honest, not
+from re-tuning the prompt.
+
+### Phase 1 — Establishing a valid baseline (2026-05-08 → 2026-05-11)
+
+| Date | Change | Mini A / cite | gpt-5.4 A / cite | Cost / run | What it taught us |
+|---|---|---|---|---|---|
+| 05-08 | B1 baseline | 14.3 / — | 11.0 / — | ~$0.40 | mini wins A, gpt-5.4 wins B (the **B-collapse** finding). |
+| 05-10 | C1–C4 cost levers | (invalid: Tier-0 bug) | (invalid) | — | Discovered `STAGE3_MODE` env-override was being defeated by `load_dotenv(override=True)`. Three runs of data thrown out. |
+| 05-11 06:04 | Tier-1 logging added | (invalid: Tier-0 v2) | (invalid) | ~$0.81 | Spent ~$0.81 on a run we then had to invalidate. **Lesson: instrumentation has to land before — not with — the change you want to measure.** |
+| 05-11 08:17 | **Tier-0 v2 fix + cache-prefix fix** | 13.0 / 86 % | 13.7 / 96 % | ~$0.90 | First valid cross-model comparison since L5. mini's B-collapse confirmed at n=3. System prompt finally cache-stable (1 md5, was 5). |
+
+**Net of Phase 1:** ~$2.10 spent before we had one trustworthy row.
+The runnable-vs-measurable gap was the dominant blocker; not the
+model and not the prompt.
+
+### Phase 2 — Prompt spike, mostly negative (2026-05-12)
+
+| Variant | Outcome |
+|---|---|
+| **R1.1** — cite REMINDER at end of user msg | ✅ Shipped (cite parity, 81.5 %). |
+| **R1.2** — "do NOT attempt to recall" | 🛑 Rejected — n=1 trial omitted 40/40 artists → 0 tracks. |
+| **R1.3-strict** — force `omitted_artists ≥ N−M` quota | 🛑 Rejected — mini A −38 %, gpt-5.4 B: **2 of 3 EMPTY**. |
+| **R1.3-softened** — transparency hint, "prefer FILLING over inflating" | ✅ Shipped — mini A=12.0 (parity), one 15/15 perfect playlist. |
+
+**Net:** 4 prompt variants, 1 kept, 1 cite-neutral, 2 outright
+regressions. Confirmed the structural insight: **mini does not
+recover from B-pool thinning after dislikes via prompt pressure**.
+The fix has to be in the pipeline (A6 / RAG re-retrieve), not in
+the words.
+
+### Phase 3 — Probe-first methodology (2026-05-12 → 2026-05-13)
+
+Replacing the multi-$ full eval with an 8-probe synthetic battery
+(B-1…B-11) for **~$0.11 total** across 3 models.
+
+| Probe | Finding | Action taken |
+|---|---|---|
+| B-1 `quota_preserved_under_hard` | mini = 0.0 vs gpt-5.4/4.1 = 1.0 | Retroactively predicted R1.3-strict's mini collapse. |
+| B-11 `single_artist_no_known` | **All 3 models confabulate** | Motivated **N1** (early A6 refusal gate). |
+| B-6 `n_required_for_5pp_signal` | gpt-4.1=5, gpt-5.4=19, mini=85 | Motivated **N2** (iterations 3 → 5 default + `--iterations` CLI). |
+
+**Net:** The probe battery turned every prompt change from a
+~$0.50 gamble into a $0.01–0.06 hypothesis test. This is the
+single biggest workflow improvement in the timeline.
+
+### Phase 4 — Structural / infrastructure fixes (2026-05-13)
+
+| Item | Impact |
+|---|---|
+| **N1** A6 pool-starvation refusal gate (`select_tracks`) | Production fix: skips LLM call when pool ≤ 1 and no `known:` tracks. **0 added cost** (saves a call). 5 new tests. |
+| **N2** iterations 3 → 5 default + `--iterations` CLI | Eval signal: deltas < 5 pp are now distinguishable from noise on gpt-4.1; manual override for tighter signals on bigger models. |
+| **N3a** `prepare_sandbox(require_spotify_cache=False)` | Unblocks evals on machines without a live Spotify OAuth. |
+| **N3b** `SPOTYVIBE_SKIP_SPOTIFY_CONNECT=1` env-seam in `app.py` | Pipeline runs end-to-end without a Spotify connection when verify-mode ≠ spotify. |
+| **N3c** `iter_search_tracks` verifier-precedence bug-fix | Latent regression — verifier-swap was dead code; token-fetch ran before `_VERIFIER` check. 2 regression tests. |
+| **N3d** null-uri dedup bug-fix in `run_pipeline()` | Cache-less Null eval reported playlist=1 for every iter because `set(uri)` collapsed every `None`. Mean playlist size **1.0 → 13.6** after fix. |
+
+**Net of Phase 4:** Six infrastructure fixes, **0 added budget**,
+1046 core tests green (was 1032 at start of phase). The cache-less
+null-verify eval went from impossible → routine.
+
+### Phase 5 — Verify-mode comparison (2026-05-13)
+
+The three-mode side-by-side at n=5 × 2 models per mode finally
+isolated **verify-mode choice** as a single axis:
+
+| Mode | Spotify-found | Must-have-cite | Wall | Verdict |
+|---|---:|---:|---:|---|
+| null | 100 % (fake) | 85.4 % | 36 s | dev only |
+| **spotify** | 31.2 % | **83.4 %** | 64 s | ✅ production default |
+| l0_l1 | 37.7 % (+6.5 pp) | 81.7 % (**−1.7 pp**) | 45 s (−30 %) | 🛑 parked — quality regression |
+
+The trade-off is real but asymmetric: l0_l1 buys speed and
+Spotify-hit-rate at the cost of cite-rate, and the project's
+North-Star rule says quality wins ties. Documented in
+[documentation/VerifyModes.md](documentation/VerifyModes.md).
+
+### Aggregate picture
+
+- **Cost-to-validate** dropped from ~$0.90 / cross-model eval → ~$0.11
+  / probe battery — an order of magnitude, and the probes are
+  better-targeted.
+- **Test coverage** climbed from 687 → 1046 core tests over the
+  trajectory, with the largest jump (1032 → 1046) coming from the
+  N1+N2+N3a/b/c/d wave that landed the harness-robustness fixes.
+- **Quality (must-have-cite, mini)** has held roughly flat around
+  **80–88 %** across all valid measurement points. The headline
+  finding is that quality is **bounded by the upstream pool and
+  the model's compliance ceiling**, not by prompt tuning — every
+  prompt variant that tried to push above this band regressed.
+- **Open frontier:** completion rate (currently 1/10 reaching ≥ 15
+  tracks on real-verify modes) is the next metric the trajectory
+  has not yet moved. OPEN-1 above targets exactly that.
+
+---
+
+## Historical context — finished work below
+
+The remainder of this file is the chronological record of completed
+items (✅), gated experiments retired (🛑), and the original 2026-05-04
+plan structure. Kept for traceability of "which change produced which
+delta?". For new work, start from OPEN-1 above and consult
+`evaluation/baselines/HISTORY.md` for per-fix detail.
 
 ## 🎯 Next logical steps (post-2026-05-12 — Tracks A+B fully shipped)
 
@@ -14,42 +196,93 @@ operational (real budget spend), validation runs (Phase 3), and two
 production-code follow-ups that the captured fingerprints made
 obvious.** Pick the next item by what investigation you're running.
 
-### 🔴 N1 — A6 trigger condition widening (production fix, surfaced by B-11)
-The B-11 fingerprints captured 2026-05-12 show **every model
-confabulates** when `len(approved_artists) == 1` and that artist has no
-`known:` tracks (bucket_c on mini / gpt-5.4 / gpt-4.1 alike). The
+### ✅ N1 — A6 trigger condition widening (production fix, surfaced by B-11) — DONE 2026-05-13
+The B-11 fingerprints captured 2026-05-12 showed **every model
+confabulates** when `len(approved_artists) == 1` and that artist has
+no `known:` tracks (bucket_c on mini / gpt-5.4 / gpt-4.1 alike). The
 system prompt's "OMIT that artist unless you are sure of a real
-released track" rule is being ignored at the single-artist boundary.
-Today's A6 trigger condition only fires at `== 0`. **Action:** in
-`core/src/suggestions.py` widen A6's pool-starvation refusal to
-`len(approved_artists) <= 1` (or `== 1 AND no known: tracks present`).
-Validate with `python -m evaluation.probes --model gpt-5.4-mini
---probes B-11 --confirm` showing `bucket_a` on the
-`single_artist_no_known` variant. Estimated cost to validate: ~$0.001.
+released track" rule was being ignored at the single-artist boundary.
+**Shipped:** [core/src/suggestions.py](core/src/suggestions.py)
+`select_tracks()` now refuses early — without an LLM call — when
+`len(approved_artists) == 0` OR `len(approved_artists) == 1 AND no
+`known:` tracks anywhere in the overlay`. Returns the standard empty
+result + meta with `refusal_reason ∈ {"empty_pool",
+"single_artist_no_known"}`. Logs at WARNING. Coverage: 5 new tests in
+`TestSelectTracksA6PoolStarvationRefusal` (empty pool refusal,
+single-no-known refusal, single + empty-list-overlay refusal,
+single + known tracks NOT refused, two artists no overlay NOT
+refused). Five existing single-artist tests updated to two artists
+or to pass overlay so they exercise the LLM path (no behavior loss).
+1037 core tests green. **Validation pending (real budget):**
+`python -m evaluation.probes --model gpt-5.4-mini --probes B-11
+--confirm` should now show `bucket_a` on the
+`single_artist_no_known` variant; ~$0.001 estimated.
 
-### 🔴 N2 — `iterations` default bump (config fix, surfaced by B-6)
+### ✅ N2 — `iterations` default bump (config fix, surfaced by B-6) — DONE 2026-05-13
 B-6 `n_required_for_5pp_signal` per model: gpt-4.1 = 5, gpt-5.4 = 19,
-gpt-5.4-mini = 85. Today's `iterations = 3` in
-[evaluation/settings.ini](evaluation/settings.ini) is noise on every
-gpt-5.4 / mini row. **Action:** either (a) bump the static default to
-`5` and note the per-model recommendation in the eval README, or (b)
-wire `Fingerprint.probes[B-6].scores.n_required_for_5pp_signal` into
-`harness.run_for_model` to scale iterations per model automatically.
-Option (b) is the cleaner long-term answer — would close out the
-"variance floor" question from §S.7.
+gpt-5.4-mini = 85. Previous `iterations = 3` in
+[evaluation/settings.ini](evaluation/settings.ini) was below every
+model's variance floor. **Shipped (option a + override seam):**
+default bumped 3 → 5 in `settings.ini` and `settings.ini.example`
+(clears gpt-4.1; explicit comment block documents the higher floors
+for the other models). New `--iterations <n>` CLI flag on
+[evaluation/run_evaluation.py](evaluation/run_evaluation.py) lets an
+investigator override per-run (e.g. `--iterations 19` for a tight
+gpt-5.4 signal). `evaluation/README.md` gained a per-model
+recommendation table sourced from the v1 fingerprints with a refresh
+note pointing at the B-6 probe. **Option (b) deferred:** wiring the
+fingerprint into the harness to auto-scale would push mini runs to
+85× = ~$8.50 per scenario; not worth the implicit cost — the manual
+override gives the same control with a one-line CLI argument.
+1037 core tests green.
 
 ### 🟠 N3 — Phase 3 validation runs (per §S.5 items 9-10)
-Both validation runs are now unblocked but require real eval budget:
-- **Track A Step 7** — side-by-side `--verify-mode spotify` vs
-  `--verify-mode l0_l1` baseline on the canonical scenario to measure
-  the found-% drift. Document the offset in
-  `documentation/TechnicalManual.md`. Estimated cost: 2× normal eval
-  spend (~$0.50 for the four-model row).
-- **Track B Step 5** — adopt the probe-first workflow on R1.4
-  (model-conditional R1.3 strictness). Expect the existing v1
-  fingerprints to confirm the model split before any full eval is
-  spent. Estimated cost: $0.11 for the probe pass, then the full eval
-  only if the probe-diff comes back green.
+**Status (2026-05-13):**
+- ✅ **Track B Step 5 DONE** — gpt-5.4-mini + gpt-5.4 probe batteries
+  vs v1 baseline showed **0 true regressions** (gpt-5.4-mini: 2
+  noise-flags within tolerance + 2 improvements on B-1; gpt-5.4:
+  improved B-6 `n_required_for_5pp_signal` 19 → 13). R1.4 (model-
+  conditional omission rule) ships unchanged. See
+  `evaluation/baselines/HISTORY.md`.
+- ✅ **N3a / N3b / N3c — infrastructure unblocked** —
+  `prepare_sandbox(require_spotify_cache=False)` +
+  `SPOTYVIBE_SKIP_SPOTIFY_CONNECT=1` env-seam + `iter_search_tracks`
+  verifier-precedence bug-fix. The harness now runs end-to-end
+  on a machine without `.spotify-cache` when verify_mode is
+  null / overlay / l0_l1. 1045 core tests green.
+- ✅ **N3d — null-uri dedup bug-fix (2026-05-13)** — Track-A
+  verifier-swap surfaced a second latent bug: [app.py
+  run_pipeline()](app.py#L1412-L1432) deduped accumulated tracks by
+  `t["uri"]`, but `NullVerifier` (and any future verifier that does
+  not resolve a Spotify URI) returns `uri=None` for every track. The
+  set-of-URIs then contained a single `None` after the first track
+  and every subsequent track was silently dropped — a cache-less Null
+  eval reported `playlist=1` for every iter regardless of how many
+  picks Stage 3 produced. Fix: fall back to a case-folded
+  `(artist, track)` dedup key when the URI is falsy. Production path
+  with `SpotifyVerifier` is unchanged (URIs are unique). Regression
+  test in [test_app.py
+  TestNullUriDedupeRegression](core/tests/test_app.py): 10 distinct
+  picks with `uri=None` must all survive the dedup pass. **Post-fix
+  cache-less eval (10 iters, 2 models, `--verify-mode null`,
+  `evaluation/results/20260513-081434/`):** mean playlist size 13.6
+  (vs 1.0 pre-fix); `gpt-5.4` averaged 15/15 on A and 11/15 on B,
+  `gpt-5.4-mini` averaged 14.8/15 on A and 11/15 on B; B-leakage
+  pass=10/10 (no rejected-artist / disliked-track / dislike-pattern
+  hits); decade-avoid fit-check pass=10/10. Total wall: 762.9 s,
+  total cost: $1.43. 1046 core tests green.
+- ✅ **Track A Step 7 DONE 2026-05-13** — three-mode side-by-side
+  baseline ran at n=5 × 2 models per mode:
+  `null` → `evaluation/results/20260513-081434/`,
+  `spotify` → `evaluation/results/20260513-090518/`,
+  `l0_l1` → `evaluation/results/20260513-110357/`. Verdict:
+  **keep `verify_mode=spotify` as production default; park `l0_l1`**
+  (regresses must-have-cite by −1.7 pp despite +6.5 pp Spotify-found
+  and −30 % wall time). Full rationale, headline table, and "what to
+  fix instead" recommendations are in
+  [documentation/VerifyModes.md](documentation/VerifyModes.md) (new).
+  Cross-link added to `documentation/ModelRecommendations.md`.
+  Locked sqlite verify-cache from the run was cleaned up manually.
 
 ### 🟠 N4 — Multi-scenario overlay rebuild (operations, S.6 #4)
 Code is shipped (`build_top_tracks_overlay.py --scenarios all --resume

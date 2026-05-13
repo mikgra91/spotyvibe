@@ -6,6 +6,8 @@
 
 This document records measured model behaviour on the canonical evaluation scenario (modern theatrical pop-rock seed, `playlist_size=15`). Re-run with `python evaluation/run_evaluation.py`.
 
+> **Orthogonal axis — verify mode:** how the harness confirms a GPT suggestion is real (`spotify` vs `l0_l1` vs `null`) is independent of model choice. See **[`VerifyModes.md`](VerifyModes.md)** for the measured comparison and the current recommendation (`spotify` is the production default; `l0_l1` is parked due to a −1.7 pp must-have-cite regression).
+
 ## TL;DR Recommendation
 
 | Model | Verdict | When to pick it |
