@@ -63,19 +63,60 @@ The binaries land in `build\bin\Release\`. Use `-DGGML_VULKAN=ON` instead of `-D
 
 ## Part 2 — Download a GGUF model
 
-Models come from Hugging Face. Any repo named `*-GGUF` works. Three reliable publishers:
+Models come from Hugging Face. Any repo named `*-GGUF` works. Reliable publishers:
 
-- **`bartowski/*-GGUF`** — the most-downloaded community quants, fresh within hours of a new model.
+- **Official model org** (e.g. `Qwen/Qwen3-14B-GGUF`, `google/gemma-3-*-it-gguf`) — published by the model's authors. Most stable, won't disappear.
 - **`unsloth/*-GGUF`** — often includes imatrix quants and "dynamic" quants that preserve quality at small sizes.
-- **`lmstudio-community/*-GGUF`** — curated by the LM Studio team, usually matches bartowski's builds.
+- **`lmstudio-community/*-GGUF`** — curated by the LM Studio team, broad coverage.
+- **`bartowski/*-GGUF`** — popular community quants; note that not every model has a bartowski build (e.g. Qwen3 is published directly by Qwen).
 
-Grab a single file. For example, using `curl` from PowerShell:
+The simplest option: **download in your browser.** Open the link below, click the **down-arrow / "download"** icon next to the file, and save it to `C:\tools\llama.cpp\models\`. This is the official Qwen team's GGUF release — the most stable source.
+
+> [https://huggingface.co/Qwen/Qwen3-14B-GGUF/blob/main/Qwen3-14B-Q4_K_M.gguf](https://huggingface.co/Qwen/Qwen3-14B-GGUF/blob/main/Qwen3-14B-Q4_K_M.gguf)
+
+If you prefer the command line, pick the shell you have open:
+
+<details><summary><b>cmd.exe</b> (recommended — simplest)</summary>
+
+```cmd
+mkdir C:\tools\llama.cpp\models
+curl -L -o C:\tools\llama.cpp\models\qwen3-14b-q4km.gguf https://huggingface.co/Qwen/Qwen3-14B-GGUF/resolve/main/Qwen3-14B-Q4_K_M.gguf
+```
+
+</details>
+
+<details><summary><b>PowerShell</b></summary>
+
+In PowerShell, `curl` is an alias for `Invoke-WebRequest` — which doesn't accept `-L` and fails on Hugging Face's CDN redirect with a misleading "Invalid username or password" error. Call the real `curl.exe` (shipped with Windows 10/11) explicitly:
 
 ```powershell
-mkdir C:\tools\llama.cpp\models
-curl -L -o C:\tools\llama.cpp\models\qwen3-14b-q4km.gguf `
-  https://huggingface.co/bartowski/Qwen3-14B-GGUF/resolve/main/Qwen3-14B-Q4_K_M.gguf
+New-Item -ItemType Directory -Force C:\tools\llama.cpp\models | Out-Null
+curl.exe -L -o C:\tools\llama.cpp\models\qwen3-14b-q4km.gguf https://huggingface.co/Qwen/Qwen3-14B-GGUF/resolve/main/Qwen3-14B-Q4_K_M.gguf
 ```
+
+</details>
+
+<details><summary><b>Git Bash</b></summary>
+
+Git Bash maps the Windows `C:\` drive to `/c/`.
+
+```bash
+mkdir -p /c/tools/llama.cpp/models
+curl -L -o /c/tools/llama.cpp/models/qwen3-14b-q4km.gguf https://huggingface.co/Qwen/Qwen3-14B-GGUF/resolve/main/Qwen3-14B-Q4_K_M.gguf
+```
+
+</details>
+
+<details><summary><b>WSL</b></summary>
+
+WSL maps the Windows `C:\` drive to `/mnt/c/`. For faster I/O, prefer downloading into the WSL filesystem itself (e.g. `~/models/`).
+
+```bash
+mkdir -p /mnt/c/tools/llama.cpp/models
+curl -L -o /mnt/c/tools/llama.cpp/models/qwen3-14b-q4km.gguf https://huggingface.co/Qwen/Qwen3-14B-GGUF/resolve/main/Qwen3-14B-Q4_K_M.gguf
+```
+
+</details>
 
 > **Pick the right quant.** `Q4_K_M` is the community default — ~4.8 bits/weight, ~2–3% quality loss vs FP16 per [llama.cpp quantize README](https://github.com/ggml-org/llama.cpp/blob/master/tools/quantize/README.md). Step up to `Q5_K_M` if you have VRAM headroom; drop to `Q3_K_M` only if you're tight on memory.
 
@@ -83,9 +124,11 @@ curl -L -o C:\tools\llama.cpp\models\qwen3-14b-q4km.gguf `
 
 ## Part 3 — Start `llama-server`
 
-From any shell (cmd, PowerShell, or Git Bash), run:
+Pick the shell you have open. Line-continuation characters and path style differ — using the wrong one will produce a syntax error.
 
-```powershell
+<details><summary><b>cmd.exe</b> (recommended)</summary>
+
+```cmd
 llama-server ^
   --model C:\tools\llama.cpp\models\qwen3-14b-q4km.gguf ^
   --host 127.0.0.1 ^
@@ -94,6 +137,56 @@ llama-server ^
   --n-gpu-layers 99 ^
   --jinja
 ```
+
+</details>
+
+<details><summary><b>PowerShell</b></summary>
+
+PowerShell uses a backtick (`` ` ``) for line continuation, not `^`.
+
+```powershell
+llama-server `
+  --model C:\tools\llama.cpp\models\qwen3-14b-q4km.gguf `
+  --host 127.0.0.1 `
+  --port 8080 `
+  --ctx-size 8192 `
+  --n-gpu-layers 99 `
+  --jinja
+```
+
+</details>
+
+<details><summary><b>Git Bash</b></summary>
+
+Git Bash uses `\` for line continuation and POSIX-style paths (`/c/...` instead of `C:\...`).
+
+```bash
+llama-server \
+  --model /c/tools/llama.cpp/models/qwen3-14b-q4km.gguf \
+  --host 127.0.0.1 \
+  --port 8080 \
+  --ctx-size 8192 \
+  --n-gpu-layers 99 \
+  --jinja
+```
+
+</details>
+
+<details><summary><b>WSL</b></summary>
+
+WSL runs a Linux `llama-server` binary (install via your distro's package manager or build from source — the Windows `.exe` doesn't run inside WSL). Paths are Linux-native. If your model lives on the Windows drive, access it under `/mnt/c/...`; better, keep it inside the WSL filesystem for faster I/O.
+
+```bash
+llama-server \
+  --model /mnt/c/tools/llama.cpp/models/qwen3-14b-q4km.gguf \
+  --host 127.0.0.1 \
+  --port 8080 \
+  --ctx-size 8192 \
+  --n-gpu-layers 99 \
+  --jinja
+```
+
+</details>
 
 **Flag notes:**
 
@@ -108,11 +201,33 @@ llama-server ^
 
 When the log prints `server is listening on http://127.0.0.1:8080`, leave the window open and move on.
 
-Quick health check from a second shell:
+Quick health check from a second shell — open `http://localhost:8080/v1/models` in your browser, or from a terminal:
 
-```powershell
+<details><summary><b>cmd.exe</b></summary>
+
+```cmd
 curl http://localhost:8080/v1/models
 ```
+
+</details>
+
+<details><summary><b>PowerShell</b></summary>
+
+```powershell
+curl.exe http://localhost:8080/v1/models
+```
+
+(In PowerShell, `curl` is an alias for `Invoke-WebRequest`. Use `curl.exe` to get real curl, or use `Invoke-RestMethod http://localhost:8080/v1/models` for native PowerShell.)
+
+</details>
+
+<details><summary><b>Git Bash / WSL</b></summary>
+
+```bash
+curl http://localhost:8080/v1/models
+```
+
+</details>
 
 You should see a JSON list containing your loaded model.
 
@@ -193,6 +308,19 @@ Three tiers, ranked by result quality. All are Q4_K_M unless noted.
 - **Anything under 7B** (Phi-2, TinyLlama, 3B models) — the music recall is not there. You will get invented artists mixed with real ones, and no easy way to tell the difference.
 - **Pure coding models** (Qwen3-Coder, DeepSeek-Coder) — tuned away from general world knowledge.
 - **Reasoning-mode models with long thinking traces** (QwQ, DeepSeek-R1 distills) — they'll burn 2000 tokens thinking before answering and destroy latency. SpotyVibe doesn't need multi-step reasoning; it needs fast pattern completion over a structured prompt.
+
+### Field-tested models (2026-05-15)
+
+Measured on a single RTX 5060 8 GB box, sweep of 4 × Q4_K_M models running under the params recommended above (`--ctx-size 8192 --cache-type-k q4_0 --cache-type-v q4_0 --temp 0.3 --top-p 0.9 --jinja`) against the SpotyVibe eval harness (3 scenarios × 3 iter, `--verify-mode null`). Sources: `evaluation/results/20260515-115615/` (Meta-Llama), `evaluation/results/20260515-130730/` (Hermes-3), `evaluation/results/20260515-133848/` (Mistral), `evaluation/results/20260515-141405/` (Qwen2.5).
+
+| Model | Completion | Median wall/iter | Median cite | Verdict |
+|---|---|---:|---:|---|
+| **Meta-Llama-3.1-8B Q4_K_M** | 17 / 18 playlists | ~135 s | 30 % | 🏆 **Quality winner (slower).** Highest completion rate, no mid-run errors, lowest cite-variance. Pick this when reliability matters more than latency. |
+| **Hermes-3-Llama-3.1-8B Q4_K_M** | 12 / 18 (5 under, 1 server error) | ~100 s | 36 % | 🏆 **Speed winner (less reliable).** ~25 % faster wall-clock, slightly better median cite, but expect ~1-in-3 playlists short and occasional pipeline errors. Pick this when latency matters more than reliability. |
+| Mistral-7B-Instruct-v0.3 Q4_K_M | 12 / 18 (4 under, 2 skipped) | ~135 s | 57 % | ⚠ Best cite of the four, but playlist-B (post-feedback) regularly collapses. Not viable without further debug. |
+| Qwen2.5-7B-Instruct Q4_K_M | 0 / 18 | n/a | n/a | ❌ Fails in `seed_train` before Stage 3 runs (invalid JSON / timeouts). Would need the minimal-local prompt gate extended to non-Stage-3 calls. |
+
+All numbers above are `verify_mode=null` (corpus-match, not real Spotify grounding). Re-run vs `--verify-mode spotify` to get the real Spotify-found rate.
 
 ### Honest caveats
 
