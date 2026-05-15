@@ -34,7 +34,7 @@ profile.py      suggestions.py analysis.py    playlist.py    history.py
 
 ## Project Layout
 
-See [ProjectLayout.md](ProjectLayout.md) for the full tree. Key paths:
+Key paths:
 
 | Path | Purpose |
 |---|---|
@@ -67,21 +67,21 @@ Secrets are stored in the OS keychain (Windows Credential Manager / macOS Keycha
 | `EXHAUSTED_ARTIST_THRESHOLD` | 4 | Artists with ≥ this many tracks in history are marked `[EXHAUSTED]` in the exclusion block. Computed from the full aggregate (within `GPT_HISTORY_LIMIT`), not just the recent verbatim slice. |
 | `MAX_CONSECUTIVE_EMPTY_BATCHES` | 3 | Breaks the loop after N all-filtered retries. |
 | `MAX_GPT_CALLS_PER_RUN` | 4 | Hard ceiling per generation run (lowered from 20 → 4 during Phase 2.6 — see comment in `config.py`). |
-| `DEFAULT_OPENAI_MODEL` | `gpt-5.4-mini` | Fallback model. |
-| `STAGE3_FAST_MODEL` | `gpt-5.4-mini` | Stage 3 model used by the **Fast** strategy (and by **Auto** on a cold profile). |
-| `STAGE3_BEST_MODEL` | `gpt-5.4` | Stage 3 model used by the **Best** strategy (and by **Auto** once `feedback.disliked_tracks` ≥ 1). |
-| `STAGE3_MODE_DEFAULT` | `fast` | Initial Stage 3 strategy for a fresh install — matches pre-L5 behaviour (always mini). |
+| `DEFAULT_OPENAI_MODEL` | `deepseek/deepseek-v4-flash` | Fallback model when `OPENAI_MODEL` is unset. Switched 2026-05-14 after Phase 2+3 eval. |
+| `DEFAULT_PROVIDER_PRESET` | `openrouter` | Fallback provider preset when `PROVIDER_PRESET` is unset. Pairs with the DS default. |
+| `DEFAULT_LLM_BASE_URL` | `https://openrouter.ai/api/v1` | Fallback base URL when `LLM_BASE_URL` is unset. |
+| `KNOB_AUTO_ON_PRESETS` | `{openrouter}` | Providers where `SPOTYVIBE_LEAN_PROMPT=1` + `SPOTYVIBE_ADAPTIVE_ASK=1` are enabled by default in `load_config()`. |
 | `PROFILE_IMPORT_MAX_BYTES` | 10 MB | Per-request cap for profile import. |
 | `GENERAL_REQUEST_MAX_BYTES` | 1 MB | Flask `MAX_CONTENT_LENGTH` for all other endpoints. |
 
 **Credential keys (keyring):** `OPENAI_API_KEY`, `SPOTIPY_CLIENT_ID`, `SPOTIPY_CLIENT_SECRET`.
 
 **Settings keys (`settings.conf`):**
-`OPENAI_MODEL`, `STAGE3_MODE`, `DEBUG_MODE`, `PLAYLIST_SIZE`, `NEW_ARTIST_PERCENTAGE`, `GPT_LANGUAGE`, `ONBOARDING_COMPLETED`, `ACTIVE_PROFILE_ID`, `UI_LANGUAGE`, `LLM_BASE_URL`, `PROVIDER_PRESET`.
+`OPENAI_MODEL`, `DEBUG_MODE`, `PLAYLIST_SIZE`, `NEW_ARTIST_PERCENTAGE`, `GPT_LANGUAGE`, `ONBOARDING_COMPLETED`, `ACTIVE_PROFILE_ID`, `UI_LANGUAGE`, `LLM_BASE_URL`, `PROVIDER_PRESET`, `RAG_ENABLED`.
 
-`STAGE3_MODE` (L5 — 2026-05-08) governs Stage 3 model selection. Values: `fast` (always `STAGE3_FAST_MODEL`), `best` (always `STAGE3_BEST_MODEL`), `auto` (fast for cold profile, best once `feedback.disliked_tracks` ≥ 1), `custom` (use whatever `OPENAI_MODEL` resolves to — covers local LLMs). Resolution lives in `core.src.suggestions._resolve_stage3_model`. Default is `fast` so existing installs see no behaviour change; users opt into Auto / Best / Custom from the Settings modal.
+**Stage 3 model selection (2026-05-14):** The L5 four-mode switch (`fast` / `best` / `auto` / `custom`) was ripped out after Phase 2+3 eval showed DeepSeek V4 Flash matches gpt-5.4's cite discipline (94-98 % on `post_feedback`) at ~1/10 the cost — removing the cost-vs-quality trade-off the mode switch was built to manage. `_resolve_stage3_model()` now always returns `get_model()`; the dropdown in Settings is the single source of truth.
 
-`LLM_BASE_URL` and `PROVIDER_PRESET` support pointing the app at any OpenAI-compatible endpoint (Ollama, LM Studio, Groq, OpenRouter, or a custom `/v1` URL).
+`LLM_BASE_URL` and `PROVIDER_PRESET` support pointing the app at any OpenAI-compatible endpoint (Ollama, LM Studio, Groq, OpenRouter, or a custom `/v1` URL). Switching `PROVIDER_PRESET` to `openrouter` (the default) auto-enables `SPOTYVIBE_LEAN_PROMPT=1` and `SPOTYVIBE_ADAPTIVE_ASK=1` — Phase 3 showed these lift DeepSeek's `niche_only_strict` and `post_feedback_tag_regression` scenarios from 0/3 ≥15 hits to 3/5 + 2/5 respectively.
 
 **Helpers:** `_get_app_dir()`, `get_model()`, `get_gpt_language()`, `get_debug_mode()`, `get_playlist_size()`, `get_new_artist_percentage()`, `get_active_profile_id()`, `get_active_profile_path()`, `get_settings()`.
 
@@ -630,7 +630,7 @@ and `TestSseErrorClassification` in `core/tests/test_app.py` (7 tests).
 ## Tests
 
 ```bash
-python -m pytest core/tests/ -v              # ~780 core tests, ~15s
+python -m pytest core/tests/ -v              # ~1030 core tests, ~60s
 bash build-tools/run_frontend_tests.sh       # Playwright, 3 parallel groups
 bash build-tools/run_tests.sh                # all tests, 4 groups
 bash build-tools/run_tests_podman.sh         # CI parity
@@ -639,6 +639,52 @@ bash build-tools/run_tests_podman.sh         # CI parity
 Screenshot tests are excluded via the `screenshots` pytest marker — run only on explicit refresh.
 
 External APIs (OpenAI, Spotify) are mocked throughout; no test ever hits the network.
+
+### Simulate CI locally (empty app directory)
+
+```bash
+PLAYWRIGHT_BROWSERS_PATH="$LOCALAPPDATA/ms-playwright" LOCALAPPDATA=$(mktemp -d) python -m pytest frontend/tests/ -v
+```
+
+Runs Playwright against an empty `LOCALAPPDATA` so the test suite exercises the onboarding-from-scratch flow that fresh-install users see.
+
+### Frontend test groups
+
+| Group | Files | Tests |
+|---|---|---|
+| UI | `test_page_load.py`, `test_navigation.py`, `test_modals.py` | ~76 |
+| Features + Onboarding | `test_profile.py`, `test_generation.py`, `test_edge_cases.py`, `test_onboarding.py`, `test_profile_integration.py` | ~108 |
+| Workflow | `test_wf_onboarding.py`, `test_wf_generate_create.py`, `test_wf_generate_append.py`, `test_wf_generate_override.py`, `test_wf_analysis.py`, `test_wf_quickstart_openai.py`, `test_wf_quickstart_spotify.py` | ~53 |
+
+### Monitoring parallel frontend tests
+
+`run_frontend_tests.sh` produces 4 JUnit XML files in `test-results/`. **Do NOT `sleep` with a fixed time** — poll every 10 s until all files appear, then parse:
+
+```bash
+bash build-tools/run_frontend_tests.sh &>/dev/null &
+EXPECTED=3
+while true; do
+  COUNT=$(ls test-results/*.xml 2>/dev/null | wc -l)
+  if [ "$COUNT" -ge "$EXPECTED" ]; then break; fi
+  echo "⏳ $COUNT/$EXPECTED ready — waiting 10 s..."
+  sleep 10
+done
+wait
+
+python -u -c "
+import xml.etree.ElementTree as ET, os
+p=0; f=0; fl=[]
+for x in sorted(os.listdir('test-results')):
+    if not x.endswith('.xml'): continue
+    for tc in ET.parse(f'test-results/{x}').getroot().iter('testcase'):
+        if tc.find('failure') is not None:
+            f += 1; fl.append(tc.get('name'))
+        else:
+            p += 1
+for n in fl: print(f'  ❌ {n}')
+print(f'\n✅ {p} passed, ❌ {f} failed')
+"
+```
 
 ---
 

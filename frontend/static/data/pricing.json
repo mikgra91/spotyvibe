@@ -10,7 +10,15 @@
     "gpt-4.1-nano":  { "input_per_1m": 0.10, "output_per_1m":  0.40 },
     "gpt-5.4":       { "input_per_1m": 2.50, "output_per_1m": 15.00 },
     "gpt-5.4-mini":  { "input_per_1m": 0.75, "output_per_1m":  4.50 },
-    "gpt-5.5":       { "input_per_1m": 5.00, "output_per_1m": 30.00 }
+    "gpt-5.5":       { "input_per_1m": 5.00, "output_per_1m": 30.00 },
+
+    "deepseek/deepseek-v4-flash:free":   { "input_per_1m": 0.00, "output_per_1m": 0.00 },
+    "openai/gpt-oss-20b:free":           { "input_per_1m": 0.00, "output_per_1m": 0.00 },
+    "google/gemma-4-26b-a4b-it:free":    { "input_per_1m": 0.00, "output_per_1m": 0.00 },
+
+    "deepseek/deepseek-v4-flash":        { "input_per_1m": 0.13, "output_per_1m": 0.25 },
+    "openai/gpt-oss-20b":                { "input_per_1m": 0.05, "output_per_1m": 0.20 },
+    "google/gemma-4-26b-a4b-it":         { "input_per_1m": 0.07, "output_per_1m": 0.15 }
   }
 }
 

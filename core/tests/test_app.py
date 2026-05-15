@@ -263,35 +263,27 @@ class TestProfileStatus:
 
 
 class TestProfilePromptSize:
-    """L5 (2026-05-10) — /api/profile/prompt-size must surface the
-    Stage 3 mode + the model the resolver would pick under that mode,
-    so the cost estimator (cost_estimate.js) doesn't quietly under- or
-    over-state the run cost when a preset mode is in effect.
+    """/api/profile/prompt-size surfaces the model Stage 3 will invoke so the
+    cost estimator doesn't drift from the actual run config.
     """
 
-    def test_untrained_still_returns_mode_and_resolved_model(self, client):
-        # `get_stage3_mode` is imported lazily inside the route so the patch
-        # target is `config.get_stage3_mode` itself — verified by reading
-        # the route body (no module-level bind in app.py).
+    def test_untrained_still_returns_resolved_model(self, client):
         import os
-        with patch.dict(os.environ, {"STAGE3_MODE": "fast"}), \
+        with patch.dict(os.environ, {"OPENAI_MODEL": "gpt-5.4-mini"}), \
              patch("app.get_active_profile_id", return_value=""), \
              patch("app.is_profile_trained", return_value=False):
             resp = client.get("/api/profile/prompt-size")
         data = resp.get_json()
         assert data["trained"] is False
-        # Even on a cold/missing profile, the UI needs to know which model
-        # the next generation would touch under the active mode.
-        assert data["stage3_mode"] == "fast"
         assert data["stage3_resolved_model"] == "gpt-5.4-mini"
 
-    def test_auto_resolves_to_best_when_profile_has_dislikes(self, client):
+    def test_trained_returns_resolved_model(self, client):
         loaded_profile = {
             "history": {"suggested_artists": [], "suggested_tracks": []},
-            "feedback": {"disliked_tracks": [{"artist": "X", "track": "Y"}]},
+            "feedback": {"disliked_tracks": []},
         }
         import os
-        with patch.dict(os.environ, {"STAGE3_MODE": "auto"}), \
+        with patch.dict(os.environ, {"OPENAI_MODEL": "deepseek/deepseek-v4-flash"}), \
              patch("app.get_active_profile_id", return_value="pid"), \
              patch("app.is_profile_trained", return_value=True), \
              patch("app.load_profile", return_value=loaded_profile), \
@@ -303,27 +295,20 @@ class TestProfilePromptSize:
             resp = client.get("/api/profile/prompt-size")
         data = resp.get_json()
         assert data["trained"] is True
-        assert data["stage3_mode"] == "auto"
-        assert data["stage3_resolved_model"] == "gpt-5.4"
+        assert data["stage3_resolved_model"] == "deepseek/deepseek-v4-flash"
 
-    def test_custom_mode_returns_get_model_value(self, client):
+    def test_custom_model_returns_get_model_value(self, client):
         import os
-        with patch.dict(os.environ, {"STAGE3_MODE": "custom", "OPENAI_MODEL": "local-llama-3.1"}), \
+        with patch.dict(os.environ, {"OPENAI_MODEL": "local-llama-3.1"}), \
              patch("app.get_active_profile_id", return_value=""), \
              patch("app.is_profile_trained", return_value=False):
             resp = client.get("/api/profile/prompt-size")
         data = resp.get_json()
-        assert data["stage3_mode"] == "custom"
         assert data["stage3_resolved_model"] == "local-llama-3.1"
 
-    def test_error_path_still_surfaces_mode_and_resolved_model(self, client):
-        # Round 2 review (2026-05-10): if the prompt-size computation
-        # blows up after a profile loads, the cost-estimator UI must
-        # still receive the mode + resolved-model fields. Without this
-        # the frontend would silently revert to the dropdown value,
-        # which under Auto/Best displays the wrong model name.
+    def test_error_path_still_surfaces_resolved_model(self, client):
         import os
-        with patch.dict(os.environ, {"STAGE3_MODE": "best"}), \
+        with patch.dict(os.environ, {"OPENAI_MODEL": "gpt-5.4-mini"}), \
              patch("app.get_active_profile_id", return_value="pid"), \
              patch("app.is_profile_trained", return_value=True), \
              patch("app.load_profile", side_effect=RuntimeError("boom")):
@@ -332,8 +317,7 @@ class TestProfilePromptSize:
         data = resp.get_json()
         assert data["trained"] is False
         assert data["error"] == "boom"
-        assert data["stage3_mode"] == "best"
-        assert data["stage3_resolved_model"] == "gpt-5.4"
+        assert data["stage3_resolved_model"] == "gpt-5.4-mini"
 
 
 class TestProfileData:

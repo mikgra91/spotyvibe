@@ -10,26 +10,6 @@ import { el } from './dom.js';
 
 const CRED_KEYS = ['OPENAI_API_KEY', 'SPOTIPY_CLIENT_ID', 'SPOTIPY_CLIENT_SECRET'];
 
-// L5 (2026-05-08): Stage 3 strategy UI helper. When a preset mode
-// (fast / best / auto) is selected the model dropdown is greyed out
-// because those modes ignore the user's chosen model — leaving it
-// active would be misleading. "Custom" re-enables the dropdown so the
-// user-supplied model (incl. local LLMs) stays in charge. The user's
-// custom model value is preserved across mode switches (Q3 = option 2).
-function _applyStage3ModeUi(mode) {
-    const usingCustom = (mode === 'custom');
-    const modelSelect = el('settings-model');
-    const modelFreeText = el('settings-model-freetext');
-    const fetchBtn = el('btnFetchModels');
-    const modeBtn = el('btnModelMode');
-    [modelSelect, modelFreeText, fetchBtn, modeBtn].forEach((node) => {
-        if (!node) return;
-        node.disabled = !usingCustom;
-        node.setAttribute('aria-disabled', usingCustom ? 'false' : 'true');
-        node.classList.toggle('stage3-mode-disabled', !usingCustom);
-    });
-}
-
 export async function clearCredential(key) {
     const ok = await showConfirm(i18n('cred.remove_confirm', 'Remove {key}?').replace('{key}', key));
     if (!ok) return;
@@ -182,25 +162,6 @@ export async function openSettings() {
         modelStatus.textContent = i18n('settings.model_status', '✓ Using: {model}').replace('{model}', data.model || 'gpt-5.4-mini');
         modelStatus.className = 'cred-status set';
 
-        // L5 (2026-05-08): Stage 3 strategy. Check the persisted radio + grey
-        // out the model dropdown when a preset (fast/best/auto) is active —
-        // those modes ignore the dropdown value at request time, so leaving
-        // it editable would be misleading.
-        const stage3Mode = data.stage3_mode || 'fast';
-        const stage3Radio = document.querySelector(`input[name="stage3_mode"][value="${stage3Mode}"]`);
-        if (stage3Radio) stage3Radio.checked = true;
-        _applyStage3ModeUi(stage3Mode);
-        const stage3Row = el('stage3ModeRow');
-        if (stage3Row && !stage3Row.dataset.boundChange) {
-            stage3Row.addEventListener('change', (e) => {
-                const target = e.target;
-                if (target && target.name === 'stage3_mode') {
-                    _applyStage3ModeUi(target.value);
-                }
-            });
-            stage3Row.dataset.boundChange = '1';
-        }
-
     } catch (e) { /* ignore */ }
 
     const select = el('settings-model');
@@ -236,17 +197,25 @@ export async function saveSettings() {
     const payload = {};
 
     const modelSelect = el('settings-model');
-    if (modelSelect.value) {
+    const modelFreetext = el('settings-model-freetext');
+    // When the user toggled the dropdown into free-text mode, the
+    // authoritative value lives in the text input.
+    if (modelFreetext && !modelFreetext.classList.contains('hidden') && modelFreetext.value.trim()) {
+        payload.model = modelFreetext.value.trim();
+    } else if (modelSelect && modelSelect.value) {
         payload.model = modelSelect.value;
     }
 
-    // L5 (2026-05-08): persist Stage 3 strategy. The selected radio is the
-    // source of truth; preset modes (fast/best/auto) ignore the model dropdown
-    // at request time, so we still send the dropdown value alongside so a
-    // later switch back to "custom" finds the user's stored choice intact.
-    const stage3Selected = document.querySelector('input[name="stage3_mode"]:checked');
-    if (stage3Selected) {
-        payload.stage3_mode = stage3Selected.value;
+    // Provider preset + base URL. Previously omitted from the payload,
+    // which meant the dropdown change was visible in the UI but the
+    // selection was never persisted.
+    const providerSel = el('settings-provider');
+    if (providerSel && providerSel.value) {
+        payload.provider_preset = providerSel.value;
+    }
+    const baseUrlInput = el('settings-base-url');
+    if (baseUrlInput && baseUrlInput.value.trim()) {
+        payload.llm_base_url = baseUrlInput.value.trim();
     }
 
     if (State.debugControlsAvailable) {
@@ -262,11 +231,13 @@ export async function saveSettings() {
     // Disable the Save button + swap to a "saving" label so users don't
     // double-click and submit duplicate saves while the request is in flight.
     const saveBtn = el('settingsModal').querySelector('.btn-save');
-    const prevLabel = saveBtn?.textContent;
+    const prevHtml = saveBtn?.innerHTML;
     if (saveBtn) {
         saveBtn.disabled = true;
         saveBtn.setAttribute('aria-busy', 'true');
-        saveBtn.textContent = i18n('btn.saving', '⏳ Saving…');
+        // Inline spinner instead of a dotted-clock label so the user has
+        // an unambiguous "still working" signal during long writes.
+        saveBtn.innerHTML = `<span class="btn-spinner" aria-hidden="true"></span><span class="visually-hidden">${i18n('btn.saving', 'Saving…')}</span>`;
     }
 
     try {
@@ -296,7 +267,11 @@ export async function saveSettings() {
         if (saveBtn) {
             saveBtn.disabled = false;
             saveBtn.removeAttribute('aria-busy');
-            saveBtn.textContent = prevLabel ?? i18n('btn.save', 'Save');
+            if (prevHtml != null) {
+                saveBtn.innerHTML = prevHtml;
+            } else {
+                saveBtn.textContent = i18n('btn.save', 'Save');
+            }
         }
     }
 }

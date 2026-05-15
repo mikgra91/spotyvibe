@@ -423,7 +423,7 @@ def docs_guide_image(filename):
     return send_from_directory(str(guide_img_dir), filename)
 
 
-_GUIDE_SLUG_WHITELIST = {"openai_api_key", "spotify_developer_app", "python_install_macos", "python_install_linux"}
+_GUIDE_SLUG_WHITELIST = {"openrouter_api_key", "openai_api_key", "spotify_developer_app", "python_install_macos", "python_install_linux"}
 
 
 @app.route("/api/help/guide/<slug>")
@@ -1089,6 +1089,7 @@ def run_pipeline():
             # filtered results, and which tracks were in the last such batch.
             consecutive_empty_batches = 0
             last_filtered_tracks = []  # filtered tracks from most recent empty batch
+            last_found_rate = None  # OPEN-1 exp2: adaptive ask-size
 
             while len(verified_tracks) < playlist_size:
                 # ── Check for cancellation before each expensive GPT call ──
@@ -1100,6 +1101,12 @@ def run_pipeline():
                 remaining = playlist_size - len(verified_tracks)
                 # Request either a full batch or just the remaining count
                 request_count = min(BATCH_SIZE, remaining)
+                # OPEN-1 exp2: adaptive ask-size when Spotify-found rate <40%.
+                if (os.environ.get("SPOTYVIBE_ADAPTIVE_ASK") == "1"
+                        and last_found_rate is not None
+                        and last_found_rate < 0.4
+                        and remaining > 0):
+                    request_count = min(20, max(request_count, math.ceil(remaining / 0.4)))
 
                 yield _sse(
                     "progress",
@@ -1112,11 +1119,16 @@ def run_pipeline():
                 # On retries after all-filtered batches, pass the filtered tracks
                 # explicitly so GPT cannot claim it didn't know about them.
                 accepted = verified_tracks if batch_num > 1 else None
-                # Hard cost guardrail
-                if gpt_call_count >= MAX_GPT_CALLS_PER_RUN:
+                # Hard cost guardrail. OPEN-1: when a run is below 60 % of
+                # target after batch 3, allow up to 6 calls (was 4) — adds
+                # ~$0 for pool-starved runs, rescues underfilled ones.
+                effective_max_calls = MAX_GPT_CALLS_PER_RUN
+                if batch_num > 3 and len(verified_tracks) < 0.6 * playlist_size:
+                    effective_max_calls = max(MAX_GPT_CALLS_PER_RUN, 6)
+                if gpt_call_count >= effective_max_calls:
                     yield _sse(
                         "progress",
-                        message=f"Reached GPT call limit ({MAX_GPT_CALLS_PER_RUN}). "
+                        message=f"Reached GPT call limit ({effective_max_calls}). "
                                 f"Stopping with {len(verified_tracks)} verified track(s).",
                     )
                     break
@@ -1459,6 +1471,7 @@ def run_pipeline():
                 }
                 profile = update_profile(profile, result)
 
+                last_found_rate = len(found) / max(request_count, 1)
                 yield _sse(
                     "progress",
                     message=f"Batch {batch_num}: {len(found)} found on Spotify, "
@@ -1952,13 +1965,6 @@ def write_settings():
     if "model" in data:
         payload["OPENAI_MODEL"] = data["model"]
 
-    # L5 (2026-05-08): Stage 3 model strategy. Validated against
-    # config.STAGE3_MODES so a malformed payload never wedges the pipeline.
-    if "stage3_mode" in data:
-        from config import STAGE3_MODES, STAGE3_MODE_DEFAULT
-        raw = (data.get("stage3_mode") or "").strip().lower()
-        payload["STAGE3_MODE"] = raw if raw in STAGE3_MODES else STAGE3_MODE_DEFAULT
-
     if "debug_mode" in data:
         payload["DEBUG_MODE"] = "true" if data["debug_mode"] else ""
 
@@ -1980,7 +1986,7 @@ def write_settings():
         payload["UI_LANGUAGE"] = safe_text(data, "ui_language")
 
     # Wave 4: Provider preset + base URL
-    valid_presets = {"openai", "ollama", "lmstudio", "groq", "openrouter"}
+    valid_presets = {"openai", "ollama", "lmstudio", "llamacpp", "groq", "openrouter"}
     if "provider_preset" in data:
         preset = safe_text(data, "provider_preset")
         if preset in valid_presets:
@@ -2235,20 +2241,15 @@ def profile_prompt_size():
     full profile JSON and expects an updated profile back. The estimator uses
     profile size × 2 plus a fixed system-prompt overhead.
     """
-    # L5 (2026-05-10): even on an untrained profile, the cost estimator
-    # needs to know which model Stage 3 *would* pick under the active
-    # strategy so the dropdown-vs-actual mismatch (Auto / Best ignore the
-    # dropdown) doesn't quietly under- or over-state the cost. Surface
-    # mode + resolved model on every shape of the response.
-    from core.src.suggestions import _resolve_stage3_model
-    from config import get_stage3_mode
-    stage3_mode = get_stage3_mode()
+    # 2026-05-14: STAGE3_MODE was ripped out (DeepSeek matches gpt-5.4 cite
+    # at 1/10 cost — the mode switch's whole purpose is gone). The cost
+    # estimator now just reports the configured model directly.
+    resolved_model = get_model()
 
     if not get_active_profile_id() or not is_profile_trained():
         return jsonify({
             "trained": False,
-            "stage3_mode": stage3_mode,
-            "stage3_resolved_model": _resolve_stage3_model(None, mode=stage3_mode),
+            "stage3_resolved_model": resolved_model,
         })
     try:
         profile = load_profile()
@@ -2270,23 +2271,14 @@ def profile_prompt_size():
             "pool_chars": components.get("pool", 0),
             "feedback_chars": components.get("feedback", 0),
             "ai_update_chars": ai_update_chars,
-            "stage3_mode": stage3_mode,
-            "stage3_resolved_model": _resolve_stage3_model(profile, mode=stage3_mode),
+            "stage3_resolved_model": resolved_model,
         })
     except Exception as exc:
         app.logger.warning("prompt-size endpoint failed: %s", exc)
-        # L5: degrade gracefully — even when the prompt-size computation
-        # blows up, return the mode + resolved-model fields so the cost
-        # estimator UI doesn't silently revert to the dropdown value
-        # (which would show the wrong model under Auto/Best modes).
-        # Resolver runs against a None profile so any auto+feedback bias
-        # is lost on this fallback, but the static modes (fast/best/custom)
-        # still report correctly.
         return jsonify({
             "trained": False,
             "error": str(exc),
-            "stage3_mode": stage3_mode,
-            "stage3_resolved_model": _resolve_stage3_model(None, mode=stage3_mode),
+            "stage3_resolved_model": resolved_model,
         }), 500
 
 

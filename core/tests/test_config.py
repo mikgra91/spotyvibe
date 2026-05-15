@@ -74,54 +74,12 @@ class TestGetNewArtistPercentage:
             assert config.get_new_artist_percentage() == config.DEFAULT_NEW_ARTIST_PERCENTAGE
 
 
-class TestGetStage3Mode:
-    """L5 (2026-05-08) — selector strategy is persisted via env / settings.conf."""
-
-    @pytest.mark.parametrize("value", ["fast", "best", "auto", "custom"])
-    def test_returns_known_value(self, value):
-        with patch.dict(os.environ, {"STAGE3_MODE": value}):
-            assert config.get_stage3_mode() == value
-
-    def test_normalises_case_and_whitespace(self):
-        with patch.dict(os.environ, {"STAGE3_MODE": "  AUTO  "}):
-            assert config.get_stage3_mode() == "auto"
-
-    def test_falls_back_to_default_on_unset(self):
-        env = os.environ.copy()
-        env.pop("STAGE3_MODE", None)
-        with patch.dict(os.environ, env, clear=True):
-            assert config.get_stage3_mode() == config.STAGE3_MODE_DEFAULT
-
-    def test_falls_back_to_default_on_unknown_value(self):
-        # A typo'd settings.conf must not wedge the pipeline.
-        with patch.dict(os.environ, {"STAGE3_MODE": "garbage"}):
-            assert config.get_stage3_mode() == config.STAGE3_MODE_DEFAULT
-
-
-class TestSetStage3Mode:
-    @patch("config._persist_setting")
-    def test_persists_known_value(self, mock_persist):
-        config.set_stage3_mode("auto")
-        mock_persist.assert_called_once_with("STAGE3_MODE", "auto")
-
-    @patch("config._persist_setting")
-    def test_normalises_case(self, mock_persist):
-        config.set_stage3_mode("BEST")
-        mock_persist.assert_called_once_with("STAGE3_MODE", "best")
-
-    @patch("config._persist_setting")
-    def test_unknown_value_falls_back_to_default(self, mock_persist):
-        config.set_stage3_mode("not-a-mode")
-        mock_persist.assert_called_once_with("STAGE3_MODE", config.STAGE3_MODE_DEFAULT)
-
-
 class TestGetSettings:
     @patch.dict(os.environ, {
         "OPENAI_MODEL": "gpt-4o",
         "DEBUG_MODE": "true",
         "PLAYLIST_SIZE": "20",
         "NEW_ARTIST_PERCENTAGE": "40",
-        "STAGE3_MODE": "auto",
     })
     def test_returns_all_settings(self):
         settings = config.get_settings()
@@ -129,7 +87,6 @@ class TestGetSettings:
         assert settings["debug_mode"] is True
         assert settings["playlist_size"] == 20
         assert settings["new_artist_percentage"] == 40
-        assert settings["stage3_mode"] == "auto"
 
 
 class TestGetCredentials:

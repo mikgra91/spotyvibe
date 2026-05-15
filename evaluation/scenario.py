@@ -723,6 +723,96 @@ STARVED_POOL_SCENARIO = Scenario(
 )
 
 
+# ── Large-profile stress test (OPEN-0 / Phase 3, 2026-05-14) ────────
+#
+# A power-user profile: long prose in every section, many named artists,
+# extensive Must:/Avoid: lists. Stresses prompt-size handling, attention
+# under load, and small-model behaviour. Compares cheap small-context
+# alternatives to large-context models (DeepSeek V4 Flash = 1M context).
+
+LARGE_PROFILE_SCENARIO = Scenario(
+    name="large_profile_stress",
+    description=(
+        "Power-user-sized profile: ~30 named artists across seed and "
+        "avoid sections, ~6 must_have anchors, multi-paragraph "
+        "core_description. Used to probe small-model degradation under "
+        "long-prompt conditions (the gpt-5.4-mini profile-growth "
+        "concern flagged 2026-05-13)."
+    ),
+    seed_sections={
+        "core_description": (
+            "Modern theatrical pop-rock and art-pop with strong hooks, "
+            "quirky personality, and meticulous production. I love the "
+            "sweet spot where Tally Hall, Bear Ghost, Will Wood, "
+            "Lemon Demon, and The Dear Hunter live — narrative songs "
+            "with vocal harmony, off-kilter time signatures, brass or "
+            "string flourishes, and lyrics that reward repeat listens. "
+            "Adjacent influences I rate highly: Mother Mother, Cake, "
+            "They Might Be Giants, Of Montreal, Andrew Bird, "
+            "Regina Spektor, Fiona Apple, Father John Misty, "
+            "St. Vincent, Sufjan Stevens, The Mountain Goats, "
+            "Wilco, Spoon, Vampire Weekend, MGMT, Foster The People. "
+            "I also rate Japanese theatrical / art-pop in the same "
+            "lane: Kenshi Yonezu, Ado, Eve, Vaundy, Yorushika, "
+            "Yoasobi, Wednesday Campanella, and 80kidz. Era: mostly "
+            "post-2010, with a soft preference for releases from "
+            "the last 5 years. The thread tying these together is "
+            "personality + craft + structural curiosity. I don't want "
+            "polished generic pop and I don't want lo-fi noise — I "
+            "want the bands that sound like a self-aware Broadway "
+            "musical written by indie kids who studied jazz."
+        ),
+        "must_have": (
+            "Punchy guitars or theatrical instrumentation; strong "
+            "memorable hooks; modern post-2010 production; theatrical "
+            "or quirky vocal personality; clear vocal melody with "
+            "harmony layers; structural surprise (key change, time-sig "
+            "shift, bridge that recontextualises the song)"
+        ),
+        "soft_preferences": (
+            "Art-pop influences; Japanese J-rock / J-pop crossover; "
+            "orchestral or horn-section flourishes; storytelling lyrics "
+            "with internal narrative; concept albums; off-Broadway "
+            "musical-theatre aesthetic; bands with their own visual "
+            "world; multi-instrumentalist artists; female-led acts in "
+            "the same lane as St. Vincent or Fiona Apple"
+        ),
+        "avoid": (
+            "Classic rock straight-ahead; vintage 60s/70s arena rock "
+            "(Led Zeppelin, Pink Floyd, The Who in their stadium era); "
+            "pure EDM / synthwave / brostep; lo-fi indie guitar "
+            "dominance with no production; unmastered bedroom demos; "
+            "generic country pop; modern Top-40 chart pop (Dua Lipa, "
+            "The Weeknd, Post Malone, Drake); trap; mumble rap; "
+            "ambient drone / Brian Eno furniture music; mainstream "
+            "metal (Metallica, Iron Maiden, Slipknot); ska revival; "
+            "post-punk revival (Interpol, The Strokes copycats); "
+            "dad rock; vintage Motown; doo-wop"
+        ),
+    },
+    refine_sections={
+        "core_description": "",
+        "must_have": "",
+        "soft_preferences": "",
+        "avoid": (
+            "and tighten further: nothing that drifts into 70s arena "
+            "rock; nothing generic chart-pop; nothing lo-fi"
+        ),
+        "vibe_description": (
+            "From recent feedback please double down on the modern "
+            "theatrical-art-pop anchor and keep tightening the avoid "
+            "list around vintage rock and generic chart pop."
+        ),
+    },
+    analysis_artist="Bear Ghost",
+    analysis_track="Mr. Bubbles",
+    like_indices=(0, 3, 6, 9, 12),
+    dislike_indices=(2, 7, 11),
+    like_reason="fits the modern theatrical-art-pop anchor exactly",
+    dislike_reason="drifts into avoided territory",
+)
+
+
 # ── Registry + dispatcher ────────────────────────────────────────────
 
 SCENARIOS: dict[str, Scenario] = {
@@ -738,6 +828,7 @@ SCENARIOS: dict[str, Scenario] = {
     NICHE_ONLY_STRICT_SCENARIO.name: NICHE_ONLY_STRICT_SCENARIO,
     POST_FEEDBACK_TAG_REGRESSION_SCENARIO.name: POST_FEEDBACK_TAG_REGRESSION_SCENARIO,
     STARVED_POOL_SCENARIO.name: STARVED_POOL_SCENARIO,
+    LARGE_PROFILE_SCENARIO.name: LARGE_PROFILE_SCENARIO,
 }
 
 

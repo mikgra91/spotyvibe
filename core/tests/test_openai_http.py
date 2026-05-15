@@ -190,16 +190,21 @@ class TestChatCompletionsCreate:
         body = mock_req.call_args[1]["body"]
         assert "response_format" not in body
 
+    @patch.dict(os.environ, {"LLM_BASE_URL": "https://api.openai.com/v1"})
     def test_raises_unsupported_model_error_for_unknown_model(self):
+        # Model allowlist only fires on the OpenAI provider; defaults
+        # were flipped to OpenRouter on 2026-05-14 so the test now pins
+        # the base URL explicitly.
         with pytest.raises(OpenAIUnsupportedModelError, match="not in the supported model list"):
             chat_completions_create(model="totally-fake-model", messages=[])
 
-    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test"})
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test", "LLM_BASE_URL": "https://api.openai.com/v1"})
     @patch("core.src.openai_http._request_json")
     def test_passes_prompt_cache_key_to_payload(self, mock_req):
         # C4 (2026-05-10): the routing hint must reach OpenAI verbatim
         # so the cache router can pin the request to a host with the
-        # matching prefix already loaded.
+        # matching prefix already loaded. prompt_cache_key is OpenAI-only
+        # — must pin LLM_BASE_URL since the default is now OR.
         mock_req.return_value = {"choices": [{"message": {"content": "hi"}}]}
         chat_completions_create(
             model="gpt-4.1-mini",

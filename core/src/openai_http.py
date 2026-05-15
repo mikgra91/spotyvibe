@@ -300,6 +300,17 @@ def chat_completions_create(
     if model not in OPENAI_NO_TEMPERATURE_MODELS:
         payload["temperature"] = temperature
 
+    # OPEN-1a (2026-05-14): OpenRouter free tier rejects requests that
+    # don't cap max_tokens — the model's default reservation (e.g. 64k)
+    # exceeds the free-tier credit budget (~8 k). Env-gated so paid
+    # routes / OpenAI native are unaffected.
+    mt = os.environ.get("SPOTYVIBE_MAX_OUTPUT_TOKENS")
+    if mt:
+        try:
+            payload["max_tokens"] = int(mt)
+        except ValueError:
+            pass
+
     # OPEN-3: auto-downgrade strict json_schema for models that reject it.
     effective_response_format = response_format
     if (
@@ -422,37 +433,53 @@ def call_gpt_json_with_meta(messages, temperature=0.7, label="GPT Call"):
     write per-call rows to the eval log (Band/Song Analysis, AI Profile
     Update, Stage 2 avoid-checker, etc.) so cost / latency / quality can be
     compared across model A/B variants.
+
+    2026-05-14: retries once on empty 200-OK responses AND on invalid
+    JSON. Phase 3 large_profile_stress + test 5 spotify-verify run
+    showed DeepSeek occasionally returns 200 OK with empty content
+    OR with malformed JSON on big prompts — observed 40 % skip rate
+    pre-fix. ``chat_completions_create`` already retries 429/5xx; this
+    layer covers the success-but-unusable-content paths.
     """
     from .utils import strip_code_fences, debug_log
     from config import get_model
 
     model = get_model()
-    t0 = time.monotonic()
-    response = chat_completions_create(
-        model=model,
-        messages=messages,
-        temperature=temperature,
-        response_format={"type": "json_object"},
-    )
-    latency_s = time.monotonic() - t0
+    attempts = 0
+    last_meta: dict | None = None
+    while True:
+        t0 = time.monotonic()
+        response = chat_completions_create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            response_format={"type": "json_object"},
+        )
+        latency_s = time.monotonic() - t0
 
-    raw = extract_chat_content(response)
-    debug_log(label, messages, raw)
-    content = strip_code_fences(raw)
+        raw = extract_chat_content(response)
+        debug_log(label, messages, raw)
+        content = strip_code_fences(raw)
 
-    usage = response.get("usage") if isinstance(response, dict) else None
-    meta = {
-        "usage": usage,
-        "latency_s": latency_s,
-        "model": model,
-        "raw_response_chars": len(raw or ""),
-    }
+        usage = response.get("usage") if isinstance(response, dict) else None
+        last_meta = {
+            "usage": usage,
+            "latency_s": latency_s,
+            "model": model,
+            "raw_response_chars": len(raw or ""),
+        }
+        attempts += 1
 
-    if not content:
-        raise ValueError(f"AI returned an empty response ({label}). Please try again.")
+        if not content:
+            if attempts >= 2:
+                raise ValueError(f"AI returned an empty response ({label}). Please try again.")
+            continue
 
-    try:
-        return json.loads(content), meta
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"AI returned invalid JSON ({label}). Please try again.") from exc
+        try:
+            return json.loads(content), last_meta
+        except json.JSONDecodeError as exc:
+            if attempts >= 2:
+                raise ValueError(f"AI returned invalid JSON ({label}). Please try again.") from exc
+            # Fall through to one more attempt.
+            continue
 

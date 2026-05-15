@@ -4,6 +4,7 @@ These images are served by the in-app setup guides (reachable from the onboardin
 
 | Guide | Steps | Files |
 |-------|-------|-------|
+| **OpenRouter API key (G0 — new default)** | 4 | `openrouter/step1_signin.png`, `openrouter/step2_keys.png`, `openrouter/step3_create.png`, `openrouter/step4_credits.png` |
 | OpenAI API key (G1) | 3 | `openai/step1_signin.png`, `openai/step2_sidebar.png`, `openai/step3_create.png` |
 | Spotify developer app (G2) | 4 | `spotify/step1_dashboard.png`, `spotify/step2_create.png`, `spotify/step3_redirect.png`, `spotify/step4_secret.png` |
 | Python install — macOS (G3) | 4 | `python-macos/step1_homebrew.png`, `python-macos/step2_install.png`, `python-macos/step3_verify.png`, `python-macos/step4_venv.png` |

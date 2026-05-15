@@ -1,5 +1,7 @@
 # RULES.md — Detailed Conventions (read on demand)
 
+For everything else (build, where-to-change-what, the 9 must-follow rules, git rule, context discipline, graphify), see `CLAUDE.md`. For Spotify API conventions, see `SKILL.md`.
+
 ## Accessibility (a11y)
 
 Every frontend change must consider assistive-technology users:
@@ -20,32 +22,4 @@ Every frontend change must consider assistive-technology users:
 - JS: `import { i18n } from './i18n.js'` then `i18n('key', 'Fallback')`.
 - Onboarding: uses own `obI18n()` / `obApplyLang()` (no ES modules).
 - Key naming: dot-separated namespaces (`profile.title`, `feedback.like`, `pipeline.cancelled`).
-
-## Documentation Update Checklist
-
-| Doc | Audience | Notes |
-|---|---|---|
-| `README.md` | Developers | General overview |
-| `documentation/UserManual.md` | End users | Comprehensive walkthrough |
-| `documentation/help.en.md` + `help.de.md` + `help.jp.md` | In-app users | Served at `/api/help` (UI language selects the file; falls back to English with a banner). All three must stay in sync when content changes. |
-| `documentation/TechnicalManual.md` | Developers | Architecture, API, data flow |
-
-`help.en.md` / `help.de.md` / `help.jp.md`: Markdown with `> **Screenshot placeholder:**` markers. Keep sections self-contained and scannable. All three files must stay in sync when content changes.
-
-## Spotify API (Quick Reference)
-
-Full details in `SKILL.md`. Key points:
-
-- `sp.playlist_items()` not `sp.playlist_tracks()` (removed endpoint)
-- `sp.current_user_playlist_create()` not `sp.user_playlist_create()`
-- Search `limit` max = 10, always pass explicitly
-- Playlist inner key: `entry.get("item") or entry.get("track")`
-- Playlist summary: `pl.get("items") or pl.get("tracks")`
-- `fields` param must use new key names: `items(item(uri,name,...))` not `items(track(...))`
-
-## Screenshot Tests
-
-Excluded from routine runs via `pytest.ini` (`-m "not screenshots"`). Run manually:
-```bash
-python -m pytest frontend/tests/test_documentation_screenshots.py -v -m screenshots
-```
+- `help.en.md` / `help.de.md` / `help.jp.md`: Markdown with `> **Screenshot placeholder:**` markers. Keep sections self-contained and scannable. All three files must stay in sync when content changes.

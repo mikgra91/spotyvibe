@@ -100,41 +100,22 @@ MAX_GPT_CALLS_PER_RUN = 4
 # yet present in suggested_artists history (1–100).
 DEFAULT_NEW_ARTIST_PERCENTAGE = 30
 
-# Default OpenAI model used when none is configured.
-# 2026-04-28: switched from "gpt-5.5" to "gpt-5.4" after Phase 2.6 evaluation
-# classified gpt-5.5 as unfit for this workload (reasoning-tier model, ~9.5×
-# slower and ~9.5× more expensive than gpt-5.4 with worse must-have-cite and
-# Spotify-found rates). See documentation/ModelRecommendations.md.
-# 2026-04-29: switched from "gpt-5.4" to "gpt-5.4-mini" after the 5-block
-# pool-size sweep (5 × 3 pools × 4 models = 60 data points). gpt-5.4-mini
-# at pool=50 hits 88.0% mean must-have-cite at $0.0288/playlist (~4× cheaper
-# than gpt-5.4) with ~42 s wall-clock. gpt-5.4 remains the highest-quality
-# option (98.7% mean cite at pool=50, the only model × pool with stable
-# B1↔B2 determinism Δ 0.0 pp), but the cost premium isn't worth it as a
-# default. Users who want top quality can switch to gpt-5.4 explicitly via
-# the per-profile OPENAI_MODEL setting. See ModelRecommendations.md and
-# evaluation/results/sweep-merged-5blocks/report.md.
-DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
+# Default LLM model used when none is configured.
+# 2026-05-14: switched to DeepSeek V4 Flash via OpenRouter after Phase 2+3
+# evaluation showed DS dominates on cite-per-$ (94-98 % must-have cite on
+# post_feedback at $0.015/run vs gpt-5.4 $0.10-0.17/run with comparable
+# cite). Free-tier path also exists (`deepseek/deepseek-v4-flash:free`,
+# 200 RPD aggregate OR cap). gpt-5.4-mini stays as the OpenAI-native
+# fallback for users who prefer not to add an OpenRouter account.
+# See evaluation/results/openrouter_phase{2,3}/SUMMARY.md.
+DEFAULT_OPENAI_MODEL = "deepseek/deepseek-v4-flash"
 
 # Stage 2 avoid-compliance checker model (binary classification — cheapest mini).
 # Used by check_avoid_compliance() in suggestions.py. Falls back to get_model()
-# for local providers where a separate mini variant may not exist.
+# for local providers where a separate mini variant may not exist, and to
+# STAGE2_MODEL_OVERRIDE env when set (eval harness routes OR through a single
+# model — gpt-5.4-mini would 404 on the OR route).
 STAGE2_MODEL = "gpt-5.4-mini"
-
-# L5 (2026-05-08) — Stage 3 model strategy. Four user-selectable modes:
-#   "fast"   → STAGE3_FAST_MODEL  (always mini; today's behaviour, default)
-#   "best"   → STAGE3_BEST_MODEL  (always gpt-5.4)
-#   "auto"   → mini for cold profile; gpt-5.4 once profile carries
-#              ≥ 1 disliked track (B1 baseline 2026-05-08 showed mini
-#              collapses past that boundary on Playlist B regeneration)
-#   "custom" → use whatever model the user configured via OPENAI_MODEL
-#              (the existing free-form path; covers local LLMs too)
-# Path 3 ship: default = "fast" so existing users see no behaviour
-# change; the UI exposes Auto / Best / Custom as opt-in alternatives.
-STAGE3_FAST_MODEL = "gpt-5.4-mini"
-STAGE3_BEST_MODEL = "gpt-5.4"
-STAGE3_MODE_DEFAULT = "fast"
-STAGE3_MODES = ("fast", "best", "auto", "custom")
 
 # Number of candidate artists retrieved by Stage 1 code-side retrieval (P1.1).
 # Intentionally larger than a single batch so Stage 2 + Stage 3 have room to
@@ -342,7 +323,7 @@ DEBUG_TRACE_DIR = _APP_DIR / "debug"            # F9 (2026-05-01): per-run trace
 CREDENTIALS_KEYS = ["OPENAI_API_KEY", "SPOTIPY_CLIENT_ID", "SPOTIPY_CLIENT_SECRET"]
 
 # Non-secret keys — stored in settings.conf
-SETTINGS_KEYS = ["OPENAI_MODEL", "STAGE3_MODE", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE", "GPT_LANGUAGE", "ONBOARDING_COMPLETED", "ACTIVE_PROFILE_ID", "UI_LANGUAGE", "LLM_BASE_URL", "PROVIDER_PRESET", "RAG_ENABLED"]
+SETTINGS_KEYS = ["OPENAI_MODEL", "DEBUG_MODE", "PLAYLIST_SIZE", "NEW_ARTIST_PERCENTAGE", "GPT_LANGUAGE", "ONBOARDING_COMPLETED", "ACTIVE_PROFILE_ID", "UI_LANGUAGE", "LLM_BASE_URL", "PROVIDER_PRESET", "RAG_ENABLED"]
 
 # Maximum length for profile display names
 MAX_PROFILE_NAME_LEN = 40
@@ -351,9 +332,17 @@ MAX_PROFILE_NAME_LEN = 40
 USER_KEYS = CREDENTIALS_KEYS + SETTINGS_KEYS
 
 # Default LLM provider configuration (Wave 4)
-DEFAULT_LLM_BASE_URL = 'https://api.openai.com/v1'
-DEFAULT_PROVIDER_PRESET = 'openai'
-LOCAL_PRESETS = {'ollama', 'lmstudio'}
+# 2026-05-14: switched to OpenRouter default — DeepSeek V4 Flash route wins
+# on cite-per-$ over the previous OpenAI gpt-5.4-mini default. Existing
+# installs are unaffected (only kicks in when settings.conf is empty).
+DEFAULT_LLM_BASE_URL = 'https://openrouter.ai/api/v1'
+DEFAULT_PROVIDER_PRESET = 'openrouter'
+LOCAL_PRESETS = {'ollama', 'lmstudio', 'llamacpp'}
+# Providers that benefit from the lean prompt + adaptive-ask knobs by
+# default. Phase 3 showed niche/post_feedback jumped 0/3 → 3/5 hits with
+# the knobs on for DeepSeek; OpenAI users see no measurable lift because
+# default already saturates, so we leave them off there.
+KNOB_AUTO_ON_PRESETS = {'openrouter'}
 
 # Old file name used before the rename
 _OLD_ENV_FILE = _APP_DIR / ".env"
@@ -488,11 +477,19 @@ def load_config():
 
     # One-time migration: copy plaintext credentials into keyring and clear
     # them from .credentials so secrets no longer sit in a flat file.
-    if _KEYRING_AVAILABLE:
+    # OPEN-1a (2026-05-14): SPOTYVIBE_SKIP_KEYRING=1 also skips migration so
+    # the sandbox's plaintext OR key isn't wiped + replaced by the user's
+    # real OpenAI key from Credential Manager.
+    if _KEYRING_AVAILABLE and os.getenv("SPOTYVIBE_SKIP_KEYRING") != "1":
         _migrate_credentials_to_keyring()
 
     # Overlay keyring values — these take precedence over dotenv
-    if _KEYRING_AVAILABLE:
+    # OPEN-1a (2026-05-14): SPOTYVIBE_SKIP_KEYRING=1 disables this overlay
+    # so the sandbox's .credentials (or an env-injected OpenRouter key)
+    # wins. Eval harness sets this when routing via OpenRouter — otherwise
+    # the user's stored OpenAI key in Windows Credential Manager would
+    # clobber the OR bearer.
+    if _KEYRING_AVAILABLE and os.getenv("SPOTYVIBE_SKIP_KEYRING") != "1":
         for key in CREDENTIALS_KEYS:
             try:
                 val = _keyring.get_password(_KEYRING_SERVICE, key)
@@ -501,28 +498,18 @@ def load_config():
             except Exception:
                 pass
 
+    # 2026-05-14: enable lean prompt + adaptive ask by default for providers
+    # that benefit from them (currently OpenRouter — Phase 3 showed
+    # niche/post_feedback jumped 0/3 → 3/5 ≥15 with these knobs on for
+    # DeepSeek). setdefault so a power user can still disable via env.
+    if get_llm_provider_preset() in KNOB_AUTO_ON_PRESETS:
+        os.environ.setdefault("SPOTYVIBE_LEAN_PROMPT", "1")
+        os.environ.setdefault("SPOTYVIBE_ADAPTIVE_ASK", "1")
+
 
 def get_model():
-    """Return the configured OpenAI model, falling back to the default."""
+    """Return the configured LLM model, falling back to the default."""
     return os.getenv("OPENAI_MODEL") or DEFAULT_OPENAI_MODEL
-
-
-def get_stage3_mode() -> str:
-    """Return the configured Stage 3 model strategy.
-
-    Falls back to STAGE3_MODE_DEFAULT for empty / unrecognised values so a
-    typo in settings.conf never wedges the pipeline.
-    """
-    raw = (os.getenv("STAGE3_MODE", "") or "").strip().lower()
-    return raw if raw in STAGE3_MODES else STAGE3_MODE_DEFAULT
-
-
-def set_stage3_mode(mode: str) -> None:
-    """Persist the Stage 3 model strategy. Unknown values reset to default."""
-    cleaned = (mode or "").strip().lower()
-    if cleaned not in STAGE3_MODES:
-        cleaned = STAGE3_MODE_DEFAULT
-    _persist_setting("STAGE3_MODE", cleaned)
 
 
 def get_debug_mode():
@@ -595,7 +582,6 @@ def get_settings():
     """Return non-secret settings for the Settings UI."""
     return {
         "model": get_model(),
-        "stage3_mode": get_stage3_mode(),
         "debug_mode": get_debug_mode(),
         "playlist_size": get_playlist_size(),
         "new_artist_percentage": get_new_artist_percentage(),
@@ -794,7 +780,14 @@ def get_stage2_model() -> str:
     so the cheap binary-classification call stays cheap. Local providers
     (Ollama, LM Studio) may not have a separate mini variant, so fall back
     to whatever the user has configured as their main model.
+
+    OPEN-1a (2026-05-14): STAGE2_MODEL_OVERRIDE env var lets the eval
+    harness (or any caller) force a specific Stage-2 model — needed when
+    routing through OpenRouter where ``gpt-5.4-mini`` would 404.
     """
+    override = os.getenv("STAGE2_MODEL_OVERRIDE", "").strip()
+    if override:
+        return override
     if get_llm_provider_preset() not in LOCAL_PRESETS:
         return STAGE2_MODEL
     return get_model()

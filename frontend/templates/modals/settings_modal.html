@@ -14,6 +14,7 @@
                 <option value="openai" data-i18n="provider.openai">OpenAI</option>
                 <option value="ollama" data-i18n="provider.ollama">Ollama (local)</option>
                 <option value="lmstudio" data-i18n="provider.lmstudio">LM Studio (local)</option>
+                <option value="llamacpp" data-i18n="provider.llamacpp">llama.cpp (local)</option>
                 <option value="groq" data-i18n="provider.groq">Groq</option>
                 <option value="openrouter" data-i18n="provider.openrouter">OpenRouter</option>
             </select>
@@ -26,31 +27,6 @@
             <p class="inline-hint" data-i18n="provider.base_url_hint">Full URL ending in /v1.</p>
         </div>
         <p class="provider-local-notice hidden" id="providerLocalNotice" data-i18n="provider.local_notice">Local providers don't need an API key — any value or leave empty.</p>
-
-        <!-- Stage 3 strategy (L5 — 2026-05-08) -->
-        <div class="form-row">
-            <label data-i18n="settings.stage3.label">Suggestion model strategy</label>
-            <div class="stage3-mode-row" role="radiogroup" aria-label="Stage 3 model strategy" id="stage3ModeRow">
-                <label class="stage3-mode-option">
-                    <input type="radio" name="stage3_mode" value="fast" id="stage3ModeFast" checked>
-                    <span data-i18n="settings.stage3.fast">Fast (cheap)</span>
-                </label>
-                <label class="stage3-mode-option">
-                    <input type="radio" name="stage3_mode" value="best" id="stage3ModeBest">
-                    <span data-i18n="settings.stage3.best">Best (premium)</span>
-                </label>
-                <label class="stage3-mode-option">
-                    <input type="radio" name="stage3_mode" value="auto" id="stage3ModeAuto">
-                    <span data-i18n="settings.stage3.auto">Auto (smart)</span>
-                </label>
-                <label class="stage3-mode-option">
-                    <input type="radio" name="stage3_mode" value="custom" id="stage3ModeCustom">
-                    <span data-i18n="settings.stage3.custom">Custom</span>
-                </label>
-            </div>
-            <p class="inline-hint" data-i18n="settings.stage3.hint">Fast = lowest cost per playlist. Best = highest quality. Auto = Fast for fresh profiles, escalates to Best once you've given feedback. Custom = pick the model yourself below.</p>
-            {{ learn_more('settings.stage3.learn_more', 'Auto saves money on first generations and only pays for the premium model after you start liking and disliking tracks. Custom respects whatever you set in the model field below — useful for local LLMs.') }}
-        </div>
 
         <!-- Model -->
         <div class="form-row">

@@ -1,6 +1,6 @@
 # Evaluation harness
 
-End-to-end evaluation runs against real OpenAI + real Spotify, used to compare model variants (gpt-5.4, gpt-5.4-mini, gpt-4.1, gpt-4.1-mini) on cost, latency, and quality. `gpt-5.5` was removed in Phase 2.6 (2026-04-28) — see `documentation/ModelRecommendations.md`.
+End-to-end evaluation runs against real OpenAI + real Spotify, used to compare model variants (gpt-5.4, gpt-5.4-mini, gpt-4.1, gpt-4.1-mini) on cost, latency, and quality. `gpt-5.5` was removed in Phase 2.6 (2026-04-28) — see `evaluation/baselines/HISTORY.md`.
 
 **Not part of the unit test suite** — never runs on `pytest`. Invoked explicitly:
 

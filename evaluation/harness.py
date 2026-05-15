@@ -209,8 +209,27 @@ def prepare_sandbox(sandbox_dir: Path, settings: dict,
         )
 
     # 3) .credentials — dotenv-style. Same keys as the real app expects.
+    # OPEN-1a (2026-05-14): when any configured eval model is in OpenRouter
+    # `provider/model` form, use the [openrouter] api_key from settings.ini
+    # as the bearer (LLM_BASE_URL points to OpenRouter; OPENAI_API_KEY is
+    # the bearer header regardless of provider).
+    models_cfg = settings.get("evaluation", {}).get("models", [])
+    if isinstance(models_cfg, str):
+        models_cfg = [m.strip() for m in models_cfg.split(",") if m.strip()]
+    routes_via_openrouter = any("/" in (m or "") for m in models_cfg)
+    api_key = settings["openai"]["api_key"]
+    if routes_via_openrouter:
+        or_key = settings.get("openrouter", {}).get("api_key", "").strip()
+        if or_key:
+            api_key = or_key
+        else:
+            logger.warning(
+                "Eval models include OpenRouter ids (`provider/model`) but "
+                "[openrouter] api_key is missing from settings.ini — will try "
+                "the [openai] key, which will likely 401."
+            )
     creds = (
-        f"OPENAI_API_KEY={settings['openai']['api_key']}\n"
+        f"OPENAI_API_KEY={api_key}\n"
         f"SPOTIPY_CLIENT_ID={settings['spotify']['client_id']}\n"
         f"SPOTIPY_CLIENT_SECRET={settings['spotify']['client_secret']}\n"
     )
@@ -225,6 +244,27 @@ def prepare_sandbox(sandbox_dir: Path, settings: dict,
         "GPT_LANGUAGE=English\n"
         f"PLAYLIST_SIZE={settings['evaluation']['playlist_size']}\n"
     )
+    if routes_via_openrouter:
+        # Switch the entire sandbox to OpenRouter so the OpenAI-compatible
+        # HTTP client targets openrouter.ai. Stage-2 model is forced via
+        # STAGE2_MODEL_OVERRIDE env in run_for_model() per-iteration so a
+        # mixed matrix (some OR models, some OAI) is still possible.
+        settings_conf += (
+            "PROVIDER_PRESET=openrouter\n"
+            "LLM_BASE_URL=https://openrouter.ai/api/v1\n"
+        )
+    elif os.environ.get("PROVIDER_PRESET"):
+        # 2026-05-14: respect caller-supplied PROVIDER_PRESET/LLM_BASE_URL
+        # for local LLM evals (llamacpp / ollama / lmstudio at localhost).
+        # Without this, the sandbox falls back to DEFAULT_PROVIDER_PRESET
+        # (now `openrouter`) and routes calls to openrouter.ai with the
+        # real OpenAI key → 401. The queue-script env that launched the
+        # local eval is the source of truth here.
+        caller_preset = os.environ["PROVIDER_PRESET"].strip()
+        caller_url = os.environ.get("LLM_BASE_URL", "").strip()
+        settings_conf += f"PROVIDER_PRESET={caller_preset}\n"
+        if caller_url:
+            settings_conf += f"LLM_BASE_URL={caller_url}\n"
     (sandbox_dir / "settings.conf").write_text(settings_conf, encoding="utf-8")
 
     # 5) Ensure profiles dir exists so profile.create_profile() works
@@ -630,6 +670,16 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
     os.environ["OPENAI_MODEL"] = model
     if settings["evaluation"].get("stage2_model"):
         os.environ["STAGE2_MODEL_OVERRIDE"] = settings["evaluation"]["stage2_model"]
+    elif "/" in model:
+        # OPEN-1a (2026-05-14): on OpenRouter the default Stage-2 model
+        # (`gpt-5.4-mini`) does not exist — would 404. Reuse the same
+        # OR model for Stage 2 so the avoid-check still runs. Cost
+        # impact is negligible (~500 tokens, <5 % of bill).
+        os.environ["STAGE2_MODEL_OVERRIDE"] = model
+    else:
+        # Clear any leftover override from a prior OR iteration so
+        # subsequent OAI iterations use the default STAGE2_MODEL.
+        os.environ.pop("STAGE2_MODEL_OVERRIDE", None)
 
     profile_id: str | None = None
     playlist_id: str | None = None
@@ -641,10 +691,14 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
     # E7 (2026-05-07): include the scenario name when it isn't the
     # default so multi-scenario runs don't collide on the same
     # ``{model}-iter{n}`` slot.
+    # OPEN-1a (2026-05-14): sanitize model id for filesystem use —
+    # OpenRouter ids contain `/` (path separator) and `:` (invalid on
+    # Windows). Replace with `_`.
+    model_safe = model.replace("/", "_").replace(":", "_")
     if scn.name and scn.name != "default":
-        per_run_dir = results_dir / f"{scn.name}__{model}-iter{iteration}"
+        per_run_dir = results_dir / f"{scn.name}__{model_safe}-iter{iteration}"
     else:
-        per_run_dir = results_dir / f"{model}-iter{iteration}"
+        per_run_dir = results_dir / f"{model_safe}-iter{iteration}"
 
     # Track A (2026-05-12): install the scenario's verifier on the
     # production playlist module BEFORE any Stage 3 call. ``None`` would
@@ -700,7 +754,12 @@ def run_for_model(*, model: str, iteration: int, settings: dict,
     try:
         # ── 0. Profile creation ──────────────────────────────────
         ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-        profile_name = f"eval-{model}-{iteration}-{ts}"
+        # OPEN-1a (2026-05-14): profile name max 40 chars — abbreviate
+        # OpenRouter-style long ids by keeping only the last path segment.
+        # Budget: "eval-" (5) + name + "-" + iter (1) + "-" + ts (15) = 23 + name.
+        # Cap name at 15 chars to leave headroom for 2-digit iter.
+        short_model = model.rsplit("/", 1)[-1].replace(":free", "")[:15]
+        profile_name = f"eval-{short_model}-{iteration}-{ts}"
         prof = profile_mod.create_profile(profile_name)
         profile_id = prof["id"]
         result.profile_id = profile_id

@@ -15,7 +15,7 @@ AI-powered music discovery. Describe what you like — SpotyVibe asks an LLM for
 
 ## Features
 
-- **Configurable LLM** — GPT-5.4 / 5.4-mini / 4.1 / 4.1-mini / 4.1-nano, or point it at any OpenAI-compatible endpoint (Ollama, LM Studio, Groq, OpenRouter, custom).
+- **Configurable LLM** — default is **DeepSeek V4 Flash via OpenRouter** (best quality-per-$ as of 2026-05). Switch to OpenAI (gpt-5.4-mini, gpt-4.1, …), Ollama, LM Studio, or any OpenAI-compatible endpoint from Settings → Provider.
 - **Structured taste profile** with multi-profile support, import/export, one-step undo, and an AI-seed-from-playlist option.
 - **Exploration slider** (5 notches) that adjusts playlist size, new-artist %, emerging-artists toggle, and temperature in one pull. Advanced mode exposes every knob individually.
 - **Audio feature filters** (energy, valence, tempo, danceability, acousticness) injected into the GPT prompt. Populate them in one click from a Band/Song Analysis result.
@@ -44,13 +44,15 @@ AI-powered music discovery. Describe what you like — SpotyVibe asks an LLM for
 
 Open <http://127.0.0.1:5000> (desktop opens automatically).
 
-> **Prerequisites:** Python 3.10+, Spotify Premium, and API keys from [OpenAI](https://platform.openai.com/api-keys) + [Spotify Developer](https://developer.spotify.com/dashboard).
+> **Prerequisites:** Python 3.10+, Spotify Premium, and API keys from:
+> - **[OpenRouter](https://openrouter.ai/keys)** (default — DeepSeek V4 Flash route) OR [OpenAI](https://platform.openai.com/api-keys) (alternative)
+> - **[Spotify Developer](https://developer.spotify.com/dashboard)** (always required)
 >
 > Register the redirect URI on the Spotify app: `http://127.0.0.1:5000/callback`.
 
 > **macOS port 5000:** AirPlay Receiver uses this port by default. Disable it in **System Settings → General → AirDrop & Handoff** if SpotyVibe can't bind.
 
-> **💰 Cost:** OpenAI is a paid API — `gpt-5.4-mini` is affordable; larger models cost more. Free local providers (Ollama, LM Studio) are supported via Settings → Provider.
+> **💰 Cost:** DeepSeek V4 Flash via OpenRouter costs ~$0.015 per playlist (paid tier) or **free** on the `:free` route (200 RPD aggregate cap, ~40-65 playlists/day per OR account). OpenAI `gpt-5.4-mini` costs ~$0.05/playlist. Free local providers (Ollama, LM Studio) are supported via Settings → Provider.
 
 ---
 
@@ -71,7 +73,6 @@ Artifacts attach to each [GitHub Release](../../releases).
 |---|---|
 | [User Manual](documentation/UserManual.md) | End-user setup and usage |
 | [Technical Manual](documentation/TechnicalManual.md) | Architecture and developer reference |
-| [Project Layout](documentation/ProjectLayout.md) | Full directory tree |
 
 ---
 

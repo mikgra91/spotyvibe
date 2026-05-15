@@ -13,13 +13,20 @@ Setup and usage guide for **SpotyVibe** — your AI-powered Spotify playlist gen
 
 | Key | Get it from |
 |---|---|
-| OpenAI API key | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| **OpenRouter API key** (recommended default) | [openrouter.ai/keys](https://openrouter.ai/keys) |
+| OpenAI API key (alternative) | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
 | Spotify Client ID + Secret | [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) |
+
+> SpotyVibe ships with **OpenRouter + DeepSeek V4 Flash** as the default provider/model. Switched 2026-05-14 after extensive eval: best quality-per-$ measured. OpenAI is still supported — switch via Settings → Provider.
 
 > When registering the Spotify app, add the redirect URI:
 > - `http://127.0.0.1:5000/callback`
 
-> **💰 Cost:** The OpenAI API is paid. `gpt-5.4-mini` is affordable; larger models cost significantly more. See [OpenAI Pricing](https://platform.openai.com/docs/pricing). SpotyVibe can also be pointed at free local runtimes (Ollama, LM Studio) — see [Custom AI Provider](#custom-ai-provider).
+> **💰 Cost:**
+> - **DeepSeek V4 Flash via OpenRouter (paid)** — ~$0.015 per playlist; deposit €5-10 on [openrouter.ai/credits](https://openrouter.ai/credits) lasts ~330-660 playlists.
+> - **DeepSeek V4 Flash :free** — pick `deepseek/deepseek-v4-flash:free` in the model dropdown for **zero-cost** usage. Capped at 200 requests/day aggregate per OpenRouter account (≈ 40-65 SpotyVibe playlists/day, then resets at midnight UTC).
+> - **OpenAI gpt-5.4-mini** — ~$0.05/playlist. See [OpenAI Pricing](https://platform.openai.com/docs/pricing).
+> - **Free local runtimes** (Ollama, LM Studio) — zero cost; quality varies. See [Custom AI Provider](#custom-ai-provider).
 
 ---
 
@@ -65,18 +72,15 @@ When you open SpotyVibe, a **Getting Started** card appears on the home page wit
 
 ### 1. Enter API keys
 
-☰ → **🔑 Credentials**. Paste your OpenAI API key, Spotify Client ID, and Secret. Keys are stored in the OS keychain (Windows Credential Manager / macOS Keychain).
+☰ → **🔑 Credentials**. Paste your **OpenRouter API key** (or OpenAI key if you switched providers), Spotify Client ID, and Secret. Keys are stored in the OS keychain (Windows Credential Manager / macOS Keychain).
+
+> The credential field is labelled `OPENAI_API_KEY` for historical reasons but accepts any provider's bearer token — what matters is the active `PROVIDER_PRESET` and `LLM_BASE_URL`.
 
 ### 2. Pick a model
 
-☰ → **⚙️ Settings**. Default is `gpt-5.4-mini`. Other options: `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`.
+☰ → **⚙️ Settings**. Default is `deepseek/deepseek-v4-flash` (OpenRouter). To run for free, switch the model to `deepseek/deepseek-v4-flash:free`. To switch to OpenAI, change **Provider** to `openai` — the dropdown then offers `gpt-5.4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`.
 
-**Suggestion model strategy** (above the model dropdown) lets you pick how the model is chosen:
-
-- **Fast (cheap)** — always `gpt-5.4-mini`. Lowest cost per playlist (~$0.04). This is the default and matches SpotyVibe's behaviour before the strategy picker shipped.
-- **Best (premium)** — always `gpt-5.4`. Highest quality, ~$0.10–0.15 per playlist.
-- **Auto (smart)** — Fast on a fresh profile; once you've disliked at least one track, the next generation upgrades to Best. Saves money on early generations and only spends the premium budget once your feedback gives the better model something to work with.
-- **Custom** — uses whatever you set in the model dropdown below. Required for local LLMs (Ollama, LM Studio). Picking any of the three preset modes greys out the dropdown but **preserves your custom model value** so switching back to Custom restores it.
+The mode-strategy switch (Fast / Best / Auto / Custom) was removed on 2026-05-14: the DeepSeek default matches gpt-5.4's quality at 1/10 the cost, eliminating the trade-off the picker used to manage. Pick a model — that's it.
 
 The Settings modal also exposes:
 

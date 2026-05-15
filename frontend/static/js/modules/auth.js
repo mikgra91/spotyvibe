@@ -81,10 +81,16 @@ function _startSpotifyAuthPoll() {
         try {
             const resp = await fetch('/api/spotify/status');
             const data = await resp.json();
-            if (data.status === 'authenticated' && State.spotifyAuthStatus !== 'authenticated') {
+            // Stop polling once we have a definitive answer. The previous
+            // guard (`State.spotifyAuthStatus !== 'authenticated'`) failed
+            // when the postMessage handler updated state first, leaving the
+            // timer running for the full 90s timeout and hammering Spotify.
+            if (data.status === 'authenticated' || data.status === 'not_configured') {
                 clearInterval(_spotifyAuthPollTimer);
                 _spotifyAuthPollTimer = null;
-                await onSpotifyAuthCompleted();
+                if (data.status === 'authenticated' && State.spotifyAuthStatus !== 'authenticated') {
+                    await onSpotifyAuthCompleted();
+                }
             }
         } catch (_) { /* network blip — retry next tick */ }
     }, INTERVAL_MS);

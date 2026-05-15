@@ -16,7 +16,6 @@ AI-powered music discovery: Flask + OpenAI + Spotify Web API.
 **Load on demand:**
 - `SKILL.md` — Spotify API conventions and known breaking changes (read before any Spotify API change).
 - `RULES.md` — Full a11y checklist and detailed conventions.
-- `documentation/ProjectLayout.md` — Full directory tree + architecture overview.
 - `documentation/MCPServers.md` — Optional MCP server setup (Spotify, GitHub, Playwright, MDN).
 
 ## Build & Run
@@ -40,12 +39,7 @@ pip install build && python -m build --wheel         # Python wheel for macOS/Li
 
 **⚠️ `test_documentation_screenshots.py` is NEVER run automatically** — excluded via the `screenshots` marker. Run only when the user explicitly requests a screenshot refresh.
 
-**Simulate CI locally (empty app directory):**
-```bash
-PLAYWRIGHT_BROWSERS_PATH="$LOCALAPPDATA/ms-playwright" LOCALAPPDATA=$(mktemp -d) python -m pytest frontend/tests/ -v
-```
-
-`tree` is available in git bash — use it for directory exploration.
+`tree` is available in git bash — use it for directory exploration. CI-simulation recipe + parallel-monitor snippet live in `documentation/TechnicalManual.md`.
 
 ## Where to Change What
 

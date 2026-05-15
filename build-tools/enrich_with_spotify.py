@@ -83,6 +83,9 @@ def main(argv: list[str] | None = None) -> int:
                              "0 = enrich everything (default).")
     parser.add_argument("--progress-every", type=int, default=500,
                         help="Log progress every N artists.")
+    parser.add_argument("--top-tracks-per-artist", type=int, default=5,
+                        help="Top-tracks per matched artist to attach (0 disables). "
+                             "Each value adds 1 Spotify search call per matched artist.")
     args = parser.parse_args(argv)
 
     client_id = os.environ.get("SPOTIFY_CLIENT_ID", "").strip()
@@ -183,10 +186,45 @@ def main(argv: list[str] | None = None) -> int:
             logger.error("Spotify enrichment ABORTED in Pass 2 (rate-limited): %s", exc)
             return RATE_LIMIT_EXIT_CODE
 
+    # Pass 4 (2026-05-15): top-tracks per matched artist. Adds 1 search
+    # call per matched artist (~0.17 s with throttle). Mirrors the
+    # validation logic in build-tools/build_top_tracks_overlay.py so the
+    # corpus carries grounding anchors directly instead of relying on a
+    # side-car overlay file. Without these, Stage 3 prompts say "known:
+    # (no track examples available)" for every artist → DS / Llama /
+    # mini all under-fill (correctly refuse to confabulate).
+    top_tracks_by_id: dict[str, list[str]] = {}
+    if args.top_tracks_per_artist > 0 and pending:
+        logger.info("Pass 4: fetching top %d tracks per matched artist (%d artists)…",
+                    args.top_tracks_per_artist, len(pending))
+        n_seen_4 = 0
+        n_with_tracks = 0
+        t4_started = time.time()
+        try:
+            for mb_row, sp_id in pending:
+                n_seen_4 += 1
+                name = str(mb_row.get("name") or "")
+                tracks = client.search_top_tracks(name, max_tracks=args.top_tracks_per_artist)
+                if tracks:
+                    top_tracks_by_id[sp_id] = tracks
+                    n_with_tracks += 1
+                if n_seen_4 % args.progress_every == 0:
+                    elapsed = time.time() - t4_started
+                    rate = n_seen_4 / elapsed if elapsed > 0 else 0
+                    logger.info("Pass 4: %d scanned, %d with tracks — %.1f artists/sec",
+                                n_seen_4, n_with_tracks, rate)
+        except (SpotifyRateLimitedError, SpotifyBackoffBudgetExhausted) as exc:
+            logger.error("Spotify enrichment ABORTED in Pass 4 (rate-limited): %s", exc)
+            return RATE_LIMIT_EXIT_CODE
+        logger.info("Pass 4 done — %d/%d matched artists got top_tracks (%.1f%%)",
+                    n_with_tracks, len(pending),
+                    100.0 * n_with_tracks / max(1, len(pending)))
+
     # Pass 3: write the enriched corpus.
     args.output.parent.mkdir(parents=True, exist_ok=True)
     n_enriched = 0
     n_written = 0
+    n_with_top_tracks = 0
     with _open_jsonl(args.output, "wt") as out:
         for mb_row, sp_id in pending:
             sp = sp_by_id.get(sp_id)
@@ -195,6 +233,10 @@ def main(argv: list[str] | None = None) -> int:
                 row["spotify_id"] = sp.id
                 row["spotify_genres"] = sp.genres
                 n_enriched += 1
+            tt = top_tracks_by_id.get(sp_id)
+            if tt:
+                row["top_tracks"] = tt
+                n_with_top_tracks += 1
             out.write(json.dumps(row, ensure_ascii=False) + "\n")
             n_written += 1
         for mb_row in skipped:
@@ -207,9 +249,11 @@ def main(argv: list[str] | None = None) -> int:
     elapsed = time.time() - started
     logger.info(
         "Done: %d total rows written (%d enriched = %.1f%% of slice; "
-        "%d untouched / passthrough) in %.1f min",
+        "%d with top_tracks = %.1f%% of matched; %d untouched / passthrough) "
+        "in %.1f min",
         n_written, n_enriched,
         100.0 * n_enriched / max(1, len(enrich_slice)),
+        n_with_top_tracks, 100.0 * n_with_top_tracks / max(1, len(pending)),
         n_written - n_enriched, elapsed / 60.0,
     )
     return 0

@@ -113,6 +113,9 @@ def load_settings() -> dict:
 
     return {
         "openai": {"api_key": cfg.get("openai", "api_key").strip()},
+        "openrouter": {
+            "api_key": cfg.get("openrouter", "api_key", fallback="").strip(),
+        },
         "spotify": {
             "client_id": cfg.get("spotify", "client_id").strip(),
             "client_secret": cfg.get("spotify", "client_secret").strip(),
@@ -509,6 +512,28 @@ def main() -> int:
     # SPOTYVIBE_APP_DIR is read by config._get_app_dir() at import time.
     os.environ["SPOTYVIBE_APP_DIR"] = str(sandbox_dir)
     os.environ["DEBUG_MODE"] = "1"
+    # OPEN-1a (2026-05-14): when routing via OpenRouter, the prior probe-check
+    # call to config.load_config() already loaded the user's REAL OpenAI key
+    # into os.environ. Subsequent sandbox loads use override=True but still
+    # read CREDENTIALS_FILE (bound at config-import time) from the REAL app
+    # dir — never seeing the sandbox's [openrouter] key. Force the OR key
+    # into env here before any prod import re-resolves credentials.
+    if any("/" in m for m in models):
+        or_key = settings.get("openrouter", {}).get("api_key", "").strip()
+        if or_key:
+            os.environ["OPENAI_API_KEY"] = or_key
+            os.environ["LLM_BASE_URL"] = "https://openrouter.ai/api/v1"
+            os.environ["PROVIDER_PRESET"] = "openrouter"
+            # Disable keyring overlay so the real OpenAI key in Windows
+            # Credential Manager doesn't clobber the OR bearer.
+            os.environ["SPOTYVIBE_SKIP_KEYRING"] = "1"
+            # Free-tier max_tokens cap — anything over ~8k 402s on free routes.
+            os.environ.setdefault("SPOTYVIBE_MAX_OUTPUT_TOKENS", "4000")
+            logger.info("OpenRouter routing active for this run (key + base URL set, keyring overlay disabled, max_tokens=%s).",
+                        os.environ["SPOTYVIBE_MAX_OUTPUT_TOKENS"])
+        else:
+            logger.warning("Eval includes OpenRouter models but [openrouter] "
+                           "api_key is missing — calls will 401.")
     os.environ["RAG_ENABLED"] = "true"
     # 2026-05-07: Spotify rate-limit hardening for the eval harness.
     # The user-facing app keeps the prior 5-worker pool with no
@@ -529,25 +554,9 @@ def main() -> int:
     os.environ.setdefault("SPOTIVIBE_SPOTIFY_SEARCH_SERIAL", "1")
     os.environ.setdefault("SPOTIVIBE_SPOTIFY_SEARCH_DELAY_S", "1.5")
 
-    # L5 (2026-05-10): the L5 Stage 3 selector resolves the model based on
-    # STAGE3_MODE. Production default is `fast` which IGNORES the
-    # per-iteration `OPENAI_MODEL` override the harness sets at line 615
-    # of harness.py — so without this, every iteration would silently
-    # collapse onto STAGE3_FAST_MODEL regardless of `models =` in
-    # settings.ini. `custom` makes the resolver respect OPENAI_MODEL,
-    # restoring the per-iter behaviour the eval needs to compare models.
-    #
-    # Why force-override (not setdefault): config.ensure_env() runs
-    # load_dotenv(SETTINGS_FILE) which seeds os.environ from the user's
-    # persisted settings.conf — and a user who has set STAGE3_MODE via the
-    # Settings UI will have it pinned. setdefault would silently honour
-    # that pin and corrupt every comparative eval run (Tier-0 root cause
-    # of the 2026-05-10 validation: every "gpt-5.4" iter actually ran
-    # mini because the user's settings.conf had STAGE3_MODE='fast').
-    # The eval explicitly opts into `custom` semantics; users who want to
-    # validate Auto / Fast / Best behaviour should write a separate
-    # smoke test rather than re-purpose the comparative harness.
-    os.environ["STAGE3_MODE"] = "custom"
+    # 2026-05-14: STAGE3_MODE switch removed. Stage 3 now always uses
+    # get_model() — the per-iteration OPENAI_MODEL override the harness
+    # sets is respected by default. No env wiring needed here.
 
     from evaluation.harness import prepare_sandbox, run_for_model
 

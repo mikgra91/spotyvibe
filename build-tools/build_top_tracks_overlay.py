@@ -239,6 +239,12 @@ def main() -> int:
                              "iterate every scenario in SCENARIOS, union the "
                              "retrieval pools, and build one combined overlay. "
                              "Default empty = legacy single-scenario behaviour.")
+    parser.add_argument("--top-by-popularity", type=int, default=0,
+                        help="2026-05-15: bypass scenario-based retrieval and "
+                             "process the top-N artists from the corpus sorted by "
+                             "listener_popularity descending. Use this for broad "
+                             "production-overlay coverage (any future user profile). "
+                             "0 = disabled (default).")
     parser.add_argument("--resume", action="store_true",
                         help="S.6 #4: read the existing overlay file and skip "
                              "every artist already present. Lets a multi-session "
@@ -281,7 +287,20 @@ def main() -> int:
     corpus = RagCorpus.load(corpus_path)
 
     # ── Candidate set ────────────────────────────────────────────
-    if args.scenarios.strip():
+    if args.top_by_popularity > 0:
+        # 2026-05-15: broad-coverage mode — feed the top-N most-popular
+        # artists from the corpus directly into the fetcher. No
+        # scenario-bound retrieval; cover everything a real user profile
+        # might surface.
+        all_rows = sorted(
+            corpus.artists,
+            key=lambda a: float(getattr(a, "listener_popularity", 0.0) or 0.0),
+            reverse=True,
+        )
+        candidates = all_rows[: args.top_by_popularity]
+        logger.info("Top-by-popularity mode — taking top %d / %d corpus artists by listener_popularity.",
+                    len(candidates), len(corpus.artists))
+    elif args.scenarios.strip():
         if args.scenarios.strip().lower() == "all":
             scn_names = sorted(SCENARIOS.keys())
         else:

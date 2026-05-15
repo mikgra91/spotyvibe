@@ -209,6 +209,57 @@ class SpotifyClient:
             return []
         return (data.get("artists") or {}).get("items") or []
 
+    def search_top_tracks(self, name: str, max_tracks: int = 5) -> list[str]:
+        """Return up to *max_tracks* relevance-ranked track titles for *name*.
+
+        Uses Spotify's ``/v1/search?type=track&q=artist:"NAME"`` endpoint,
+        which works on every app tier (the cleaner
+        ``/v1/artists/{id}/top-tracks`` returns 403 in Development Mode
+        post-2024 Service Terms). Filters results to tracks where one of
+        the primary artists actually matches the requested name, so
+        search-engine fuzziness can't poison the overlay with
+        wrong-artist titles.
+
+        Returns ``[]`` on any error so a single missing artist never
+        breaks the whole enrichment run.
+        """
+        if not name or not name.strip():
+            return []
+        target = name.strip().lower()
+        try:
+            data = self._get("/search", params={
+                "q": f'artist:"{name.strip()}"',
+                "type": "track",
+                "limit": max(10, max_tracks * 2),
+            })
+        except requests.HTTPError as exc:
+            logger.warning("Spotify track-search failed for %r: %s", name, exc)
+            return []
+        items = ((data or {}).get("tracks") or {}).get("items") or []
+        out: list[str] = []
+        seen: set[str] = set()
+        for tr in items:
+            if len(out) >= max_tracks:
+                break
+            # Require an exact-ish artist-name match on at least one
+            # credited artist to filter out features by unrelated acts.
+            artists = tr.get("artists") or []
+            if not any((a.get("name", "") or "").strip().lower() == target
+                       for a in artists):
+                continue
+            title = (tr.get("name") or "").strip()
+            if not title:
+                continue
+            # Dedupe — search often returns multiple regional / remastered
+            # editions of the same song. Compare on lowercase to keep the
+            # overlay tight (5 distinct titles, not 5 versions of one).
+            key = title.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(title)
+        return out
+
     def get_artists(self, ids: Iterable[str]) -> list[SpotifyArtist]:
         """Fetch artist details one at a time via ``GET /artists/{id}``.
 

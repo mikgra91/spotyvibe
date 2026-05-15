@@ -126,36 +126,14 @@ class TestSettingsModal:
         page.wait_for_timeout(100)
         expect(page.locator("#genNewArtistPct")).to_be_visible()
 
-    def test_stage3_radios_present_with_fast_default(self, page: Page, base_url):
-        # L5 (2026-05-08): Stage 3 strategy radios appear with the
-        # "Fast" preset checked by default (Path 3 default = no behaviour
-        # change for existing users).
+    def test_stage3_radios_removed(self, page: Page, base_url):
+        # 2026-05-14: Stage 3 strategy switch ripped out. The model
+        # dropdown is now the sole control — no radio segment should
+        # exist in the rendered settings modal.
         page.goto(base_url)
         self._open_settings(page)
         page.locator("#settingsLoading.active").wait_for(state="detached", timeout=2500)
-        for value in ("fast", "best", "auto", "custom"):
-            expect(page.locator(f"input[name='stage3_mode'][value='{value}']")).to_be_visible()
-        expect(page.locator("input[name='stage3_mode'][value='fast']")).to_be_checked()
-
-    def test_stage3_preset_disables_model_dropdown(self, page: Page, base_url):
-        # When a preset (fast / best / auto) is active the model dropdown
-        # is greyed out — preset modes ignore the dropdown value at
-        # request time, so leaving it active would be misleading.
-        page.goto(base_url)
-        self._open_settings(page)
-        page.locator("#settingsLoading.active").wait_for(state="detached", timeout=2500)
-        page.locator("input[name='stage3_mode'][value='auto']").click()
-        expect(page.locator("#settings-model")).to_be_disabled()
-
-    def test_stage3_custom_reenables_model_dropdown(self, page: Page, base_url):
-        # Switching back to Custom must re-enable the model controls so
-        # the user can pick their own model (incl. local LLMs).
-        page.goto(base_url)
-        self._open_settings(page)
-        page.locator("#settingsLoading.active").wait_for(state="detached", timeout=2500)
-        page.locator("input[name='stage3_mode'][value='best']").click()
-        expect(page.locator("#settings-model")).to_be_disabled()
-        page.locator("input[name='stage3_mode'][value='custom']").click()
+        expect(page.locator("input[name='stage3_mode']")).to_have_count(0)
         expect(page.locator("#settings-model")).to_be_enabled()
 
     def test_shows_debug_mode_checkbox(self, page: Page, base_url):

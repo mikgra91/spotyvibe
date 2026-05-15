@@ -32,15 +32,15 @@ import functools
 import json
 import logging
 import math
+import os
 import re
 import unicodedata
 from collections import defaultdict
 from pathlib import Path
 from config import (BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD,
                     RECENT_VERBATIM_TRACKS,
-                    STAGE3_OVER_REQUEST, STAGE3_FAST_MODEL, STAGE3_BEST_MODEL,
-                    get_model, get_gpt_language, get_stage2_model, get_debug_mode,
-                    get_stage3_mode)
+                    STAGE3_OVER_REQUEST,
+                    get_model, get_gpt_language, get_stage2_model, get_debug_mode)
 from .utils import strip_code_fences, debug_log
 from .openai_http import chat_completions_create, extract_chat_content
 from .rag import score_artists, score_artists_stratified, format_candidate_pool_block
@@ -112,6 +112,12 @@ TRACK_SELECT_SYSTEM_FILE = BASE_DIR / "prompts" / "track_select_system.txt"
 # ~350 system tokens and have weaker negation handling — the slim
 # variant uses positive-form constraints and a 2-field reasoning block.
 TRACK_SELECT_SYSTEM_FILE_LOCAL = BASE_DIR / "prompts" / "track_select_system_local.txt"
+# 2026-05-14: minimal variant for actual local LLMs (llamacpp / ollama /
+# lmstudio). Drops the `reasoning` wrapper entirely — Llama 3.1 8B falls
+# back to prose/markdown when it has to format a wrapped JSON object,
+# producing "**Selection Strategy:**\nI will focus on…" instead of valid
+# JSON. The minimal schema is `{"playlist": [...]}` only.
+TRACK_SELECT_SYSTEM_FILE_LOCAL_MINIMAL = BASE_DIR / "prompts" / "track_select_system_local_minimal.txt"
 TRACK_SELECT_USER_FILE = BASE_DIR / "prompts" / "track_select_user.txt"
 
 
@@ -1018,32 +1024,17 @@ def _hash_messages_for_audit(messages: list) -> dict:
     return out
 
 
-def _resolve_stage3_model(profile: dict | None, *, mode: str | None = None) -> str:
-    """Pick the Stage 3 model based on the configured strategy + profile state.
+def _resolve_stage3_model(profile: dict | None = None, *, mode: str | None = None) -> str:
+    """Return the Stage 3 model — always ``get_model()``.
 
-    L5 (2026-05-08). Modes: "fast" → STAGE3_FAST_MODEL, "best" →
-    STAGE3_BEST_MODEL, "auto" → fast for cold profile / best once
-    ``feedback.disliked_tracks`` carries ≥ 1 entry, "custom" → whatever
-    ``get_model()`` resolves (the existing OPENAI_MODEL path; covers
-    local LLMs).
-
-    ``mode`` override is for tests; production resolves via
-    ``get_stage3_mode()``.
+    2026-05-14: collapsed from the 4-mode (fast/best/auto/custom) L5 switch.
+    DeepSeek V4 Flash via OpenRouter now matches gpt-5.4's cite discipline
+    at 1/10 the cost, removing the cite-vs-cost trade-off the mode switch
+    was built to manage. The ``profile`` and ``mode`` args are kept for
+    backward compatibility with callers / tests; both are ignored.
     """
-    resolved_mode = (mode or get_stage3_mode() or "").strip().lower()
-    if resolved_mode == "best":
-        return STAGE3_BEST_MODEL
-    if resolved_mode == "custom":
-        return get_model()
-    if resolved_mode == "auto":
-        feedback = (profile or {}).get("feedback", {}) if isinstance(profile, dict) else {}
-        disliked = feedback.get("disliked_tracks") if isinstance(feedback, dict) else None
-        if isinstance(disliked, list) and len(disliked) >= 1:
-            return STAGE3_BEST_MODEL
-        return STAGE3_FAST_MODEL
-    # "fast" + any unknown / typo'd value (get_stage3_mode() already
-    # falls back to default, this is belt-and-braces for direct callers).
-    return STAGE3_FAST_MODEL
+    _ = profile, mode
+    return get_model()
 
 
 def _strip_gpt_annotation(artist: str, annotation_words: set) -> str:
@@ -1438,7 +1429,7 @@ def select_tracks(
             "model": _resolve_stage3_model(profile),
             "system_fingerprint": None,
             "prompt_hashes": None,
-            "stage3_mode": get_stage3_mode(),
+            "stage3_mode": "fast",
             "refusal_reason": _a6_reason,
         }
         return (
@@ -1477,12 +1468,33 @@ def select_tracks(
     # Phase 2.5 (2026-04-27): swap to slim local variant for Ollama /
     # LM Studio. Cloud providers (OpenAI, Groq, OpenRouter) keep the
     # full prompt with the 5-field reasoning block.
+    # OPEN-1b (2026-05-13): also swap on SPOTYVIBE_LEAN_PROMPT=1 env-gate
+    # so reasoning-tier cloud models (gpt-5.4) can be tested on the lean
+    # schema — the heavy reasoning block is the prime suspect for runaway
+    # token-out on deliberation-class models.
+    _lean_env = os.environ.get("SPOTYVIBE_LEAN_PROMPT") == "1"
     try:
         from config import LOCAL_PRESETS, get_llm_provider_preset
-        if get_llm_provider_preset() in LOCAL_PRESETS and TRACK_SELECT_SYSTEM_FILE_LOCAL.exists():
+        _is_local_preset = get_llm_provider_preset() in LOCAL_PRESETS
+        _use_lean = _is_local_preset or _lean_env
+        # 2026-05-14: actual local LLMs (llamacpp / ollama / lmstudio) get
+        # the MINIMAL variant — no `reasoning` wrapper at all. Smaller
+        # local models (Llama 3.1 8B, Qwen3 8B) can't reliably emit
+        # nested-JSON-with-prose-wrapper and fall back to "thinking
+        # out loud" markdown that fails parsing. Cloud lean route
+        # (SPOTYVIBE_LEAN_PROMPT=1 on DS / mini) keeps the existing
+        # local prompt with the reasoning block — those models can
+        # still follow it and the telemetry stays.
+        if _is_local_preset and TRACK_SELECT_SYSTEM_FILE_LOCAL_MINIMAL.exists():
+            system_prompt = load_text_file(TRACK_SELECT_SYSTEM_FILE_LOCAL_MINIMAL)
+            logger.info("[Stage 3] using MINIMAL prompt variant "
+                        "(local preset=%s, reasoning wrapper dropped)",
+                        get_llm_provider_preset())
+        elif _use_lean and TRACK_SELECT_SYSTEM_FILE_LOCAL.exists():
             system_prompt = load_text_file(TRACK_SELECT_SYSTEM_FILE_LOCAL)
-            logger.info("[Stage 3] using slim local-LLM prompt variant "
-                        "(provider=%s)", get_llm_provider_preset())
+            logger.info("[Stage 3] using slim prompt variant "
+                        "(provider=%s, lean_env=%s)",
+                        get_llm_provider_preset(), _lean_env)
     except Exception as _exc:  # pragma: no cover
         logger.debug("local-prompt-variant lookup failed (%s) — using cloud variant", _exc)
     # L5 (2026-05-08): resolve the Stage 3 model once per call so the
@@ -1548,7 +1560,17 @@ def select_tracks(
 
     # Prepend validation_block (model-specific, per-request) to the user
     # message — moved out of the system prompt to preserve prefix caching.
-    if validation_block and validation_block.strip():
+    # 2026-05-14: skip the validation prefix for local LLMs — the
+    # "Before output, verify each track…" framing triggers small models
+    # (Llama 3.1 8B, Qwen3 8B) to emit prose "After verifying..." instead
+    # of the requested JSON. The minimal local system prompt is enough.
+    try:
+        from config import LOCAL_PRESETS as _LP, get_llm_provider_preset as _gpp
+        _skip_validation_for_local = _gpp() in _LP
+    except Exception:
+        _skip_validation_for_local = False
+    if (validation_block and validation_block.strip()
+            and not _skip_validation_for_local):
         user_message = f"{validation_block}\n\n{user_message}"
 
     if recently_filtered_tracks:
@@ -1626,11 +1648,19 @@ def select_tracks(
     # showed 71-76 % hit rate when it landed, 0 % otherwise).
     _stage3_cache_key = f"sv-stage3:{stage3_model}:{gpt_language}:{int(bool(emerging_only))}"
 
+    # OPEN-1b (2026-05-13): under SPOTYVIBE_LEAN_PROMPT=1, clamp Stage-3
+    # temperature low (0.2) — exp data shows reasoning-tier models burn
+    # tokens deliberating with higher temps. Caller's adaptive temp logic
+    # in app.py becomes a ceiling, not a floor, under this gate.
+    effective_temperature = temperature
+    if os.environ.get("SPOTYVIBE_LEAN_PROMPT") == "1":
+        effective_temperature = min(temperature, 0.2)
+
     _t0 = _time.monotonic()
     response = chat_completions_create(
         model=stage3_model,
         messages=messages,
-        temperature=temperature,
+        temperature=effective_temperature,
         # OPEN-3 (2026-04-28): json_schema variant evaluated and reverted —
         # measured +80% cost on gpt-5.4, +89% on gpt-5.4-mini, with a
         # quality regression on must-have cite. Stage 3 uses plain json_object.
@@ -1655,7 +1685,7 @@ def select_tracks(
             trace.append("stage3_batches", {
                 "batch_num": batch_num,
                 "model": stage3_model,
-                "stage3_mode": get_stage3_mode(),
+                "stage3_mode": "fast",
                 "system_fingerprint": _s3_system_fp,
                 "system": system_prompt,
                 "user": user_message,
@@ -1702,7 +1732,7 @@ def select_tracks(
         "latency_s": latency_s,
         "system_fingerprint": _s3_system_fp,
         "prompt_hashes": _hash_messages_for_audit(messages),
-        "stage3_mode": get_stage3_mode(),
+        "stage3_mode": "fast",
     }
 
     content = strip_code_fences(raw_content)
