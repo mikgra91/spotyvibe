@@ -14,9 +14,11 @@
 AI-powered music discovery: Flask + OpenAI + Spotify Web API.
 
 **Load on demand:**
-- `SKILL.md` — Spotify API conventions and known breaking changes (read before any Spotify API change).
-- `RULES.md` — Full a11y checklist and detailed conventions.
-- `documentation/MCPServers.md` — Optional MCP server setup (Spotify, GitHub, Playwright, MDN).
+- [`documentation/api/spotify.md`](documentation/api/spotify.md) — Spotify Web API conventions and known breaking changes (read before any Spotify API change).
+- [`documentation/conventions.md`](documentation/conventions.md) — Full a11y checklist + i18n details.
+- [`documentation/MCPServers.md`](documentation/MCPServers.md) — Optional MCP server setup (Spotify, GitHub, Playwright, MDN).
+- [`documentation/TechnicalManual.md`](documentation/TechnicalManual.md) — Architecture, modules, data flow.
+- [`documentation/guides/cloud-run-rag-setup.md`](documentation/guides/cloud-run-rag-setup.md) — GCP-side RAG corpus pipeline.
 
 ## Build & Run
 
@@ -68,7 +70,7 @@ pip install build && python -m build --wheel         # Python wheel for macOS/Li
 ## Rules — Must Follow
 
 1. **i18n** — All user-facing text uses `data-i18n="key"` in HTML or `i18n('key','fallback')` in JS. Never hardcode strings. Keys must exist in `en.json`, `de.json`, and `jp.json`.
-2. **Spotify** — Use `sp.playlist_items()` not `playlist_tracks()`. Search `limit` max is 10. Inner key is `"item"` not `"track"` (Feb 2026 change). See `SKILL.md` for full reference.
+2. **Spotify** — Use `sp.playlist_items()` not `playlist_tracks()`. Search `limit` max is 10. Inner key is `"item"` not `"track"` (Feb 2026 change). See [`documentation/api/spotify.md`](documentation/api/spotify.md) for full reference.
 3. **Tests** —
    - Run pytest before completing any code/styling change. Mock all external APIs. Skip for docs-only changes.
    - **Scope rule:** fix test failures that are (a) caused by your current change, OR (b) in code paths you are actively touching. For unrelated pre-existing failures, **report them to the user and ask whether to fix now or defer** — do not silently expand the task. A 5-line change should not turn into a 12-file refactor without explicit confirmation.
@@ -81,7 +83,7 @@ pip install build && python -m build --wheel         # Python wheel for macOS/Li
 6. **Security** — Never hardcode API keys. Never commit `.credentials`, `.spotify-cache`, or `personalized_music_profile.json`.
 7. **Large tasks** — Present a plan with files/order/summary and wait for confirmation before implementing.
 8. **No code style enforcement** — Rely on linters/formatters, not AI judgment. Only follow existing conventions.
-9. **a11y** — See `RULES.md` for full checklist. Minimum: ARIA labels on interactive elements, keyboard navigation, focus management in modals.
+9. **a11y** — See [`documentation/conventions.md`](documentation/conventions.md) for full checklist. Minimum: ARIA labels on interactive elements, keyboard navigation, focus management in modals.
 
 ## Context Discipline
 

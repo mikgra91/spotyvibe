@@ -225,7 +225,7 @@ Preference stored in `localStorage['spotyvibe-theme']`. Renderers registered in 
 
 ## Spotify Web API (February 2026 changes)
 
-See [../SKILL.md](../SKILL.md) for the full reference. Summary:
+See [api/spotify.md](api/spotify.md) for the full reference. Summary:
 
 - Use `sp.playlist_items()` — `playlist_tracks()` was removed.
 - Each playlist item's inner key is `"item"`, not `"track"`. SpotyVibe uses `entry.get("item") or entry.get("track")` and a `fields=items(item(...))` parameter.

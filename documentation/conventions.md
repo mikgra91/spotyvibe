@@ -1,6 +1,6 @@
-# RULES.md — Detailed Conventions (read on demand)
+# Conventions — accessibility + i18n
 
-For everything else (build, where-to-change-what, the 9 must-follow rules, git rule, context discipline, graphify), see `CLAUDE.md`. For Spotify API conventions, see `SKILL.md`.
+Detailed conventions for frontend changes. For build/run, where-to-change-what, the must-follow rules, and git workflow, see [`../CLAUDE.md`](../CLAUDE.md). For Spotify API conventions, see [`api/spotify.md`](api/spotify.md).
 
 ## Accessibility (a11y)
 

@@ -1,5 +1,22 @@
 # Evaluation history — fix ↔ result map
 
+## 2026-05-16 — Top-tracks source switched from Spotify to Last.fm
+
+**Root cause finding (2026-05-15):** verify_mode=spotify under-fill was caused by an empty `top_tracks` field on every corpus row (RAG corpus had 0/174k populated). Stage 3 prompts told models "known tracks: (no examples available)" for every approved artist, so DS / Llama / mini all correctly refused to confabulate.
+
+**Diagnostic fix (2026-05-15):** 213-artist overlay built from eval traces → DS default re-ran clean at 30/30 tracks, 100 % Spotify-found, 90-100 % cite. Confirmed root cause.
+
+**Production fix attempted (2026-05-15 → 2026-05-16):**
+1. Hardened SpotifyClient (adaptive throttle, daily-budget abort, smoke pre-flight).
+2. Built separate `spotivibe-rag-enricher` Cloud Run job (split from monolithic builder).
+3. Both old + new Spotify credentials hit the same ~700-1000 call/day ceiling before a 24 h ban — **proved Spotify Dev Mode is structurally incompatible with bulk enrichment** (escalation system also correlates at developer-account level, not just client_id).
+
+**Final fix (2026-05-16):** Top-tracks source switched to Last.fm. Adds `artist.getTopTracks` to existing Last.fm Phase B; same enricher, one extra API call per artist. Local smoke confirmed real playcount-ranked titles matching Spotify catalog (Radiohead → Creep, Beatles → Here Comes the Sun, etc.). Spotify enricher job + image deleted; Spotify env stripped from builder. Spotify Secret Manager retained for user-facing app + eval verify path.
+
+---
+
+
+
 > **Purpose.** Chronological record of every prompt / pipeline / config fix
 > tested against the evaluation harness or the Track B probe battery,
 > with the headline metric impact for each. Use this file when asking

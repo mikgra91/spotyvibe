@@ -2,7 +2,7 @@
 
 Conventions and endpoints used by SpotyVibe. Consult the [official Spotify Web API Reference](https://developer.spotify.com/documentation/web-api) before making API changes.
 
-> **MCP Server available:** If you are using an AI coding assistant, a Spotify MCP server (`marcelmarais/spotify-mcp-server`) is recommended for live API exploration, verifying response shapes, and testing search queries. See [`documentation/MCPServers.md`](documentation/MCPServers.md) for setup instructions.
+> **MCP Server available:** If you are using an AI coding assistant, a Spotify MCP server (`marcelmarais/spotify-mcp-server`) is recommended for live API exploration, verifying response shapes, and testing search queries. See [`../MCPServers.md`](../MCPServers.md) for setup instructions.
 
 ---
 
@@ -10,6 +10,7 @@ Conventions and endpoints used by SpotyVibe. Consult the [official Spotify Web A
 
 - **Premium required:** The Spotify app owner must have an active Spotify Premium subscription. If Premium lapses, API access stops working.
 - **5-user cap:** Each Client ID is limited to 5 authorized users. Only the app owner needs Premium — authorized test users do not.
+- **Daily call ceiling:** Empirically ~1000 search calls per app per 24 h (undocumented; observed via repeated 24 h temp-bans at this threshold). Bulk artist enrichment is not feasible from this tier — SpotyVibe's RAG `top_tracks` field is sourced from Last.fm instead.
 - **Extended Quota Mode** (for public/production apps) requires a legally registered business, 250,000+ monthly active users, availability in key Spotify markets, and an active launched service.
 
 **Impact on SpotyVibe:** Every user runs their own Spotify Developer App in Development Mode → each user must have Spotify Premium for playlist writes.
