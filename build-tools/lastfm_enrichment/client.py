@@ -109,6 +109,11 @@ class LastfmArtistInfo:
     # ``getTopTags`` — driver-side filtering (min weight) lives in
     # ``enrich_with_lastfm.py`` so the client stays raw.
     tags: list[tuple[str, int]] = field(default_factory=list)
+    # ``top_tracks`` is the playcount-ranked list of track titles from
+    # ``artist.getTopTracks`` — empty list when the artist is unknown
+    # to Last.fm or has no plays. Caller is responsible for truncating
+    # to N entries.
+    top_tracks: list[str] = field(default_factory=list)
 
 
 class LastfmClient:
@@ -309,8 +314,57 @@ class LastfmClient:
             out.append((name, weight))
         return out
 
-    def fetch_artist(self, mbid: str) -> LastfmArtistInfo:
-        """Convenience: ``get_artist_info`` + ``get_top_tags`` merged.
+    def get_top_tracks(self, mbid: str, limit: int = 5) -> list[str]:
+        """Fetch ``artist.getTopTracks`` for *mbid*.
+
+        Returns track titles ordered by Last.fm playcount, capped at
+        *limit*. Filters out tracks whose title equals the artist name
+        (a noise pattern Last.fm returns for fan-mistagged uploads).
+        Empty list when the artist is unknown or has zero plays.
+        """
+        if not mbid:
+            return []
+        try:
+            data = self._get({
+                "method": "artist.getTopTracks",
+                "mbid": mbid,
+                "limit": max(limit * 2, 10),
+            })
+        except LastfmArtistNotFound:
+            return []
+        toptracks = (data or {}).get("toptracks") or {}
+        raw_tracks = toptracks.get("track") or []
+        if isinstance(raw_tracks, dict):
+            raw_tracks = [raw_tracks]
+        # Last.fm returns the artist's display name in each track entry
+        # — capture once so we can filter self-titled noise.
+        artist_name = ""
+        if raw_tracks:
+            artist_name = (((raw_tracks[0] or {}).get("artist") or {})
+                           .get("name") or "").strip().lower()
+        out: list[str] = []
+        seen: set[str] = set()
+        for entry in raw_tracks:
+            if not isinstance(entry, dict):
+                continue
+            title = (entry.get("name") or "").strip()
+            if not title:
+                continue
+            key = title.lower()
+            if key in seen:
+                continue
+            if artist_name and key == artist_name:
+                # "Artist Name" as a track title is almost always a
+                # mistagged self-titled upload, not a real song.
+                continue
+            seen.add(key)
+            out.append(title)
+            if len(out) >= limit:
+                break
+        return out
+
+    def fetch_artist(self, mbid: str, top_tracks_n: int = 5) -> LastfmArtistInfo:
+        """Convenience: ``getInfo`` + ``getTopTags`` + ``getTopTracks`` merged.
 
         Single-artist transient failures (network, non-JSON body) are
         swallowed and returned as an empty :class:`LastfmArtistInfo` so
@@ -318,10 +372,15 @@ class LastfmClient:
         run of transient failures trips the circuit breaker
         (:class:`LastfmServiceUnavailable`) — Last.fm is likely down or
         the egress path is broken, and continuing wastes compute.
+
+        Set ``top_tracks_n=0`` to skip the third API call (useful for
+        callers that only need info+tags).
         """
         try:
             info = self.get_artist_info(mbid)
             tags = self.get_top_tags(mbid)
+            tracks = (self.get_top_tracks(mbid, limit=top_tracks_n)
+                      if top_tracks_n > 0 else [])
         except LastfmTransientFailure as exc:
             self._consecutive_transient_failures += 1
             logger.warning(
@@ -336,11 +395,10 @@ class LastfmClient:
                     f"aborting (last: {exc})"
                 ) from exc
             return LastfmArtistInfo()
-        # Any successful fetch resets the consecutive-failure counter —
-        # even getInfo succeeding while getTopTags fails would not get
-        # here, so this only fires on a fully clean lookup.
+        # Any successful fetch resets the consecutive-failure counter.
         self._consecutive_transient_failures = 0
         info.tags = tags
+        info.top_tracks = tracks
         return info
 
 

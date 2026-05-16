@@ -53,7 +53,7 @@ echo
 echo "===== 5/5  Trigger execution ====="
 gcloud run jobs execute "$JOB" \
   --region "$REGION" \
-  --wait=false
+  --async
 
 echo
 echo "===== Done ====="

@@ -268,6 +268,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="Drop Last.fm tags below this 0-100 weight. "
                              f"Default {DEFAULT_MIN_TAG_WEIGHT} (community-tag "
                              "noise floor).")
+    parser.add_argument("--top-tracks-per-artist", type=int, default=5,
+                        help="Attach the artist's N most-played Last.fm "
+                             "tracks as `top_tracks`. 0 disables the call "
+                             "(saves 1 API request per artist).")
     parser.add_argument("--progress-every", type=int, default=500)
     parser.add_argument("--checkpoint", type=Path, default=None,
                         help="Path for incremental checkpoint output. "
@@ -392,7 +396,9 @@ def main(argv: list[str] | None = None) -> int:
                 elif proxy_pop < args.min_popularity:
                     n_skipped_low_pop += 1
                 else:
-                    info = client.fetch_artist(mbid)
+                    info = client.fetch_artist(
+                        mbid, top_tracks_n=args.top_tracks_per_artist,
+                    )
                     if info.listeners is not None:
                         row["lastfm_listeners"] = info.listeners
                     if info.playcount is not None:
@@ -403,9 +409,12 @@ def main(argv: list[str] | None = None) -> int:
                     ]
                     if filtered_tags:
                         row["lastfm_tags"] = filtered_tags
+                    if info.top_tracks:
+                        row["top_tracks"] = info.top_tracks
                     if (info.listeners is not None
                             or info.playcount is not None
-                            or filtered_tags):
+                            or filtered_tags
+                            or info.top_tracks):
                         n_enriched += 1
 
                 out.write(json.dumps(row, ensure_ascii=False) + "\n")

@@ -22,7 +22,7 @@ if gcloud storage ls "gs://$BUCKET/halt.flag" >/dev/null 2>&1; then
 fi
 
 echo "Triggering $JOB in $REGION …"
-gcloud run jobs execute "$JOB" --region "$REGION" --wait=false
+gcloud run jobs execute "$JOB" --region "$REGION" --async
 
 echo
 echo "Watch with:"

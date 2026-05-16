@@ -13,7 +13,9 @@ Why not Spotipy?
 from __future__ import annotations
 
 import base64
+import collections
 import logging
+import os
 import time
 import urllib.parse
 from dataclasses import dataclass
@@ -33,22 +35,41 @@ _REQUEST_TIMEOUT = 15.0
 # token expiry during a long enrichment run.
 _TOKEN_REFRESH_CUSHION_SEC = 300
 
-# Spotify rate-limit safety:
-#  - hard-cap the server-supplied Retry-After. If Spotify asks us to
-#    sleep longer than this (we've seen 21h temp-bans in the wild) we
-#    abort the run cleanly instead of hanging.
-#  - throttle proactively: a small per-request sleep keeps us well
-#    under the documented limits and avoids triggering the temp-ban
-#    in the first place.
-#  - total backoff budget per process: if cumulative 429 sleeps go
-#    above this we abort (something is structurally wrong).
-_MAX_RETRY_AFTER_SEC = 300
-# 170 ms ≈ 5.9 req/s ≈ 176 req per 30s window — within Spotify's
-# undocumented dev-app rolling-window quota (~180-300 req/30s for
-# /search). The 21h temp-ban we saw at 70ms (14 req/s = 420/30s)
-# confirmed we were over the limit. Conservative margin retained.
-_MIN_INTER_REQUEST_SEC = 0.17
-_MAX_TOTAL_BACKOFF_SEC = 300
+# Spotify rate-limit safety — hardened 2026-05-16 after the dev-mode
+# 24 h temp-ban incident:
+#
+# Spotify post-Feb-2026 puts every new app on "Development Mode" by
+# default with an undocumented, much-tighter rate budget on /search.
+# Empirically: 700 calls at 0.17 s throttle (~6 req/s) → 24 h ban.
+# The previous "176 req per 30 s is safe" assumption was wrong for
+# dev-mode apps.
+#
+# New defaults:
+#  - 1.0 s throttle (1 req/s = 30 / 30 s rolling window — far below
+#    the dev-mode ceiling, leaves headroom for any concurrent SDK
+#    work the user runs locally).
+#  - 60 s Retry-After cap: a small ban means we hit the rolling
+#    window briefly; sleep + retry is the right move. Big numbers
+#    are the escalation system kicking in; abort and let humans
+#    investigate.
+#  - Adaptive backoff: if any 429 lands in the last 50 calls the
+#    throttle doubles to 2 s, then 4 s, etc. After 200 clean calls
+#    the throttle halves back, never below the env-configured floor.
+#  - Per-process daily budget (env SPOTIFY_DAILY_BUDGET) so we stop
+#    cleanly before Spotify does it for us. Defaults to 0 = unbounded
+#    (preserves test/dev compatibility).
+#
+# Most of these constants are overridable via env so we can tune in
+# production without a redeploy.
+_MAX_RETRY_AFTER_SEC = float(os.environ.get("SPOTIFY_MAX_RETRY_AFTER_SEC", "60"))
+_MIN_INTER_REQUEST_SEC = float(os.environ.get("SPOTIFY_MIN_INTER_REQUEST_SEC", "1.0"))
+_MAX_TOTAL_BACKOFF_SEC = float(os.environ.get("SPOTIFY_MAX_TOTAL_BACKOFF_SEC", "300"))
+_DAILY_BUDGET = int(os.environ.get("SPOTIFY_DAILY_BUDGET", "0"))
+# Adaptive throttle window: number of recent calls inspected for 429s
+# when deciding whether to widen or narrow the throttle.
+_ADAPTIVE_WINDOW = 50
+_ADAPTIVE_CLEAN_TO_HALVE = 200
+_ADAPTIVE_MAX_MULTIPLIER = 8
 
 
 class SpotifyRateLimitedError(RuntimeError):
@@ -63,6 +84,15 @@ class SpotifyRateLimitedError(RuntimeError):
 
 class SpotifyBackoffBudgetExhausted(RuntimeError):
     """Raised when cumulative 429 backoff exceeds the per-process budget."""
+
+
+class SpotifyDailyBudgetExhausted(RuntimeError):
+    """Raised when the per-process daily request budget is hit.
+
+    Not an error condition — the enricher converts this to a clean exit
+    that preserves the GCS checkpoint, so the next scheduled run picks
+    up where this one stopped without triggering a 429.
+    """
 
 
 @dataclass
@@ -92,6 +122,18 @@ class SpotifyClient:
         self._token_expires_at: float = 0.0
         self._last_request_at: float = 0.0
         self._cumulative_backoff: float = 0.0
+        # Adaptive-throttle state. _recent_429 tracks the last
+        # _ADAPTIVE_WINDOW HTTP statuses so we can react to a single
+        # 429 by widening the throttle on the very next call.
+        self._recent_429: collections.deque[bool] = collections.deque(
+            maxlen=_ADAPTIVE_WINDOW)
+        self._clean_streak: int = 0
+        self._throttle_multiplier: int = 1
+        # Per-process daily-budget counter. The enricher reads
+        # `requests_made` between calls so it can decide whether to
+        # checkpoint + exit before the next fetch.
+        self.requests_made: int = 0
+        self.daily_budget: int = _DAILY_BUDGET
 
     # ── Auth ─────────────────────────────────────────────────────────
 
@@ -125,10 +167,57 @@ class SpotifyClient:
     # ── Generic GET with retry ───────────────────────────────────────
 
     def _throttle(self) -> None:
-        """Sleep just enough to keep us under the per-second ceiling."""
+        """Sleep enough to honour the adaptive per-request floor.
+
+        The effective floor is ``_MIN_INTER_REQUEST_SEC * multiplier``
+        where ``multiplier`` doubles after a 429 in the recent window
+        and halves back after _ADAPTIVE_CLEAN_TO_HALVE consecutive
+        clean calls.
+        """
+        floor = _MIN_INTER_REQUEST_SEC * self._throttle_multiplier
         elapsed = time.time() - self._last_request_at
-        if elapsed < _MIN_INTER_REQUEST_SEC:
-            time.sleep(_MIN_INTER_REQUEST_SEC - elapsed)
+        if elapsed < floor:
+            time.sleep(floor - elapsed)
+
+    def _record_call_outcome(self, was_429: bool) -> None:
+        """Update adaptive-throttle state after a request completes."""
+        self._recent_429.append(was_429)
+        if was_429:
+            self._clean_streak = 0
+            if self._throttle_multiplier < _ADAPTIVE_MAX_MULTIPLIER:
+                self._throttle_multiplier = min(
+                    _ADAPTIVE_MAX_MULTIPLIER,
+                    self._throttle_multiplier * 2,
+                )
+                logger.warning(
+                    "Adaptive throttle: 429 observed — widening floor "
+                    "to %.2fs (multiplier=%d)",
+                    _MIN_INTER_REQUEST_SEC * self._throttle_multiplier,
+                    self._throttle_multiplier,
+                )
+            return
+        self._clean_streak += 1
+        # Only halve when the entire recent window is clean AND we've
+        # accumulated enough consecutive clean calls.
+        if (self._throttle_multiplier > 1
+                and self._clean_streak >= _ADAPTIVE_CLEAN_TO_HALVE
+                and not any(self._recent_429)):
+            self._throttle_multiplier = max(1, self._throttle_multiplier // 2)
+            self._clean_streak = 0
+            logger.info(
+                "Adaptive throttle: %d clean calls — halving floor "
+                "to %.2fs (multiplier=%d)",
+                _ADAPTIVE_CLEAN_TO_HALVE,
+                _MIN_INTER_REQUEST_SEC * self._throttle_multiplier,
+                self._throttle_multiplier,
+            )
+
+    def _check_daily_budget(self) -> None:
+        if self.daily_budget > 0 and self.requests_made >= self.daily_budget:
+            raise SpotifyDailyBudgetExhausted(
+                f"Daily budget {self.daily_budget} requests reached — "
+                "stopping cleanly to preserve quota for the next run."
+            )
 
     def _account_backoff(self, seconds: float) -> None:
         """Track cumulative 429 backoff; abort if budget exhausted."""
@@ -142,6 +231,7 @@ class SpotifyClient:
     def _get(self, path: str, params: dict | None = None,
              max_retries: int = 5) -> dict:
         """GET /v1<path> with retry on 429 / 5xx."""
+        self._check_daily_budget()
         url = f"{_API_BASE}{path}"
         for attempt in range(max_retries):
             self._throttle()
@@ -153,17 +243,26 @@ class SpotifyClient:
                 params=params,
                 timeout=_REQUEST_TIMEOUT,
             )
+            self.requests_made += 1
             if resp.status_code == 429:
+                self._record_call_outcome(was_429=True)
                 retry_after = float(resp.headers.get("Retry-After", "1"))
                 if retry_after > _MAX_RETRY_AFTER_SEC:
-                    # Spotify temp-banned the app (we've seen 21h cooldowns).
-                    # Abort cleanly — nothing useful can happen by waiting.
+                    # Big ban (multi-minute → multi-hour). Spotify's
+                    # escalation system has kicked in. Abort cleanly —
+                    # sleeping inside Cloud Run would burn credits with
+                    # nothing to show, and the next retry will likely
+                    # re-ban us anyway.
                     raise SpotifyRateLimitedError(
                         f"Spotify Retry-After={retry_after:.0f}s exceeds "
                         f"safety cap {_MAX_RETRY_AFTER_SEC}s — "
-                        "app is rate-limited; abort the run, wait, and "
-                        "rerun with a smaller --limit or higher --min-popularity."
+                        "app is rate-limited; abort the run, wait at "
+                        "least 48 h, then rerun with a smaller --limit, "
+                        "a stricter --min-popularity, or a new client_id."
                     )
+                # Small Retry-After (≤ 60 s): just transient pressure
+                # on the 30 s rolling window. Sleep and retry. The
+                # adaptive throttle will widen on subsequent calls.
                 logger.warning("Spotify 429 — sleeping %.1fs (attempt %d/%d)",
                                retry_after, attempt + 1, max_retries)
                 self._account_backoff(retry_after)
@@ -175,6 +274,7 @@ class SpotifyClient:
                 self._token = None
                 continue
             if 500 <= resp.status_code < 600:
+                self._record_call_outcome(was_429=False)
                 backoff = 2 ** attempt
                 logger.warning("Spotify %d — backoff %ds (attempt %d/%d)",
                                resp.status_code, backoff, attempt + 1,
@@ -182,9 +282,34 @@ class SpotifyClient:
                 self._account_backoff(backoff)
                 time.sleep(backoff)
                 continue
+            self._record_call_outcome(was_429=False)
             resp.raise_for_status()
             return resp.json()
         raise RuntimeError(f"Spotify GET {path} exceeded {max_retries} retries")
+
+    # ── Pre-flight smoke ─────────────────────────────────────────────
+
+    def smoke(self, n: int = 3) -> None:
+        """Send *n* cheap search calls to confirm we're not pre-banned.
+
+        Run at job start. If even one of these 429s the run is aborted
+        immediately, before the real workload has a chance to consume
+        budget. The smoke calls themselves count against
+        ``requests_made`` so the daily budget stays consistent.
+        """
+        if n <= 0:
+            return
+        probes = ["beatles", "bowie", "abba"][:n]
+        for q in probes:
+            try:
+                self._get("/search", params={
+                    "q": f'artist:"{q}"', "type": "artist", "limit": 1,
+                })
+            except SpotifyRateLimitedError:
+                # _get already raised cleanly — let the caller handle it.
+                raise
+        logger.info("Spotify smoke OK (%d probes, requests_made=%d).",
+                    len(probes), self.requests_made)
 
     # ── High-level operations ────────────────────────────────────────
 
