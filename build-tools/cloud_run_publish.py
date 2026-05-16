@@ -21,7 +21,8 @@ Circuit breaker:
 
     Two flavours of halt:
       - **Hard halt** (no ``expires_at`` field): set by the rate-limit
-        catcher when ``enrich_with_spotify.py`` exits with code 42.
+        catcher when ``rag/run_spotify_enrichment.py`` or
+        ``rag/run_lastfm_enrichment.py`` exits with code 42/43.
         Requires the user to delete the flag manually before scheduled
         runs resume:
 
@@ -33,8 +34,9 @@ Circuit breaker:
         proceeds normally on that same run. No human in the loop.
 
 Pipeline (when not halted / not recently built):
-    1. Run refresh_rag_corpus.py (downloads MB dump + invokes build_rag_corpus.py).
-    2. Run enrich_with_spotify.py to attach Spotify metadata (optional).
+    1. Run rag/refresh_rag_corpus.py (downloads MB dump + invokes build_rag_corpus.py).
+    2. Run rag/run_spotify_enrichment.py to attach Spotify metadata (optional; dormant — Spotify Dev quota is incompatible with bulk enrichment).
+    2b. Run rag/run_lastfm_enrichment.py to attach Last.fm tags + listeners + top_tracks.
     3. Compute sha256 of the resulting artists.jsonl.gz.
     4. Upload artists.jsonl.gz to gs://$GCS_BUCKET/artists.jsonl.gz.
     5. Write + upload manifest.json with corpus_url, sha256, size, build timestamp.
@@ -62,9 +64,9 @@ CORPUS_PATH = ROOT / "data" / "rag_corpus" / "artists.jsonl.gz"
 MANIFEST_PATH = ROOT / "data" / "rag_corpus" / "manifest.json"
 WORK_DIR = ROOT / "build-tools" / ".rag-cache"
 
-# Must match enrich_with_spotify.RATE_LIMIT_EXIT_CODE.
+# Must match rag/run_spotify_enrichment.RATE_LIMIT_EXIT_CODE.
 RATE_LIMIT_EXIT_CODE = 42
-# Must match enrich_with_lastfm.{RATE_LIMIT,AUTH_ERROR,SMOKE_FAIL}_EXIT_CODE.
+# Must match rag/run_lastfm_enrichment.{RATE_LIMIT,AUTH_ERROR,SMOKE_FAIL}_EXIT_CODE.
 LASTFM_RATE_LIMIT_EXIT_CODE = 43
 LASTFM_AUTH_ERROR_EXIT_CODE = 44
 LASTFM_SMOKE_FAIL_EXIT_CODE = 45
@@ -245,7 +247,7 @@ def main() -> int:
     # 1. Build the corpus.
     cleanup_flag = [] if os.environ.get("KEEP_INTERMEDIATES") == "1" else ["--cleanup"]
     _run([
-        sys.executable, "build-tools/refresh_rag_corpus.py",
+        sys.executable, "build-tools/rag/refresh_rag_corpus.py",
         "--top-n", top_n,
         *cleanup_flag,
     ])
@@ -266,7 +268,7 @@ def main() -> int:
         spotify_max = os.environ.get("SPOTIFY_MAX_ENRICH", "").strip()
         rc = _run_allow_exit_codes(
             [
-                sys.executable, "build-tools/enrich_with_spotify.py",
+                sys.executable, "build-tools/rag/run_spotify_enrichment.py",
                 "--input", str(CORPUS_PATH),
                 "--output", str(enriched_path),
                 *(["--max-enrich", spotify_max] if spotify_max else []),
@@ -279,7 +281,7 @@ def main() -> int:
             _set_halt_flag(
                 bucket,
                 reason="spotify_rate_limited",
-                detail=("enrich_with_spotify.py exited 42 (rate-limited). "
+                detail=("run_spotify_enrichment.py exited 42 (rate-limited). "
                         "Wait 24h+, investigate, then delete halt.flag to resume."),
             )
             print("ABORT: Spotify rate-limit detected. Halt flag set, no upload.",
@@ -311,7 +313,7 @@ def main() -> int:
     lastfm_checkpoint_uri = f"gs://{bucket_name}/lastfm-checkpoint.jsonl.gz"
     rc = _run_allow_exit_codes(
         [
-            sys.executable, "build-tools/enrich_with_lastfm.py",
+            sys.executable, "build-tools/rag/run_lastfm_enrichment.py",
             "--input", str(CORPUS_PATH),
             "--output", str(lastfm_path),
             "--checkpoint-gcs-uri", lastfm_checkpoint_uri,
@@ -327,7 +329,7 @@ def main() -> int:
         _set_halt_flag(
             bucket,
             reason="lastfm_rate_limited",
-            detail=("enrich_with_lastfm.py exited 43 (rate-limited). "
+            detail=("run_lastfm_enrichment.py exited 43 (rate-limited). "
                     "Wait, investigate, then delete halt.flag to resume."),
         )
         print("ABORT: Last.fm rate-limit detected. Halt flag set, no upload.",

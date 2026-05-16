@@ -9,11 +9,11 @@ file, where the ``RagCorpus.load()`` auto-detect path picks it up.
 
 This is a one-shot script for the validation phase. Once the diagnosis
 is confirmed, the same logic moves into the real corpus enrichment
-pipeline (``build-tools/spotify_enrichment/``) and the overlay file
+pipeline (``build-tools/rag/spotify_enrichment/``) and the overlay file
 becomes redundant.
 
 Usage:
-    python build-tools/build_top_tracks_overlay.py [--target-size N] [--max-tracks K]
+    python build-tools/rag/build_top_tracks_overlay.py [--target-size N] [--max-tracks K]
 
 The user's existing Spotify OAuth cache is used (read from the real
 app dir via ``config.load_config()``); no new auth flow.
@@ -385,7 +385,7 @@ def main() -> int:
                     logger.error(
                         "Spotify Retry-After=%ds exceeds 1 h ceiling — "
                         "checkpointing and aborting. Resume with: "
-                        "python build-tools/build_top_tracks_overlay.py "
+                        "python build-tools/rag/build_top_tracks_overlay.py "
                         "--resume --scenarios %s --throttle-ms %d",
                         retry_after,
                         args.scenarios or "''",

@@ -12,7 +12,7 @@ Requires the GitHub CLI (``gh``) to be installed and authenticated::
 
 Usage::
 
-    python build-tools/publish_rag_corpus.py
+    python build-tools/rag/publish_rag_corpus.py
 
 Options let you pin a different tag or corpus path; defaults match
 :mod:`config.RAG_MANIFEST_URL`.

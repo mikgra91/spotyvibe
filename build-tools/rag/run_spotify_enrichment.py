@@ -39,7 +39,7 @@ from spotify_enrichment.client import (  # noqa: E402
 )
 from spotify_enrichment.matching import pick_best_match  # noqa: E402
 
-logger = logging.getLogger("enrich_with_spotify")
+logger = logging.getLogger("run_spotify_enrichment")
 
 # Distinct exit code so cloud_run_publish.py can detect rate-limit
 # specifically and trip the GCS halt.flag circuit breaker. Any non-42
@@ -188,7 +188,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Pass 4 (2026-05-15): top-tracks per matched artist. Adds 1 search
     # call per matched artist (~0.17 s with throttle). Mirrors the
-    # validation logic in build-tools/build_top_tracks_overlay.py so the
+    # validation logic in build-tools/rag/build_top_tracks_overlay.py so the
     # corpus carries grounding anchors directly instead of relying on a
     # side-car overlay file. Without these, Stage 3 prompts say "known:
     # (no track examples available)" for every artist → DS / Llama /

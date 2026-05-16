@@ -107,7 +107,7 @@ class LastfmArtistInfo:
     playcount: int | None = None
     # ``tags`` is the merged + deduped 0-100 weighted tag list from
     # ``getTopTags`` — driver-side filtering (min weight) lives in
-    # ``enrich_with_lastfm.py`` so the client stays raw.
+    # ``run_lastfm_enrichment.py`` so the client stays raw.
     tags: list[tuple[str, int]] = field(default_factory=list)
     # ``top_tracks`` is the playcount-ranked list of track titles from
     # ``artist.getTopTracks`` — empty list when the artist is unknown

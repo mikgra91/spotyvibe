@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 # Make build-tools/ importable like the CLI does.
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "build-tools"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "build-tools" / "rag"))
 
 from spotify_enrichment.matching import (  # noqa: E402
     MIN_MATCH_SCORE,

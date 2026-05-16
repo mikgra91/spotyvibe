@@ -2,7 +2,7 @@
 
 Reads ``--input artists.jsonl[.gz]`` (the corpus produced by
 ``build_rag_corpus.py`` and optionally already enriched by
-``enrich_with_spotify.py``), looks each MBID up on Last.fm, and writes
+``run_spotify_enrichment.py``), looks each MBID up on Last.fm, and writes
 ``--output enriched.jsonl[.gz]`` with three additive fields:
 
 - ``lastfm_listeners`` (int | None)
@@ -58,7 +58,7 @@ from lastfm_enrichment.client import (  # noqa: E402
     LastfmRateLimitedError, LastfmServiceUnavailable, LastfmTransientFailure,
 )
 
-logger = logging.getLogger("enrich_with_lastfm")
+logger = logging.getLogger("run_lastfm_enrichment")
 
 # Distinct from the Spotify exit code (42) so cloud_run_publish.py
 # can report which source rate-limited.

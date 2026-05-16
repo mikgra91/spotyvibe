@@ -313,8 +313,8 @@ The corpus (`artists.jsonl.gz`, ~10 MB) is **not** bundled with the app. It is b
 **Pipeline** — the Cloud Run Job executes `build-tools/cloud_run_publish.py`, which:
 
 1. Runs `refresh_rag_corpus.py` — downloads the latest MusicBrainz JSON dump (~3 GB), **streams** directly from the compressed `.tar.xz` archives (no 33 GB extraction to disk), and invokes `build_rag_corpus.py` to produce the corpus.
-2. **(Optional, currently disabled)** Runs `enrich_with_spotify.py` if `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` are set and `DISABLE_SPOTIFY_ENRICHMENT` is unset. Disabled since 2026-05-04: Spotify's `genres` field returns empty for all artists post-Feb-2026. Code retained for future re-enablement.
-3. **(Phase B, 2026-05)** Runs `enrich_with_lastfm.py` if `LASTFM_API_KEY` is set — looks up each MB artist on Last.fm via MBID and attaches `lastfm_listeners`, `lastfm_playcount`, and `lastfm_tags` (weighted community tags, min-weight cutoff ≥ 30). Rate-limited to ~5.5 req/s. Estimated wall-clock for all ~174k artists: ~17 h (within the 24 h timeout). Distinct exit codes: 43 (rate-limit → `halt.flag`) / 44 (auth-error → loud fail). See `build-tools/lastfm_enrichment/client.py`.
+2. **(Optional, currently disabled)** Runs `run_spotify_enrichment.py` if `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` are set and `DISABLE_SPOTIFY_ENRICHMENT` is unset. Disabled since 2026-05-04: Spotify's `genres` field returns empty for all artists post-Feb-2026. Code retained for future re-enablement.
+3. **(Phase B, 2026-05)** Runs `run_lastfm_enrichment.py` if `LASTFM_API_KEY` is set — looks up each MB artist on Last.fm via MBID and attaches `lastfm_listeners`, `lastfm_playcount`, and `lastfm_tags` (weighted community tags, min-weight cutoff ≥ 30). Rate-limited to ~5.5 req/s. Estimated wall-clock for all ~174k artists: ~17 h (within the 24 h timeout). Distinct exit codes: 43 (rate-limit → `halt.flag`) / 44 (auth-error → loud fail). See `build-tools/rag/lastfm_enrichment/client.py`.
 4. Computes SHA-256 of the resulting `artists.jsonl.gz`.
 5. Uploads `artists.jsonl.gz` + `manifest.json` to the public GCS bucket.
 6. Wipes the ephemeral working directory.
@@ -333,7 +333,7 @@ The corpus (`artists.jsonl.gz`, ~10 MB) is **not** bundled with the app. It is b
 gcloud run jobs execute spotivibe-rag-builder --region=us-central1
 
 # Option 2: Run locally and publish to GCS (requires gcloud auth + gsutil).
-python build-tools/refresh_rag_corpus.py --top-n 350000
+python build-tools/rag/refresh_rag_corpus.py --top-n 350000
 # Then upload manually:
 gcloud storage cp data/rag_corpus/artists.jsonl.gz gs://spotivibe-rag-corpus/
 ```

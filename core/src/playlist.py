@@ -945,7 +945,7 @@ def search_top_tracks_by_name(sp, name: str, max_tracks: int) -> list[str]:
     on lowercase title to drop regional / remastered variants.
 
     Returns ``[]`` on any error so a single missing artist never breaks
-    the caller. Mirrors :func:`build-tools/build_top_tracks_overlay.py
+    the caller. Mirrors :func:`build-tools/rag/build_top_tracks_overlay.py
     ._search_top_tracks_by_name`; live MCP verification of the response
     shape is still pending (see next-steps.md Session 3).
     """

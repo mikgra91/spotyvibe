@@ -2,7 +2,7 @@
 
 Usage::
 
-    python build-tools/build_rag_corpus.py \\
+    python build-tools/rag/build_rag_corpus.py \\
         --source <path-to-mbdump-extract-or-json> \\
         --output data/rag_corpus/artists.jsonl.gz \\
         --top-n 500000

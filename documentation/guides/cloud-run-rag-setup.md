@@ -26,8 +26,8 @@
 
 | Today (manual) | After this setup (automated) |
 |---|---|
-| You run `python build-tools/refresh_rag_corpus.py` on your laptop quarterly. | A weekly Cloud Run **Job** rebuilds the corpus on Google's hardware. |
-| You run `python build-tools/publish_rag_corpus.py` to push to GitHub Releases. | The Job uploads the new `artists.jsonl.gz` + `manifest.json` to a public **GCS bucket**. |
+| You run `python build-tools/rag/refresh_rag_corpus.py` on your laptop quarterly. | A weekly Cloud Run **Job** rebuilds the corpus on Google's hardware. |
+| You run `python build-tools/rag/publish_rag_corpus.py` to push to GitHub Releases. | The Job uploads the new `artists.jsonl.gz` + `manifest.json` to a public **GCS bucket**. |
 | Clients fetch from `https://github.com/.../releases/.../artists.jsonl.gz`. | Clients fetch from `https://storage.googleapis.com/<bucket>/artists.jsonl.gz` (or a custom domain). |
 | You eat ~3 GB of MusicBrainz dumps + ~33 GB extracted on your laptop every refresh. | Cloud Run Job ephemeral storage handles it; nothing stays on your machine. |
 | Refresh cadence depends on your memory. | Cloud Scheduler triggers it weekly at a fixed time. |
@@ -198,8 +198,8 @@ gcloud storage buckets add-iam-policy-binding gs://$BUCKET \
 
 ## 4. Container image — what runs in the Job
 
-The Job container does exactly what `build-tools/refresh_rag_corpus.py` +
-`build-tools/publish_rag_corpus.py` do today, plus an upload to GCS instead
+The Job container does exactly what `build-tools/rag/refresh_rag_corpus.py` +
+`build-tools/rag/publish_rag_corpus.py` do today, plus an upload to GCS instead
 of GitHub Releases.
 
 ### 4.1 New file: `build-tools/cloud-run-job/Dockerfile`
@@ -221,8 +221,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy only the corpus-builder code (NOT the whole repo — we don't need
 # Flask, Spotipy, etc. in this container).
-COPY build-tools/build_rag_corpus.py        build-tools/
-COPY build-tools/refresh_rag_corpus.py      build-tools/
+COPY build-tools/rag/build_rag_corpus.py        build-tools/
+COPY build-tools/rag/refresh_rag_corpus.py      build-tools/
 COPY build-tools/cloud_run_publish.py       build-tools/
 COPY data/rag_corpus/tag_aliases.json       data/rag_corpus/
 
@@ -297,7 +297,7 @@ def main() -> int:
     # 1. Build the corpus.
     cleanup_flag = [] if os.environ.get("KEEP_INTERMEDIATES") == "1" else ["--cleanup"]
     _run([
-        "python", "build-tools/refresh_rag_corpus.py",
+        "python", "build-tools/rag/refresh_rag_corpus.py",
         "--top-n", top_n,
         *cleanup_flag,
     ])
@@ -689,7 +689,7 @@ To keep the scope honest:
 **Status (2026-05-16):** active. The previous Phase 2 (Spotify-based artist enrichment) was **retired** because Spotify's Development-Mode quota caps an app at ~1000 calls/day — structurally incompatible with bulk enrichment of ~174K artists. Top-tracks are now sourced from Last.fm instead.
 
 ### 9.1 What enrichment does
-For each artist with an MBID, the job invokes `enrich_with_lastfm.py` which makes three Last.fm API calls:
+For each artist with an MBID, the job invokes `run_lastfm_enrichment.py` which makes three Last.fm API calls:
 1. `artist.getInfo` → listener + playcount counts.
 2. `artist.getTopTags` → up to 100 weighted tags (0-100), filtered to weight ≥ 30.
 3. `artist.getTopTracks` → playcount-ranked track titles (top 5 by default).
@@ -782,4 +782,4 @@ All are env vars on the Cloud Run job (set via `gcloud run jobs update ... --upd
 | `DISABLE_LASTFM_ENRICHMENT` | unset | If `1`, build MB-only corpus (no `top_tracks` / `lastfm_*` fields). |
 | `CORPUS_TOP_N` | `500000` | MB filter cap. Actual yield ~170-180K. |
 | `LASTFM_MAX_ENRICH` | unset | Cap on Last.fm lookups. Empty = enrich all matched rows. |
-The Last.fm throttle (`_MIN_INTER_REQUEST_SEC = 0.18`) is in `build-tools/lastfm_enrichment/client.py`; per-artist call count + top-tracks limit are tuned via the `--top-tracks-per-artist N` flag (default 5) in `build-tools/enrich_with_lastfm.py`.
+The Last.fm throttle (`_MIN_INTER_REQUEST_SEC = 0.18`) is in `build-tools/rag/lastfm_enrichment/client.py`; per-artist call count + top-tracks limit are tuned via the `--top-tracks-per-artist N` flag (default 5) in `build-tools/rag/run_lastfm_enrichment.py`.

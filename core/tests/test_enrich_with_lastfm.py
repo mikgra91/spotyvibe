@@ -10,9 +10,9 @@ from unittest.mock import patch
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "build-tools"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "build-tools" / "rag"))
 
-import enrich_with_lastfm as driver  # noqa: E402
+import run_lastfm_enrichment as driver  # noqa: E402
 from lastfm_enrichment.client import (  # noqa: E402
     LastfmArtistInfo, LastfmAuthError, LastfmBackoffBudgetExhausted,
     LastfmRateLimitedError,
@@ -98,7 +98,7 @@ def test_enriches_rows_with_listeners_playcount_and_tags(
         ),
     }
 
-    def _fake_fetch(self, mbid):
+    def _fake_fetch(self, mbid, *_, **__):
         return fake_info[mbid]
 
     with patch.object(driver.LastfmClient, "fetch_artist", _fake_fetch):
@@ -124,7 +124,7 @@ def test_min_tag_weight_flag_overrides_default(monkeypatch, sample_corpus):
 
     info = LastfmArtistInfo(tags=[("a", 50), ("b", 10)])
     with patch.object(driver.LastfmClient, "fetch_artist",
-                       lambda self, mbid: info):
+                       lambda self, mbid, *_, **__: info):
         rc = driver.main([
             "--input", str(inp), "--output", str(out),
             "--min-tag-weight", "5", "--skip-smoke",
@@ -148,7 +148,7 @@ def test_max_enrich_limits_lookups(monkeypatch, tmp_path):
 
     calls: list[str] = []
 
-    def _fake_fetch(self, mbid):
+    def _fake_fetch(self, mbid, *_, **__):
         calls.append(mbid)
         return LastfmArtistInfo(listeners=1)
 
@@ -175,7 +175,7 @@ def test_min_popularity_skips_below_threshold(monkeypatch, tmp_path):
 
     calls: list[str] = []
 
-    def _fake_fetch(self, mbid):
+    def _fake_fetch(self, mbid, *_, **__):
         calls.append(mbid)
         return LastfmArtistInfo(listeners=1)
 
@@ -195,7 +195,7 @@ def test_rate_limit_returns_special_exit_code(monkeypatch, sample_corpus):
     inp, out = sample_corpus
     monkeypatch.setenv("LASTFM_API_KEY", "test-key")
 
-    def _raise(self, mbid):
+    def _raise(self, mbid, *_, **__):
         raise LastfmRateLimitedError("Retry-After 9999s")
 
     with patch.object(driver.LastfmClient, "fetch_artist", _raise):
@@ -209,7 +209,7 @@ def test_backoff_budget_exhausted_returns_special_exit_code(
     inp, out = sample_corpus
     monkeypatch.setenv("LASTFM_API_KEY", "test-key")
 
-    def _raise(self, mbid):
+    def _raise(self, mbid, *_, **__):
         raise LastfmBackoffBudgetExhausted("budget blown")
 
     with patch.object(driver.LastfmClient, "fetch_artist", _raise):
@@ -221,7 +221,7 @@ def test_auth_error_returns_dedicated_exit_code(monkeypatch, sample_corpus):
     inp, out = sample_corpus
     monkeypatch.setenv("LASTFM_API_KEY", "test-key")
 
-    def _raise(self, mbid):
+    def _raise(self, mbid, *_, **__):
         raise LastfmAuthError("[10] Invalid API key")
 
     with patch.object(driver.LastfmClient, "fetch_artist", _raise):
@@ -237,7 +237,7 @@ def test_smoke_pre_flight_aborts_on_auth_error(monkeypatch, sample_corpus):
     inp, out = sample_corpus
     monkeypatch.setenv("LASTFM_API_KEY", "bad-key")
 
-    def _raise(self, mbid):
+    def _raise(self, mbid, *_, **__):
         raise LastfmAuthError("[10] Invalid API key")
 
     with patch.object(driver.LastfmClient, "get_artist_info", _raise):
@@ -250,7 +250,7 @@ def test_smoke_pre_flight_aborts_on_rate_limit(monkeypatch, sample_corpus):
     inp, out = sample_corpus
     monkeypatch.setenv("LASTFM_API_KEY", "test-key")
 
-    def _raise(self, mbid):
+    def _raise(self, mbid, *_, **__):
         raise LastfmRateLimitedError("Retry-After 9999s")
 
     with patch.object(driver.LastfmClient, "get_artist_info", _raise):
@@ -265,7 +265,7 @@ def test_smoke_pre_flight_aborts_on_low_listener_count(monkeypatch, sample_corpu
     monkeypatch.setenv("LASTFM_API_KEY", "test-key")
 
     with patch.object(driver.LastfmClient, "get_artist_info",
-                       lambda self, mbid: LastfmArtistInfo(listeners=5)):
+                       lambda self, mbid, *_, **__: LastfmArtistInfo(listeners=5)):
         rc = driver.main(["--input", str(inp), "--output", str(out)])
     assert rc == driver.SMOKE_FAIL_EXIT_CODE
 
@@ -275,9 +275,9 @@ def test_smoke_pre_flight_passes_with_real_listeners(monkeypatch, sample_corpus)
     monkeypatch.setenv("LASTFM_API_KEY", "test-key")
 
     with patch.object(driver.LastfmClient, "get_artist_info",
-                       lambda self, mbid: LastfmArtistInfo(listeners=5_000_000)):
+                       lambda self, mbid, *_, **__: LastfmArtistInfo(listeners=5_000_000)):
         with patch.object(driver.LastfmClient, "fetch_artist",
-                           lambda self, mbid: LastfmArtistInfo(listeners=1)):
+                           lambda self, mbid, *_, **__: LastfmArtistInfo(listeners=1)):
             rc = driver.main(["--input", str(inp), "--output", str(out)])
     assert rc == 0
     assert out.exists()
@@ -305,7 +305,7 @@ def test_resumes_from_existing_checkpoint(monkeypatch, tmp_path):
 
     calls: list[str] = []
 
-    def _fake_fetch(self, mbid):
+    def _fake_fetch(self, mbid, *_, **__):
         calls.append(mbid)
         return LastfmArtistInfo(listeners=42)
 
@@ -341,7 +341,7 @@ def test_no_resume_flag_ignores_checkpoint(monkeypatch, tmp_path):
 
     calls: list[str] = []
 
-    def _fake_fetch(self, mbid):
+    def _fake_fetch(self, mbid, *_, **__):
         calls.append(mbid)
         return LastfmArtistInfo(listeners=42)
 
@@ -368,7 +368,7 @@ def test_default_checkpoint_for_gz_output_is_gzipped(monkeypatch, tmp_path):
     monkeypatch.setenv("LASTFM_API_KEY", "test-key")
 
     with patch.object(driver.LastfmClient, "fetch_artist",
-                       lambda self, mbid: LastfmArtistInfo(listeners=42)):
+                       lambda self, mbid, *_, **__: LastfmArtistInfo(listeners=42)):
         rc = driver.main([
             "--input", str(inp), "--output", str(out), "--skip-smoke",
         ])
@@ -396,7 +396,7 @@ def test_checkpoint_preserved_on_rate_limit_abort(monkeypatch, tmp_path):
 
     call_count = {"n": 0}
 
-    def _fake_fetch(self, mbid):
+    def _fake_fetch(self, mbid, *_, **__):
         call_count["n"] += 1
         if call_count["n"] == 1:
             return LastfmArtistInfo(listeners=10)

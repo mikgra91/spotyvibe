@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "build-tools"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "build-tools" / "rag"))
 
 import requests  # noqa: E402
 
@@ -192,7 +192,7 @@ def test_fetch_artist_merges_info_and_tags():
                                                 "playcount": "20"}}}),
         _resp(json_body={"toptags": {"tag": [{"name": "rock", "count": 100}]}}),
     ]
-    info = _client(sess).fetch_artist("mbid-x")
+    info = _client(sess).fetch_artist("mbid-x", top_tracks_n=0)
     assert info.listeners == 10
     assert info.playcount == 20
     assert info.tags == [("rock", 100)]
@@ -349,7 +349,7 @@ def test_fetch_artist_swallows_single_transient_failure(monkeypatch):
     monkeypatch.setattr("lastfm_enrichment.client.time.sleep", lambda *_a, **_k: None)
     sess = MagicMock()
     sess.get.return_value = _bad_json_resp()
-    info = _client(sess).fetch_artist("mbid-x")
+    info = _client(sess).fetch_artist("mbid-x", top_tracks_n=0)
     assert info == LastfmArtistInfo()
 
 
@@ -363,6 +363,7 @@ def test_fetch_artist_resets_consecutive_counter_on_success(monkeypatch):
     success_seq = [
         _resp(json_body={"artist": {"stats": {"listeners": "1"}}}),
         _resp(json_body={"toptags": {"tag": []}}),
+        _resp(json_body={"toptracks": {"track": []}}),
     ]
     more_transients = [_bad_json_resp() for _ in range(5)] * 2
     sess.get.side_effect = transient_seq + success_seq + more_transients
@@ -398,7 +399,7 @@ def test_fetch_artist_does_not_swallow_auth_error(monkeypatch):
         "error": 10, "message": "Invalid API key",
     })
     with pytest.raises(LastfmAuthError):
-        _client(sess).fetch_artist("mbid-x")
+        _client(sess).fetch_artist("mbid-x", top_tracks_n=0)
 
 
 def test_fetch_artist_does_not_swallow_rate_limit(monkeypatch):
@@ -409,4 +410,4 @@ def test_fetch_artist_does_not_swallow_rate_limit(monkeypatch):
         status_code=429, headers={"Retry-After": "9999"},
     )
     with pytest.raises(LastfmRateLimitedError):
-        _client(sess).fetch_artist("mbid-x")
+        _client(sess).fetch_artist("mbid-x", top_tracks_n=0)

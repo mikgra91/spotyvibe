@@ -12,7 +12,7 @@ ranking shape.
 
 Usage::
 
-    python build-tools/audit_tag_precedence.py
+    python build-tools/rag/audit_tag_precedence.py
 
 Reads the local corpus from the user's app dir (auto-resolved via
 ``config``). Prints a per-pair report on a known mainstream-vs-niche

@@ -16,18 +16,18 @@ Consolidated forward plan. Open tasks, decisions, and gated research items.
 
 ### Diagnostic fix shipped
 
-- New `--top-by-popularity N` flag in `build-tools/build_top_tracks_overlay.py` (working tree, uncommitted)
+- New `--top-by-popularity N` flag in `build-tools/rag/build_top_tracks_overlay.py` (working tree, uncommitted)
 - New diagnostic builder `evaluation/build_overlay.py` (sources candidates from eval traces — used for the initial 213-artist diagnostic overlay)
 - DS re-run with the 213-artist diagnostic overlay populated: **Tracks A 20, Tracks B 30/30, Spotify-found 100 %, cite 90-100 %, leakage 0, fit-check 0 fails**. Source: `evaluation/results/20260515-100512/comparison.md`.
 - Full-corpus overnight build running (`bh3ue7qs2`) — top 80 K artists by listener_popularity, ETA ~04:00 2026-05-16. Will write a complete-enough `top_tracks_overlay.json` to the user's app dir.
 
 ### Production fix (TODO — needs CP ALLOWED + image rebuild)
 
-`build-tools/enrich_with_spotify.py` **already has Pass 4 (top-tracks fetching) implemented** in the working tree but never committed. To activate it on the cloud-run weekly cycle:
+`build-tools/rag/run_spotify_enrichment.py` **already has Pass 4 (top-tracks fetching) implemented** in the working tree but never committed. To activate it on the cloud-run weekly cycle:
 
 | Step | Action | Who |
 |---|---|---|
-| 1 | `CP ALLOWED` commit of the working-tree changes (`build_top_tracks_overlay.py`, `enrich_with_spotify.py`, `spotify_enrichment/client.py`) | User must approve |
+| 1 | `CP ALLOWED` commit of the working-tree changes (`build_top_tracks_overlay.py`, `run_spotify_enrichment.py`, `spotify_enrichment/client.py`) | User must approve |
 | 2 | Re-enable Spotify enrichment in `cloud_run_publish.py` — currently gated off (commit `be71571`) because genres were emptied post-Feb-2026. The new top_tracks logic is the value-add even with empty genres. | User / future agent |
 | 3 | Rebuild + push Docker image: `gcloud builds submit --tag gcr.io/spotivibe-rag/builder build-tools/` (or whatever the existing build command is) | User — agent cannot do this without CI auth |
 | 4 | Manually trigger the rebuilt job: `gcloud run jobs execute spotivibe-rag-builder --region us-central1`. The Cloud Run job has a 60-min timeout — Pass 4 adds ~1 search call per matched artist (~0.17 s with throttle). At ~30 K matched artists × 0.17 s ≈ 85 min, **the existing timeout will need to be raised** (`gcloud run jobs update spotivibe-rag-builder --task-timeout=2h`). | User |
