@@ -50,9 +50,12 @@ gcloud run jobs update "$JOB" \
   --task-timeout=7200
 
 echo
-echo "===== 5/5  Trigger execution ====="
+echo "===== 5/5  Trigger execution (FORCE_REBUILD=1) ====="
+# Always force on manual redeploy — the user just rebuilt the image, they
+# definitely want a fresh corpus run regardless of MIN_REBUILD_DAYS.
 gcloud run jobs execute "$JOB" \
   --region "$REGION" \
+  --update-env-vars=FORCE_REBUILD=1 \
   --async
 
 echo

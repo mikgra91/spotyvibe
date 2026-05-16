@@ -2,6 +2,15 @@
 # Simple manual trigger — no image rebuild.
 # Use for weekly refreshes when the deployed image is already correct.
 # For a full image rebuild + trigger, use redeploy_and_run.sh instead.
+#
+# WHY FORCE_REBUILD=1?
+# The job consults MIN_REBUILD_DAYS (default 25) and exits 0 silently if
+# the published manifest is younger than that. That's the right behaviour
+# for the cron scheduler, but it makes a *manual* trigger look like a
+# successful build when nothing actually ran. We pass FORCE_REBUILD=1 as
+# a one-shot env override on every manual trigger so what the operator
+# asked for is what they get. (--update-env-vars on `jobs execute` only
+# applies to that single execution; it does NOT persist on the job.)
 
 set -euo pipefail
 
@@ -21,8 +30,11 @@ if gcloud storage ls "gs://$BUCKET/halt.flag" >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Triggering $JOB in $REGION …"
-gcloud run jobs execute "$JOB" --region "$REGION" --async
+echo "Triggering $JOB in $REGION (FORCE_REBUILD=1) …"
+gcloud run jobs execute "$JOB" \
+  --region "$REGION" \
+  --update-env-vars=FORCE_REBUILD=1 \
+  --async
 
 echo
 echo "Watch with:"

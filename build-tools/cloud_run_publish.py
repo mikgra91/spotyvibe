@@ -240,8 +240,15 @@ def main() -> int:
 
     # 0b. Skip if a recent successful build already exists.
     if not force and _recent_build_within_days(bucket, min_rebuild_days):
-        print(f"⏭ A successful build is < {min_rebuild_days} days old — skipping.",
-              flush=True)
+        print(
+            f"⏭ ⏭ ⏭ SKIPPING: published build is < {min_rebuild_days} days old. "
+            f"This execution did NO work. If you triggered this manually and "
+            f"wanted a fresh build, re-run with FORCE_REBUILD=1 on the execute "
+            f"call, or lower MIN_REBUILD_DAYS. (Cloud Run will still report "
+            f"this execution as 'succeeded' — there is no failed status for a "
+            f"deliberate skip.)",
+            flush=True,
+        )
         return 0
 
     # 1. Build the corpus.
