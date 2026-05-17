@@ -28,7 +28,8 @@ import sys
 from pathlib import Path
 
 # Add repo root to sys.path so the script runs without an editable install.
-_REPO_ROOT = Path(__file__).resolve().parent.parent
+# Script lives at build-tools/rag/<name>.py — repo root is three levels up.
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
 from config import RAG_CORPUS_PATH, RAG_TAG_ALIASES_PATH  # noqa: E402

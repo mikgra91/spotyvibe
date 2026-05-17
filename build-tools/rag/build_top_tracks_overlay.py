@@ -30,7 +30,8 @@ import unicodedata
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REPO_ROOT = HERE.parent
+# Script lives at build-tools/rag/<name>.py — repo root is two levels above HERE.
+REPO_ROOT = HERE.parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 # Imports must follow path setup.

@@ -1429,7 +1429,9 @@ def select_tracks(
             "model": _resolve_stage3_model(profile),
             "system_fingerprint": None,
             "prompt_hashes": None,
-            "stage3_mode": "fast",
+            # 2026-05-14 STAGE3_MODE was removed; field retained for log-schema
+            # back-compat but the value is no longer meaningful.
+            "stage3_mode": None,
             "refusal_reason": _a6_reason,
         }
         return (
@@ -1685,7 +1687,7 @@ def select_tracks(
             trace.append("stage3_batches", {
                 "batch_num": batch_num,
                 "model": stage3_model,
-                "stage3_mode": "fast",
+                "stage3_mode": None,
                 "system_fingerprint": _s3_system_fp,
                 "system": system_prompt,
                 "user": user_message,
@@ -1732,7 +1734,7 @@ def select_tracks(
         "latency_s": latency_s,
         "system_fingerprint": _s3_system_fp,
         "prompt_hashes": _hash_messages_for_audit(messages),
-        "stage3_mode": "fast",
+        "stage3_mode": None,
     }
 
     content = strip_code_fences(raw_content)

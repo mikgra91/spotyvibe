@@ -4,13 +4,14 @@
 # For a full image rebuild + trigger, use redeploy_and_run.sh instead.
 #
 # WHY FORCE_REBUILD=1?
-# The job consults MIN_REBUILD_DAYS (default 25) and exits 0 silently if
-# the published manifest is younger than that. That's the right behaviour
-# for the cron scheduler, but it makes a *manual* trigger look like a
-# successful build when nothing actually ran. We pass FORCE_REBUILD=1 as
-# a one-shot env override on every manual trigger so what the operator
-# asked for is what they get. (--update-env-vars on `jobs execute` only
-# applies to that single execution; it does NOT persist on the job.)
+# The job consults MIN_REBUILD_DAYS (code default 6 in cloud_run_publish.py,
+# overridden to 25 on the deployed builder job) and exits 0 silently if the
+# published manifest is younger than that. That's the right behaviour for
+# the cron scheduler, but it makes a *manual* trigger look like a successful
+# build when nothing actually ran. We pass FORCE_REBUILD=1 as a one-shot
+# env override on every manual trigger so what the operator asked for is
+# what they get. (--update-env-vars on `jobs execute` only applies to that
+# single execution; it does NOT persist on the job.)
 
 set -euo pipefail
 

@@ -31,7 +31,7 @@ import sys
 import time
 from pathlib import Path
 
-# Local package — we're inside build-tools/, sibling to this script.
+# Local package — spotify_enrichment/ sits next to this script under build-tools/rag/.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from spotify_enrichment.client import (  # noqa: E402
