@@ -81,7 +81,9 @@ def test_get_artist_info_missing_stats_returns_none_fields():
 def test_get_artist_info_empty_mbid_short_circuits():
     sess = MagicMock()
     info = _client(sess).get_artist_info("")
-    assert info == LastfmArtistInfo()
+    assert info.listeners is None
+    assert info.playcount is None
+    assert info.outcome == "not_found"
     sess.get.assert_not_called()
 
 
@@ -97,14 +99,17 @@ def test_get_artist_info_passes_required_query_params():
     assert params["mbid"] == "mbid-x"
 
 
-def test_get_artist_info_returns_empty_on_artist_not_found():
+def test_get_artist_info_returns_not_found_outcome_on_artist_not_found():
     # Last.fm signals "not found" via HTTP 200 + error code 6
     sess = MagicMock()
     sess.get.return_value = _resp(json_body={
         "error": 6, "message": "The artist you supplied could not be found",
     })
     info = _client(sess).get_artist_info("mbid-bogus")
-    assert info == LastfmArtistInfo()
+    assert info.listeners is None
+    assert info.playcount is None
+    assert info.outcome == "not_found"
+    assert "could not be found" in info.error_detail
 
 
 def test_invalid_api_key_raises_auth_error():
@@ -345,12 +350,15 @@ def test_4xx_other_than_429_raises_lastfm_error_no_retry(monkeypatch):
 
 
 def test_fetch_artist_swallows_single_transient_failure(monkeypatch):
-    """One bad artist returns empty info; the run continues."""
+    """One bad artist returns empty info with `transient` outcome; the run continues."""
     monkeypatch.setattr("lastfm_enrichment.client.time.sleep", lambda *_a, **_k: None)
     sess = MagicMock()
     sess.get.return_value = _bad_json_resp()
     info = _client(sess).fetch_artist("mbid-x", top_tracks_n=0)
-    assert info == LastfmArtistInfo()
+    assert info.listeners is None
+    assert info.playcount is None
+    assert info.outcome == "transient"
+    assert info.error_detail
 
 
 def test_fetch_artist_resets_consecutive_counter_on_success(monkeypatch):

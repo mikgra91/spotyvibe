@@ -248,6 +248,17 @@ def _upload_checkpoint_to_gcs(src: Path, uri: str) -> None:
                        uri, exc)
 
 
+def _flush_failures(path: Path | None, failures: list[dict]) -> None:
+    """Write *failures* as JSONL (one record per line). No-op when path is None."""
+    if path is None or not failures:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        for entry in failures:
+            fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    logger.info("Wrote %d failures to %s", len(failures), path)
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s")
@@ -272,6 +283,21 @@ def main(argv: list[str] | None = None) -> int:
                         help="Attach the artist's N most-played Last.fm "
                              "tracks as `top_tracks`. 0 disables the call "
                              "(saves 1 API request per artist).")
+    parser.add_argument("--batch-offset", type=int, default=0,
+                        help="Skip the first N rows of the popularity-sorted "
+                             "input. Combined with --batch-size, lets a "
+                             "workflow page through the corpus in N small "
+                             "executions instead of one long-running one.")
+    parser.add_argument("--batch-size", type=int, default=0,
+                        help="Process at most this many rows (after --batch-offset). "
+                             "0 = no batch slicing (default; processes all "
+                             "rows up to --limit / --max-enrich).")
+    parser.add_argument("--failures-out", type=Path, default=None,
+                        help="Optional path to write a per-artist failure log "
+                             "as JSONL. Categorises each non-OK outcome as "
+                             "'not_found' (informational) or 'transient' "
+                             "(investigate). Used by the Cloud Run workflow "
+                             "to surface artists that need re-fetching.")
     parser.add_argument("--progress-every", type=int, default=500)
     parser.add_argument("--checkpoint", type=Path, default=None,
                         help="Path for incremental checkpoint output. "
@@ -358,10 +384,30 @@ def main(argv: list[str] | None = None) -> int:
     else:
         enrich_slice = all_rows
         passthrough = []
-    logger.info(
-        "%d rows total — enriching top %d, %d streamed unchanged",
-        len(all_rows), len(enrich_slice), len(passthrough),
-    )
+
+    # ── Batched-mode slicing ──────────────────────────────────────────
+    # `--batch-offset N --batch-size L` further narrows the slice to
+    # rows [N:N+L). Used by the Cloud Run state-machine workflow so
+    # each execution does ~50 min of work, exits, and triggers the
+    # next batch. Combined with the checkpoint mechanism, no work is
+    # repeated across executions.
+    if args.batch_size > 0:
+        full_slice_len = len(enrich_slice)
+        enrich_slice = enrich_slice[args.batch_offset:
+                                    args.batch_offset + args.batch_size]
+        passthrough = []  # batched mode never writes passthrough rows;
+                          # the workflow merges all batches at the end.
+        logger.info(
+            "Batched mode: offset=%d size=%d → slice has %d rows "
+            "(of %d total candidates).",
+            args.batch_offset, args.batch_size,
+            len(enrich_slice), full_slice_len,
+        )
+    else:
+        logger.info(
+            "%d rows total — enriching top %d, %d streamed unchanged",
+            len(all_rows), len(enrich_slice), len(passthrough),
+        )
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     n_seen = 0
@@ -370,6 +416,9 @@ def main(argv: list[str] | None = None) -> int:
     n_skipped_low_pop = 0
     n_resumed = 0
     n_written = 0
+    n_not_found = 0
+    n_transient = 0
+    failures: list[dict] = []
     last_sync_at = 0
     started = time.time()
 
@@ -416,6 +465,25 @@ def main(argv: list[str] | None = None) -> int:
                             or filtered_tags
                             or info.top_tracks):
                         n_enriched += 1
+                    # Categorise per-artist outcome for the failure log.
+                    if info.outcome == "not_found":
+                        n_not_found += 1
+                        if args.failures_out is not None:
+                            failures.append({
+                                "mbid": mbid,
+                                "name": row.get("name", ""),
+                                "category": "not_found",
+                                "error": info.error_detail,
+                            })
+                    elif info.outcome == "transient":
+                        n_transient += 1
+                        if args.failures_out is not None:
+                            failures.append({
+                                "mbid": mbid,
+                                "name": row.get("name", ""),
+                                "category": "transient",
+                                "error": info.error_detail,
+                            })
 
                 out.write(json.dumps(row, ensure_ascii=False) + "\n")
                 n_written += 1
@@ -445,10 +513,12 @@ def main(argv: list[str] | None = None) -> int:
                 n_written += 1
 
     except LastfmAuthError as exc:
+        _flush_failures(args.failures_out, failures)
         logger.error("Last.fm auth error — aborting: %s", exc)
         return AUTH_ERROR_EXIT_CODE
     except (LastfmRateLimitedError, LastfmBackoffBudgetExhausted,
             LastfmServiceUnavailable) as exc:
+        _flush_failures(args.failures_out, failures)
         logger.error("Last.fm enrichment ABORTED (rate-limited / unavailable): %s",
                      exc)
         logger.error("Processed %d/%d artists in slice before abort "
@@ -460,8 +530,27 @@ def main(argv: list[str] | None = None) -> int:
             _upload_checkpoint_to_gcs(checkpoint_path, args.checkpoint_gcs_uri)
         return RATE_LIMIT_EXIT_CODE
 
-    # Successful completion: promote checkpoint → output (atomic
-    # rename on POSIX/Windows when on the same filesystem).
+    _flush_failures(args.failures_out, failures)
+
+    # Batched-mode finalisation: do NOT promote checkpoint → output and
+    # do NOT clear the GCS checkpoint. The workflow's final-merge step
+    # owns both responsibilities once all batches complete. Push the
+    # latest local checkpoint to GCS so the next batch resumes here.
+    if args.batch_size > 0:
+        if args.checkpoint_gcs_uri:
+            _upload_checkpoint_to_gcs(checkpoint_path, args.checkpoint_gcs_uri)
+        elapsed = time.time() - started
+        logger.info(
+            "Batch done: offset=%d size=%d → %d new fetches (%d enriched, "
+            "%d not_found, %d transient) in %.1f min. Checkpoint preserved.",
+            args.batch_offset, args.batch_size,
+            n_seen - n_resumed, n_enriched, n_not_found, n_transient,
+            elapsed / 60.0,
+        )
+        return 0
+
+    # Successful completion (non-batched mode): promote checkpoint →
+    # output (atomic rename on POSIX/Windows when on the same filesystem).
     if args.output.exists():
         args.output.unlink()
     checkpoint_path.replace(args.output)
@@ -483,10 +572,12 @@ def main(argv: list[str] | None = None) -> int:
     elapsed = time.time() - started
     logger.info(
         "Done: %d total rows written (%d enriched = %.1f%% of slice; "
-        "%d resumed, %d no-mbid, %d low-pop) in %.1f min",
+        "%d resumed, %d no-mbid, %d low-pop, %d not_found, %d transient) "
+        "in %.1f min",
         n_written + n_resumed, n_enriched,
         100.0 * n_enriched / max(1, len(enrich_slice)),
-        n_resumed, n_skipped_no_mbid, n_skipped_low_pop, elapsed / 60.0,
+        n_resumed, n_skipped_no_mbid, n_skipped_low_pop,
+        n_not_found, n_transient, elapsed / 60.0,
     )
     return 0
 

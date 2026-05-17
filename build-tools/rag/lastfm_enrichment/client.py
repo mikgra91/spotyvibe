@@ -102,13 +102,26 @@ class LastfmServiceUnavailable(RuntimeError):
 
 @dataclass
 class LastfmArtistInfo:
-    """Per-artist Last.fm enrichment payload."""
+    """Per-artist Last.fm enrichment payload.
+
+    The ``outcome`` field lets the driver categorise per-artist
+    results without re-raising. Values:
+      - ``"ok"``        — at least one of getInfo / getTopTags / getTopTracks
+                          returned usable data.
+      - ``"not_found"`` — Last.fm reports this MBID is unknown
+                          (codes 6, 7). Expected for niche / dead MBIDs;
+                          not actionable.
+      - ``"transient"`` — network / non-JSON / HTTP-5xx after retries.
+                          Worth investigating if frequent.
+    """
     listeners: int | None = None
     playcount: int | None = None
     # ``tags`` is the merged + deduped 0-100 weighted tag list from
     # ``getTopTags`` — driver-side filtering (min weight) lives in
     # ``run_lastfm_enrichment.py`` so the client stays raw.
     tags: list[tuple[str, int]] = field(default_factory=list)
+    outcome: str = "ok"
+    error_detail: str = ""
     # ``top_tracks`` is the playcount-ranked list of track titles from
     # ``artist.getTopTracks`` — empty list when the artist is unknown
     # to Last.fm or has no plays. Caller is responsible for truncating
@@ -264,13 +277,17 @@ class LastfmClient:
 
         Returns listeners + playcount; *tags* on the returned object are
         left empty (caller should merge in ``get_top_tags``).
+        ``outcome`` flagged ``"not_found"`` when Last.fm reports an
+        unknown MBID so the driver can record (but not retry) it.
         """
         if not mbid:
-            return LastfmArtistInfo()
+            return LastfmArtistInfo(outcome="not_found",
+                                    error_detail="empty mbid")
         try:
             data = self._get({"method": "artist.getInfo", "mbid": mbid})
-        except LastfmArtistNotFound:
-            return LastfmArtistInfo()
+        except LastfmArtistNotFound as exc:
+            return LastfmArtistInfo(outcome="not_found",
+                                    error_detail=str(exc))
         artist = (data or {}).get("artist") or {}
         stats = artist.get("stats") or {}
         return LastfmArtistInfo(
@@ -394,7 +411,8 @@ class LastfmClient:
                     f"transient failures — Last.fm likely unavailable, "
                     f"aborting (last: {exc})"
                 ) from exc
-            return LastfmArtistInfo()
+            return LastfmArtistInfo(outcome="transient",
+                                    error_detail=str(exc))
         # Any successful fetch resets the consecutive-failure counter.
         self._consecutive_transient_failures = 0
         info.tags = tags

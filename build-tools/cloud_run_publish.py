@@ -1,49 +1,58 @@
 """Cloud Run Job entry point: refresh the RAG corpus and upload to GCS.
 
-Reads its configuration from env vars set in the Job spec:
+This script runs as a **batched, self-chaining state machine**. One
+monthly Cloud Scheduler trigger fires the first execution of a cycle;
+each execution processes one ~5000-artist batch and then triggers the
+next execution of itself via the Cloud Run Admin API. The cycle
+finishes when every batch has run, at which point the final execution
+merges all enrichment work into the published corpus + manifest.
+
+Why batched? Last.fm enrichment of the full 175k-artist corpus takes
+~29 h at the polite throttle, which does not fit in Cloud Run's
+24 h task-timeout cap. Splitting into ~35 batches of 5000 artists
+puts each execution at ~50 min and lets the workflow span 1-3 days
+without operator intervention.
+
+Env vars (Job spec):
     GCS_BUCKET                  — destination bucket (e.g. "spotivibe-rag-corpus")
-    CORPUS_TOP_N                — top-N artists to include (default 500000)
-    KEEP_INTERMEDIATES          — "1" to retain MB dumps between runs (default off)
-    SPOTIFY_CLIENT_ID           — (optional) enables Phase 2 Spotify enrichment
-    SPOTIFY_CLIENT_SECRET       — (optional) enables Phase 2 Spotify enrichment
-    DISABLE_SPOTIFY_ENRICHMENT  — "1" to force-skip enrichment even if creds set
-    SPOTIFY_MAX_ENRICH          — (optional) cap on Spotify lookups (default: script's 50000)
-    LASTFM_API_KEY              — (optional) enables Phase B Last.fm enrichment
-    DISABLE_LASTFM_ENRICHMENT   — "1" to force-skip Last.fm even if key set
-    LASTFM_MAX_ENRICH           — (optional) cap on Last.fm lookups (default: script's 170000)
-    MIN_REBUILD_DAYS            — skip the run if a build was published within
-                                  this many days (default 6). Set to 0 to force.
-    FORCE_REBUILD               — "1" to ignore both the halt flag and the
+    CORPUS_TOP_N                — top-N artists to include in Phase 1 (default 500000)
+    KEEP_INTERMEDIATES          — "1" to retain MB dumps between Phase-1 runs
+    SPOTIFY_CLIENT_ID           — (dormant) re-enabling needs SPOTIFY_CLIENT_SECRET too
+    SPOTIFY_CLIENT_SECRET       — (dormant)
+    DISABLE_SPOTIFY_ENRICHMENT  — "1" force-skip Spotify path. Default behaviour today.
+    SPOTIFY_MAX_ENRICH          — (dormant) cap on Spotify lookups
+    LASTFM_API_KEY              — required for the Last.fm enrichment phase
+    DISABLE_LASTFM_ENRICHMENT   — "1" force-skip Last.fm (passthrough only)
+    BATCH_SIZE                  — artists enriched per execution (default 5000)
+    BATCH_RUN_REGION            — Cloud Run region used by the self-trigger
+                                  REST call (default us-central1).
+    BATCH_RUN_JOB               — Cloud Run job name used by the self-trigger
+                                  REST call (default spotivibe-rag-builder).
+    DISABLE_SELF_TRIGGER        — "1" disables the self-trigger entirely. Use
+                                  when stepping through batches manually.
+    CYCLE_TTL_DAYS              — state older than this is treated as stale
+                                  and a fresh cycle is started (default 25).
+    MIN_REBUILD_DAYS            — applies only at cycle START: if the
+                                  published manifest is younger than this,
+                                  the cycle is skipped before Phase 1 runs.
+                                  Default 6. Pair with FORCE_REBUILD=1 to
+                                  override for manual triggers.
+    FORCE_REBUILD               — "1" ignores both halt flag and the
                                   recent-build skip. Used for manual triggers.
 
 Circuit breaker:
-    The job consults ``gs://$GCS_BUCKET/halt.flag`` at startup.
+    gs://$GCS_BUCKET/halt.flag (see _halt_flag_active for hard/soft semantics).
+    Halt aborts the WHOLE cycle and stops self-chaining.
 
-    Two flavours of halt:
-      - **Hard halt** (no ``expires_at`` field): set by the rate-limit
-        catcher when ``rag/run_spotify_enrichment.py`` or
-        ``rag/run_lastfm_enrichment.py`` exits with code 42/43.
-        Requires the user to delete the flag manually before scheduled
-        runs resume:
+Cycle state:
+    gs://$GCS_BUCKET/build-state.json. Single source of truth for whether
+    the cycle is in progress and where the next batch should resume. Per
+    cycle: cycle_id, total_artists, batch_size, next_offset, completed
+    batches, and a structural_failures list for investigate-worthy errors
+    (rate-limit, auth, transient-cluster).
 
-            gcloud storage rm gs://$GCS_BUCKET/halt.flag
-
-      - **Soft halt** (with ``expires_at`` ISO-8601 UTC timestamp):
-        seeded externally to wait out a known temp-ban window. The job
-        auto-deletes the flag once the timestamp is in the past, then
-        proceeds normally on that same run. No human in the loop.
-
-Pipeline (when not halted / not recently built):
-    1. Run rag/refresh_rag_corpus.py (downloads MB dump + invokes build_rag_corpus.py).
-    2. Run rag/run_spotify_enrichment.py to attach Spotify metadata (optional; dormant — Spotify Dev quota is incompatible with bulk enrichment).
-    2b. Run rag/run_lastfm_enrichment.py to attach Last.fm tags + listeners + top_tracks.
-    3. Compute sha256 of the resulting artists.jsonl.gz.
-    4. Upload artists.jsonl.gz to gs://$GCS_BUCKET/artists.jsonl.gz.
-    5. Write + upload manifest.json with corpus_url, sha256, size, build timestamp.
-    6. Wipe the working directory.
-
-Exit non-zero on any unexpected failure so Cloud Run logs the run as failed.
-Exit zero when intentionally skipping (halt flag set, recent build).
+    Per-artist failures are recorded by run_lastfm_enrichment.py via
+    --failures-out and aggregated into the state file at batch end.
 """
 from __future__ import annotations
 
@@ -60,19 +69,27 @@ from google.cloud import storage  # type: ignore
 from google.cloud.exceptions import NotFound  # type: ignore
 
 ROOT = Path(__file__).resolve().parent.parent  # repo root inside the container
-CORPUS_PATH = ROOT / "data" / "rag_corpus" / "artists.jsonl.gz"
-MANIFEST_PATH = ROOT / "data" / "rag_corpus" / "manifest.json"
+DATA_DIR = ROOT / "data" / "rag_corpus"
+CORPUS_PATH = DATA_DIR / "artists.jsonl.gz"
+MB_ONLY_PATH = DATA_DIR / "artists.mb-only.jsonl.gz"
+MANIFEST_PATH = DATA_DIR / "manifest.json"
 WORK_DIR = ROOT / "build-tools" / ".rag-cache"
 
-# Must match rag/run_spotify_enrichment.RATE_LIMIT_EXIT_CODE.
-RATE_LIMIT_EXIT_CODE = 42
-# Must match rag/run_lastfm_enrichment.{RATE_LIMIT,AUTH_ERROR,SMOKE_FAIL}_EXIT_CODE.
-LASTFM_RATE_LIMIT_EXIT_CODE = 43
+# Exit-code contract with the enrichment scripts.
+RATE_LIMIT_EXIT_CODE = 42                 # run_spotify_enrichment.py
+LASTFM_RATE_LIMIT_EXIT_CODE = 43          # run_lastfm_enrichment.py
 LASTFM_AUTH_ERROR_EXIT_CODE = 44
 LASTFM_SMOKE_FAIL_EXIT_CODE = 45
 
+# GCS blob names.
 HALT_FLAG_BLOB = "halt.flag"
 MANIFEST_BLOB = "manifest.json"
+CORPUS_BLOB = "artists.jsonl.gz"
+MB_ONLY_BLOB = "artists.mb-only.jsonl.gz"
+LASTFM_CHECKPOINT_BLOB = "lastfm-checkpoint.jsonl.gz"
+STATE_BLOB = "build-state.json"
+
+DEFAULT_BATCH_SIZE = 5000
 
 
 def _run(cmd: list[str]) -> None:
@@ -97,66 +114,8 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-# ── Circuit breaker (GCS halt.flag) ──────────────────────────────────
-
-def _halt_flag_active(bucket) -> dict | None:
-    """Return halt-flag content if the breaker is currently OPEN.
-
-    The halt flag may carry an optional ``expires_at`` ISO-8601 UTC
-    timestamp:
-
-    - **No expires_at**: hard halt. Always considered active. Set by
-      the rate-limit catcher (see ``_set_halt_flag``). Requires the
-      user to delete the flag manually before the job resumes — this
-      is intentional: an unexpected rate-limit means something is
-      structurally wrong (creds, throttle config, Spotify policy
-      change) and silently retrying could trigger another multi-hour
-      temp-ban.
-
-    - **expires_at in the future**: soft halt with known expiry.
-      Active. The job exits cleanly, leaving the flag in place.
-
-    - **expires_at in the past**: stale soft halt. The flag is
-      deleted and the job proceeds — this is how the system
-      auto-resumes after a known temp-ban window.
-
-    Returns the parsed dict if the breaker is active, else None.
-    """
-    blob = bucket.blob(HALT_FLAG_BLOB)
-    try:
-        body = blob.download_as_text()
-    except NotFound:
-        return None
-    try:
-        data = json.loads(body)
-    except json.JSONDecodeError:
-        # Corrupt flag — treat as hard halt; safer than running.
-        return {"reason": "unparseable", "raw": body[:200]}
-
-    expires_at_str = (data.get("expires_at") or "").strip()
-    if not expires_at_str:
-        # Hard halt — manual reset required.
-        return data
-
-    expires_at = _parse_iso_utc(expires_at_str)
-    if expires_at is None:
-        # Bad timestamp — be conservative, treat as active.
-        return {**data, "_warning": f"unparseable expires_at: {expires_at_str!r}"}
-
-    now = datetime.datetime.now(datetime.timezone.utc)
-    if now < expires_at:
-        return data  # still within the wait window
-
-    # Expiry has passed — auto-clear the flag and proceed.
-    try:
-        blob.delete()
-        print(
-            f"♻ halt.flag expired at {expires_at_str} — deleted, resuming.",
-            flush=True,
-        )
-    except Exception as exc:  # pragma: no cover — defensive
-        print(f"WARNING: could not delete expired halt.flag: {exc}", flush=True)
-    return None
+def _now_iso() -> str:
+    return datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z"
 
 
 def _parse_iso_utc(s: str) -> datetime.datetime | None:
@@ -171,20 +130,45 @@ def _parse_iso_utc(s: str) -> datetime.datetime | None:
     return dt
 
 
-def _set_halt_flag(bucket, reason: str, detail: str = "") -> None:
-    """Write a HARD halt flag (no auto-expiry) — manual reset required.
+# ── Circuit breaker (GCS halt.flag) ──────────────────────────────────
 
-    Used by the rate-limit catcher. Auto-expiring flags are only
-    created externally (e.g. when seeding a known temp-ban window).
-    """
+def _halt_flag_active(bucket) -> dict | None:
+    """Return halt-flag content if the breaker is currently OPEN."""
+    blob = bucket.blob(HALT_FLAG_BLOB)
+    try:
+        body = blob.download_as_text()
+    except NotFound:
+        return None
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return {"reason": "unparseable", "raw": body[:200]}
+
+    expires_at_str = (data.get("expires_at") or "").strip()
+    if not expires_at_str:
+        return data
+
+    expires_at = _parse_iso_utc(expires_at_str)
+    if expires_at is None:
+        return {**data, "_warning": f"unparseable expires_at: {expires_at_str!r}"}
+    if datetime.datetime.now(datetime.timezone.utc) < expires_at:
+        return data
+    try:
+        blob.delete()
+        print(f"♻ halt.flag expired at {expires_at_str} — deleted, resuming.",
+              flush=True)
+    except Exception as exc:  # pragma: no cover — defensive
+        print(f"WARNING: could not delete expired halt.flag: {exc}", flush=True)
+    return None
+
+
+def _set_halt_flag(bucket, reason: str, detail: str = "") -> None:
+    """Write a HARD halt flag (no auto-expiry) — manual reset required."""
     payload = {
-        "halted_at": datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z",
+        "halted_at": _now_iso(),
         "reason": reason,
         "detail": detail,
-        "resume_with": (
-            "gcloud storage rm gs://"
-            + bucket.name + "/" + HALT_FLAG_BLOB
-        ),
+        "resume_with": f"gcloud storage rm gs://{bucket.name}/{HALT_FLAG_BLOB}",
     }
     blob = bucket.blob(HALT_FLAG_BLOB)
     blob.cache_control = "no-cache, max-age=0"
@@ -219,183 +203,472 @@ def _recent_build_within_days(bucket, days: int) -> bool:
     return age.total_seconds() < days * 86400
 
 
-def main() -> int:
-    bucket_name = os.environ["GCS_BUCKET"]
-    top_n = os.environ.get("CORPUS_TOP_N", "500000")
-    force = os.environ.get("FORCE_REBUILD") == "1"
-    min_rebuild_days = int(os.environ.get("MIN_REBUILD_DAYS", "6"))
+# ── State file ───────────────────────────────────────────────────────
 
-    client = storage.Client()
-    bucket = client.bucket(bucket_name)
+def _load_state(bucket) -> dict | None:
+    blob = bucket.blob(STATE_BLOB)
+    try:
+        body = blob.download_as_text()
+    except NotFound:
+        return None
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError:
+        print(f"WARNING: state file is unparseable — treating as missing.",
+              flush=True)
+        return None
 
-    # 0a. Circuit-breaker check.
-    if not force:
-        halt = _halt_flag_active(bucket)
-        if halt is not None:
-            print("⏸ Halt flag is set — skipping run. Details:", flush=True)
-            print(json.dumps(halt, indent=2), flush=True)
-            print(f"To resume early: gcloud storage rm gs://{bucket_name}/{HALT_FLAG_BLOB}",
-                  flush=True)
-            return 0
 
-    # 0b. Skip if a recent successful build already exists.
-    if not force and _recent_build_within_days(bucket, min_rebuild_days):
-        print(
-            f"⏭ ⏭ ⏭ SKIPPING: published build is < {min_rebuild_days} days old. "
-            f"This execution did NO work. If you triggered this manually and "
-            f"wanted a fresh build, re-run with FORCE_REBUILD=1 on the execute "
-            f"call, or lower MIN_REBUILD_DAYS. (Cloud Run will still report "
-            f"this execution as 'succeeded' — there is no failed status for a "
-            f"deliberate skip.)",
-            flush=True,
+def _save_state(bucket, state: dict) -> None:
+    blob = bucket.blob(STATE_BLOB)
+    blob.cache_control = "no-cache, max-age=0"
+    blob.upload_from_string(json.dumps(state, indent=2),
+                            content_type="application/json")
+
+
+def _delete_state(bucket) -> None:
+    try:
+        bucket.blob(STATE_BLOB).delete()
+    except NotFound:
+        pass
+
+
+def _state_is_stale(state: dict, ttl_days: int) -> bool:
+    started = _parse_iso_utc(state.get("started_at", ""))
+    if started is None:
+        return True
+    age = datetime.datetime.now(datetime.timezone.utc) - started
+    return age.total_seconds() > ttl_days * 86400
+
+
+# ── Self-trigger via Cloud Run Admin REST API ────────────────────────
+
+def _trigger_next_execution(project_id: str, region: str, job_name: str) -> None:
+    """POST to run.googleapis.com/v2/.../jobs/{name}:run to kick the next batch.
+
+    Uses Application Default Credentials — inside a Cloud Run Job
+    container that resolves to the job's service account, which must
+    hold ``roles/run.developer`` (or ``run.jobs.run``) on this job.
+    """
+    if os.environ.get("DISABLE_SELF_TRIGGER") == "1":
+        print("⏸ DISABLE_SELF_TRIGGER=1 — not triggering next execution.",
+              flush=True)
+        return
+    try:
+        from google.auth import default as auth_default  # type: ignore
+        from google.auth.transport.requests import Request  # type: ignore
+        import requests  # type: ignore
+    except ImportError as exc:
+        print(f"WARNING: self-trigger imports failed ({exc}); "
+              "next batch must be kicked manually.", flush=True)
+        return
+
+    try:
+        creds, _ = auth_default(scopes=[
+            "https://www.googleapis.com/auth/cloud-platform"
+        ])
+        creds.refresh(Request())
+    except Exception as exc:  # noqa: BLE001
+        print(f"WARNING: ADC refresh failed ({exc}); "
+              "next batch must be kicked manually.", flush=True)
+        return
+
+    url = (
+        f"https://run.googleapis.com/v2/projects/{project_id}"
+        f"/locations/{region}/jobs/{job_name}:run"
+    )
+    try:
+        resp = requests.post(
+            url,
+            headers={"Authorization": f"Bearer {creds.token}"},
+            json={},
+            timeout=30,
         )
-        return 0
+    except Exception as exc:  # noqa: BLE001
+        print(f"WARNING: self-trigger POST failed ({exc}); "
+              "next batch must be kicked manually.", flush=True)
+        return
+    if 200 <= resp.status_code < 300:
+        print(f"➡ Triggered next execution of {job_name} (status={resp.status_code}).",
+              flush=True)
+    else:
+        print(f"WARNING: self-trigger returned HTTP {resp.status_code}: "
+              f"{resp.text[:300]}", flush=True)
 
-    # 1. Build the corpus.
-    cleanup_flag = [] if os.environ.get("KEEP_INTERMEDIATES") == "1" else ["--cleanup"]
+
+def _project_id_from_metadata() -> str:
+    """Read the GCP project id from the metadata server (Cloud Run container)."""
+    try:
+        import requests  # type: ignore
+        resp = requests.get(
+            "http://metadata.google.internal/computeMetadata/v1/project/project-id",
+            headers={"Metadata-Flavor": "Google"},
+            timeout=5,
+        )
+        if resp.ok:
+            return resp.text.strip()
+    except Exception:  # noqa: BLE001
+        pass
+    return os.environ.get("GOOGLE_CLOUD_PROJECT", "").strip()
+
+
+# ── Phase helpers ────────────────────────────────────────────────────
+
+def _run_phase1_mb_build(top_n: str, keep_intermediates: bool) -> Path:
+    """Run refresh_rag_corpus.py and return the produced corpus path."""
+    cleanup_flag = [] if keep_intermediates else ["--cleanup"]
     _run([
         sys.executable, "build-tools/rag/refresh_rag_corpus.py",
         "--top-n", top_n,
         *cleanup_flag,
     ])
-
     if not CORPUS_PATH.exists():
-        print(f"ERROR: corpus not produced at {CORPUS_PATH}", file=sys.stderr)
-        return 1
+        raise RuntimeError(f"Phase 1 did not produce {CORPUS_PATH}")
+    return CORPUS_PATH
 
-    # 2. Optional: enrich with Spotify metadata. If creds missing or
-    #    DISABLE_SPOTIFY_ENRICHMENT=1, skip silently — the unenriched
-    #    corpus still works for retrieval.
-    sp_id = os.environ.get("SPOTIFY_CLIENT_ID", "").strip()
-    sp_secret = os.environ.get("SPOTIFY_CLIENT_SECRET", "").strip()
-    skip_enrichment = os.environ.get("DISABLE_SPOTIFY_ENRICHMENT") == "1"
-    if sp_id and sp_secret and not skip_enrichment:
-        enriched_path = CORPUS_PATH.with_name("artists.enriched.jsonl.gz")
-        print("Phase 2: enriching corpus with Spotify metadata …", flush=True)
-        spotify_max = os.environ.get("SPOTIFY_MAX_ENRICH", "").strip()
-        rc = _run_allow_exit_codes(
-            [
-                sys.executable, "build-tools/rag/run_spotify_enrichment.py",
-                "--input", str(CORPUS_PATH),
-                "--output", str(enriched_path),
-                *(["--max-enrich", spotify_max] if spotify_max else []),
-            ],
-            allowed={RATE_LIMIT_EXIT_CODE},
-        )
-        if rc == RATE_LIMIT_EXIT_CODE:
-            # Open the circuit and FAIL the run. Do NOT upload anything —
-            # the existing GCS corpus stays intact for users.
-            _set_halt_flag(
-                bucket,
-                reason="spotify_rate_limited",
-                detail=("run_spotify_enrichment.py exited 42 (rate-limited). "
-                        "Wait 24h+, investigate, then delete halt.flag to resume."),
-            )
-            print("ABORT: Spotify rate-limit detected. Halt flag set, no upload.",
-                  file=sys.stderr, flush=True)
-            return 1
-        if enriched_path.exists():
-            enriched_path.replace(CORPUS_PATH)
-            print(f"Enriched corpus replaces {CORPUS_PATH}", flush=True)
-        else:
-            print("WARNING: enrichment produced no output — keeping MB-only corpus",
-                  flush=True)
-    else:
-        if skip_enrichment:
-            print("Spotify enrichment disabled by DISABLE_SPOTIFY_ENRICHMENT=1", flush=True)
-        else:
-            print("Spotify creds not set — skipping Phase 2 enrichment", flush=True)
 
-    # 2b. Phase B: enrich with Last.fm metadata. The driver itself
-    # passes through unchanged when LASTFM_API_KEY is not set or
-    # DISABLE_LASTFM_ENRICHMENT=1, so it is safe to invoke unconditionally
-    # — but we still wire the rate-limit (43) and auth-error (44) exits
-    # back to the circuit breaker.
-    lastfm_path = CORPUS_PATH.with_name("artists.lastfm.jsonl.gz")
-    print("Phase B: enriching corpus with Last.fm metadata …", flush=True)
+def _upload(bucket, src: Path, blob_name: str, cache_control: str) -> None:
+    blob = bucket.blob(blob_name)
+    blob.cache_control = cache_control
+    blob.upload_from_filename(str(src))
+
+
+def _download(bucket, blob_name: str, dest: Path) -> bool:
+    blob = bucket.blob(blob_name)
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        blob.download_to_filename(str(dest))
+        return True
+    except NotFound:
+        return False
+
+
+def _count_rows(path: Path) -> int:
+    """Quick row-count for a (possibly gzipped) jsonl file."""
+    import gzip
+    opener = gzip.open if path.suffix == ".gz" else open
+    n = 0
+    with opener(path, "rt", encoding="utf-8") as fh:  # type: ignore[arg-type]
+        for _ in fh:
+            n += 1
+    return n
+
+
+def _run_lastfm_batch(bucket_name: str, offset: int, size: int,
+                      failures_path: Path) -> int:
+    """Invoke run_lastfm_enrichment.py for [offset, offset+size). Returns exit code."""
+    cmd = [
+        sys.executable, "build-tools/rag/run_lastfm_enrichment.py",
+        "--input", str(MB_ONLY_PATH),
+        # `--output` is required but unused in batched mode (the
+        # checkpoint is the durable artefact). Direct it next to the
+        # checkpoint so a finalisation step can still pick it up if
+        # invoked outside batched mode.
+        "--output", str(MB_ONLY_PATH.with_name("artists.lastfm.jsonl.gz")),
+        "--batch-offset", str(offset),
+        "--batch-size", str(size),
+        "--checkpoint-gcs-uri", f"gs://{bucket_name}/{LASTFM_CHECKPOINT_BLOB}",
+        "--failures-out", str(failures_path),
+        # ~500 entries / 5 min keeps loss-on-SIGKILL bounded.
+        "--checkpoint-every", "500",
+        "--top-tracks-per-artist", "5",
+    ]
     lastfm_max = os.environ.get("LASTFM_MAX_ENRICH", "").strip()
-    # Checkpoint to a fixed GCS path so a Cloud Run container restart
-    # (OOM / preemption / unrelated crash) resumes where the previous
-    # one left off rather than re-burning the 18 h enrichment loop.
-    lastfm_checkpoint_uri = f"gs://{bucket_name}/lastfm-checkpoint.jsonl.gz"
-    rc = _run_allow_exit_codes(
-        [
-            sys.executable, "build-tools/rag/run_lastfm_enrichment.py",
-            "--input", str(CORPUS_PATH),
-            "--output", str(lastfm_path),
-            "--checkpoint-gcs-uri", lastfm_checkpoint_uri,
-            *(["--max-enrich", lastfm_max] if lastfm_max else []),
-        ],
+    if lastfm_max:
+        cmd += ["--max-enrich", lastfm_max]
+    return _run_allow_exit_codes(
+        cmd,
         allowed={
             LASTFM_RATE_LIMIT_EXIT_CODE,
             LASTFM_AUTH_ERROR_EXIT_CODE,
             LASTFM_SMOKE_FAIL_EXIT_CODE,
         },
     )
-    if rc == LASTFM_RATE_LIMIT_EXIT_CODE:
-        _set_halt_flag(
-            bucket,
-            reason="lastfm_rate_limited",
-            detail=("run_lastfm_enrichment.py exited 43 (rate-limited). "
-                    "Wait, investigate, then delete halt.flag to resume."),
-        )
-        print("ABORT: Last.fm rate-limit detected. Halt flag set, no upload.",
-              file=sys.stderr, flush=True)
-        return 1
-    if rc == LASTFM_AUTH_ERROR_EXIT_CODE:
-        # Auth error = bad key. Fail loudly but DO NOT set the halt flag —
-        # the user can rotate the secret without needing to clear a flag.
-        print("ABORT: Last.fm API key invalid/suspended. Fix LASTFM_API_KEY secret.",
-              file=sys.stderr, flush=True)
-        return 1
-    if rc == LASTFM_SMOKE_FAIL_EXIT_CODE:
-        # Smoke pre-flight tripped — Last.fm reachable but returning bad
-        # data (HTML maintenance, wrong account, etc.). Do NOT set the
-        # halt flag (a transient outage clears itself); just fail this
-        # run so the next scheduled trigger retries cleanly.
-        print("ABORT: Last.fm smoke pre-flight failed. Run aborted before "
-              "the 18 h enrichment loop. Investigate logs.",
-              file=sys.stderr, flush=True)
-        return 1
-    if lastfm_path.exists():
-        lastfm_path.replace(CORPUS_PATH)
-        print(f"Last.fm-enriched corpus replaces {CORPUS_PATH}", flush=True)
 
-    # 3. Compute hash + assemble manifest.
-    sha = _sha256(CORPUS_PATH)
-    size = CORPUS_PATH.stat().st_size
+
+def _finalise_cycle(bucket, bucket_name: str, state: dict) -> int:
+    """Final batch done — promote the checkpoint into the published corpus."""
+    print("=" * 60, flush=True)
+    print("Finalising cycle: assembling published corpus + manifest.",
+          flush=True)
+    print("=" * 60, flush=True)
+
+    # Bring the merged checkpoint local.
+    local_corpus = DATA_DIR / "artists.final.jsonl.gz"
+    if not _download(bucket, LASTFM_CHECKPOINT_BLOB, local_corpus):
+        print(f"ERROR: no checkpoint at gs://{bucket_name}/{LASTFM_CHECKPOINT_BLOB}; "
+              "cannot finalise. State left in place for investigation.",
+              file=sys.stderr, flush=True)
+        return 1
+
+    sha = _sha256(local_corpus)
+    size = local_corpus.stat().st_size
     version = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
-    corpus_url = f"https://storage.googleapis.com/{bucket_name}/artists.jsonl.gz"
+    corpus_url = f"https://storage.googleapis.com/{bucket_name}/{CORPUS_BLOB}"
     manifest = {
         "corpus_version": version,
-        "built_at": datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z",
+        "built_at": _now_iso(),
         "sha256": sha,
         "size_bytes": size,
         "corpus_url": corpus_url,
-        "source": "cloud-run-job",
+        "source": "cloud-run-job (batched workflow)",
+        "cycle_id": state.get("cycle_id"),
+        "batches_completed": len(state.get("completed_batches", [])),
+        "structural_failures": state.get("structural_failures", []),
     }
-    MANIFEST_PATH.write_text(json.dumps(manifest, indent=2))
 
-    # 4. + 5. Upload both, corpus first so manifest never points at a missing asset.
-    print(f"Uploading {CORPUS_PATH} ({size:,} bytes) -> gs://{bucket_name}/artists.jsonl.gz",
+    print(f"Uploading {local_corpus} ({size:,} bytes) → "
+          f"gs://{bucket_name}/{CORPUS_BLOB}", flush=True)
+    _upload(bucket, local_corpus, CORPUS_BLOB, "public, max-age=86400")
+
+    print(f"Uploading manifest → gs://{bucket_name}/{MANIFEST_BLOB}", flush=True)
+    MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
+    MANIFEST_PATH.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    _upload(bucket, MANIFEST_PATH, MANIFEST_BLOB, "public, max-age=300")
+
+    # Clear state so the next monthly trigger starts a fresh cycle.
+    _delete_state(bucket)
+    print(f"OK: published version {version} ({sha[:12]}…). "
+          f"State cleared; next cycle starts on next trigger.", flush=True)
+    return 0
+
+
+# ── Main ─────────────────────────────────────────────────────────────
+
+def main() -> int:
+    bucket_name = os.environ["GCS_BUCKET"]
+    top_n = os.environ.get("CORPUS_TOP_N", "500000")
+    force = os.environ.get("FORCE_REBUILD") == "1"
+    min_rebuild_days = int(os.environ.get("MIN_REBUILD_DAYS", "6"))
+    cycle_ttl_days = int(os.environ.get("CYCLE_TTL_DAYS", "25"))
+    batch_size = int(os.environ.get("BATCH_SIZE", str(DEFAULT_BATCH_SIZE)))
+
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+
+    # 0a. Halt flag aborts the whole cycle — no self-chaining.
+    halt = _halt_flag_active(bucket)
+    if halt is not None:
+        if force:
+            print(f"FORCE_REBUILD=1 — ignoring halt.flag for this execution.\n"
+                  f"  flag contents: {json.dumps(halt)}", flush=True)
+        else:
+            print("⏸ Halt flag is set — skipping run. Details:", flush=True)
+            print(json.dumps(halt, indent=2), flush=True)
+            print(f"To resume: gcloud storage rm gs://{bucket_name}/{HALT_FLAG_BLOB}",
+                  flush=True)
+            return 0
+
+    # 0b. Load (or start) the cycle state.
+    state = _load_state(bucket)
+    if state is None:
+        new_cycle = True
+    elif _state_is_stale(state, cycle_ttl_days):
+        print(f"⏰ Existing state is older than {cycle_ttl_days} days "
+              f"(started_at={state.get('started_at')}). Starting fresh cycle.",
+              flush=True)
+        new_cycle = True
+    else:
+        new_cycle = False
+
+    # 0c. New cycle gate: respect MIN_REBUILD_DAYS unless FORCE_REBUILD=1.
+    if new_cycle and not force and _recent_build_within_days(bucket, min_rebuild_days):
+        print(
+            f"⏭ ⏭ ⏭ SKIPPING new cycle: published build is < "
+            f"{min_rebuild_days} days old. This execution did NO work. "
+            f"Set FORCE_REBUILD=1 to override (the helper scripts under "
+            f"build-tools/cloud-run-job/ do this automatically). Cloud Run "
+            f"will still report this execution as 'succeeded' — there is "
+            f"no failed status for a deliberate skip.",
+            flush=True,
+        )
+        return 0
+
+    # ── Phase 1: build (or reuse) the MB-only corpus ─────────────────
+    if new_cycle:
+        print("=" * 60, flush=True)
+        print("Phase 1: MusicBrainz corpus build", flush=True)
+        print("=" * 60, flush=True)
+        keep_intermediates = os.environ.get("KEEP_INTERMEDIATES") == "1"
+        corpus_local = _run_phase1_mb_build(top_n, keep_intermediates)
+        # Persist the MB-only artefact to GCS so subsequent batches in
+        # this cycle skip Phase 1 entirely.
+        MB_ONLY_PATH.parent.mkdir(parents=True, exist_ok=True)
+        if corpus_local != MB_ONLY_PATH:
+            shutil.copy(str(corpus_local), str(MB_ONLY_PATH))
+        # private blob — clients should consume the published corpus, not the MB-only one.
+        _upload(bucket, MB_ONLY_PATH, MB_ONLY_BLOB,
+                "private, max-age=0")
+        total_artists = _count_rows(MB_ONLY_PATH)
+        state = {
+            "cycle_id": _now_iso(),
+            "started_at": _now_iso(),
+            "total_artists": total_artists,
+            "batch_size": batch_size,
+            "next_offset": 0,
+            "completed_batches": [],
+            "structural_failures": [],
+        }
+        # Clear any prior checkpoint — new corpus, new enrichment pass.
+        try:
+            bucket.blob(LASTFM_CHECKPOINT_BLOB).delete()
+            print(f"Cleared prior {LASTFM_CHECKPOINT_BLOB} (new cycle).", flush=True)
+        except NotFound:
+            pass
+        _save_state(bucket, state)
+        print(f"Cycle initialised: {total_artists} artists, batch_size={batch_size}.",
+              flush=True)
+    else:
+        print(f"Resuming cycle {state.get('cycle_id')} "
+              f"(next_offset={state.get('next_offset')}, "
+              f"completed_batches={len(state.get('completed_batches', []))}).",
+              flush=True)
+        if not _download(bucket, MB_ONLY_BLOB, MB_ONLY_PATH):
+            print(f"ERROR: MB-only corpus not on GCS at {MB_ONLY_BLOB}; "
+                  "state is corrupt. Deleting state to force a fresh cycle "
+                  "on next trigger.", file=sys.stderr, flush=True)
+            _delete_state(bucket)
+            return 1
+
+    # ── Spotify path: dormant (kept for emergency re-enable) ─────────
+    sp_id = os.environ.get("SPOTIFY_CLIENT_ID", "").strip()
+    sp_secret = os.environ.get("SPOTIFY_CLIENT_SECRET", "").strip()
+    if (sp_id and sp_secret
+            and os.environ.get("DISABLE_SPOTIFY_ENRICHMENT") != "1"
+            and new_cycle):
+        print("⚠ Spotify enrichment is enabled — running once at cycle start.",
+              flush=True)
+        enriched_path = MB_ONLY_PATH.with_name("artists.spotify.jsonl.gz")
+        spotify_max = os.environ.get("SPOTIFY_MAX_ENRICH", "").strip()
+        rc = _run_allow_exit_codes(
+            [
+                sys.executable, "build-tools/rag/run_spotify_enrichment.py",
+                "--input", str(MB_ONLY_PATH),
+                "--output", str(enriched_path),
+                *(["--max-enrich", spotify_max] if spotify_max else []),
+            ],
+            allowed={RATE_LIMIT_EXIT_CODE},
+        )
+        if rc == RATE_LIMIT_EXIT_CODE:
+            _set_halt_flag(
+                bucket,
+                reason="spotify_rate_limited",
+                detail="run_spotify_enrichment.py exited 42. Cycle paused.",
+            )
+            return 1
+        if enriched_path.exists():
+            enriched_path.replace(MB_ONLY_PATH)
+            _upload(bucket, MB_ONLY_PATH, MB_ONLY_BLOB,
+                    "private, max-age=0")
+            state["total_artists"] = _count_rows(MB_ONLY_PATH)
+            _save_state(bucket, state)
+
+    # ── Phase B: one Last.fm enrichment batch ────────────────────────
+    if state["next_offset"] >= state["total_artists"]:
+        # All batches done — finalise and clean up.
+        rc = _finalise_cycle(bucket, bucket_name, state)
+        return rc
+
+    offset = state["next_offset"]
+    size = min(state["batch_size"], state["total_artists"] - offset)
+    batch_label = f"{offset}-{offset + size}"
+
+    print("=" * 60, flush=True)
+    print(f"Phase B batch {batch_label} "
+          f"({len(state.get('completed_batches', [])) + 1} of "
+          f"~{(state['total_artists'] + state['batch_size'] - 1) // state['batch_size']})",
           flush=True)
-    blob = bucket.blob("artists.jsonl.gz")
-    blob.cache_control = "public, max-age=86400"  # 1-day CDN cache
-    blob.upload_from_filename(str(CORPUS_PATH))
+    print("=" * 60, flush=True)
 
-    print(f"Uploading manifest -> gs://{bucket_name}/manifest.json", flush=True)
-    mblob = bucket.blob("manifest.json")
-    mblob.cache_control = "public, max-age=300"  # 5-min cache
-    mblob.upload_from_filename(str(MANIFEST_PATH))
+    if os.environ.get("DISABLE_LASTFM_ENRICHMENT") == "1":
+        print("DISABLE_LASTFM_ENRICHMENT=1 — skipping enrichment but still "
+              "advancing offset.", flush=True)
+        rc = 0
+    elif not os.environ.get("LASTFM_API_KEY", "").strip():
+        print("LASTFM_API_KEY missing — skipping enrichment but still "
+              "advancing offset.", flush=True)
+        rc = 0
+    else:
+        failures_path = DATA_DIR / f"failures.{batch_label}.jsonl"
+        try:
+            rc = _run_lastfm_batch(bucket_name, offset, size, failures_path)
+        except subprocess.CalledProcessError as exc:
+            print(f"Batch {batch_label} crashed (exit {exc.returncode}). "
+                  "Logging structural failure and advancing.",
+                  flush=True)
+            state["structural_failures"].append({
+                "batch": batch_label,
+                "stage": "lastfm",
+                "exit_code": exc.returncode,
+                "at": _now_iso(),
+            })
+            rc = -1
 
-    # 6. Wipe the work dir.
-    if WORK_DIR.exists():
-        shutil.rmtree(WORK_DIR, ignore_errors=True)
+    # Record outcome + advance offset regardless of success.
+    if rc == 0:
+        state["completed_batches"].append({
+            "batch": batch_label,
+            "completed_at": _now_iso(),
+        })
+    elif rc == LASTFM_RATE_LIMIT_EXIT_CODE:
+        # Halt flag was set by the rate-limit catcher inside the
+        # enricher subprocess? No — it lives here. Set it now and stop
+        # the chain.
+        _set_halt_flag(
+            bucket,
+            reason="lastfm_rate_limited",
+            detail=f"Batch {batch_label} hit the Last.fm rate limit. "
+                   "Wait, investigate, then delete halt.flag to resume.",
+        )
+        state["structural_failures"].append({
+            "batch": batch_label,
+            "stage": "lastfm",
+            "exit_code": rc,
+            "category": "rate_limit",
+            "at": _now_iso(),
+        })
+        _save_state(bucket, state)
+        # Stop the chain — halt flag will block the next execution
+        # until manually cleared.
+        return 0
+    elif rc == LASTFM_AUTH_ERROR_EXIT_CODE:
+        print("ABORT: Last.fm API key invalid/suspended. Pausing cycle.",
+              file=sys.stderr, flush=True)
+        state["structural_failures"].append({
+            "batch": batch_label,
+            "stage": "lastfm",
+            "exit_code": rc,
+            "category": "auth",
+            "at": _now_iso(),
+        })
+        _save_state(bucket, state)
+        return 0
+    else:
+        # Treat other failures as recoverable: log + advance.
+        state["structural_failures"].append({
+            "batch": batch_label,
+            "stage": "lastfm",
+            "exit_code": rc,
+            "category": "transient_cluster" if rc == LASTFM_SMOKE_FAIL_EXIT_CODE
+                        else "unknown",
+            "at": _now_iso(),
+        })
 
-    print(f"OK: published version {version} ({sha[:12]}...)", flush=True)
+    state["next_offset"] = offset + size
+    _save_state(bucket, state)
+
+    # ── Self-trigger next batch (or finalise) ────────────────────────
+    project_id = _project_id_from_metadata()
+    region = os.environ.get("BATCH_RUN_REGION", "us-central1")
+    job_name = os.environ.get("BATCH_RUN_JOB", "spotivibe-rag-builder")
+    if project_id:
+        _trigger_next_execution(project_id, region, job_name)
+    else:
+        print("WARNING: project id not resolvable from metadata server; "
+              "next batch must be kicked manually.", flush=True)
+
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
-
