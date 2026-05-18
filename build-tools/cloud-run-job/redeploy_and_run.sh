@@ -67,9 +67,10 @@ gcloud run jobs add-iam-policy-binding "$JOB" \
 
 echo
 echo "===== 5/6  Apply runtime settings ====="
-# task-timeout 3600 (1 h): each batch should finish in ~50 min;
-# longer means something hung — fail it fast and let the next
-# execution try.
+# task-timeout 4500 (75 min): each batch typically ~50 min but
+# Last.fm API rate can drop to ~1.3 art/s, pushing 5000-artist
+# batches to ~65 min. 75 min absorbs the slack without burning
+# the free-tier vCPU budget.
 # max-retries 0: never auto-retry. The self-trigger handles
 # progression even on failure (we want each batch to try once,
 # log, advance).
@@ -77,7 +78,7 @@ echo "===== 5/6  Apply runtime settings ====="
 # (cycle skip respects weekly cadence).
 gcloud run jobs update "$JOB" \
   --region "$REGION" \
-  --task-timeout=3600 \
+  --task-timeout=4500 \
   --max-retries=0 \
   --update-env-vars=BATCH_SIZE=5000,MIN_REBUILD_DAYS=6,CYCLE_TTL_DAYS=25,BATCH_RUN_REGION="$REGION",BATCH_RUN_JOB="$JOB" 2>&1 | tail -5
 

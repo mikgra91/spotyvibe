@@ -86,7 +86,7 @@ HALT_FLAG_BLOB = "halt.flag"
 MANIFEST_BLOB = "manifest.json"
 CORPUS_BLOB = "artists.jsonl.gz"
 MB_ONLY_BLOB = "artists.mb-only.jsonl.gz"
-LASTFM_CHECKPOINT_BLOB = "lastfm-checkpoint.jsonl.gz"
+LASTFM_CHECKPOINT_BLOB = "lastfm-checkpoint.jsonl"
 STATE_BLOB = "build-state.json"
 
 DEFAULT_BATCH_SIZE = 5000
@@ -357,16 +357,20 @@ def _count_rows(path: Path) -> int:
 def _run_lastfm_batch(bucket_name: str, offset: int, size: int,
                       failures_path: Path) -> int:
     """Invoke run_lastfm_enrichment.py for [offset, offset+size). Returns exit code."""
+    # Force plain JSONL checkpoint (no gzip): gzip-append across
+    # executions produced unreadable streams in production (zlib
+    # "invalid block type" on the next exec's _load_checkpoint_mbids).
+    # Plain JSONL is robust to per-execution upload/download cycles.
+    local_checkpoint = DATA_DIR / "lastfm-checkpoint.jsonl"
     cmd = [
         sys.executable, "build-tools/rag/run_lastfm_enrichment.py",
         "--input", str(MB_ONLY_PATH),
         # `--output` is required but unused in batched mode (the
-        # checkpoint is the durable artefact). Direct it next to the
-        # checkpoint so a finalisation step can still pick it up if
-        # invoked outside batched mode.
+        # checkpoint is the durable artefact).
         "--output", str(MB_ONLY_PATH.with_name("artists.lastfm.jsonl.gz")),
         "--batch-offset", str(offset),
         "--batch-size", str(size),
+        "--checkpoint", str(local_checkpoint),
         "--checkpoint-gcs-uri", f"gs://{bucket_name}/{LASTFM_CHECKPOINT_BLOB}",
         "--failures-out", str(failures_path),
         # ~500 entries / 5 min keeps loss-on-SIGKILL bounded.
@@ -387,22 +391,84 @@ def _run_lastfm_batch(bucket_name: str, offset: int, size: int,
 
 
 def _finalise_cycle(bucket, bucket_name: str, state: dict) -> int:
-    """Final batch done — promote the checkpoint into the published corpus."""
+    """Final batch done — promote the checkpoint into the published corpus.
+
+    Sanity checks BEFORE overwriting the live corpus:
+      - checkpoint must exist
+      - checkpoint must be at least MIN_PUBLISH_RATIO of the MB-only
+        corpus by row count; otherwise the run partially failed and we
+        refuse to clobber the working corpus
+      - structural_failures count must not dominate completed_batches
+    """
     print("=" * 60, flush=True)
     print("Finalising cycle: assembling published corpus + manifest.",
           flush=True)
     print("=" * 60, flush=True)
 
-    # Bring the merged checkpoint local.
-    local_corpus = DATA_DIR / "artists.final.jsonl.gz"
+    # Bring the merged checkpoint local. New format = plain JSONL.
+    local_corpus = DATA_DIR / "artists.final.jsonl"
     if not _download(bucket, LASTFM_CHECKPOINT_BLOB, local_corpus):
         print(f"ERROR: no checkpoint at gs://{bucket_name}/{LASTFM_CHECKPOINT_BLOB}; "
               "cannot finalise. State left in place for investigation.",
               file=sys.stderr, flush=True)
         return 1
 
-    sha = _sha256(local_corpus)
-    size = local_corpus.stat().st_size
+    # Bring the MB-only corpus for the sanity check.
+    if not MB_ONLY_PATH.exists() and not _download(bucket, MB_ONLY_BLOB, MB_ONLY_PATH):
+        print(f"ERROR: no MB-only corpus at gs://{bucket_name}/{MB_ONLY_BLOB}; "
+              "cannot finalise.", file=sys.stderr, flush=True)
+        return 1
+
+    final_rows = _count_rows(local_corpus)
+    mb_rows = _count_rows(MB_ONLY_PATH)
+    completed = len(state.get("completed_batches", []))
+    failures = len(state.get("structural_failures", []))
+    total_batches = max(1, completed + failures)
+    success_ratio = completed / total_batches
+
+    MIN_ROW_RATIO = 0.80
+    MIN_SUCCESS_RATIO = 0.80
+    row_ratio = final_rows / max(1, mb_rows)
+
+    print(f"Finalise sanity: checkpoint rows={final_rows}, "
+          f"MB-only rows={mb_rows}, row_ratio={row_ratio:.2%}", flush=True)
+    print(f"Finalise sanity: completed_batches={completed}, "
+          f"structural_failures={failures}, "
+          f"success_ratio={success_ratio:.2%}", flush=True)
+
+    if row_ratio < MIN_ROW_RATIO:
+        print(
+            f"⚠ ⚠ ⚠ REFUSING TO PUBLISH: checkpoint has only {row_ratio:.1%} "
+            f"of MB-only row count (threshold {MIN_ROW_RATIO:.0%}). The "
+            f"existing published corpus is left untouched. State + "
+            f"checkpoint preserved for investigation. Clear "
+            f"build-state.json + lastfm-checkpoint.jsonl manually if you "
+            f"want to retry from scratch.",
+            file=sys.stderr, flush=True,
+        )
+        return 1
+    if success_ratio < MIN_SUCCESS_RATIO:
+        print(
+            f"⚠ ⚠ ⚠ REFUSING TO PUBLISH: only {success_ratio:.1%} of "
+            f"batches completed cleanly (threshold {MIN_SUCCESS_RATIO:.0%}). "
+            f"Existing published corpus left untouched.",
+            file=sys.stderr, flush=True,
+        )
+        return 1
+
+    # Gzip the plain-JSONL checkpoint before publishing. The
+    # CORPUS_BLOB name is `artists.jsonl.gz`; clients expect a real
+    # gzip stream there. Uploading the plain file under that name
+    # would break every downstream consumer (cdn cache, manifest
+    # sha mismatch, decompression errors).
+    import gzip as _gzip_mod
+    gzipped_corpus = DATA_DIR / "artists.final.jsonl.gz"
+    print(f"Gzipping plain checkpoint → {gzipped_corpus}", flush=True)
+    with open(local_corpus, "rb") as src, _gzip_mod.open(gzipped_corpus, "wb") as dst:
+        shutil.copyfileobj(src, dst)
+
+    sha = _sha256(gzipped_corpus)
+    size = gzipped_corpus.stat().st_size
     version = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
     corpus_url = f"https://storage.googleapis.com/{bucket_name}/{CORPUS_BLOB}"
     manifest = {
@@ -410,23 +476,23 @@ def _finalise_cycle(bucket, bucket_name: str, state: dict) -> int:
         "built_at": _now_iso(),
         "sha256": sha,
         "size_bytes": size,
+        "row_count": final_rows,
         "corpus_url": corpus_url,
         "source": "cloud-run-job (batched workflow)",
         "cycle_id": state.get("cycle_id"),
-        "batches_completed": len(state.get("completed_batches", [])),
+        "batches_completed": completed,
         "structural_failures": state.get("structural_failures", []),
     }
 
-    print(f"Uploading {local_corpus} ({size:,} bytes) → "
-          f"gs://{bucket_name}/{CORPUS_BLOB}", flush=True)
-    _upload(bucket, local_corpus, CORPUS_BLOB, "public, max-age=86400")
+    print(f"Uploading {gzipped_corpus} ({size:,} bytes gzipped, "
+          f"{final_rows} rows) → gs://{bucket_name}/{CORPUS_BLOB}", flush=True)
+    _upload(bucket, gzipped_corpus, CORPUS_BLOB, "public, max-age=86400")
 
     print(f"Uploading manifest → gs://{bucket_name}/{MANIFEST_BLOB}", flush=True)
     MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
     MANIFEST_PATH.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     _upload(bucket, MANIFEST_PATH, MANIFEST_BLOB, "public, max-age=300")
 
-    # Clear state so the next monthly trigger starts a fresh cycle.
     _delete_state(bucket)
     print(f"OK: published version {version} ({sha[:12]}…). "
           f"State cleared; next cycle starts on next trigger.", flush=True)
@@ -518,6 +584,21 @@ def main() -> int:
         _save_state(bucket, state)
         print(f"Cycle initialised: {total_artists} artists, batch_size={batch_size}.",
               flush=True)
+        # Phase 1 already consumed ~20 min. Do NOT run a batch in the
+        # same execution — first batch + Phase 1 has tipped over the 1 h
+        # timeout in practice. Trigger the next execution and exit so
+        # batch 1 gets a fresh ~50-min budget on its own container.
+        project_id = _project_id_from_metadata()
+        region = os.environ.get("BATCH_RUN_REGION", "us-central1")
+        job_name = os.environ.get("BATCH_RUN_JOB", "spotivibe-rag-builder")
+        print("Phase 1 done. Self-triggering next execution to start batch 1 "
+              "with a fresh task-timeout budget.", flush=True)
+        if project_id:
+            _trigger_next_execution(project_id, region, job_name)
+        else:
+            print("WARNING: project id not resolvable from metadata server; "
+                  "first batch must be kicked manually.", flush=True)
+        return 0
     else:
         print(f"Resuming cycle {state.get('cycle_id')} "
               f"(next_offset={state.get('next_offset')}, "
@@ -580,6 +661,7 @@ def main() -> int:
           flush=True)
     print("=" * 60, flush=True)
 
+    failure_already_recorded = False
     if os.environ.get("DISABLE_LASTFM_ENRICHMENT") == "1":
         print("DISABLE_LASTFM_ENRICHMENT=1 — skipping enrichment but still "
               "advancing offset.", flush=True)
@@ -600,9 +682,11 @@ def main() -> int:
                 "batch": batch_label,
                 "stage": "lastfm",
                 "exit_code": exc.returncode,
+                "category": "subprocess_crashed",
                 "at": _now_iso(),
             })
             rc = -1
+            failure_already_recorded = True
 
     # Record outcome + advance offset regardless of success.
     if rc == 0:
@@ -643,8 +727,10 @@ def main() -> int:
         })
         _save_state(bucket, state)
         return 0
-    else:
-        # Treat other failures as recoverable: log + advance.
+    elif not failure_already_recorded:
+        # Treat other non-zero exits as recoverable: log + advance.
+        # Skipped if the subprocess-crashed branch already recorded
+        # this batch (avoids the duplicate-entry bug).
         state["structural_failures"].append({
             "batch": batch_label,
             "stage": "lastfm",
