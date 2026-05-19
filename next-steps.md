@@ -107,6 +107,176 @@ for an optional ground-truth pass.
 
 ---
 
+##  Session 2026-05-19 evening — P-compact: future-proofing for bigger profiles
+
+Implementation session triggered by the analysis question "what happens
+when profiles grow large?" The 0519 baseline + research review
+(Liu et al. 2024 TACL "Lost in the Middle"; Chroma 2025 "Context Rot";
+LongLLMLingua, Focused-CoT) confirmed the production path *silently
+truncates* large profiles at the previous 800-char aggregate taste-
+summary cap — must_have / avoid signal can be lost without warning.
+
+**No model decision shipped (eval-gated).** All changes are
+no-op-by-default OR strict improvements on small profiles; the
+big-profile levers are opt-in env-gated so an eval can A/B them per
+CLAUDE.md North Star rule #1 (no regression on any model).
+
+### What shipped this session
+
+1. **Per-section caps + truncation telemetry in `build_taste_summary`.**
+   [core/src/suggestions.py:`build_taste_summary`](core/src/suggestions.py).
+   - Each section (eras, must_have, soft_preferences, avoid,
+     primary_reference, style_anchors, core_description) has its own
+     char cap.
+   - Aggregate cap raised 800 → 1200 (default) — preserves more facets
+     on big profiles without crowding out must_have/avoid behind a
+     long core_description. Configurable via
+     `SPOTYVIBE_TASTE_SUMMARY_MAX_CHARS=<int>`.
+   - Truncation telemetry recorded on
+     `_LAST_TASTE_SUMMARY_TELEMETRY` (module global) and folded into
+     `_LAST_PROMPT_COMPONENTS["taste_summary_telemetry"]` so the eval
+     log captures per-section truncation per Stage 3 call.
+   - New public getter `get_last_taste_summary_telemetry()`.
+   - 5 new tests in `TestBuildTasteSummary`; all green.
+
+2. **Per-model lean prompt gate.**
+   [core/src/suggestions.py:`select_tracks`](core/src/suggestions.py).
+   - New env `SPOTYVIBE_LEAN_PROMPT_MODELS=<csv>` — comma-separated
+     substring patterns (case-insensitive). When the resolved Stage 3
+     model matches any pattern, the lean prompt variant is used
+     (system prompt 5532 → 2212 chars, drops the 5-field reasoning
+     wrapper). Lets eval test "drop the verbose reasoning block on
+     DeepSeek V4 Flash" without flipping the default.
+   - Smoke-verified by patched call.
+
+3. **Opt-in focused (pool-aware) taste summary.**
+   - New function `build_focused_taste_summary(profile, pool_tags,
+     top_k_per_section)` in
+     [core/src/suggestions.py](core/src/suggestions.py).
+   - Scores each must_have / soft_preferences / avoid item by tag
+     overlap with the approved candidate pool's tag distribution;
+     keeps the top-K per section. Designed to reduce "lost in the
+     middle" exposure on large profiles.
+   - Wired into [app.py:`_build_taste_summary_for_pool`](app.py)
+     behind `SPOTYVIBE_FOCUSED_TASTE=1`. Tunables
+     `SPOTYVIBE_FOCUSED_TASTE_THRESHOLD` (default 12, only activates
+     when total facets > threshold) and `SPOTYVIBE_FOCUSED_TASTE_TOP_K`
+     (default 10, items kept per section). Default is unchanged.
+   - 4 new tests in `TestBuildFocusedTasteSummary`; all green.
+
+4. **B-12 probe — facet-count scaling.**
+   [evaluation/probes/probe_b12_facet_scaling.py](evaluation/probes/probe_b12_facet_scaling.py).
+   - Variants `facets_2`, `facets_6`, `facets_12`, `facets_20` — same
+     grounded approved-pool, same load-bearing must_have ("hooks"),
+     same schema. Only the count of must/avoid facets varies.
+   - Rubric: `healthy_cite` / `partial_cite` / `weak_cite` /
+     `refusal` / `invalid`. Stage 3 quality regression at high facet
+     count surfaces as `weak_cite` rising across variants.
+   - Registered in the default battery (9 probes now) and a new
+     `compaction` battery preset. CLI: `python -m evaluation.probes
+     --model gpt-5.4-mini --battery compaction --confirm` (~$0.01 per
+     model on cloud rates).
+   - Updated `test_default_battery_has_nine_probes` to reflect the
+     addition.
+
+### B-12 first cross-model run — DONE 2026-05-19 (n=1 each, ~$0.05 real)
+
+Ran the new compaction battery against gpt-5.4-mini, gpt-5.4, and
+deepseek/deepseek-v4-flash. Full comparison report (with per-model
+fingerprints):
+[`evaluation/baselines/2026-05-19_b12_compaction_probe/SUMMARY.md`](evaluation/baselines/2026-05-19_b12_compaction_probe/SUMMARY.md).
+
+Cite-rate of the load-bearing first must_have ("hooks") across the
+facet-count axis (same pool, same grounding, same schema — only the
+facet count varies):
+
+| Model | facets_2 | facets_6 | facets_12 | facets_20 |
+|---|---:|---:|---:|---:|
+| gpt-5.4-mini       | 1.00 | 0.50 | 0.20 | 0.25 |
+| gpt-5.4            | 1.00 | 0.00 | 0.50 | 0.25 |
+| deepseek-v4-flash  | 1.00 | 0.33 | 0.25 | 0.25 |
+
+**Lost-in-the-middle is real on this codebase across all three
+production-candidate models.** Cite-rate drops 50-100 pp as facets
+grow 2 → 20; no model is immune. The plateau at 0.20-0.25 from
+facets_12 onward is the textbook signature the research predicted
+(Liu et al. 2024 TACL; Chroma 2025 context-rot). The compaction lever
+(`build_focused_taste_summary` + `SPOTYVIBE_FOCUSED_TASTE=1`) now has
+an empirical motivation, not just a research-paper rationale.
+
+**Side-finding (probe runner):** `_PRICING_USD_PER_MTOK` in
+[`evaluation/probes/runner.py`](evaluation/probes/runner.py) does not
+include DeepSeek rates and falls back to gpt-4o defaults. The DeepSeek
+run reported $0.11 vs actual ~$0.004 (27× overestimate). Filed below
+as a probe-hardening TODO.
+
+### Next task — B-12.focused variant (cheap, ~$0.005)
+
+The current B-12 probe proves the *problem* exists. To prove the
+*fix* works without a paid run_evaluation pass, ship a new
+``focused`` variant inside
+[`evaluation/probes/probe_b12_facet_scaling.py`](evaluation/probes/probe_b12_facet_scaling.py)
+that runs the SAME `facets_20` input through `build_focused_taste_summary`
+(top-K=3 per section, pool tags = the two grounded artists' tags) and
+re-scores. Acceptance criterion: focused-mode cite-rate ≥ 0.6 on a
+profile where the unfocused baseline plateau'd at 0.20-0.25.
+
+Concrete implementation outline:
+- Add variant `facets_20_focused` to `VARIANTS` + `RUNS_PER_VARIANT`.
+- `build_messages("facets_20_focused")` constructs the full 20-facet
+  profile, then calls
+  ``build_focused_taste_summary(profile, pool_tags=[<grounded tags>],
+  top_k_per_section=3)`` to produce the compacted taste summary that
+  gets injected into `track_select_user.txt`. Same approved-pool
+  block, same schema.
+- Same `score()` rubric — the cite-rate ratio is directly comparable
+  to the existing `facets_20` baseline.
+- Run cost: 1 extra call per model × 3 models = ~$0.005.
+
+If the focused variant lands `cite_rate ≥ 0.6` on at least two of the
+three models, the lever is greenlit for a paid end-to-end eval.
+
+### Other follow-ups surfaced this session
+
+- **Probe runner pricing.** Add `deepseek/deepseek-v4-flash:free` +
+  `deepseek/deepseek-v4-flash` + cloud-Haiku rates to
+  [`evaluation/probes/runner.py`](evaluation/probes/runner.py)
+  `_PRICING_USD_PER_MTOK`. ~5-line change; prevents the 27×
+  overestimate.
+- **B-12 cite scoring narrowness.** Current rubric only counts cites
+  of the first must_have ("hooks"). A future variant could score the
+  union over all must_have items so models that cite *other* facets
+  aren't penalised. (gpt-5.4 facets_6=0.0 is partly this artifact.)
+
+### Files touched
+
+- [core/src/suggestions.py](core/src/suggestions.py): per-section caps
+  + telemetry, `build_focused_taste_summary`, lean-models env gate,
+  `stage3_model` resolved earlier in `select_tracks`.
+- [app.py](app.py): `_build_taste_summary_for_pool` helper, import of
+  `build_focused_taste_summary`.
+- [core/tests/test_suggestions.py](core/tests/test_suggestions.py): 9
+  new tests across `TestBuildTasteSummary` + `TestBuildFocusedTasteSummary`.
+- [evaluation/probes/probe_b12_facet_scaling.py](evaluation/probes/probe_b12_facet_scaling.py)
+  (new): B-12 probe.
+- [evaluation/probes/cli.py](evaluation/probes/cli.py): register B-12
+  in `default` battery + new `compaction` battery + `_ALL_PROBES_BY_PREFIX`.
+- [core/tests/test_evaluation_probes.py](core/tests/test_evaluation_probes.py):
+  battery-count test updated.
+
+### Test status
+
+`python -m pytest core/tests/ --ignore=core/tests/test_documentation_screenshots.py`
+→ **1040 passed**, 3 deselected, 49.66 s. No regressions.
+
+### Not committed
+
+Per CLAUDE.md absolute rule: no `git commit` / `git push` without the
+literal string `CP ALLOWED` in the user's current message. All
+changes sit in the working tree; user reviews + commits when ready.
+
+---
+
 ##  Session 2026-05-19 PM — First eval on the rebuilt corpus
 
 **Baseline:** [`evaluation/baselines/2026-05-19_corpus_rebuild/`](evaluation/baselines/2026-05-19_corpus_rebuild/SUMMARY.md)

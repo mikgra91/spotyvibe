@@ -96,7 +96,8 @@ from core.src.suggestions import (
     build_messages, call_gpt, update_profile,
     filter_duplicate_suggestions,
     set_rag_corpus, get_rag_corpus,
-    build_taste_summary, check_avoid_compliance, select_tracks,
+    build_taste_summary, build_focused_taste_summary,
+    check_avoid_compliance, select_tracks,
     collect_forbidden_artists,
     get_last_rag_pool_names, get_last_prompt_components,
     set_last_rag_pool_names,
@@ -595,6 +596,70 @@ def _sse(event_type, **data):
     return f"data: {json.dumps({'type': event_type, **data})}\n\n"
 
 
+def _build_taste_summary_for_pool(profile, stage1_candidates, approved_names):
+    """Pick the taste-summary builder based on env + facet count.
+
+    Default path: ``build_taste_summary(profile)`` — preserves prior
+    behaviour for profiles of all sizes (CLAUDE.md North Star rule #1,
+    no regression on any model).
+
+    Focused path: when ``SPOTYVIBE_FOCUSED_TASTE=1`` is set AND the
+    profile carries more facets than the focus threshold (default 12),
+    score must_have/soft/avoid items against the approved-pool's tag
+    distribution and keep the top-K per section. Lets eval A/B the
+    "smart compaction" lever on large profiles without flipping the
+    default. See ``build_focused_taste_summary`` in suggestions.py.
+    """
+    use_focused = os.environ.get("SPOTYVIBE_FOCUSED_TASTE") == "1"
+    if not use_focused:
+        return build_taste_summary(profile)
+
+    try:
+        threshold = int(
+            os.environ.get("SPOTYVIBE_FOCUSED_TASTE_THRESHOLD", "12")
+        )
+    except (TypeError, ValueError):
+        threshold = 12
+
+    prefs = (profile or {}).get("preferences", {}) or {}
+    facet_n = (
+        len(prefs.get("must_have") or [])
+        + len(prefs.get("soft_preferences") or [])
+        + len(prefs.get("avoid") or [])
+    )
+    if facet_n <= threshold:
+        return build_taste_summary(profile)
+
+    try:
+        top_k = int(
+            os.environ.get("SPOTYVIBE_FOCUSED_TASTE_TOP_K", "10")
+        )
+    except (TypeError, ValueError):
+        top_k = 10
+
+    approved_lower = {n.lower().strip() for n in (approved_names or [])}
+    pool_tags: list[str] = []
+    for a in (stage1_candidates or []):
+        key = (getattr(a, "name", "") or "").lower().strip()
+        if approved_lower and key not in approved_lower:
+            continue
+        for t in (getattr(a, "tags", None) or []):
+            if isinstance(t, str) and t.strip():
+                pool_tags.append(t)
+
+    if not pool_tags:
+        return build_taste_summary(profile)
+
+    logger.info(
+        "[taste_summary] focused mode active — facet_n=%d, top_k=%d, "
+        "pool_tag_n=%d",
+        facet_n, top_k, len(pool_tags),
+    )
+    return build_focused_taste_summary(
+        profile, pool_tags=pool_tags, top_k_per_section=top_k,
+    )
+
+
 def _classify_unknown_exception(exc):
     """U2: best-effort classification for exceptions not carrying their own
     ``error_class`` / ``key`` attrs — most importantly spotipy's
@@ -1040,11 +1105,15 @@ def run_pipeline():
                             "Stage 2 rejected all %d candidates — staying on staged path with empty approved list",
                             len(_stage1_candidates),
                         )
-                        _taste_summary = build_taste_summary(profile)
+                        _taste_summary = _build_taste_summary_for_pool(
+                            profile, _stage1_candidates, _approved_names
+                        )
                         yield _sse("progress",
                                    message="Stage 2 rejected all candidates — Stage 3 will surface this as no tracks.")
                     else:
-                        _taste_summary = build_taste_summary(profile)
+                        _taste_summary = _build_taste_summary_for_pool(
+                            profile, _stage1_candidates, _approved_names
+                        )
                         yield _sse("progress",
                                    message=f"Stage 2 approved {len(_approved_names)} artists. Starting track selection…")
 

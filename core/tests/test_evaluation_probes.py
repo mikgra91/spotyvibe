@@ -512,8 +512,9 @@ class TestResultsToJsonl:
 # ── CLI ──────────────────────────────────────────────────────────────
 
 class TestCli:
-    def test_default_battery_has_eight_probes(self):
-        assert len(cli._BATTERIES["default"]) == 8
+    def test_default_battery_has_nine_probes(self):
+        # P-compact (2026-05-19): B-12 facet-scaling probe added.
+        assert len(cli._BATTERIES["default"]) == 9
         ids = {m.PROBE_ID for m in cli._BATTERIES["default"]}
         assert ids == {
             "B-1.constraint_grammar",
@@ -524,6 +525,7 @@ class TestCli:
             "B-6.self_consistency_floor",
             "B-10.cite_fidelity",
             "B-11.empty_pool_recovery",
+            "B-12.facet_scaling",
         }
 
     def test_dry_run_does_not_call_api(self, capsys):

@@ -63,6 +63,19 @@ _LAST_RAG_POOL_NAMES: list[str] | None = None
 # tokeniser-free) — see eval_log.log_batch_summary docstring for the schema.
 _LAST_PROMPT_COMPONENTS: dict | None = None
 
+# Per-section telemetry from the most recent build_taste_summary() call.
+# Surfaces silent truncation when a big profile's must_have / avoid / anchors
+# overflow the single 800-char aggregate cap. Schema:
+#   {section_name: {"raw_chars": int, "emitted_chars": int, "truncated": bool},
+#    "summary_chars": int,
+#    "summary_truncated": bool,
+#    "facet_count": int,
+#    "section_caps": dict}
+# Captured in a module-global so the downstream select_tracks() call can
+# fold it into prompt_components (eval_log row) without changing the
+# build_taste_summary() return signature (back-compat with app.py + tests).
+_LAST_TASTE_SUMMARY_TELEMETRY: dict | None = None
+
 
 def set_rag_corpus(corpus: RagCorpus | None) -> None:
     """Install the process-wide RAG corpus handle."""
@@ -98,6 +111,17 @@ def get_last_prompt_components() -> dict | None:
     diversity_hint, audio_filters}``. ``None`` until the first call.
     """
     return _LAST_PROMPT_COMPONENTS
+
+
+def get_last_taste_summary_telemetry() -> dict | None:
+    """Return per-section truncation telemetry of the most recent build_taste_summary().
+
+    ``None`` until the first call. Surfaces silent truncation on profiles
+    with many must_have / soft / avoid items (the previous single 800-char
+    aggregate cap could chop must_have or avoid without warning when
+    core_description was long).
+    """
+    return _LAST_TASTE_SUMMARY_TELEMETRY
 
 
 logger = logging.getLogger(__name__)
@@ -1118,15 +1142,77 @@ def call_gpt(messages, temperature=0.7, return_meta=False):
     return (result, meta) if return_meta else result
 
 
+# Per-section character caps for the Stage 3 taste summary. Tuned so a
+# big profile (many must_have / avoid items) keeps the highest-priority
+# signals intact instead of having them silently chopped by a single
+# aggregate cap. Order also matters: must_have and avoid are highest-
+# priority filters per CLAUDE.md → keep them before core_description so
+# attention falls on hard constraints first ("lost in the middle":
+# Liu et al. 2024 TACL; Chroma 2025 "context rot").
+_TASTE_SECTION_CAPS: dict = {
+    "eras": 80,
+    "must_have": 320,
+    "soft_preferences": 240,
+    "avoid": 320,
+    "primary_reference": 120,
+    "style_anchors": 140,  # ~5 anchors × ~25 chars avg
+    "core_description": 200,
+}
+
+# Total cap on the rendered summary. Was 800 (silent chop of late
+# sections); 1200 keeps the per-section caps fitting in worst case
+# (sum of caps = 1420 — total cap still acts as a backstop). At
+# DeepSeek V4 Flash rates (+400 chars ≈ +100 tok × 4 batches × 2
+# playlists ≈ +800 in-tokens) the cost delta is <$0.0002 / playlist;
+# well below noise.
+_TASTE_SUMMARY_MAX_CHARS_DEFAULT = 1200
+
+
+def _resolve_taste_summary_cap() -> int:
+    """Resolve the aggregate cap honouring an optional env override.
+
+    ``SPOTYVIBE_TASTE_SUMMARY_MAX_CHARS=<int>`` lets evals A/B the cap
+    without code changes. Falls back to the default on missing /
+    unparsable values.
+    """
+    raw = os.environ.get("SPOTYVIBE_TASTE_SUMMARY_MAX_CHARS")
+    if not raw:
+        return _TASTE_SUMMARY_MAX_CHARS_DEFAULT
+    try:
+        n = int(raw)
+        if n > 0:
+            return n
+    except (TypeError, ValueError):
+        pass
+    return _TASTE_SUMMARY_MAX_CHARS_DEFAULT
+
+
+def _truncate_section(raw: str, cap: int) -> tuple[str, bool]:
+    """Truncate *raw* to *cap* chars, returning ``(emitted, truncated)``."""
+    if not raw:
+        return "", False
+    raw = raw.strip()
+    if len(raw) <= cap:
+        return raw, False
+    return raw[: max(cap - 1, 1)] + "…", True
+
+
 def build_taste_summary(profile: dict) -> str:
-    """Build a compact ≤800-char taste summary for Stage 3 prompts (P1.3).
+    """Build a compact taste summary for Stage 3 prompts (P1.3).
 
     Deterministic — no LLM. Extracts must_have, soft_preferences, avoid,
-    confirmed artist anchors, era, and core_description from the profile and
-    renders them as a concise single-paragraph hint.
+    confirmed artist anchors, era, primary reference, and core_description
+    from the profile and renders them as a concise single-paragraph hint.
+
+    **Per-section caps (2026-05-19, post-corpus-rebuild compaction work).**
+    Each section has its own char cap (see ``_TASTE_SECTION_CAPS``) so a
+    long core_description cannot crowd out the must_have / avoid filters.
+    The aggregate cap still applies as a backstop. Truncation telemetry is
+    recorded on the module-level ``_LAST_TASTE_SUMMARY_TELEMETRY`` global
+    and surfaces through ``get_last_taste_summary_telemetry()``.
 
     This replaces the full profile JSON + deny set + RAG pool in Stage 3,
-    cutting the input from ~7 k tok to ~200 tok.
+    cutting the input from ~7 k tok to ~200-300 tok.
     """
     prefs = (profile or {}).get("preferences", {}) or {}
 
@@ -1135,27 +1221,19 @@ def build_taste_summary(profile: dict) -> str:
             return ", ".join(str(v) for v in val if v)
         return str(val).strip() if val else ""
 
-    parts: list[str] = []
-
-    eras = _join(prefs.get("eras"))
-    if eras:
-        parts.append(f"Era: {eras}.")
-
-    must = _join(prefs.get("must_have"))
-    if must:
-        parts.append(f"Must: {must}.")
-
-    soft = _join(prefs.get("soft_preferences"))
-    if soft:
-        parts.append(f"Style: {soft}.")
-
-    avoid = _join(prefs.get("avoid"))
-    if avoid:
-        parts.append(f"Avoid: {avoid}.")
-
-    primary = (profile or {}).get("meta", {}).get("primary_reference") or ""
-    if isinstance(primary, str) and primary.strip():
-        parts.append(f"Primary reference: {primary.strip()}.")
+    # Per-section raw values (pre-cap) — used for both prompt rendering
+    # and the truncation telemetry.
+    sections_raw: dict = {
+        "eras": _join(prefs.get("eras")),
+        "must_have": _join(prefs.get("must_have")),
+        "soft_preferences": _join(prefs.get("soft_preferences")),
+        "avoid": _join(prefs.get("avoid")),
+        "primary_reference": str(
+            (profile or {}).get("meta", {}).get("primary_reference") or ""
+        ).strip(),
+        "style_anchors": "",
+        "core_description": (prefs.get("core_description") or "").strip(),
+    }
 
     confirmed = (profile or {}).get("artists", {}).get("confirmed", [])
     anchors: list[str] = []
@@ -1163,18 +1241,214 @@ def build_taste_summary(profile: dict) -> str:
         name = a.get("name", "") if isinstance(a, dict) else str(a)
         if name:
             anchors.append(name)
-    if anchors:
-        parts.append(f"Style anchors: {', '.join(anchors)}.")
+    sections_raw["style_anchors"] = ", ".join(anchors) if anchors else ""
 
-    core = (prefs.get("core_description") or "").strip()
-    if core:
-        if len(core) > 200:
-            core = core[:200] + "…"
-        parts.append(core)
+    # Apply per-section caps and record telemetry.
+    telemetry: dict = {}
+    emitted: dict = {}
+    for key, raw in sections_raw.items():
+        cap = _TASTE_SECTION_CAPS.get(key, 200)
+        em, tr = _truncate_section(raw, cap)
+        emitted[key] = em
+        telemetry[key] = {
+            "raw_chars": len(raw),
+            "emitted_chars": len(em),
+            "truncated": tr,
+        }
+
+    parts: list[str] = []
+    if emitted["eras"]:
+        parts.append(f"Era: {emitted['eras']}.")
+    if emitted["must_have"]:
+        parts.append(f"Must: {emitted['must_have']}.")
+    if emitted["soft_preferences"]:
+        parts.append(f"Style: {emitted['soft_preferences']}.")
+    if emitted["avoid"]:
+        parts.append(f"Avoid: {emitted['avoid']}.")
+    if emitted["primary_reference"]:
+        parts.append(f"Primary reference: {emitted['primary_reference']}.")
+    if emitted["style_anchors"]:
+        parts.append(f"Style anchors: {emitted['style_anchors']}.")
+    if emitted["core_description"]:
+        parts.append(emitted["core_description"])
 
     summary = " ".join(parts)
-    if len(summary) > 800:
-        summary = summary[:800] + "…"
+    aggregate_cap = _resolve_taste_summary_cap()
+    aggregate_truncated = False
+    if len(summary) > aggregate_cap:
+        summary = summary[: max(aggregate_cap - 1, 1)] + "…"
+        aggregate_truncated = True
+
+    # Facet count = items the user actually declared. Lists collapse to
+    # comma-joined strings above so re-derive from prefs to count entries.
+    def _list_len(val: object) -> int:
+        if isinstance(val, list):
+            return sum(1 for v in val if str(v).strip())
+        if isinstance(val, str) and val.strip():
+            return 1
+        return 0
+
+    facet_count = (
+        _list_len(prefs.get("must_have"))
+        + _list_len(prefs.get("soft_preferences"))
+        + _list_len(prefs.get("avoid"))
+        + len(anchors)
+    )
+
+    telemetry["summary_chars"] = len(summary)
+    telemetry["summary_truncated"] = aggregate_truncated
+    telemetry["facet_count"] = facet_count
+    telemetry["section_caps"] = dict(_TASTE_SECTION_CAPS)
+    telemetry["aggregate_cap"] = aggregate_cap
+    telemetry["any_section_truncated"] = any(
+        v.get("truncated") for k, v in telemetry.items()
+        if isinstance(v, dict) and "truncated" in v
+    )
+
+    global _LAST_TASTE_SUMMARY_TELEMETRY
+    _LAST_TASTE_SUMMARY_TELEMETRY = telemetry
+
+    if telemetry["any_section_truncated"] or aggregate_truncated:
+        truncated_keys = [
+            k for k, v in telemetry.items()
+            if isinstance(v, dict) and v.get("truncated")
+        ]
+        logger.info(
+            "[taste_summary] truncation detected — sections=%s, "
+            "summary_truncated=%s, summary_chars=%d, facet_count=%d",
+            truncated_keys, aggregate_truncated, len(summary), facet_count,
+        )
+
+    return summary
+
+
+# ── Focused (pool-aware) taste summary — opt-in, big-profile lever ──
+# Motivation: when a profile carries many must_have / soft / avoid items
+# (e.g. 15+ facets accumulated through long-term refinement) the bulk of
+# them are irrelevant to the *current candidate pool*. Stage 1 already
+# narrowed the pool by tag overlap, so the facets that matter for this
+# Stage 3 batch are the ones that overlap with the pool's tag
+# distribution. Surfacing only those into the summary:
+#   - keeps must_have / avoid signal sharp (no dilution by off-topic facets),
+#   - reduces "lost in the middle" exposure (research: Liu et al. 2024
+#     TACL; Chroma 2025 context rot),
+#   - shrinks output tokens (less prose to cite back).
+# Strict opt-in via SPOTYVIBE_FOCUSED_TASTE=1 — no behaviour change by
+# default. CLAUDE.md North Star rule #1 (no regression on any model)
+# means the focused path must be eval-proven before flipping the default.
+
+
+def _normalise_tag_token(s: str) -> str:
+    return (s or "").lower().strip().replace("_", " ").replace("-", " ")
+
+
+def _score_facet_against_pool(facet_text: str, pool_tags_index: dict) -> float:
+    """Score *facet_text* by overlap with *pool_tags_index*.
+
+    ``pool_tags_index`` is ``{normalised_tag: occurrence_count}`` (built
+    once per Stage 3 call by the caller from the approved-pool's tags).
+    The score is the sum of occurrence counts for any pool tag that
+    appears as a substring of the facet (or vice versa). A facet with
+    zero overlap scores 0 and ranks lowest — but is *not* dropped
+    automatically; the caller decides via ``top_k_per_section``.
+    """
+    if not facet_text:
+        return 0.0
+    f = _normalise_tag_token(facet_text)
+    score = 0.0
+    for tag, count in pool_tags_index.items():
+        if not tag:
+            continue
+        if tag in f or f in tag:
+            score += float(count)
+    return score
+
+
+def build_focused_taste_summary(
+    profile: dict,
+    pool_tags: list[str] | None = None,
+    top_k_per_section: int = 10,
+) -> str:
+    """Pool-aware variant of build_taste_summary (opt-in compaction).
+
+    Scores each ``must_have`` / ``soft_preferences`` / ``avoid`` item by
+    tag overlap with the candidate pool's aggregated tags and keeps the
+    top *top_k_per_section* entries per section. Falls back to the
+    standard ``build_taste_summary`` when *pool_tags* is empty or the
+    profile carries few enough facets that focusing would not help
+    (threshold: ``top_k_per_section`` items per section — focusing N
+    into N is a no-op).
+
+    Writes the same telemetry global as the standard path
+    (``_LAST_TASTE_SUMMARY_TELEMETRY``) with an extra ``focused`` block
+    so eval analysis can distinguish focused vs non-focused runs.
+    """
+    if not pool_tags:
+        return build_taste_summary(profile)
+
+    prefs = (profile or {}).get("preferences", {}) or {}
+
+    # Build the pool tag index. Repeated tags carry weight — a tag that
+    # appears 30 times in the pool tells us more than a tag that
+    # appears once.
+    pool_tags_index: dict = {}
+    for raw in pool_tags:
+        norm = _normalise_tag_token(str(raw))
+        if not norm:
+            continue
+        pool_tags_index[norm] = pool_tags_index.get(norm, 0) + 1
+
+    def _focus_list(items: object) -> list[str]:
+        """Score and trim *items* (a list of facet strings)."""
+        if isinstance(items, str):
+            items = [items]
+        if not isinstance(items, list) or not items:
+            return []
+        scored = [
+            (_score_facet_against_pool(str(it), pool_tags_index), str(it))
+            for it in items
+            if str(it).strip()
+        ]
+        # Keep all if under the threshold (focusing a short list is wasteful).
+        if len(scored) <= top_k_per_section:
+            return [s for _, s in scored]
+        # Sort by score desc, stable on input order; keep top-K. The
+        # *avoid* section deliberately uses the same scorer — irrelevant
+        # avoid items consume attention without preventing leakage on
+        # this pool.
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [s for _, s in scored[:top_k_per_section]]
+
+    focused_prefs = dict(prefs)
+    focused_prefs["must_have"] = _focus_list(prefs.get("must_have"))
+    focused_prefs["soft_preferences"] = _focus_list(prefs.get("soft_preferences"))
+    focused_prefs["avoid"] = _focus_list(prefs.get("avoid"))
+
+    focused_profile = dict(profile or {})
+    focused_profile["preferences"] = focused_prefs
+
+    summary = build_taste_summary(focused_profile)
+
+    # Augment telemetry with focused-mode metadata so eval log can
+    # diff focused vs default runs.
+    global _LAST_TASTE_SUMMARY_TELEMETRY
+    if isinstance(_LAST_TASTE_SUMMARY_TELEMETRY, dict):
+        _LAST_TASTE_SUMMARY_TELEMETRY = {
+            **_LAST_TASTE_SUMMARY_TELEMETRY,
+            "focused": {
+                "enabled": True,
+                "top_k_per_section": top_k_per_section,
+                "pool_tag_uniques": len(pool_tags_index),
+                "pool_tag_total": sum(pool_tags_index.values()),
+                "must_have_kept": len(focused_prefs["must_have"]),
+                "must_have_in": len(prefs.get("must_have") or []),
+                "avoid_kept": len(focused_prefs["avoid"]),
+                "avoid_in": len(prefs.get("avoid") or []),
+                "soft_kept": len(focused_prefs["soft_preferences"]),
+                "soft_in": len(prefs.get("soft_preferences") or []),
+            },
+        }
+
     return summary
 
 
@@ -1466,6 +1740,12 @@ def select_tracks(
     else:
         rationale_count = "2"
 
+    # L5 (2026-05-08): resolve the Stage 3 model BEFORE prompt selection
+    # so the per-model lean gate (P-compact 2026-05-19) can inspect it.
+    # The same resolved model is then reused for validation block / chat
+    # completion / trace below.
+    stage3_model = _resolve_stage3_model(profile)
+
     system_prompt = load_text_file(TRACK_SELECT_SYSTEM_FILE)
     # Phase 2.5 (2026-04-27): swap to slim local variant for Ollama /
     # LM Studio. Cloud providers (OpenAI, Groq, OpenRouter) keep the
@@ -1474,11 +1754,24 @@ def select_tracks(
     # so reasoning-tier cloud models (gpt-5.4) can be tested on the lean
     # schema — the heavy reasoning block is the prime suspect for runaway
     # token-out on deliberation-class models.
+    # P-compact (2026-05-19): per-model opt-in gate via
+    # SPOTYVIBE_LEAN_PROMPT_MODELS=<csv>. When the resolved stage3 model
+    # matches any comma-separated entry (substring match, case-insensitive),
+    # use the lean variant. Lets eval A/B "drop the verbose reasoning
+    # wrapper on DeepSeek V4 Flash" without flipping the default —
+    # CLAUDE.md North Star rule #1 (no regression on any model) means we
+    # gate by env until an eval proves the lean variant non-regressing.
     _lean_env = os.environ.get("SPOTYVIBE_LEAN_PROMPT") == "1"
+    _lean_models_csv = os.environ.get("SPOTYVIBE_LEAN_PROMPT_MODELS", "")
+    _lean_model_match = False
+    if _lean_models_csv and stage3_model:
+        _patterns = [p.strip().lower() for p in _lean_models_csv.split(",") if p.strip()]
+        _model_lower = stage3_model.lower()
+        _lean_model_match = any(p in _model_lower for p in _patterns)
     try:
         from config import LOCAL_PRESETS, get_llm_provider_preset
         _is_local_preset = get_llm_provider_preset() in LOCAL_PRESETS
-        _use_lean = _is_local_preset or _lean_env
+        _use_lean = _is_local_preset or _lean_env or _lean_model_match
         # 2026-05-14: actual local LLMs (llamacpp / ollama / lmstudio) get
         # the MINIMAL variant — no `reasoning` wrapper at all. Smaller
         # local models (Llama 3.1 8B, Qwen3 8B) can't reliably emit
@@ -1499,11 +1792,11 @@ def select_tracks(
                         get_llm_provider_preset(), _lean_env)
     except Exception as _exc:  # pragma: no cover
         logger.debug("local-prompt-variant lookup failed (%s) — using cloud variant", _exc)
-    # L5 (2026-05-08): resolve the Stage 3 model once per call so the
-    # validation block + the chat completion + the trace + the prompt log
-    # all reference the same model. ``profile`` is the input the resolver
-    # uses for "auto" mode — feedback-aware downgrade/upgrade decision.
-    stage3_model = _resolve_stage3_model(profile)
+    # L5 (2026-05-08): stage3_model is resolved above (before prompt
+    # selection) so the validation block + the chat completion + the
+    # trace + the prompt log all reference the same model. ``profile``
+    # is the input the resolver uses for "auto" mode — feedback-aware
+    # downgrade/upgrade decision.
     # Phase 2.5 (2026-04-27): {validation_block} moved out of the system
     # prompt into a per-request prepend on the user message. The validation
     # block is per-request data (model-specific verification reminder) and
@@ -1623,6 +1916,9 @@ def select_tracks(
     ]
 
     # Capture prompt components for the eval log (pool = approved artists block).
+    # P-compact (2026-05-19): also expose taste_summary truncation telemetry
+    # so the eval log can detect when a big profile silently lost must_have /
+    # avoid signal. See get_last_taste_summary_telemetry() for the schema.
     global _LAST_PROMPT_COMPONENTS
     _LAST_PROMPT_COMPONENTS = {
         "system": len(system_prompt),
@@ -1634,6 +1930,8 @@ def select_tracks(
         "accepted": len(accepted_block),
         "diversity_hint": 0,
         "user_total": len(user_message),
+        "taste_summary": len(taste_summary or ""),
+        "taste_summary_telemetry": _LAST_TASTE_SUMMARY_TELEMETRY,
     }
 
     def _empty() -> dict:

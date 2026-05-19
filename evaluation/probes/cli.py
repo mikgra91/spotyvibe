@@ -38,6 +38,7 @@ from . import (
     probe_b6_consistency,
     probe_b10_cite,
     probe_b11_empty_pool,
+    probe_b12_facet_scaling,
     runner,
 )
 
@@ -53,8 +54,10 @@ _BATTERIES: dict[str, list[Any]] = {
         probe_b6_consistency,
         probe_b10_cite,
         probe_b11_empty_pool,
+        probe_b12_facet_scaling,
     ],
     "minimal": [probe_b1_constraint, probe_b6_consistency],          # validates wiring
+    "compaction": [probe_b12_facet_scaling],                          # P-compact (2026-05-19)
 }
 
 
@@ -67,6 +70,7 @@ _ALL_PROBES_BY_PREFIX: dict[str, Any] = {
     "B-6":  probe_b6_consistency,
     "B-10": probe_b10_cite,
     "B-11": probe_b11_empty_pool,
+    "B-12": probe_b12_facet_scaling,
 }
 
 

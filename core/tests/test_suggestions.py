@@ -1042,10 +1042,76 @@ class TestBuildTasteSummary:
         assert self._call(None) == ""  # type: ignore[arg-type]
 
     def test_length_cap(self):
+        # P-compact (2026-05-19): per-section caps + aggregate cap (default
+        # 1200 chars). A 2000-char core_description hits the per-section
+        # 200-char cap first, so the rendered summary stays well under the
+        # aggregate cap.
         long_desc = "x" * 2000
         profile = {"preferences": {"core_description": long_desc}}
         summary = self._call(profile)
-        assert len(summary) <= 800
+        assert len(summary) <= 1200
+        # Per-section cap also enforced: core_description itself does not
+        # exceed its 200-char per-section cap (+1 for the truncation marker).
+        assert "x" * 220 not in summary
+
+    def test_section_truncation_telemetry(self):
+        # When must_have overflows its per-section cap, telemetry must
+        # mark that specific section truncated — production code can then
+        # alert / log without re-tokenising.
+        from core.src.suggestions import get_last_taste_summary_telemetry
+        long_must = ", ".join([f"trait-{i}" for i in range(60)])
+        profile = {"preferences": {"must_have": [long_must]}}
+        self._call(profile)
+        tel = get_last_taste_summary_telemetry()
+        assert tel is not None
+        assert tel["must_have"]["truncated"] is True
+        assert tel["any_section_truncated"] is True
+
+    def test_no_truncation_on_small_profile(self):
+        from core.src.suggestions import get_last_taste_summary_telemetry
+        profile = {
+            "preferences": {"must_have": ["hooks"], "avoid": ["screamo"]},
+            "artists": {"confirmed": [{"name": "Tally Hall"}]},
+        }
+        self._call(profile)
+        tel = get_last_taste_summary_telemetry()
+        assert tel is not None
+        assert tel["any_section_truncated"] is False
+        assert tel["summary_truncated"] is False
+        assert tel["facet_count"] == 3  # 1 must + 1 avoid + 1 anchor
+
+    def test_must_have_preserved_when_core_description_huge(self):
+        # Regression for the bug this work is preventing: the previous
+        # 800-char aggregate cap meant a 2000-char core_description could
+        # crowd the must_have / avoid sections out of the summary
+        # entirely. With per-section caps, must_have and avoid always fit.
+        profile = {
+            "preferences": {
+                "must_have": ["punchy guitars", "modern production"],
+                "avoid": ["80s production", "classic rock"],
+                "core_description": "y" * 5000,
+            },
+        }
+        summary = self._call(profile)
+        assert "punchy guitars" in summary
+        assert "80s production" in summary
+
+    def test_env_override_aggregate_cap(self):
+        import os
+        from core.src.suggestions import build_taste_summary
+        os.environ["SPOTYVIBE_TASTE_SUMMARY_MAX_CHARS"] = "300"
+        try:
+            profile = {
+                "preferences": {
+                    "must_have": ["hooks"] * 10,
+                    "avoid": ["nu-metal"] * 10,
+                    "core_description": "z" * 500,
+                },
+            }
+            summary = build_taste_summary(profile)
+            assert len(summary) <= 300
+        finally:
+            del os.environ["SPOTYVIBE_TASTE_SUMMARY_MAX_CHARS"]
 
     def test_confirmed_anchors_capped_at_five(self):
         confirmed = [{"name": f"Artist {i}"} for i in range(10)]
@@ -1060,6 +1126,92 @@ class TestBuildTasteSummary:
         summary = self._call(profile)
         assert "Avoid:" not in summary
 
+
+# ── P-compact (2026-05-19): build_focused_taste_summary ──────────────
+
+class TestBuildFocusedTasteSummary:
+    def test_empty_pool_tags_falls_back_to_default(self):
+        from core.src.suggestions import (
+            build_focused_taste_summary, build_taste_summary,
+        )
+        profile = {
+            "preferences": {
+                "must_have": ["hooks"], "avoid": ["screamo"],
+            },
+        }
+        focused = build_focused_taste_summary(profile, pool_tags=None)
+        plain = build_taste_summary(profile)
+        assert focused == plain
+
+    def test_focus_picks_overlapping_items(self):
+        from core.src.suggestions import build_focused_taste_summary
+        # Pool is heavy on "indie pop" + "art pop" → must_have items
+        # mentioning "pop" should rank higher than the off-topic
+        # "thrash metal" one when we keep only 2 per section.
+        profile = {
+            "preferences": {
+                "must_have": [
+                    "thrash metal energy",
+                    "indie pop hooks",
+                    "art pop quirk",
+                    "trap drums",
+                    "punchy guitars",
+                    "anime vocals",
+                    "modern production",
+                    "shoegaze drone",
+                    "math rock rhythms",
+                    "k-pop polish",
+                    "synth pop lead",
+                    "garage rock vibe",
+                ],
+                "avoid": [],
+            },
+        }
+        pool_tags = ["indie pop"] * 30 + ["art pop"] * 20 + ["math rock"] * 5
+        summary = build_focused_taste_summary(
+            profile, pool_tags=pool_tags, top_k_per_section=2,
+        )
+        # The two highest-overlap must_have items are pop-flavoured; an
+        # off-topic "trap drums" should not survive top-2.
+        assert "indie pop" in summary
+        assert "art pop" in summary
+        assert "trap drums" not in summary
+
+    def test_short_lists_kept_intact(self):
+        from core.src.suggestions import build_focused_taste_summary
+        profile = {
+            "preferences": {
+                "must_have": ["hooks", "energy"],
+                "avoid": ["screamo"],
+            },
+        }
+        pool_tags = ["indie pop"] * 10
+        summary = build_focused_taste_summary(
+            profile, pool_tags=pool_tags, top_k_per_section=5,
+        )
+        # Lists under top_k_per_section stay intact regardless of score.
+        assert "hooks" in summary
+        assert "energy" in summary
+        assert "screamo" in summary
+
+    def test_telemetry_records_focused_block(self):
+        from core.src.suggestions import (
+            build_focused_taste_summary, get_last_taste_summary_telemetry,
+        )
+        profile = {
+            "preferences": {
+                "must_have": [f"facet-{i}" for i in range(15)],
+            },
+        }
+        build_focused_taste_summary(
+            profile, pool_tags=["indie pop"] * 5, top_k_per_section=3,
+        )
+        tel = get_last_taste_summary_telemetry()
+        assert tel is not None
+        assert "focused" in tel
+        assert tel["focused"]["enabled"] is True
+        assert tel["focused"]["must_have_in"] == 15
+        assert tel["focused"]["must_have_kept"] == 3
 
 # ── Phase 1: check_avoid_compliance ──────────────────────────────────
 
