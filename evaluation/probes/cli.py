@@ -182,8 +182,36 @@ def main(argv: list[str] | None = None) -> int:
     # Pull OPENAI_API_KEY out of keyring / .credentials into os.environ
     # (same mechanism the eval harness uses). Skipped on dry-run so the
     # CLI is usable without credentials.
+    import os
     import config
     config.load_config()
+
+    # 2026-05-19: cross-model support. When --model is in OpenRouter
+    # `provider/model` form, mirror the eval harness routing logic
+    # (harness.py L211-L255): switch LLM_BASE_URL + PROVIDER_PRESET and
+    # swap the bearer key to the [openrouter] api_key from
+    # evaluation/settings.ini. Done AFTER load_config() so we override
+    # the user's settings.conf (which usually points at OpenAI).
+    if "/" in args.model:
+        import configparser
+        eval_settings = Path(__file__).resolve().parents[1] / "settings.ini"
+        or_key = ""
+        if eval_settings.exists():
+            cp = configparser.ConfigParser()
+            cp.read(eval_settings)
+            or_key = cp.get("openrouter", "api_key", fallback="").strip()
+        if not or_key:
+            raise SystemExit(
+                f"Model '{args.model}' looks like an OpenRouter id "
+                f"(provider/model) but [openrouter] api_key is missing "
+                f"from {eval_settings}."
+            )
+        os.environ["LLM_BASE_URL"] = "https://openrouter.ai/api/v1"
+        os.environ["PROVIDER_PRESET"] = "openrouter"
+        os.environ["OPENAI_API_KEY"] = or_key
+        # OpenRouter free tier rejects requests without a max_tokens cap.
+        os.environ.setdefault("SPOTYVIBE_MAX_OUTPUT_TOKENS", "8000")
+        print(f"  Routing via OpenRouter (base_url=https://openrouter.ai/api/v1)")
 
     _confirm_or_exit(modules, args.model)
 

@@ -207,28 +207,43 @@ class OverlayVerifier:
         q = normalise_title(title)
         if not q:
             return "not_found", label
+        # Substring matching catches "Hey Jude" ⊂ "Hey Jude (Mono)" and
+        # "Here Comes the Sun" ⊂ "Here Comes the Sun - Remastered 2009"
+        # (the trailing-bracket stripper handles the former; the latter
+        # uses the suffixed form so the substring rule is load-bearing).
+        # The minimum-length guard avoids spurious hits where a real
+        # 1-3 char overlay title ("i", "go", "on" — all present in the
+        # 2026-05-19 corpus) substring-matches any longer query
+        # containing those letters. Equality still resolves short titles.
+        _MIN_SUBSTR = 4
         for ot in overlay_titles:
             n_ot = normalise_title(ot)
             if not n_ot:
                 continue
-            if n_ot == q or n_ot in q or q in n_ot:
-                # Match — synthesise Spotify-shape enrichment so the
-                # consumer never has to special-case the missing keys.
-                enriched = dict(track)
-                enriched.setdefault("uri", None)
-                enriched.setdefault("track_id", None)
-                enriched.setdefault("cover_url", None)
-                enriched.setdefault("preview_url", None)
-                enriched.setdefault("spotify_url", None)
-                enriched.setdefault("album_url", None)
-                enriched.setdefault("release_date", None)
-                enriched.setdefault("artist_url", None)
-                enriched.setdefault("artist_id", None)
-                # Audit breadcrumb so trace consumers can tell L0 hits
-                # apart from L2 ground-truth hits.
-                enriched["verified_by"] = "overlay"
-                enriched["overlay_match"] = ot
-                return "found", enriched
+            is_match = (
+                n_ot == q
+                or (min(len(n_ot), len(q)) >= _MIN_SUBSTR
+                    and (n_ot in q or q in n_ot))
+            )
+            if not is_match:
+                continue
+            # Match — synthesise Spotify-shape enrichment so the
+            # consumer never has to special-case the missing keys.
+            enriched = dict(track)
+            enriched.setdefault("uri", None)
+            enriched.setdefault("track_id", None)
+            enriched.setdefault("cover_url", None)
+            enriched.setdefault("preview_url", None)
+            enriched.setdefault("spotify_url", None)
+            enriched.setdefault("album_url", None)
+            enriched.setdefault("release_date", None)
+            enriched.setdefault("artist_url", None)
+            enriched.setdefault("artist_id", None)
+            # Audit breadcrumb so trace consumers can tell L0 hits
+            # apart from L2 ground-truth hits.
+            enriched["verified_by"] = "overlay"
+            enriched["overlay_match"] = ot
+            return "found", enriched
 
         return "not_found", label
 
