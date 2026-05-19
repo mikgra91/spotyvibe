@@ -261,6 +261,33 @@ class TestOverlayVerifier:
         v.verify(original)
         assert original == {"artist": "Tally Hall", "track": "Good Day"}
 
+    def test_short_overlay_title_does_not_substring_match_longer_query(self):
+        """Regression: the 2026-05-19 cloud-rebuilt corpus contains
+        legitimate 1-3 char track titles ("i", "go", "on"). Without a
+        minimum-length guard on the substring rule, any longer query
+        containing those letters would spuriously match ("i" ⊂
+        "windowlicker" → false "found" for Aphex Twin / Windowlicker).
+        Equality on short titles must still match.
+        """
+        c = _FakeCorpus([_FakeArtistRow("Aphex Twin",
+                                        ["Avril 14th", "Xtal", "i"])])
+        v = OverlayVerifier(c)
+        # Spurious: "i" must NOT match "Windowlicker"
+        kind, _ = v.verify({"artist": "Aphex Twin", "track": "Windowlicker"})
+        assert kind == "not_found"
+        # Exact-match on the short title still resolves.
+        kind, payload = v.verify({"artist": "Aphex Twin", "track": "I"})
+        assert kind == "found"
+        assert payload["overlay_match"] == "i"
+
+    def test_short_query_does_not_substring_match_long_overlay(self):
+        """Reverse direction of the previous regression: a 1-3 char
+        query must not substring-match a long overlay title."""
+        c = _FakeCorpus([_FakeArtistRow("Band", ["Information Highway"])])
+        v = OverlayVerifier(c)
+        kind, _ = v.verify({"artist": "Band", "track": "in"})
+        assert kind == "not_found"
+
 
 # ── _SqliteVerifyCache ─────────────────────────────────────────────
 
