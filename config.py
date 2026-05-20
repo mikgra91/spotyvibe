@@ -101,14 +101,12 @@ MAX_GPT_CALLS_PER_RUN = 4
 DEFAULT_NEW_ARTIST_PERCENTAGE = 30
 
 # Default LLM model used when none is configured.
-# 2026-05-14: switched to DeepSeek V4 Flash via OpenRouter after Phase 2+3
-# evaluation showed DS dominates on cite-per-$ (94-98 % must-have cite on
-# post_feedback at $0.015/run vs gpt-5.4 $0.10-0.17/run with comparable
-# cite). Free-tier path also exists (`deepseek/deepseek-v4-flash:free`,
-# 200 RPD aggregate OR cap). gpt-5.4-mini stays as the OpenAI-native
-# fallback for users who prefer not to add an OpenRouter account.
-# See evaluation/results/openrouter_phase{2,3}/SUMMARY.md.
-DEFAULT_OPENAI_MODEL = "deepseek/deepseek-v4-flash"
+# 2026-05-20: switched to OpenAI gpt-5.4-mini via OpenRouter after DeepSeek
+# V4 Flash regression analysis showed 60-80% of output tokens are hidden
+# reasoning tokens — making it 5-10× slower and tokenically wasteful vs
+# gpt-5.4-mini and Gemini 3.1 Flash Lite at comparable quality.
+# See evaluation/probes/results/deepseek_baseline_no_reasoning_effort/.
+DEFAULT_OPENAI_MODEL = "openai/gpt-5.4-mini"
 
 # Stage 2 avoid-compliance checker model (binary classification — cheapest mini).
 # Used by check_avoid_compliance() in suggestions.py. Falls back to get_model()
@@ -332,9 +330,9 @@ MAX_PROFILE_NAME_LEN = 40
 USER_KEYS = CREDENTIALS_KEYS + SETTINGS_KEYS
 
 # Default LLM provider configuration (Wave 4)
-# 2026-05-14: switched to OpenRouter default — DeepSeek V4 Flash route wins
-# on cite-per-$ over the previous OpenAI gpt-5.4-mini default. Existing
-# installs are unaffected (only kicks in when settings.conf is empty).
+# 2026-05-20: OpenRouter remains the default provider — gpt-5.4-mini via
+# OpenRouter is the new default model after DeepSeek V4 Flash was removed
+# (excessive hidden reasoning tokens, 5-10× slower than alternatives).
 DEFAULT_LLM_BASE_URL = 'https://openrouter.ai/api/v1'
 DEFAULT_PROVIDER_PRESET = 'openrouter'
 LOCAL_PRESETS = {'ollama', 'lmstudio', 'llamacpp'}

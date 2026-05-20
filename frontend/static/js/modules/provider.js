@@ -6,19 +6,25 @@ import { showToast } from './ui.js';
 import { el } from './dom.js';
 
 export const PROVIDER_PRESETS = {
-    openai:     { id: 'openai',     name_i18n: 'provider.openai',     default_base_url: 'https://api.openai.com/v1',       local: false, doc_url: 'https://platform.openai.com/api-keys' },
+    openai:     { id: 'openai',     name_i18n: 'provider.openai',     default_base_url: 'https://api.openai.com/v1',       local: false, doc_url: 'https://platform.openai.com/api-keys',
+        suggested_models: [
+            'gpt-5.4-mini',
+            'gpt-5.4',
+        ],
+    },
     ollama:     { id: 'ollama',     name_i18n: 'provider.ollama',     default_base_url: 'http://localhost:11434/v1',        local: true,  doc_url: 'https://ollama.com/download' },
     lmstudio:   { id: 'lmstudio',   name_i18n: 'provider.lmstudio',   default_base_url: 'http://localhost:1234/v1',         local: true,  doc_url: 'https://lmstudio.ai/' },
     llamacpp:   { id: 'llamacpp',   name_i18n: 'provider.llamacpp',   default_base_url: 'http://localhost:8080/v1',         local: true,  doc_url: 'https://github.com/ggerganov/llama.cpp' },
     groq:       { id: 'groq',       name_i18n: 'provider.groq',       default_base_url: 'https://api.groq.com/openai/v1',  local: false, doc_url: 'https://console.groq.com/keys' },
     openrouter: { id: 'openrouter', name_i18n: 'provider.openrouter', default_base_url: 'https://openrouter.ai/api/v1',    local: false, doc_url: 'https://openrouter.ai/keys',
-        // Recommended models from 2026-05-14 free-tier smoke screen
-        // (`evaluation/results/openrouter_smoke/SUMMARY.md`). Top 3 advance to
-        // Phase 2 paid eval. Users can override via free-text or fetch button.
+        // 2026-05-20: DeepSeek V4 Flash removed — 60-80% of output tokens are
+        // hidden reasoning tokens, making it 5-10× slower than alternatives at
+        // comparable quality. gpt-5.4-mini and Gemini 3.1 Flash Lite are the
+        // recommended OpenRouter models. Users can still add DeepSeek or any
+        // other model via free-text or the fetch button.
         suggested_models: [
-            'deepseek/deepseek-v4-flash',
-            'openai/gpt-oss-20b',
-            'google/gemma-4-26b-a4b-it',
+            'openai/gpt-5.4-mini',
+            'google/gemini-3.1-flash-lite',
         ],
     },
 };
