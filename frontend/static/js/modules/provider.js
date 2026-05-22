@@ -15,13 +15,14 @@ export const PROVIDER_PRESETS = {
     ollama:     { id: 'ollama',     name_i18n: 'provider.ollama',     default_base_url: 'http://localhost:11434/v1',        local: true,  doc_url: 'https://ollama.com/download' },
     lmstudio:   { id: 'lmstudio',   name_i18n: 'provider.lmstudio',   default_base_url: 'http://localhost:1234/v1',         local: true,  doc_url: 'https://lmstudio.ai/' },
     llamacpp:   { id: 'llamacpp',   name_i18n: 'provider.llamacpp',   default_base_url: 'http://localhost:8080/v1',         local: true,  doc_url: 'https://github.com/ggerganov/llama.cpp' },
-    groq:       { id: 'groq',       name_i18n: 'provider.groq',       default_base_url: 'https://api.groq.com/openai/v1',  local: false, doc_url: 'https://console.groq.com/keys' },
     openrouter: { id: 'openrouter', name_i18n: 'provider.openrouter', default_base_url: 'https://openrouter.ai/api/v1',    local: false, doc_url: 'https://openrouter.ai/keys',
-        // 2026-05-20: DeepSeek V4 Flash removed — 60-80% of output tokens are
-        // hidden reasoning tokens, making it 5-10× slower than alternatives at
-        // comparable quality. gpt-5.4-mini and Gemini 3.1 Flash Lite are the
-        // recommended OpenRouter models. Users can still add DeepSeek or any
-        // other model via free-text or the fetch button.
+        // 2026-05-20: ordered by the n=3 cross-model eval (see
+        // evaluation/model-performance-result.md). gpt-5.4-mini is the
+        // default — best quality (80.6% must-have cite rate). Gemini 3.1
+        // Flash Lite is the cheap/fast alternative (~3x cheaper, ~2.4x
+        // faster, but 58.9% cite rate). DeepSeek V4 Flash was removed
+        // (60-80% hidden reasoning-token overhead). Users can still add
+        // any model via free-text or the fetch button.
         suggested_models: [
             'openai/gpt-5.4-mini',
             'google/gemini-3.1-flash-lite',

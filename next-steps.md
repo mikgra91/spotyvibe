@@ -1,6 +1,12 @@
-# Next Steps — 2026-05-04 (last refresh 2026-05-19)
+# Next Steps — 2026-05-04 (last refresh 2026-05-20)
 
 Consolidated forward plan. Open tasks, decisions, and gated research items.
+
+> **Model verdicts moved.** Which LLM is recommended / removed / pending
+> now lives in [`evaluation/model-performance-result.md`](evaluation/model-performance-result.md)
+> — the single source of truth. The old `evaluation/baselines/`
+> directory and `HISTORY.md` were retired 2026-05-20; links to them
+> below are historical and no longer resolve.
 
 ##  Session 2026-05-19 — Cloud-rebuilt corpus probe + OverlayVerifier fix
 
@@ -182,9 +188,10 @@ CLAUDE.md North Star rule #1 (no regression on any model).
 ### B-12 first cross-model run — DONE 2026-05-19 (n=1 each, ~$0.05 real)
 
 Ran the new compaction battery against gpt-5.4-mini, gpt-5.4, and
-deepseek/deepseek-v4-flash. Full comparison report (with per-model
-fingerprints):
-[`evaluation/baselines/2026-05-19_b12_compaction_probe/SUMMARY.md`](evaluation/baselines/2026-05-19_b12_compaction_probe/SUMMARY.md).
+deepseek/deepseek-v4-flash. Results consolidated into the
+facet-scaling section of
+[`evaluation/model-performance-result.md`](evaluation/model-performance-result.md)
+(the per-model fingerprint JSONs were retired with `baselines/`).
 
 Cite-rate of the load-bearing first must_have ("hooks") across the
 facet-count axis (same pool, same grounding, same schema — only the
@@ -279,8 +286,9 @@ changes sit in the working tree; user reviews + commits when ready.
 
 ##  Session 2026-05-19 PM — First eval on the rebuilt corpus
 
-**Baseline:** [`evaluation/baselines/2026-05-19_corpus_rebuild/`](evaluation/baselines/2026-05-19_corpus_rebuild/SUMMARY.md)
-(`comparison.md` + per-scenario `summary.json`s).
+**Baseline:** retired with `evaluation/baselines/` 2026-05-20 —
+results consolidated into
+[`evaluation/model-performance-result.md`](evaluation/model-performance-result.md).
 
 **Model:** `deepseek/deepseek-v4-flash` via OpenRouter (paid tier;
 `:free` was upstream-rate-limited at run time and aborted on the

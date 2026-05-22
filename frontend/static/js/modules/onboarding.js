@@ -89,7 +89,6 @@ const _PROVIDER_META = {
     openai:     { local: false, label_i18n: 'provider.api_key_label_openai',     hint_i18n: 'provider.api_key_hint_openai',     placeholder: 'sk-…' },
     ollama:     { local: true,  label_i18n: 'provider.api_key_label_ollama',     hint_i18n: 'provider.api_key_hint_ollama',     placeholder: 'any value or leave empty' },
     lmstudio:   { local: true,  label_i18n: 'provider.api_key_label_lmstudio',   hint_i18n: 'provider.api_key_hint_lmstudio',   placeholder: 'any value or leave empty' },
-    groq:       { local: false, label_i18n: 'provider.api_key_label_groq',       hint_i18n: 'provider.api_key_hint_groq',       placeholder: 'gsk_…' },
     openrouter: { local: false, label_i18n: 'provider.api_key_label_openrouter', hint_i18n: 'provider.api_key_hint_openrouter', placeholder: 'sk-or-…' },
 };
 
@@ -97,7 +96,6 @@ const _PROVIDER_BASE_URLS = {
     openai:     'https://api.openai.com/v1',
     ollama:     'http://localhost:11434/v1',
     lmstudio:   'http://localhost:1234/v1',
-    groq:       'https://api.groq.com/openai/v1',
     openrouter: 'https://openrouter.ai/api/v1',
     custom:     '',
 };
@@ -288,7 +286,7 @@ function _selectObProvider(value, label) {
     if (keyRow) keyRow.classList.toggle('hidden', !!meta.local);
 
     // Toggle provider-specific guide blocks
-    const guideIds = ['ob-guide-openai', 'ob-guide-ollama', 'ob-guide-lmstudio', 'ob-guide-groq', 'ob-guide-openrouter'];
+    const guideIds = ['ob-guide-openai', 'ob-guide-ollama', 'ob-guide-lmstudio', 'ob-guide-openrouter'];
     guideIds.forEach(id => {
         const guide = el(id);
         if (guide) guide.classList.toggle('hidden', id !== 'ob-guide-' + value);

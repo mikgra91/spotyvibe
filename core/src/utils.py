@@ -140,6 +140,34 @@ def strip_code_fences(text):
     return text.strip()
 
 
+def loads_lenient(text):
+    """``json.loads`` that tolerates prose around the JSON object.
+
+    Why this exists: some models (notably Claude Haiku under a strict
+    constraint prompt) append an explanatory sentence *after* the JSON
+    object — e.g. ``{...}\\n\\nZero is correct here.`` Standard
+    ``json.loads`` then raises ``JSONDecodeError: Extra data``, which
+    collapses the whole batch to an empty playlist even though the JSON
+    itself is valid. ``raw_decode`` parses the first complete JSON value
+    and ignores whatever follows. A leading-bracket scan also tolerates
+    prose *before* the JSON.
+
+    Raises ``json.JSONDecodeError`` if no JSON value can be found — callers
+    already catch that and fall back to an empty result.
+    """
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    s = text.lstrip()
+    for i, ch in enumerate(s):
+        if ch in "{[":
+            s = s[i:]
+            break
+    obj, _end = json.JSONDecoder().raw_decode(s)
+    return obj
+
+
 def sanitize_text(text):
     """Remove null bytes, control characters, and normalize whitespace.
 

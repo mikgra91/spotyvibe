@@ -101,11 +101,13 @@ MAX_GPT_CALLS_PER_RUN = 4
 DEFAULT_NEW_ARTIST_PERCENTAGE = 30
 
 # Default LLM model used when none is configured.
-# 2026-05-20: switched to OpenAI gpt-5.4-mini via OpenRouter after DeepSeek
-# V4 Flash regression analysis showed 60-80% of output tokens are hidden
-# reasoning tokens — making it 5-10× slower and tokenically wasteful vs
-# gpt-5.4-mini and Gemini 3.1 Flash Lite at comparable quality.
-# See evaluation/probes/results/deepseek_baseline_no_reasoning_effort/.
+# 2026-05-20: gpt-5.4-mini (routed via OpenRouter) is the project default.
+# The n=3 cross-model eval confirmed it is the best model for this
+# workload — must-have cite rate 80.6% vs Gemini 3.1 Flash Lite's 58.9%,
+# with far tighter run-to-run variance. Gemini remains the recommended
+# cheap/fast alternative (~3x cheaper, ~2.4x faster) for cost-sensitive
+# users. DeepSeek V4 Flash was dropped (60-80% hidden reasoning-token
+# overhead). Full verdict + evidence: evaluation/model-performance-result.md.
 DEFAULT_OPENAI_MODEL = "openai/gpt-5.4-mini"
 
 # Stage 2 avoid-compliance checker model (binary classification — cheapest mini).
@@ -141,6 +143,14 @@ STAGE2_MODEL = "gpt-5.4-mini"
 #   - Stage 2 starts filtering at pool=50 (48/50 approved); still acceptable.
 # See evaluation/results/sweep-merged-5blocks/report.md for raw numbers.
 RETRIEVE_CANDIDATES_SIZE = 50
+
+# A6 (2026-05-21): widened pool size for the one-shot RAG re-retrieve that
+# fires after MAX_CONSECUTIVE_EMPTY_BATCHES empty Stage-3 batches. When the
+# approved pool can't satisfy the must-haves, Stage 3 honestly refuses and
+# the run would otherwise dead-stop; re-retrieving a larger, popularity-flat
+# net gives Stage 3 fresh candidates. Guarded re-attempt of OPEN-4 pool
+# widening — fires only on an already-failing run, and only once per run.
+RAG_RERETRIEVE_SIZE = 120
 
 # Curated list of known-good OpenAI model IDs for chat completions.
 # Order determines display order in the Settings dropdown.

@@ -732,6 +732,116 @@ class TestRunPipeline:
         assert used_temp >= 0.8  # at least 0.8 (1.0 - 0.2 max decay)
 
 
+class _FakeArtistRow:
+    """Minimal stand-in for a RAG ArtistRow in staged-pipeline tests."""
+
+    def __init__(self, name):
+        self.name = name
+        self.top_tracks = [f"{name} song"]
+
+
+class TestA6PoolReRetrieve:
+    """A6 (2026-05-21): after MAX_CONSECUTIVE_EMPTY_BATCHES empty Stage-3
+    batches the run must re-retrieve a widened candidate pool ONCE before
+    giving up, instead of dead-stopping with an empty playlist."""
+
+    @patch("app.save_run")
+    @patch("app.add_to_playlist")
+    @patch("app.iter_search_tracks")
+    @patch("app.filter_duplicate_suggestions")
+    @patch("app.select_tracks")
+    @patch("app._build_taste_summary_for_pool", return_value="taste summary")
+    @patch("app.check_avoid_compliance")
+    @patch("app.retrieve_candidates")
+    @patch("app.collect_forbidden_artists", return_value=set())
+    @patch("app.get_rag_enabled", return_value=True)
+    @patch("app.get_rag_corpus")
+    @patch("app.save_profile")
+    @patch("app.update_profile")
+    @patch("app.normalize_history")
+    @patch("app.load_profile")
+    @patch("app.get_new_artist_percentage", return_value=30)
+    @patch("app.get_playlist_size", return_value=10)
+    @patch("app.get_debug_mode", return_value=False)
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    @patch("app.is_profile_trained", return_value=True)
+    def test_empty_batches_trigger_one_widened_reretrieve(
+        self, mock_trained, mock_spotify, mock_debug, mock_size,
+        mock_percentage, mock_load, mock_norm, mock_update, mock_save,
+        mock_corpus, mock_rag_enabled, mock_forbidden, mock_retrieve,
+        mock_avoid, mock_taste, mock_select, mock_filter, mock_search,
+        mock_add, mock_save_run, client,
+    ):
+        from config import RAG_RERETRIEVE_SIZE, MAX_CONSECUTIVE_EMPTY_BATCHES
+
+        profile = {
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {}, "preferences": {}, "meta": {},
+        }
+        mock_load.return_value = profile
+        mock_norm.return_value = profile
+        mock_update.return_value = profile
+        mock_corpus.return_value = object()  # non-None → staged pipeline on
+
+        # Stage 1: first pool narrow, A6 re-retrieve pool wider.
+        mock_retrieve.side_effect = [
+            [_FakeArtistRow("narrow")],
+            [_FakeArtistRow("wide")],
+        ]
+        # Stage 2 approves whatever Stage 1 surfaced.
+        _stage2_meta = {"status": "ok", "latency_s": 0.0, "usage": None,
+                        "model": "m", "prompt_chars": 0}
+        mock_avoid.side_effect = [
+            (["narrow"], _stage2_meta),
+            (["wide"], _stage2_meta),
+        ]
+
+        _meta = {"latency_s": 0.0, "usage": None}
+        _empty = {"playlist": [], "new_artists": [],
+                  "profile_updates": {"suggested_artists": [],
+                                      "suggested_tracks": []}}
+        _full = {
+            "playlist": [{"artist": "wide", "track": "wide song", "reason": "r"}] * 10,
+            "new_artists": ["wide"],
+            "profile_updates": {"suggested_artists": ["wide"],
+                                "suggested_tracks": [{"artist": "wide",
+                                                      "track": "wide song"}]},
+        }
+        # MAX empty Stage-3 batches → A6 fires → next batch fills the playlist.
+        mock_select.side_effect = (
+            [(dict(_empty), _meta)] * MAX_CONSECUTIVE_EMPTY_BATCHES
+            + [(dict(_full), _meta)]
+        )
+        # filter_duplicate_suggestions is a passthrough that adds _filtered_out.
+        def _passthru(_profile, result):
+            out = dict(result)
+            out["_filtered_out"] = []
+            return out
+        mock_filter.side_effect = _passthru
+        mock_search.side_effect = lambda *_a, **_kw: iter(
+            [("found", {"artist": "wide", "track": "wide song",
+                        "uri": f"spotify:track:{i}", "cover_url": None})
+             for i in range(10)]
+        )
+        mock_add.return_value = {"url": "https://open.spotify.com/playlist/x",
+                                 "added": 10}
+
+        with patch("core.src.rag.retrieval.get_last_retrieval_meta",
+                   return_value={}):
+            resp = client.post("/api/run", data=json.dumps({}),
+                               content_type="application/json")
+        body = resp.data.decode()
+
+        # A6 must have re-retrieved exactly once — two retrieve_candidates calls.
+        assert mock_retrieve.call_count == 2, (
+            f"expected 1 initial + 1 A6 retrieval, got {mock_retrieve.call_count}")
+        # The second call must use the widened, popularity-flat net.
+        second_kwargs = mock_retrieve.call_args_list[1].kwargs
+        assert second_kwargs["target_size"] == RAG_RERETRIEVE_SIZE
+        assert second_kwargs["popularity_penalty"] == 0.0
+        # The run must recover rather than dead-stop with an empty playlist.
+        assert '"track": "wide song"' in body
+
 class TestSpotifyCallback:
     def test_xss_in_error_param_is_escaped(self, client):
         xss_payload = '<script>alert("xss")</script>'

@@ -31,7 +31,7 @@ from config import (
     _get_app_dir, get_active_profile_id, MAX_PROFILE_NAME_LEN,
     get_ui_language,
     EVAL_LOG_FILE, RAG_META_PATH, get_rag_enabled,
-    RETRIEVE_CANDIDATES_SIZE, RAG_POPULARITY_PENALTY,
+    RETRIEVE_CANDIDATES_SIZE, RAG_POPULARITY_PENALTY, RAG_RERETRIEVE_SIZE,
 )
 import markdown
 
@@ -1159,6 +1159,7 @@ def run_pipeline():
             consecutive_empty_batches = 0
             last_filtered_tracks = []  # filtered tracks from most recent empty batch
             last_found_rate = None  # OPEN-1 exp2: adaptive ask-size
+            _rag_reretrieve_done = False  # A6: one-shot pool re-retrieve guard
 
             while len(verified_tracks) < playlist_size:
                 # ── Check for cancellation before each expensive GPT call ──
@@ -1352,6 +1353,76 @@ def run_pipeline():
                         suggested_playlist=[],
                         schema_collapse=result.get("_schema_collapse"),
                     )
+
+                    # A6 (2026-05-21): consecutive empty Stage-3 batches mean
+                    # the approved pool can't satisfy the must-haves — Stage 3
+                    # honestly refused rather than confabulate. Re-retrieve
+                    # ONCE with a widened, popularity-flat net before giving
+                    # up. Guarded re-attempt of OPEN-4 pool widening: fires
+                    # only on an already-failing run, and only once, so the
+                    # prompt-inflation / 429 cascade that killed OPEN-4 is
+                    # bounded to a single run.
+                    if (consecutive_empty_batches >= MAX_CONSECUTIVE_EMPTY_BATCHES
+                            and _use_staged_pipeline
+                            and not _rag_reretrieve_done
+                            and _corpus is not None):
+                        _rag_reretrieve_done = True
+                        _old_pool_size = len(_approved_names)
+                        yield _sse(
+                            "progress",
+                            message=f"Batch {batch_num}: candidate pool exhausted — "
+                                    f"re-retrieving a wider pool…",
+                        )
+                        try:
+                            from core.src import trace as _e1_trace
+                            with _e1_trace.time_stage(_e1_trace.STAGE_RAG_RETRIEVE):
+                                _stage1_candidates = retrieve_candidates(
+                                    _corpus, profile,
+                                    deny_keys=_deny_keys,
+                                    target_size=RAG_RERETRIEVE_SIZE,
+                                    popularity_penalty=0.0,
+                                    primary_reference=_primary_ref,
+                                )
+                            set_last_rag_pool_names(
+                                [a.name for a in _stage1_candidates])
+                            if _stage1_candidates:
+                                from core.src.rag.retrieval import get_last_retrieval_meta
+                                _rr_meta = get_last_retrieval_meta() or {}
+                                _approved_names, _stage2_meta = check_avoid_compliance(
+                                    [a.name for a in _stage1_candidates],
+                                    _avoid_traits,
+                                    pool_avoid_overlap=_rr_meta.get("pool_avoid_overlap"),
+                                    avoid_traits_fully_covered=bool(
+                                        _rr_meta.get("avoid_traits_fully_covered")),
+                                )
+                            else:
+                                _approved_names = []
+                        except Exception as _rr_exc:
+                            logger.warning(
+                                "[A6] re-retrieve failed (%s) — stopping run", _rr_exc)
+                            _approved_names = []
+                        if _approved_names:
+                            _taste_summary = _build_taste_summary_for_pool(
+                                profile, _stage1_candidates, _approved_names)
+                            _approved_top_tracks = {}
+                            _rr_lower = {n.lower().strip() for n in _approved_names}
+                            for a in _stage1_candidates:
+                                key = (a.name or "").lower().strip()
+                                if key and key in _rr_lower:
+                                    _approved_top_tracks[key] = list(a.top_tracks or [])[:5]
+                            logger.info(
+                                "[A6] re-retrieve widened approved pool %d → %d artists",
+                                _old_pool_size, len(_approved_names))
+                            consecutive_empty_batches = 0
+                            last_filtered_tracks = []
+                            yield _sse(
+                                "progress",
+                                message=f"Batch {batch_num}: widened pool to "
+                                        f"{len(_approved_names)} artists — retrying…",
+                            )
+                            continue
+                        # re-retrieve produced nothing usable → fall through
+                        # to the normal exhaustion stop below.
 
                     if consecutive_empty_batches >= MAX_CONSECUTIVE_EMPTY_BATCHES:
                         gpt_exhausted = True
@@ -2055,7 +2126,7 @@ def write_settings():
         payload["UI_LANGUAGE"] = safe_text(data, "ui_language")
 
     # Wave 4: Provider preset + base URL
-    valid_presets = {"openai", "ollama", "lmstudio", "llamacpp", "groq", "openrouter"}
+    valid_presets = {"openai", "ollama", "lmstudio", "llamacpp", "openrouter"}
     if "provider_preset" in data:
         preset = safe_text(data, "provider_preset")
         if preset in valid_presets:

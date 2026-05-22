@@ -1,7 +1,34 @@
 import os
 from unittest.mock import patch, MagicMock, mock_open
 
-from core.src.utils import strip_code_fences, debug_log, clear_debug_log, app_log, get_openai_models, sanitize_text, sanitize_profile
+import json
+
+import pytest
+
+from core.src.utils import strip_code_fences, loads_lenient, debug_log, clear_debug_log, app_log, get_openai_models, sanitize_text, sanitize_profile
+
+
+class TestLoadsLenient:
+    def test_plain_json(self):
+        assert loads_lenient('{"playlist": []}') == {"playlist": []}
+
+    def test_trailing_prose(self):
+        """Claude Haiku appends an explanatory sentence after the JSON —
+        standard json.loads raises 'Extra data'. loads_lenient ignores it."""
+        text = '{"playlist": [{"artist": "a"}]}\n\nZero is correct here.'
+        assert loads_lenient(text) == {"playlist": [{"artist": "a"}]}
+
+    def test_leading_prose(self):
+        text = 'Here is the JSON:\n{"playlist": []}'
+        assert loads_lenient(text) == {"playlist": []}
+
+    def test_prose_both_sides(self):
+        text = 'Result:\n{"ok": true}\nDone.'
+        assert loads_lenient(text) == {"ok": True}
+
+    def test_no_json_raises(self):
+        with pytest.raises(json.JSONDecodeError):
+            loads_lenient("no json at all")
 
 
 class TestStripCodeFences:

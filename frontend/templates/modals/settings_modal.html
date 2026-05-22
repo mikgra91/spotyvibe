@@ -11,15 +11,18 @@
         <div class="form-row">
             <label for="settings-provider" data-i18n="provider.label">Provider</label>
             <select id="settings-provider" onchange="onProviderChange()">
-                <option value="openai" data-i18n="provider.openai">OpenAI</option>
-                <option value="ollama" data-i18n="provider.ollama">Ollama (local)</option>
-                <option value="lmstudio" data-i18n="provider.lmstudio">LM Studio (local)</option>
-                <option value="llamacpp" data-i18n="provider.llamacpp">llama.cpp (local)</option>
-                <option value="groq" data-i18n="provider.groq">Groq</option>
-                <option value="openrouter" data-i18n="provider.openrouter">OpenRouter</option>
+                <optgroup label="Cloud" data-i18n-attr="label:provider.group_cloud">
+                    <option value="openai" data-i18n="provider.openai">OpenAI</option>
+                    <option value="openrouter" data-i18n="provider.openrouter">OpenRouter</option>
+                </optgroup>
+                <optgroup label="Local" data-i18n-attr="label:provider.group_local">
+                    <option value="ollama" data-i18n="provider.ollama">Ollama</option>
+                    <option value="llamacpp" data-i18n="provider.llamacpp">llama.cpp</option>
+                    <option value="lmstudio" data-i18n="provider.lmstudio">LM Studio</option>
+                </optgroup>
             </select>
             <p class="inline-hint" data-i18n="provider.hint">Pick where SpotyVibe gets its AI from.</p>
-            {{ learn_more('provider.learn_more', 'SpotyVibe speaks the OpenAI API protocol. Any OpenAI-compatible provider works — cloud (Groq, OpenRouter) or local (Ollama, LM Studio).') }}
+            {{ learn_more('provider.learn_more', 'SpotyVibe speaks the OpenAI API protocol. Any OpenAI-compatible provider works — cloud (OpenRouter) or local (Ollama, LM Studio).') }}
         </div>
         <div class="form-row provider-base-url-row hidden" id="providerBaseUrlRow">
             <label for="settings-base-url" data-i18n="provider.base_url_label">Base URL</label>

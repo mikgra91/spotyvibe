@@ -19,6 +19,7 @@ AI-powered music discovery: Flask + OpenAI + Spotify Web API.
 - [`documentation/MCPServers.md`](documentation/MCPServers.md) — Optional MCP server setup (Spotify, GitHub, Playwright, MDN).
 - [`documentation/TechnicalManual.md`](documentation/TechnicalManual.md) — Architecture, modules, data flow.
 - [`documentation/guides/cloud-run-rag-setup.md`](documentation/guides/cloud-run-rag-setup.md) — GCP-side RAG corpus pipeline.
+- [`evaluation/model-performance-result.md`](evaluation/model-performance-result.md) — Which LLM models are recommended / removed / pending, with evidence (read before any model-choice change).
 
 ## 🎯 Project North Star
 
@@ -33,7 +34,7 @@ AI-powered music discovery: Flask + OpenAI + Spotify Web API.
 - **No regression — ever.** Every change must show a *non-regression* on every metric for every supported model on the eval harness (`evaluation/run_evaluation.py`). If a change improves cost/speed but regresses quality on any model, it does **not** ship. Quality always wins ties.
 - **Local-LLM compatibility is first-class.** The project supports local LLMs (Ollama, llama.cpp, etc.) alongside cloud providers. Never assume cloud-only features (`json_schema`, parallel tool calls, vision, function calling) are available — always provide a graceful fallback. The auto-downgrade pattern in `core/src/openai_http.py` (`_JSON_SCHEMA_UNSUPPORTED` cache) is the canonical example.
 - **Measure before shipping.** Run the evaluation harness against multiple models (cloud + local) before declaring a change ready. A passing unit-test suite is necessary but not sufficient.
-- **Document model behaviour.** Keep model evaluation results in `evaluation/baselines/` so users can pick a model that matches their priorities. Some models (e.g., reasoning-heavy ones) may be unfit for this workload — say so explicitly.
+- **Document model behaviour.** Keep model evaluation verdicts in [`evaluation/model-performance-result.md`](evaluation/model-performance-result.md) so users can pick a model that matches their priorities. Update it after every eval that changes a verdict. Some models (e.g., reasoning-heavy ones) may be unfit for this workload — say so explicitly.
 
 ## Build & Run
 

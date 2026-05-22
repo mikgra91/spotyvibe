@@ -69,7 +69,7 @@ scenario = default
 # OVERRIDES ``scenario`` and the harness loops scenarios × models ×
 # iterations. The special value ``all`` expands to every scenario in
 # the registry (default first, then alphabetical). Used for the
-# canonical baseline runs that diff against ``evaluation/baselines/``.
+# canonical model-comparison runs feeding ``model-performance-result.md``.
 # scenarios = all
 # scenarios = default,regression_japanese_theatrical,niche_only_strict
 

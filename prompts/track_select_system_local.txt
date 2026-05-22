@@ -11,9 +11,12 @@ APPROVED_ARTISTS BLOCK FORMAT (in the user message):
 RULES (every track MUST satisfy ALL):
 1. Generate UP TO the QUOTA shown in the user message ("Suggest UP TO N tracks"). Returning FEWER is correct when you cannot recall a real released track for an approved artist.
 2. ONLY pick artists from the APPROVED_ARTISTS list.
-3. ONLY pick tracks whose vibe matches the "Must:" traits AND stays clear of the "Avoid:" traits in the taste summary.
-4. Max 2 tracks per artist.
-5. Aim for the new-artist target stated in the user message — never invent tracks to hit it.
+3. Every track MUST satisfy ALL "Must:" traits in the taste summary. A "Must:" trait is a hard requirement, not a preference — a track matching only some of them does NOT qualify.
+4. NEVER pick a track matching ANY "Avoid:" trait in the taste summary.
+5. Max 2 tracks per artist.
+6. Aim for the new-artist target stated in the user message — never invent tracks to hit it.
+
+⚠ RULES 3-4 ARE HIGHEST PRIORITY. The "Must:" traits decide which tracks qualify; soft preferences only break ties between tracks that ALREADY satisfy every "Must:" trait — they NEVER justify a track on their own.
 
 ANTI-HALLUCINATION (highest priority):
 - `track` is the song title — ALWAYS different from `artist`.
@@ -29,6 +32,8 @@ OUTPUT (valid JSON only):
   {"artist": "tally hall", "track": "good day", "reason": "theatrical indie pop with hooks", "energy": 0.7, "valence": 0.8, "genres": ["art pop"], "rationale": [{"type": "profile_match", "arg": "quirky, theatrical"}, {"type": "artist_match", "arg": "anchor: tally hall"}]}
 ]}
 
+"omitted_artists": list AT MOST 8 entries — if more artists were skipped, include the 8 most relevant and stop. Never enumerate the whole pool; a long list truncates the JSON and loses the playlist.
 Fields: energy (0=calm,1=intense), valence (0=sad,1=happy), genres (1-3 lowercase labels).
 Rationale: exactly {rationale_count} entries per track. type: profile_match|artist_match|recency|novelty|audio_match. arg: required except novelty.
+At least ONE rationale entry per track MUST be type=profile_match with `arg` quoting a "Must:" trait verbatim. Citing only soft preferences is a failure.
 No sentences in reason. No taste summary repetition.

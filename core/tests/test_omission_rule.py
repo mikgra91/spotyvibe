@@ -1,8 +1,8 @@
 """Tests for the model-conditional omission-rule resolver (R1.3 outcome).
 
-The R1 baseline at `evaluation/baselines/2026-05-12_r1_full/` showed
-that the strict `omitted_artists ≥ N − M` rule helps gpt-5.4 (+10 pp
-Spotify-found) but collapses mini (playlist A 13.0 → 8.0, -38 %).
+The R1-full eval (2026-05-12) showed that the strict
+`omitted_artists ≥ N − M` rule helps gpt-5.4 (+10 pp Spotify-found)
+but collapses mini (playlist A 13.0 → 8.0, -38 %).
 
 These tests pin the resolver behaviour so a future prompt-rewrite
 can't silently re-tier a model into the wrong bucket.

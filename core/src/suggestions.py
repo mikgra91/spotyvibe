@@ -41,7 +41,7 @@ from config import (BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_TH
                     RECENT_VERBATIM_TRACKS,
                     STAGE3_OVER_REQUEST,
                     get_model, get_gpt_language, get_stage2_model, get_debug_mode)
-from .utils import strip_code_fences, debug_log
+from .utils import strip_code_fences, loads_lenient, debug_log
 from .openai_http import chat_completions_create, extract_chat_content
 from .rag import score_artists, score_artists_stratified, format_candidate_pool_block
 from .rag.corpus import RagCorpus
@@ -531,7 +531,7 @@ _DEFAULT_VALIDATION = "VALIDATION: Before output, verify every track against con
 
 
 # ── Model-conditional omission rule (R1.3 outcome, 2026-05-12) ──────
-# n=3 eval per model (`evaluation/baselines/2026-05-12_r1_full/`) showed
+# n=3 eval per model (R1-full run, 2026-05-12) showed
 # the same `omitted_artists` rule produced opposite reactions:
 #   mini    : strict rule collapsed playlist A 13.0 → 8.0 (-38 %).
 #   gpt-5.4 : strict rule lifted Spotify-found by +10 pp via forced
@@ -1134,7 +1134,7 @@ def call_gpt(messages, temperature=0.7, return_meta=False):
         return (result, meta) if return_meta else result
 
     try:
-        result = normalize_response(json.loads(content))
+        result = normalize_response(loads_lenient(content))
     except json.JSONDecodeError:
         logger.warning("GPT response could not be parsed as JSON. Response was: %s", content)
         result = _empty()
@@ -2041,7 +2041,7 @@ def select_tracks(
         return _empty(), meta
 
     try:
-        result = normalize_response(json.loads(content))
+        result = normalize_response(loads_lenient(content))
     except json.JSONDecodeError:
         logger.warning("Stage 3 JSON parse failed: %s", content[:200])
         result = _empty()

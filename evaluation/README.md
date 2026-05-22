@@ -1,6 +1,8 @@
 # Evaluation harness
 
-End-to-end evaluation runs against real OpenAI + real Spotify, used to compare model variants (gpt-5.4, gpt-5.4-mini, gpt-4.1, gpt-4.1-mini) on cost, latency, and quality. `gpt-5.5` was removed in Phase 2.6 (2026-04-28) — see `evaluation/baselines/HISTORY.md`.
+End-to-end evaluation runs against real OpenAI + real Spotify, used to compare model variants on cost, latency, and quality.
+
+**Current model verdicts live in [`evaluation/model-performance-result.md`](model-performance-result.md)** — the single source of truth for which models are recommended, removed, or pending evaluation. Read it before picking a model or interpreting a run.
 
 **Not part of the unit test suite** — never runs on `pytest`. Invoked explicitly:
 
@@ -56,70 +58,6 @@ Flags:
 | `--no-confirm` | Skip the cost prompt. Use in scripts. |
 | `--cleanup-only` | Sweep orphaned `[EVAL] …` playlists from your Spotify account and exit. Useful after a hard kill. |
 
-## Pool-size sweep (multi-config / multi-block runs)
-
-To compare a sequence of `RETRIEVE_CANDIDATES_SIZE` values across multiple repeat blocks (for determinism analysis), use the sweep driver instead of calling the harness directly:
-
-```bash
-bash evaluation/run_pool_sweep.sh
-```
-
-What it does:
-
-1. For each `(block, pool)` in the configured sequence: cooldown → patch `config.py` → run the eval → scan the run log for Spotify `429` errors.
-2. **If any single run logs ≥ `RATE_LIMIT_THRESHOLD` (default 3) `429` errors, the sweep aborts immediately** with a banner telling you to wait ≥ 30 min before retrying. Partial results are still aggregated.
-3. After all runs (or on early abort), aggregates every `eval.jsonl` into `summary.csv` and renders `report.md`.
-
-Everything is written under `evaluation/results/sweep-<UTC-timestamp>/`:
-
-| File | Purpose |
-|---|---|
-| `report.md` | Human-readable comparison — start here. |
-| `summary.csv` | One row per `(block, pool, model)` for further analysis. |
-| `manifest.tsv` | Pointers to the per-run eval directories. |
-| `sweep.log` | High-level timeline. |
-| `run_p<pool>_b<block>.log` | Full per-eval debug output (large). |
-
-Configuration via env vars:
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `COOLDOWN` | `300` | Seconds to wait before each eval (Spotify rate-limit safety). |
-| `POOLS` | `"30 40 50"` | Space-separated pool sizes to sweep. |
-| `BLOCKS` | `2` | How many times to repeat the pool sequence (for determinism). |
-| `RATE_LIMIT_THRESHOLD` | `3` | Number of `429` errors in a single run that triggers abort. |
-
-Example: a quick 3-pool single-block run with a 3-min cooldown:
-
-```bash
-COOLDOWN=180 BLOCKS=1 POOLS="32 40 48" bash evaluation/run_pool_sweep.sh
-```
-
-After the sweep completes, point an AI agent at `<sweep-dir>/report.md` and `summary.csv` to drill into per-model patterns or noise floors.
-
-## Recovering from an aborted sweep
-
-If a sweep aborts after some blocks have completed (Spotify 429 cascade, mid-run script edit, hard kill, etc.), the per-run `eval.jsonl` files in `evaluation/results/<run-ts>/` are still good. You can hand-merge two or more sweep `manifest.tsv` files into a single `sweep-merged-*/manifest.tsv` and re-run the aggregator + renderer over the merged set:
-
-```bash
-# 1. Make a fresh merge directory.
-mkdir -p evaluation/results/sweep-merged-Nblocks
-
-# 2. Merge manifests: keep one header, filter out malformed rows
-#    (older harness sometimes wrote literal "0\n0" instead of an int — drop those).
-head -n 1 evaluation/results/sweep-<ts1>/manifest.tsv > evaluation/results/sweep-merged-Nblocks/manifest.tsv
-awk -F'\t' 'NR>1 && NF==7 {print}' \
-  evaluation/results/sweep-<ts1>/manifest.tsv \
-  evaluation/results/sweep-<ts2>/manifest.tsv \
-  >> evaluation/results/sweep-merged-Nblocks/manifest.tsv
-
-# 3. Re-aggregate + re-render against the merged manifest.
-python evaluation/_aggregate_sweep.py evaluation/results/sweep-merged-Nblocks
-python evaluation/_render_sweep_report.py evaluation/results/sweep-merged-Nblocks
-```
-
-Reference implementation: `evaluation/results/sweep-merged-5blocks/` (Phase 6.0, 2026-04-29) was built by hand-merging two earlier 3-block sweeps after a 429 abort. See git log on that directory for the exact merge commands used.
-
 ## Output
 
 ```
@@ -138,17 +76,14 @@ evaluation/results/{ts}/
 
 ## Cost
 
-Approximate per full run (4 models, 1 iteration each, playlist_size=15):
+Approximate per cycle (1 iteration, playlist_size=15):
 
 | Model         | Per cycle |
 |---|---:|
 | gpt-5.4       | ~$0.10    |
-| gpt-5.4-mini  | ~$0.01    |
-| gpt-4.1       | ~$0.04    |
-| gpt-4.1-mini  | ~$0.01    |
-| **Total**     | **~$0.16**|
+| gpt-5.4-mini  | ~$0.002 (OpenRouter) |
 
-These are rough estimates kept in `_PER_CYCLE_USD` in `run_evaluation.py`. The harness re-prices from `frontend/static/data/pricing.json` after the run, so the report shows actual usage-based cost — the up-front estimate is a budgeting hint, not the final bill.
+Estimates are kept in `_PER_CYCLE_USD` in `run_evaluation.py`. The harness re-prices from `frontend/static/data/pricing.json` after the run, so the report shows actual usage-based cost — the up-front estimate is a budgeting hint, not the final bill. See [`model-performance-result.md`](model-performance-result.md) for the full cost/quality comparison.
 
 ## Safety
 

@@ -106,10 +106,9 @@
                                 </button>
                                 <ul class="ob-custom-select-list" id="ob-provider-list" role="listbox" tabindex="-1">
                                     <li role="option" data-value="openai" class="ob-custom-select-option selected" aria-selected="true" data-i18n="provider.openai">OpenAI</li>
-                                    <li role="option" data-value="ollama" class="ob-custom-select-option" data-i18n="provider.ollama">Ollama (local)</li>
-                                    <li role="option" data-value="lmstudio" class="ob-custom-select-option" data-i18n="provider.lmstudio">LM Studio (local)</li>
-                                    <li role="option" data-value="groq" class="ob-custom-select-option" data-i18n="provider.groq">Groq</li>
                                     <li role="option" data-value="openrouter" class="ob-custom-select-option" data-i18n="provider.openrouter">OpenRouter</li>
+                                    <li role="option" data-value="ollama" class="ob-custom-select-option" data-i18n="provider.ollama">Ollama</li>
+                                    <li role="option" data-value="lmstudio" class="ob-custom-select-option" data-i18n="provider.lmstudio">LM Studio</li>
                                 </ul>
                             </div>
                             <div class="ob-cred-hint" data-i18n="provider.hint">Pick where SpotyVibe gets its AI from.</div>
@@ -173,21 +172,6 @@
                                     <li data-i18n="ob.lmstudio_step3">Start the local server (Developer → Start Server)</li>
                                 </ol>
                                 <a class="ob-cred-guide-readmore" href="https://lmstudio.ai/" target="_blank" rel="noopener">🌐 <span data-i18n="ob.visit_lmstudio">Visit lmstudio.ai</span></a>
-                            </div>
-                        </div>
-
-                        <div class="ob-cred-guide hidden" id="ob-guide-groq">
-                            <button class="ob-cred-guide-toggle" aria-expanded="false" aria-controls="ob-groq-guide-body" onclick="toggleObGuide(this, 'ob-groq-guide-body')">
-                                <span class="ob-cred-guide-chevron" aria-hidden="true">▸</span>
-                                <span data-i18n="ob.howto_openai">How do I get this?</span>
-                            </button>
-                            <div class="ob-cred-guide-body" id="ob-groq-guide-body">
-                                <ol class="ob-cred-guide-bullets">
-                                    <li data-i18n="ob.groq_step1">Sign up at console.groq.com</li>
-                                    <li data-i18n="ob.groq_step2">Go to API Keys and create a new key</li>
-                                    <li data-i18n="ob.groq_step3">Copy the key (starts with gsk_)</li>
-                                </ol>
-                                <a class="ob-cred-guide-readmore" href="https://console.groq.com/keys" target="_blank" rel="noopener">🌐 <span data-i18n="ob.visit_groq">Visit console.groq.com</span></a>
                             </div>
                         </div>
 
