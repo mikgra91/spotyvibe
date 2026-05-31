@@ -1,0 +1,3004 @@
+{
+  "models": [
+    "gpt-4.1-nano",
+    "gpt-4o-mini",
+    "gpt-4o-mini-v2"
+  ],
+  "clusters": {
+    "The Dear Hunter": "peer_bearghost",
+    "Dance Gavin Dance": "peer_bearghost",
+    "Tally Hall": "peer_bearghost",
+    "Vaundy": "peer_mga",
+    "Hot Mulligan": "peer_origami",
+    "Mrs. GREEN APPLE": "SEED_mga",
+    "I Fight Dragons": "peer_bearghost",
+    "Hail the Sun": "peer_bearghost",
+    "KANA-BOON": "peer_mga",
+    "Origami Angel": "SEED_origami",
+    "Good Kid": "peer_bearghost",
+    "UNISON SQUARE GARDEN": "peer_mga",
+    "oso oso": "peer_origami",
+    "Bear Ghost": "SEED_bearghost",
+    "Tiny Moving Parts": "peer_origami",
+    "Prince Daddy & The Hyena": "peer_origami",
+    "King Gnu": "peer_mga",
+    "Tub Ring": "peer_bearghost",
+    "Ben Quad": "peer_origami",
+    "sumika": "peer_mga",
+    "Hundred Reasons": "WRONG_suggested",
+    "Michael Cera Palin": "peer_origami",
+    "Dolu Kadehi Ters Tut": "WRONG_suggested",
+    "Tantric": "WRONG_suggested",
+    "Mom Jeans.": "peer_origami",
+    "Macseal": "peer_origami",
+    "Vex Red": "WRONG_suggested",
+    "Thornley": "WRONG_suggested",
+    "King Hüsky": "WRONG_suggested",
+    "Thriving Ivory": "WRONG_suggested",
+    "Collapsis": "WRONG_suggested"
+  },
+  "baseline_tags": {
+    "The Dear Hunter": [
+      "alternative rock",
+      "indie rock",
+      "progressive rock",
+      "crossover prog",
+      "progressive",
+      "rock",
+      "alternative",
+      "experimental"
+    ],
+    "Dance Gavin Dance": [
+      "post-hardcore",
+      "swancore",
+      "screamo",
+      "alternative/indie rock",
+      "emo",
+      "emocore",
+      "experimental",
+      "hardcore"
+    ],
+    "Tally Hall": [
+      "indie rock",
+      "alternative rock",
+      "indie",
+      "wonky rock",
+      "fabloo",
+      "indie pop",
+      "rock",
+      "alternative pop"
+    ],
+    "Vaundy": [
+      "j-pop",
+      "singer-songwriter",
+      "japan",
+      "japanese",
+      "pop",
+      "soul"
+    ],
+    "Hot Mulligan": [
+      "emo",
+      "pop punk",
+      "indie rock",
+      "math rock",
+      "midwest emo"
+    ],
+    "Mrs. GREEN APPLE": [
+      "j-rock",
+      "j-pop",
+      "emi",
+      "mrs. green apple",
+      "pop rock"
+    ],
+    "I Fight Dragons": [
+      "alternative rock",
+      "bitcore",
+      "bitpunk",
+      "chiptune",
+      "pop punk",
+      "power pop",
+      "punk"
+    ],
+    "Hail the Sun": [
+      "post-hardcore",
+      "progressive rock",
+      "swancore"
+    ],
+    "KANA-BOON": [
+      "j-pop",
+      "likedis auto",
+      "pop rock"
+    ],
+    "Origami Angel": [
+      "emo",
+      "easycore",
+      "rock"
+    ],
+    "Good Kid": [
+      "indie rock",
+      "indie pop"
+    ],
+    "UNISON SQUARE GARDEN": [
+      "j-rock",
+      "japanese",
+      "rock"
+    ],
+    "oso oso": [
+      "emo",
+      "indie rock",
+      "alternative",
+      "midwest emo",
+      "pop punk"
+    ],
+    "Bear Ghost": [
+      "rock",
+      "progressive rock",
+      "adventure rock"
+    ],
+    "Tiny Moving Parts": [
+      "emo",
+      "math rock",
+      "midwest emo",
+      "punk"
+    ],
+    "Prince Daddy & The Hyena": [
+      "emo",
+      "garage rock",
+      "indie rock",
+      "pop punk",
+      "punk"
+    ],
+    "King Gnu": [
+      "j-pop",
+      "pop rock"
+    ],
+    "Tub Ring": [
+      "experimental",
+      "punk",
+      "rock"
+    ],
+    "Ben Quad": [
+      "emo",
+      "butt rock",
+      "midwest emo",
+      "pop punk",
+      "post-hardcore"
+    ],
+    "sumika": [
+      "j-rock"
+    ],
+    "Hundred Reasons": [
+      "rock and indie"
+    ],
+    "Michael Cera Palin": [
+      "emo",
+      "midwest emo",
+      "indie rock",
+      "math rock"
+    ],
+    "Dolu Kadehi Ters Tut": [
+      "turkish"
+    ],
+    "Tantric": [
+      "hard rock",
+      "post-grunge"
+    ],
+    "Mom Jeans.": [
+      "emo",
+      "midwest emo"
+    ],
+    "Macseal": [
+      "emo"
+    ],
+    "Vex Red": [
+      "mushroom",
+      "rock and indie",
+      "septembre"
+    ],
+    "Thornley": [
+      "hard rock",
+      "post-grunge"
+    ],
+    "King Hüsky": [
+      "pop rock",
+      "power pop"
+    ],
+    "Thriving Ivory": [
+      "hard rock"
+    ],
+    "Collapsis": [
+      "pop rock"
+    ]
+  },
+  "results": {
+    "gpt-4.1-nano": {
+      "Tally Hall": {
+        "tags": [
+          "indie rock",
+          "alternative rock",
+          "indie pop",
+          "pop rock"
+        ],
+        "out_of_vocab_tags": [
+          "alternative pop",
+          "rock",
+          "wonky rock",
+          "indie"
+        ],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 711,
+          "completion_tokens": 43,
+          "total_tokens": 754,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.1
+      },
+      "Vaundy": {
+        "tags": [
+          "j-pop",
+          "singer-songwriter",
+          "soul"
+        ],
+        "out_of_vocab_tags": [
+          "pop",
+          "japan",
+          "japanese"
+        ],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 707,
+          "completion_tokens": 33,
+          "total_tokens": 740,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.14
+      },
+      "The Dear Hunter": {
+        "tags": [
+          "alternative rock",
+          "progressive rock",
+          "indie rock"
+        ],
+        "out_of_vocab_tags": [
+          "experimental",
+          "crossover prog",
+          "rock",
+          "progressive"
+        ],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 706,
+          "completion_tokens": 38,
+          "total_tokens": 744,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.18
+      },
+      "Hot Mulligan": {
+        "tags": [
+          "emo",
+          "pop punk",
+          "indie rock",
+          "math rock",
+          "midwest emo"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 719,
+          "completion_tokens": 30,
+          "total_tokens": 749,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.24
+      },
+      "Dance Gavin Dance": {
+        "tags": [
+          "post-hardcore",
+          "swancore",
+          "screamo",
+          "emo",
+          "alternative rock",
+          "indie rock"
+        ],
+        "out_of_vocab_tags": [
+          "experimental",
+          "hardcore"
+        ],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 728,
+          "completion_tokens": 43,
+          "total_tokens": 771,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.46
+      },
+      "Mrs. GREEN APPLE": {
+        "tags": [
+          "j-rock",
+          "j-pop",
+          "pop rock",
+          "indie rock",
+          "alternative rock",
+          "melodic vocals",
+          "guitar-driven",
+          "upbeat",
+          "catchy",
+          "modern production",
+          "energetic",
+          "bright",
+          "vocal harmonies",
+          "layered vocals"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 710,
+          "completion_tokens": 72,
+          "total_tokens": 782,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.46
+      },
+      "Hail the Sun": {
+        "tags": [
+          "post-hardcore",
+          "progressive rock",
+          "swancore"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 682,
+          "completion_tokens": 24,
+          "total_tokens": 706,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.82
+      },
+      "Origami Angel": {
+        "tags": [
+          "emo",
+          "easycore",
+          "pop punk",
+          "alternative rock",
+          "energetic",
+          "catchy",
+          "guitar-driven"
+        ],
+        "out_of_vocab_tags": [
+          "rock"
+        ],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 697,
+          "completion_tokens": 41,
+          "total_tokens": 738,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.82
+      },
+      "KANA-BOON": {
+        "tags": [
+          "pop rock",
+          "j-pop",
+          "indie rock",
+          "upbeat",
+          "catchy",
+          "vocal harmonies",
+          "guitar-driven",
+          "modern production"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 714,
+          "completion_tokens": 45,
+          "total_tokens": 759,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.99
+      },
+      "I Fight Dragons": {
+        "tags": [
+          "alternative rock",
+          "pop punk",
+          "power pop",
+          "punk",
+          "indie rock",
+          "electronic rock",
+          "upbeat"
+        ],
+        "out_of_vocab_tags": [
+          "chiptune"
+        ],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 713,
+          "completion_tokens": 43,
+          "total_tokens": 756,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.13
+      },
+      "UNISON SQUARE GARDEN": {
+        "tags": [
+          "j-rock",
+          "alternative rock",
+          "indie rock",
+          "pop rock",
+          "melodic vocals",
+          "guitar-driven",
+          "energetic",
+          "modern production"
+        ],
+        "out_of_vocab_tags": [
+          "rock"
+        ],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 714,
+          "completion_tokens": 49,
+          "total_tokens": 763,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.9
+      },
+      "Good Kid": {
+        "tags": [
+          "indie rock",
+          "indie pop",
+          "melancholic",
+          "bright",
+          "vocal harmonies",
+          "guitar-driven",
+          "catchy",
+          "feel-good"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 691,
+          "completion_tokens": 46,
+          "total_tokens": 737,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.97
+      },
+      "Bear Ghost": {
+        "tags": [
+          "progressive rock",
+          "adventure rock"
+        ],
+        "out_of_vocab_tags": [
+          "rock"
+        ],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 698,
+          "completion_tokens": 22,
+          "total_tokens": 720,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.86
+      },
+      "oso oso": {
+        "tags": [
+          "emo",
+          "indie rock",
+          "midwest emo",
+          "pop punk",
+          "alternative rock",
+          "catchy",
+          "vocal harmonies",
+          "guitar-driven"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 708,
+          "completion_tokens": 45,
+          "total_tokens": 753,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.15
+      },
+      "King Gnu": {
+        "tags": [
+          "j-pop",
+          "pop rock",
+          "indie rock",
+          "alternative rock",
+          "theatrical rock",
+          "melancholic",
+          "modern production"
+        ],
+        "out_of_vocab_tags": [
+          "dynamic"
+        ],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 689,
+          "completion_tokens": 44,
+          "total_tokens": 733,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.84
+      },
+      "Tub Ring": {
+        "tags": [
+          "punk"
+        ],
+        "out_of_vocab_tags": [
+          "experimental",
+          "rock"
+        ],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 701,
+          "completion_tokens": 18,
+          "total_tokens": 719,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.82
+      },
+      "Prince Daddy & The Hyena": {
+        "tags": [
+          "emo",
+          "garage rock",
+          "indie rock",
+          "pop punk",
+          "punk"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 715,
+          "completion_tokens": 28,
+          "total_tokens": 743,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.05
+      },
+      "Tiny Moving Parts": {
+        "tags": [
+          "emo",
+          "math rock",
+          "midwest emo",
+          "punk",
+          "indie rock",
+          "energetic",
+          "guitar-driven",
+          "complex"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 692,
+          "completion_tokens": 42,
+          "total_tokens": 734,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.34
+      },
+      "Ben Quad": {
+        "tags": [
+          "emo",
+          "midwest emo",
+          "pop punk",
+          "post-hardcore",
+          "alternative rock",
+          "indie rock",
+          "energetic",
+          "guitar-driven"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 718,
+          "completion_tokens": 45,
+          "total_tokens": 763,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.87
+      },
+      "Michael Cera Palin": {
+        "tags": [
+          "emo",
+          "midwest emo",
+          "indie rock",
+          "math rock"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 714,
+          "completion_tokens": 26,
+          "total_tokens": 740,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.76
+      },
+      "sumika": {
+        "tags": [
+          "j-rock",
+          "indie rock",
+          "pop rock",
+          "alternative rock",
+          "melodic vocals",
+          "guitar-driven",
+          "modern production",
+          "upbeat"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 672,
+          "completion_tokens": 45,
+          "total_tokens": 717,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.92
+      },
+      "Hundred Reasons": {
+        "tags": [
+          "alternative rock",
+          "indie rock",
+          "post-hardcore",
+          "melancholic",
+          "guitar-driven",
+          "power pop",
+          "energetic",
+          "modern production"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 685,
+          "completion_tokens": 46,
+          "total_tokens": 731,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.94
+      },
+      "Dolu Kadehi Ters Tut": {
+        "tags": [
+          "indie rock",
+          "alternative rock",
+          "pop rock",
+          "melancholic",
+          "vocal harmonies",
+          "guitar-driven",
+          "modern production"
+        ],
+        "out_of_vocab_tags": [
+          "Turkish"
+        ],
+        "confidence": "low",
+        "usage": {
+          "prompt_tokens": 701,
+          "completion_tokens": 46,
+          "total_tokens": 747,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.02
+      },
+      "Tantric": {
+        "tags": [
+          "hard rock",
+          "post-grunge",
+          "alternative rock",
+          "melancholic",
+          "guitar-driven",
+          "powerful vocals",
+          "driving rhythm",
+          "modern production"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 688,
+          "completion_tokens": 46,
+          "total_tokens": 734,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.1
+      },
+      "Mom Jeans.": {
+        "tags": [
+          "emo",
+          "midwest emo",
+          "indie rock",
+          "pop punk",
+          "melancholic",
+          "playful",
+          "vocal harmonies",
+          "guitar-driven",
+          "catchy",
+          "upbeat"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 697,
+          "completion_tokens": 54,
+          "total_tokens": 751,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.82
+      },
+      "Macseal": {
+        "tags": [
+          "emo",
+          "indie rock",
+          "pop punk",
+          "alternative rock",
+          "melodic vocals",
+          "catchy",
+          "upbeat",
+          "vocal harmonies"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 671,
+          "completion_tokens": 45,
+          "total_tokens": 716,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.87
+      },
+      "Vex Red": {
+        "tags": [
+          "alternative rock",
+          "indie rock",
+          "garage rock",
+          "post-hardcore",
+          "dark",
+          "energetic",
+          "guitar-driven",
+          "modern production"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 691,
+          "completion_tokens": 44,
+          "total_tokens": 735,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.85
+      },
+      "Thornley": {
+        "tags": [
+          "hard rock",
+          "post-grunge",
+          "guitar-driven",
+          "powerful vocals",
+          "melodic vocals",
+          "driving rhythm"
+        ],
+        "out_of_vocab_tags": [
+          "rock"
+        ],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 690,
+          "completion_tokens": 42,
+          "total_tokens": 732,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.93
+      },
+      "King Hüsky": {
+        "tags": [
+          "pop rock",
+          "power pop"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 697,
+          "completion_tokens": 17,
+          "total_tokens": 714,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.03
+      },
+      "Collapsis": {
+        "tags": [
+          "pop rock"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 683,
+          "completion_tokens": 13,
+          "total_tokens": 696,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.78
+      },
+      "Thriving Ivory": {
+        "tags": [
+          "alternative rock",
+          "pop rock",
+          "melodic vocals",
+          "guitar-driven",
+          "anthemic",
+          "bright",
+          "layered vocals",
+          "modern production"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 688,
+          "completion_tokens": 44,
+          "total_tokens": 732,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.03
+      }
+    },
+    "gpt-4o-mini": {
+      "Hot Mulligan": {
+        "tags": [
+          "emo",
+          "pop punk",
+          "indie rock",
+          "midwest emo",
+          "math rock",
+          "energetic",
+          "quirky",
+          "catchy",
+          "driving rhythm",
+          "high-energy"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 719,
+          "completion_tokens": 41,
+          "total_tokens": 760,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.9
+      },
+      "Vaundy": {
+        "tags": [
+          "j-pop",
+          "singer-songwriter",
+          "soul",
+          "energetic",
+          "catchy",
+          "melodic vocals",
+          "driving rhythm",
+          "modern production"
+        ],
+        "out_of_vocab_tags": [
+          "pop"
+        ],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 707,
+          "completion_tokens": 40,
+          "total_tokens": 747,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.01
+      },
+      "Mrs. GREEN APPLE": {
+        "tags": [
+          "j-rock",
+          "j-pop",
+          "pop rock",
+          "energetic",
+          "catchy",
+          "upbeat",
+          "driving rhythm",
+          "melodic vocals"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 710,
+          "completion_tokens": 37,
+          "total_tokens": 747,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.3
+      },
+      "The Dear Hunter": {
+        "tags": [
+          "alternative rock",
+          "indie rock",
+          "progressive rock",
+          "experimental rock",
+          "melodic vocals",
+          "complex song structures",
+          "driving rhythm",
+          "high-energy",
+          "anthemic",
+          "dramatic",
+          "layered production",
+          "orchestral"
+        ],
+        "out_of_vocab_tags": [
+          "crossover prog"
+        ],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 706,
+          "completion_tokens": 57,
+          "total_tokens": 763,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.32
+      },
+      "Tally Hall": {
+        "tags": [
+          "indie rock",
+          "alternative rock",
+          "indie pop",
+          "quirky",
+          "playful",
+          "melodic vocals",
+          "catchy",
+          "driving rhythm",
+          "complex song structures",
+          "high-energy"
+        ],
+        "out_of_vocab_tags": [
+          "wonky rock",
+          "alternative pop"
+        ],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 711,
+          "completion_tokens": 51,
+          "total_tokens": 762,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.34
+      },
+      "Dance Gavin Dance": {
+        "tags": [
+          "post-hardcore",
+          "swancore",
+          "screamo",
+          "alternative rock",
+          "emo",
+          "experimental rock",
+          "energetic",
+          "intense",
+          "complex",
+          "driving rhythm",
+          "frequent tempo shifts",
+          "layered production",
+          "vocal harmonies",
+          "dual vocals"
+        ],
+        "out_of_vocab_tags": [
+          "hardcore"
+        ],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 728,
+          "completion_tokens": 61,
+          "total_tokens": 789,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.36
+      },
+      "Hail the Sun": {
+        "tags": [
+          "post-hardcore",
+          "progressive rock",
+          "swancore",
+          "energetic",
+          "intense",
+          "complex",
+          "driving rhythm",
+          "frequent tempo shifts"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 682,
+          "completion_tokens": 39,
+          "total_tokens": 721,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.81
+      },
+      "KANA-BOON": {
+        "tags": [
+          "j-pop",
+          "pop rock",
+          "energetic",
+          "catchy",
+          "upbeat",
+          "melodic vocals",
+          "driving rhythm",
+          "layered production"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 714,
+          "completion_tokens": 38,
+          "total_tokens": 752,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.83
+      },
+      "Origami Angel": {
+        "tags": [
+          "emo",
+          "easycore",
+          "pop punk",
+          "energetic",
+          "catchy",
+          "driving rhythm",
+          "fast tempo",
+          "hook-driven",
+          "vocal harmonies",
+          "melodic vocals"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 697,
+          "completion_tokens": 44,
+          "total_tokens": 741,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.86
+      },
+      "UNISON SQUARE GARDEN": {
+        "tags": [
+          "j-rock",
+          "alternative rock",
+          "pop rock",
+          "energetic",
+          "catchy",
+          "melodic vocals",
+          "driving rhythm",
+          "complex song structures",
+          "upbeat"
+        ],
+        "out_of_vocab_tags": [
+          "rock"
+        ],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 714,
+          "completion_tokens": 42,
+          "total_tokens": 756,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.82
+      },
+      "I Fight Dragons": {
+        "tags": [
+          "alternative rock",
+          "pop punk",
+          "power pop",
+          "punk",
+          "energetic",
+          "catchy",
+          "upbeat",
+          "driving rhythm",
+          "synth-heavy",
+          "melodic vocals",
+          "hook-driven",
+          "playful"
+        ],
+        "out_of_vocab_tags": [
+          "chiptune",
+          "bitcore",
+          "bitpunk"
+        ],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 713,
+          "completion_tokens": 58,
+          "total_tokens": 771,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.54
+      },
+      "Good Kid": {
+        "tags": [
+          "indie rock",
+          "indie pop",
+          "upbeat",
+          "feel-good",
+          "catchy",
+          "melodic vocals",
+          "driving rhythm",
+          "bright"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 691,
+          "completion_tokens": 36,
+          "total_tokens": 727,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.61
+      },
+      "Prince Daddy & The Hyena": {
+        "tags": [
+          "emo",
+          "garage rock",
+          "indie rock",
+          "pop punk",
+          "punk",
+          "energetic",
+          "introspective",
+          "raw",
+          "driving rhythm",
+          "fast tempo"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 715,
+          "completion_tokens": 39,
+          "total_tokens": 754,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.11
+      },
+      "Tiny Moving Parts": {
+        "tags": [
+          "emo",
+          "midwest emo",
+          "math rock",
+          "punk",
+          "energetic",
+          "introspective",
+          "driving rhythm",
+          "complex song structures",
+          "catchy"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 692,
+          "completion_tokens": 38,
+          "total_tokens": 730,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.16
+      },
+      "Bear Ghost": {
+        "tags": [
+          "progressive rock",
+          "adventure rock",
+          "quirky",
+          "energetic",
+          "melodic vocals",
+          "guitar-driven",
+          "complex",
+          "catchy",
+          "high-energy"
+        ],
+        "out_of_vocab_tags": [
+          "rock"
+        ],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 698,
+          "completion_tokens": 43,
+          "total_tokens": 741,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.27
+      },
+      "King Gnu": {
+        "tags": [
+          "j-pop",
+          "pop rock",
+          "alternative rock",
+          "experimental rock",
+          "melodic vocals",
+          "catchy",
+          "uplifting",
+          "energetic",
+          "driving rhythm",
+          "complex song structures"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 689,
+          "completion_tokens": 43,
+          "total_tokens": 732,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.11
+      },
+      "Tub Ring": {
+        "tags": [
+          "experimental rock",
+          "punk",
+          "art punk",
+          "chaotic",
+          "quirky",
+          "energetic",
+          "driving rhythm",
+          "complex song structures"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 701,
+          "completion_tokens": 35,
+          "total_tokens": 736,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.78
+      },
+      "oso oso": {
+        "tags": [
+          "emo",
+          "midwest emo",
+          "indie rock",
+          "alternative rock",
+          "pop punk",
+          "catchy",
+          "melodic vocals",
+          "driving rhythm",
+          "upbeat",
+          "nostalgic"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 708,
+          "completion_tokens": 43,
+          "total_tokens": 751,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.96
+      },
+      "sumika": {
+        "tags": [
+          "j-rock",
+          "upbeat",
+          "melodic vocals",
+          "catchy",
+          "driving rhythm"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "low",
+        "usage": {
+          "prompt_tokens": 672,
+          "completion_tokens": 27,
+          "total_tokens": 699,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.52
+      },
+      "Michael Cera Palin": {
+        "tags": [
+          "emo",
+          "midwest emo",
+          "indie rock",
+          "math rock",
+          "melancholic",
+          "introspective",
+          "quirky",
+          "driving rhythm",
+          "complex song structures",
+          "catchy"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 714,
+          "completion_tokens": 43,
+          "total_tokens": 757,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.58
+      },
+      "Hundred Reasons": {
+        "tags": [
+          "alternative rock",
+          "indie rock",
+          "post-hardcore",
+          "melancholic",
+          "introspective",
+          "driving rhythm",
+          "guitar-driven",
+          "high-energy"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 685,
+          "completion_tokens": 38,
+          "total_tokens": 723,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.76
+      },
+      "Ben Quad": {
+        "tags": [
+          "midwest emo",
+          "emo",
+          "pop punk",
+          "post-hardcore",
+          "energetic",
+          "cathartic",
+          "driving rhythm",
+          "guitar-driven",
+          "hook-driven",
+          "complex song structures"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 718,
+          "completion_tokens": 46,
+          "total_tokens": 764,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.08
+      },
+      "Dolu Kadehi Ters Tut": {
+        "tags": [
+          "j-pop",
+          "alternative rock",
+          "indie pop",
+          "melancholic",
+          "introspective",
+          "catchy",
+          "laid-back",
+          "synth-heavy"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "low",
+        "usage": {
+          "prompt_tokens": 701,
+          "completion_tokens": 37,
+          "total_tokens": 738,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.65
+      },
+      "Tantric": {
+        "tags": [
+          "hard rock",
+          "post-grunge",
+          "melancholic",
+          "intense",
+          "driving rhythm",
+          "aggressive",
+          "cathartic",
+          "guitar-driven"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 688,
+          "completion_tokens": 39,
+          "total_tokens": 727,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.71
+      },
+      "Mom Jeans.": {
+        "tags": [
+          "emo",
+          "midwest emo",
+          "pop punk",
+          "alternative rock",
+          "energetic",
+          "introspective",
+          "catchy",
+          "driving rhythm"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 697,
+          "completion_tokens": 35,
+          "total_tokens": 732,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.51
+      },
+      "Macseal": {
+        "tags": [
+          "emo",
+          "midwest emo",
+          "indie rock",
+          "alternative rock",
+          "melancholic",
+          "introspective",
+          "driving rhythm",
+          "catchy"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 671,
+          "completion_tokens": 37,
+          "total_tokens": 708,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.5
+      },
+      "Vex Red": {
+        "tags": [
+          "alternative rock",
+          "post-hardcore",
+          "emo",
+          "energetic",
+          "intense",
+          "driving rhythm",
+          "guitar-driven",
+          "raw"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 691,
+          "completion_tokens": 35,
+          "total_tokens": 726,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.52
+      },
+      "King Hüsky": {
+        "tags": [
+          "pop rock",
+          "power pop",
+          "upbeat",
+          "catchy",
+          "feel-good",
+          "melodic vocals",
+          "driving rhythm"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 697,
+          "completion_tokens": 32,
+          "total_tokens": 729,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.43
+      },
+      "Thornley": {
+        "tags": [
+          "hard rock",
+          "post-grunge",
+          "energetic",
+          "melodic vocals",
+          "driving rhythm",
+          "catchy"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "usage": {
+          "prompt_tokens": 690,
+          "completion_tokens": 31,
+          "total_tokens": 721,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.53
+      },
+      "Thriving Ivory": {
+        "tags": [
+          "hard rock",
+          "alternative rock",
+          "melodic vocals",
+          "anthemic",
+          "uplifting",
+          "driving rhythm",
+          "catchy",
+          "polished"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 688,
+          "completion_tokens": 37,
+          "total_tokens": 725,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.61
+      },
+      "Collapsis": {
+        "tags": [
+          "pop rock",
+          "alternative rock",
+          "catchy",
+          "upbeat",
+          "melodic vocals",
+          "driving rhythm",
+          "hook-driven",
+          "laid-back"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "usage": {
+          "prompt_tokens": 683,
+          "completion_tokens": 36,
+          "total_tokens": 719,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.35
+      }
+    },
+    "gpt-4o-mini-v2": {
+      "Vaundy": {
+        "tags": [
+          "j-pop",
+          "singer-songwriter",
+          "soul"
+        ],
+        "out_of_vocab_tags": [
+          "pop",
+          "japanese"
+        ],
+        "confidence": "high",
+        "n_discriminative": 3,
+        "n_generic": 0,
+        "usage": {
+          "prompt_tokens": 733,
+          "completion_tokens": 23,
+          "total_tokens": 756,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.08
+      },
+      "Mrs. GREEN APPLE": {
+        "tags": [
+          "j-rock",
+          "j-pop",
+          "pop rock",
+          "energetic",
+          "catchy"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "n_discriminative": 3,
+        "n_generic": 2,
+        "usage": {
+          "prompt_tokens": 736,
+          "completion_tokens": 24,
+          "total_tokens": 760,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.09
+      },
+      "The Dear Hunter": {
+        "tags": [
+          "progressive rock",
+          "alternative rock",
+          "indie rock",
+          "energetic"
+        ],
+        "out_of_vocab_tags": [
+          "crossover prog",
+          "experimental"
+        ],
+        "confidence": "high",
+        "n_discriminative": 3,
+        "n_generic": 1,
+        "usage": {
+          "prompt_tokens": 732,
+          "completion_tokens": 29,
+          "total_tokens": 761,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.18
+      },
+      "Hot Mulligan": {
+        "tags": [
+          "midwest emo",
+          "emo",
+          "pop punk",
+          "indie rock",
+          "math rock",
+          "energetic"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "n_discriminative": 5,
+        "n_generic": 1,
+        "usage": {
+          "prompt_tokens": 745,
+          "completion_tokens": 28,
+          "total_tokens": 773,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.18
+      },
+      "Dance Gavin Dance": {
+        "tags": [
+          "post-hardcore",
+          "swancore",
+          "screamo",
+          "emo",
+          "energetic"
+        ],
+        "out_of_vocab_tags": [
+          "experimental",
+          "hardcore"
+        ],
+        "confidence": "high",
+        "n_discriminative": 4,
+        "n_generic": 1,
+        "usage": {
+          "prompt_tokens": 754,
+          "completion_tokens": 31,
+          "total_tokens": 785,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.19
+      },
+      "Tally Hall": {
+        "tags": [
+          "indie rock",
+          "alternative rock",
+          "indie pop",
+          "quirky",
+          "playful",
+          "melodic vocals"
+        ],
+        "out_of_vocab_tags": [
+          "wonky rock",
+          "alternative pop"
+        ],
+        "confidence": "high",
+        "n_discriminative": 4,
+        "n_generic": 2,
+        "usage": {
+          "prompt_tokens": 737,
+          "completion_tokens": 37,
+          "total_tokens": 774,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.26
+      },
+      "Hail the Sun": {
+        "tags": [
+          "post-hardcore",
+          "progressive rock",
+          "swancore"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "n_discriminative": 3,
+        "n_generic": 0,
+        "usage": {
+          "prompt_tokens": 708,
+          "completion_tokens": 20,
+          "total_tokens": 728,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.08
+      },
+      "I Fight Dragons": {
+        "tags": [
+          "pop punk",
+          "power pop",
+          "punk",
+          "energetic"
+        ],
+        "out_of_vocab_tags": [
+          "bitpunk",
+          "chiptune"
+        ],
+        "confidence": "high",
+        "n_discriminative": 3,
+        "n_generic": 1,
+        "usage": {
+          "prompt_tokens": 739,
+          "completion_tokens": 27,
+          "total_tokens": 766,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.15
+      },
+      "KANA-BOON": {
+        "tags": [
+          "j-pop",
+          "pop rock",
+          "energetic"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "n_discriminative": 2,
+        "n_generic": 1,
+        "usage": {
+          "prompt_tokens": 740,
+          "completion_tokens": 18,
+          "total_tokens": 758,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.06
+      },
+      "UNISON SQUARE GARDEN": {
+        "tags": [
+          "j-rock",
+          "vocal harmonies",
+          "energetic",
+          "catchy"
+        ],
+        "out_of_vocab_tags": [
+          "rock"
+        ],
+        "confidence": "high",
+        "n_discriminative": 2,
+        "n_generic": 2,
+        "usage": {
+          "prompt_tokens": 740,
+          "completion_tokens": 25,
+          "total_tokens": 765,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.99
+      },
+      "Good Kid": {
+        "tags": [
+          "indie rock",
+          "indie pop",
+          "upbeat",
+          "catchy",
+          "modern production"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "n_discriminative": 2,
+        "n_generic": 3,
+        "usage": {
+          "prompt_tokens": 717,
+          "completion_tokens": 25,
+          "total_tokens": 742,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.13
+      },
+      "Origami Angel": {
+        "tags": [
+          "easycore",
+          "emo",
+          "energetic",
+          "catchy"
+        ],
+        "out_of_vocab_tags": [
+          "rock"
+        ],
+        "confidence": "high",
+        "n_discriminative": 2,
+        "n_generic": 2,
+        "usage": {
+          "prompt_tokens": 723,
+          "completion_tokens": 22,
+          "total_tokens": 745,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 2.0
+      },
+      "Tiny Moving Parts": {
+        "tags": [
+          "midwest emo",
+          "emo",
+          "math rock",
+          "punk",
+          "energetic"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "n_discriminative": 4,
+        "n_generic": 1,
+        "usage": {
+          "prompt_tokens": 718,
+          "completion_tokens": 24,
+          "total_tokens": 742,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.06
+      },
+      "King Gnu": {
+        "tags": [
+          "j-pop",
+          "pop rock",
+          "energetic",
+          "catchy",
+          "modern production"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "n_discriminative": 2,
+        "n_generic": 3,
+        "usage": {
+          "prompt_tokens": 715,
+          "completion_tokens": 24,
+          "total_tokens": 739,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.06
+      },
+      "Bear Ghost": {
+        "tags": [
+          "adventure rock",
+          "progressive rock",
+          "energetic"
+        ],
+        "out_of_vocab_tags": [
+          "rock"
+        ],
+        "confidence": "high",
+        "n_discriminative": 2,
+        "n_generic": 1,
+        "usage": {
+          "prompt_tokens": 724,
+          "completion_tokens": 23,
+          "total_tokens": 747,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.16
+      },
+      "Prince Daddy & The Hyena": {
+        "tags": [
+          "emo",
+          "pop punk",
+          "garage rock",
+          "indie rock",
+          "punk",
+          "energetic"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "n_discriminative": 5,
+        "n_generic": 1,
+        "usage": {
+          "prompt_tokens": 741,
+          "completion_tokens": 26,
+          "total_tokens": 767,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.23
+      },
+      "sumika": {
+        "tags": [
+          "j-rock"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "low",
+        "n_discriminative": 1,
+        "n_generic": 0,
+        "usage": {
+          "prompt_tokens": 698,
+          "completion_tokens": 12,
+          "total_tokens": 710,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.95
+      },
+      "Tub Ring": {
+        "tags": [
+          "experimental rock",
+          "punk",
+          "art punk",
+          "chaotic",
+          "quirky"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "n_discriminative": 3,
+        "n_generic": 2,
+        "usage": {
+          "prompt_tokens": 727,
+          "completion_tokens": 23,
+          "total_tokens": 750,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.27
+      },
+      "Ben Quad": {
+        "tags": [
+          "midwest emo",
+          "emo",
+          "pop punk",
+          "post-hardcore",
+          "energetic"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "n_discriminative": 4,
+        "n_generic": 1,
+        "usage": {
+          "prompt_tokens": 744,
+          "completion_tokens": 25,
+          "total_tokens": 769,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.19
+      },
+      "Hundred Reasons": {
+        "tags": [
+          "alternative rock",
+          "post-hardcore",
+          "emo",
+          "melodic vocals",
+          "driving bass",
+          "energetic"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "n_discriminative": 4,
+        "n_generic": 2,
+        "usage": {
+          "prompt_tokens": 711,
+          "completion_tokens": 31,
+          "total_tokens": 742,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.26
+      },
+      "Michael Cera Palin": {
+        "tags": [
+          "midwest emo",
+          "emo",
+          "indie rock",
+          "math rock",
+          "introspective",
+          "melodic vocals"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "n_discriminative": 5,
+        "n_generic": 1,
+        "usage": {
+          "prompt_tokens": 740,
+          "completion_tokens": 31,
+          "total_tokens": 771,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.22
+      },
+      "Dolu Kadehi Ters Tut": {
+        "tags": [
+          "j-pop",
+          "melodic vocals",
+          "introspective"
+        ],
+        "out_of_vocab_tags": [
+          "turkish",
+          "emotional"
+        ],
+        "confidence": "medium",
+        "n_discriminative": 2,
+        "n_generic": 1,
+        "usage": {
+          "prompt_tokens": 727,
+          "completion_tokens": 27,
+          "total_tokens": 754,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.03
+      },
+      "Macseal": {
+        "tags": [
+          "emo"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "n_discriminative": 1,
+        "n_generic": 0,
+        "usage": {
+          "prompt_tokens": 697,
+          "completion_tokens": 11,
+          "total_tokens": 708,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.8
+      },
+      "Mom Jeans.": {
+        "tags": [
+          "midwest emo",
+          "emo",
+          "energetic"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "n_discriminative": 2,
+        "n_generic": 1,
+        "usage": {
+          "prompt_tokens": 723,
+          "completion_tokens": 18,
+          "total_tokens": 741,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.98
+      },
+      "Tantric": {
+        "tags": [
+          "hard rock",
+          "post-grunge",
+          "energetic"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "n_discriminative": 2,
+        "n_generic": 1,
+        "usage": {
+          "prompt_tokens": 714,
+          "completion_tokens": 19,
+          "total_tokens": 733,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.07
+      },
+      "Vex Red": {
+        "tags": [
+          "alternative rock",
+          "post-grunge",
+          "energetic",
+          "driving rhythm",
+          "melodic vocals"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "n_discriminative": 3,
+        "n_generic": 2,
+        "usage": {
+          "prompt_tokens": 717,
+          "completion_tokens": 29,
+          "total_tokens": 746,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.37
+      },
+      "Thornley": {
+        "tags": [
+          "hard rock",
+          "post-grunge",
+          "energetic",
+          "modern production"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "n_discriminative": 2,
+        "n_generic": 2,
+        "usage": {
+          "prompt_tokens": 716,
+          "completion_tokens": 22,
+          "total_tokens": 738,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 0.91
+      },
+      "King Hüsky": {
+        "tags": [
+          "pop rock",
+          "power pop",
+          "catchy",
+          "upbeat",
+          "modern production"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "n_discriminative": 2,
+        "n_generic": 3,
+        "usage": {
+          "prompt_tokens": 723,
+          "completion_tokens": 23,
+          "total_tokens": 746,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.04
+      },
+      "Collapsis": {
+        "tags": [
+          "pop rock",
+          "catchy",
+          "upbeat"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "n_discriminative": 1,
+        "n_generic": 2,
+        "usage": {
+          "prompt_tokens": 709,
+          "completion_tokens": 17,
+          "total_tokens": 726,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.0
+      },
+      "Thriving Ivory": {
+        "tags": [
+          "hard rock",
+          "alternative rock",
+          "melodic vocals",
+          "driving rhythm",
+          "modern production"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "medium",
+        "n_discriminative": 3,
+        "n_generic": 2,
+        "usage": {
+          "prompt_tokens": 714,
+          "completion_tokens": 27,
+          "total_tokens": 741,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 1.44
+      },
+      "oso oso": {
+        "tags": [
+          "midwest emo",
+          "emo",
+          "indie rock",
+          "pop punk",
+          "alternative rock",
+          "energetic"
+        ],
+        "out_of_vocab_tags": [],
+        "confidence": "high",
+        "n_discriminative": 5,
+        "n_generic": 1,
+        "usage": {
+          "prompt_tokens": 734,
+          "completion_tokens": 28,
+          "total_tokens": 762,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "audio_tokens": 0
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 0,
+            "audio_tokens": 0,
+            "accepted_prediction_tokens": 0,
+            "rejected_prediction_tokens": 0
+          }
+        },
+        "latency_s": 6.17
+      }
+    }
+  }
+}

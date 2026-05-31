@@ -15,7 +15,15 @@ export function renderTracks() {
     const counterEl = el('songlistCounter');
     if (counterEl) counterEl.textContent = i18n('songlist.counter', '{count} / {max} songs').replace('{count}', State.suggestions.filter(Boolean).length).replace('{max}', maxSize);
 
-    if (State.suggestions.filter(Boolean).length === 0) {
+    // The Apply/Clear actions row is tied strictly to having tracks — the
+    // surrounding trackArea can still be force-shown by status messages
+    // (e.g. "Settings saved"), so the row needs its own visibility or the
+    // buttons appear with an empty list.
+    const actionsRow = el('discoverTrackActions');
+    const hasTracks = State.suggestions.filter(Boolean).length > 0;
+    if (actionsRow) actionsRow.classList.toggle('hidden', !hasTracks);
+
+    if (!hasTracks) {
         if (trackArea) trackArea.classList.add('hidden');
         return;
     }
@@ -25,7 +33,8 @@ export function renderTracks() {
     State.suggestions.forEach((track, idx) => {
         if (!track) return;
         const li = document.createElement('li');
-        li.className = 'track-item';
+        // Bug-1 fix (2026-05-30): preserve the liked-glow across re-renders.
+        li.className = 'track-item' + (track._liked ? ' liked' : '');
         li.id = `track-${idx}`;
         li.innerHTML = buildTrackCardHtml(track, idx, 'discover');
         list.appendChild(li);

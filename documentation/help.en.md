@@ -37,6 +37,7 @@ This guide explains how to use the **SpotyVibe interface** to set up your prefer
   <li><a href="#getting-started">Getting Started</a></li>
   <li><a href="#user-preferences">User Preferences</a></li>
   <li><a href="#discovery--analysis">Band/Song Analysis</a></li>
+  <li><a href="#discover-artists">Discover Artists</a></li>
   <li><a href="#track-review--feedback">Track Review &amp; Feedback</a></li>
   <li><a href="#taste-dashboard">Taste Dashboard</a></li>
   <li><a href="#song-list--run-history">Song List &amp; Run History</a></li>
@@ -116,7 +117,7 @@ The main screen is organised into collapsible components grouped under two provi
 - **🔍 Band/Song Analysis** — Get an AI-powered breakdown of any artist or track with ready-to-paste profile suggestions.
 
 **Spotify Section:**
-- **🎧 Discover Music** — Generate AI-powered playlists and save them directly to your Spotify account. Includes an optional **Audio Filters** sub-panel to constrain suggestions by mood and feel. *(Collapsed by default.)*
+- **🎧 Discover Tracks** — Generate AI-powered playlists and save them directly to your Spotify account. Includes an optional **Audio Filters** sub-panel to constrain suggestions by mood and feel. *(Collapsed by default.)*
 - **🔄 Refine Playlist** — Load an existing playlist and give track-by-track feedback to refine your taste profile. *(Collapsed by default.)*
 - **🕓 History** — View past generation runs.
 
@@ -539,11 +540,11 @@ This is especially helpful if you know what you like, but are not sure how to de
 <a id="playlist-generation"></a>
 ## Playlist Generation
 
-Once your profile is ready and Spotify is connected, go to the **Spotify** section and click **Show** on the **Discover Music** header (or click anywhere on the header) to expand it.
+Once your profile is ready and Spotify is connected, go to the **Spotify** section and click **Show** on the **Discover Tracks** header (or click anywhere on the header) to expand it.
 
 This is where SpotyVibe creates playlist suggestions based on your taste. The section is collapsed by default to keep the page compact.
 
-![Discover Music section expanded](/docs/screenshots/19_discover_section.png)
+![Discover Tracks section expanded](/docs/screenshots/19_discover_section.png)
 
 ---
 
@@ -616,7 +617,7 @@ In Advanced mode, a **Preset** dropdown at the top lets you save and recall comp
 <a id="use-audio-filters"></a>
 ### Use Audio Filters
 
-Inside the **Discover Music** section, click the **🎚 Audio Filters (optional)** bar to expand the filter panel. These optional filters guide GPT to suggest tracks matching your desired mood and feel.
+Inside the **Discover Tracks** section, click the **🎚 Audio Filters (optional)** bar to expand the filter panel. These optional filters guide GPT to suggest tracks matching your desired mood and feel.
 
 Available filters:
 
@@ -636,13 +637,13 @@ The easiest way to fill in audio filters is via the **Band/Song Analysis** featu
 
 1. Open **Band/Song Analysis** and analyse a reference track.
 2. In the results, each audio feature row (Energy, Valence, etc.) has a **⇒ Filter** button.
-3. Click **⇒ Filter** on any feature — it automatically sets a sensible min/max range (±10%, or ±15 BPM for tempo) in the Discover Music filter panel.
+3. Click **⇒ Filter** on any feature — it automatically sets a sensible min/max range (±10%, or ±15 BPM for tempo) in the Discover Tracks filter panel.
 4. Or click **⇒ Use All as Filters** to apply all features at once.
 5. The Discover section and filter panel open automatically when you apply a filter.
 
 This bridges the gap between analysis and generation — no more memorising numbers.
 
-![Audio Filters sub-panel inside Discover Music](/docs/screenshots/21_audio_filters.png)
+![Audio Filters sub-panel inside Discover Tracks](/docs/screenshots/21_audio_filters.png)
 
 ![Band/Song Analysis with Filter buttons](/docs/screenshots/18_analysis_panel.png)
 
@@ -669,7 +670,7 @@ Leave the checkbox unchecked for normal generation behaviour.
 
 Click **Generate & Create Playlist** to begin.
 
-A loading spinner appears below the button inside the Discover Music section. Progress messages are displayed underneath the spinner as SpotyVibe works:
+A loading spinner appears below the button inside the Discover Tracks section. Progress messages are displayed underneath the spinner as SpotyVibe works:
 
 1. Generate song suggestions
 2. Check them on Spotify
@@ -698,10 +699,30 @@ This is useful if you already like the results and do not want to wait longer.
 
 ---
 
+<a id="discover-artists"></a>
+## Discover Artists
+
+**Discover Artists** sits between Discover Tracks and Refine Playlist. Instead of building a track playlist, it surfaces **new artists** worth exploring — each with a few real tracks as a starting point.
+
+![Discover Artists section expanded](/docs/screenshots/19b_discover_artists_section.png)
+
+Expand the section with **Show**, then set two controls:
+
+- **Artists size** — how many new artists to discover (1–10).
+- **Exploration vs Accuracy** — *Familiar* favours artists close to your taste; *Adventurous* surfaces obscure, under-the-radar acts.
+
+Every suggested artist is **new** — artists already in your profile (confirmed or previously suggested) are excluded.
+
+Click **Discover Artists**. SpotyVibe retrieves a wide candidate pool, and a single AI pass picks the final list. Each artist is shown with a short reason, genre tags, and a few representative tracks. Tracks found on Spotify are linked; any not found are marked *not on Spotify*.
+
+Use **Apply to Playlist** to add the Spotify-verified tracks to a playlist — create, append, or replace, the same options as Discover Tracks — or **Clear** to discard the list.
+
+---
+
 <a id="track-review--feedback"></a>
 ## Track Review & Feedback
 
-After generation, SpotyVibe displays the suggested tracks **inside the Discover Music section**, below the Generate button, separated by a divider. A completion banner and playlist link appear first, followed by the track cards. Track cards glow green on hover.
+After generation, SpotyVibe displays the suggested tracks **inside the Discover Tracks section**, below the Generate button, separated by a divider. A completion banner and playlist link appear first, followed by the track cards. Track cards glow green on hover.
 
 Each card may show:
 
@@ -962,7 +983,7 @@ Older runs beyond the most recent 5 are automatically removed to keep the list c
 <a id="persistent-song-list"></a>
 ### Persistent Song List
 
-Your generated song list is saved inside the Discover Music section and restored when you reload the page — you never lose your track cards between sessions.
+Your generated song list is saved inside the Discover Tracks section and restored when you reload the page — you never lose your track cards between sessions.
 
 This means:
 

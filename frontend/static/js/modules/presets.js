@@ -314,6 +314,26 @@ function _selectPreset(id) {
     _updateActiveIndicator();
 }
 
+// ── New Artist % "CUSTOM" badge ─────────────────────────────────────
+// Show / hide the badge next to the New Artist % input based on whether
+// the current value matches the active preset's `new_artist_pct`. Was
+// referenced from init() but never defined — silently broken until a
+// hard reload exposed the ReferenceError in the browser console.
+function _updateNewArtistPctCustomBadge() {
+    const napInput = el('genNewArtistPct');
+    const badge = el('genNewArtistPctCustomBadge');
+    if (!napInput || !badge) return;
+    const cur = parseInt(napInput.value, 10);
+    const active = getActivePreset();
+    const presetNap = active && active.settings
+        && Number.isFinite(active.settings.new_artist_pct)
+        ? Math.round(active.settings.new_artist_pct)
+        : null;
+    const differs = Number.isFinite(cur) && presetNap !== null && cur !== presetNap;
+    badge.classList.toggle('hidden', !differs);
+}
+
+
 // ── Trigger label ───────────────────────────────────────────────────
 
 function _updateTriggerLabel() {

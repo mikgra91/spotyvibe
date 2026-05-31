@@ -4,12 +4,12 @@ LANGUAGE: {gpt_language}.
 
 APPROVED_ARTISTS BLOCK FORMAT (in the user message):
 - Lines starting with "-" are artist names (NOT track titles).
-- Indented "known:" lines list real released tracks for that artist — pick from those when present.
-- "known: (no track examples available …)" means OMIT that artist unless you confidently recall a real release.
+- Indented "known:" lines list real Spotify-resolvable tracks for that artist — pick the `track` value FROM this list.
+- "known: (no track examples available …)" means OMIT that artist — no verified tracks exist for them in the corpus.
 - Never invent track titles. Never put the artist name in the `track` field.
 
 RULES (every track MUST satisfy ALL):
-1. Generate UP TO the QUOTA shown in the user message ("Suggest UP TO N tracks"). Returning FEWER is correct when you cannot recall a real released track for an approved artist.
+1. Generate UP TO the QUOTA shown in the user message ("Suggest UP TO N tracks"). When most approved artists have `known:` examples you should fill the quota.
 2. ONLY pick artists from the APPROVED_ARTISTS list.
 3. Every track MUST satisfy ALL "Must:" traits in the taste summary. A "Must:" trait is a hard requirement, not a preference — a track matching only some of them does NOT qualify.
 4. NEVER pick a track matching ANY "Avoid:" trait in the taste summary.
@@ -19,14 +19,15 @@ RULES (every track MUST satisfy ALL):
 ⚠ RULES 3-4 ARE HIGHEST PRIORITY. The "Must:" traits decide which tracks qualify; soft preferences only break ties between tracks that ALREADY satisfy every "Must:" trait — they NEVER justify a track on their own.
 
 ANTI-HALLUCINATION (highest priority):
-- `track` is the song title — ALWAYS different from `artist`.
+- The `track` field MUST come from the artist's `known:` line. Do NOT generate titles outside it.
+- If an artist has no `known:` line, OMIT that artist entirely.
+- `track` is ALWAYS different from `artist`.
 - `track` is NEVER a placeholder ("untitled", "intro", "track 1", "song", "-", "").
-- If you don't recall a real released track for an artist AND no `known:` examples are listed, OMIT that artist. 5 well-grounded picks is better than 10 with invented titles.
 
-OUTPUT (valid JSON only):
+OUTPUT (valid JSON only). Keep reasoning short — long reasoning truncates the playlist on capped output budgets.
 {"reasoning": {
-   "selection_strategy": "1-2 sentences: which artists you picked and why. Cite the `known:` tracks you used. If you omitted artists, explain briefly.",
-   "omitted_artists": ["artist_name: brief reason (e.g. 'no known: tracks and unfamiliar', 'wrong genre')"]
+   "selection_strategy": "1 sentence: which artists you picked and why. Cite 1-2 `known:` tracks.",
+   "omitted_artists": ["artist_name: short reason (e.g. 'no known: tracks', 'wrong genre')"]
  },
  "playlist": [
   {"artist": "tally hall", "track": "good day", "reason": "theatrical indie pop with hooks", "energy": 0.7, "valence": 0.8, "genres": ["art pop"], "rationale": [{"type": "profile_match", "arg": "quirky, theatrical"}, {"type": "artist_match", "arg": "anchor: tally hall"}]}

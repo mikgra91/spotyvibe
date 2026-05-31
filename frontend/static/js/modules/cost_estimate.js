@@ -79,10 +79,14 @@ export function resetSessionSpend() {
 
 export async function estimate({ model, profileText, tracks }) {
     const sizes = await getPromptSize();
-    // Backend reports the model Stage 3 will actually invoke. Prefer it
-    // over the caller-supplied dropdown value so the estimate stays in
-    // sync with the active configuration.
-    if (sizes && sizes.stage3_resolved_model) {
+    // BUG 2026-05-23: previously this overrode the caller-supplied model
+    // with the backend's `stage3_resolved_model` unconditionally, so
+    // switching the Settings dropdown to a new model never updated the
+    // cost estimate — it kept showing the SAVED model. Trust the caller's
+    // model when supplied; only fall back to the backend value when the
+    // caller didn't pass one (e.g., cold load before the dropdown
+    // populates).
+    if (!model && sizes && sizes.stage3_resolved_model) {
         model = sizes.stage3_resolved_model;
     }
     const pricing = await getPricing();

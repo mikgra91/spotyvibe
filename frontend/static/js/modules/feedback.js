@@ -154,23 +154,10 @@ export async function submitFeedback(idx, action) {
                 window.refreshGettingStarted();
             }
             // Remove every track in the visible list that matches this artist —
-            // not just the one whose form was submitted. Iterate descending so
-            // splicing doesn't shift later indices we still need to read.
-            const target = (artist || '').trim().toLowerCase();
-            const matchedIdx = [];
-            for (let i = 0; i < State.suggestions.length; i++) {
-                const t = State.suggestions[i];
-                if (!t) continue;
-                if ((t.artist || '').trim().toLowerCase() === target) {
-                    matchedIdx.push(i);
-                }
-            }
-            if (matchedIdx.length === 0) {
+            // not just the one whose form was submitted.
+            const removed = removeDiscoverTracksByArtist(artist);
+            if (removed === 0) {
                 animateRemove(idx);
-            } else {
-                for (let i = matchedIdx.length - 1; i >= 0; i--) {
-                    animateRemove(matchedIdx[i]);
-                }
             }
         } catch (e) {
             showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
@@ -222,7 +209,13 @@ export async function submitFeedback(idx, action) {
             animateRemove(idx);
         } else {
             showToast(i18n('feedback.liked', '👍 Liked: {track}').replace('{track}', `${artist}${trackLabel}`));
-            // Liked tracks stay in the list — user can still apply them to a playlist
+            // Bug-1 fix (2026-05-30): liked tracks stay in the list AND get
+            // a green-glow marker so the user can see what they liked and
+            // still apply it to a playlist.
+            State.markSuggestionLiked(idx);
+            const node = el(`track-${idx}`);
+            if (node) node.classList.add('liked');
+            closeFeedback(idx);
         }
 
         resetDashboard();
@@ -255,6 +248,31 @@ export async function removeTrack(idx) {
     }
 
     animateRemove(idx);
+}
+
+/**
+ * Bug-3 fix (2026-05-30): remove EVERY track by the given artist from the
+ * Discover list. Used by both the Discover feedback form and the preview
+ * overlay so that "dislike a whole band" always clears the band's other
+ * songs — keeping them made no sense once the band is excluded.
+ * Iterates descending so splicing doesn't shift indices we still read.
+ * Returns the number of cards removed.
+ */
+export function removeDiscoverTracksByArtist(artist) {
+    const target = (artist || '').trim().toLowerCase();
+    if (!target) return 0;
+    const matchedIdx = [];
+    for (let i = 0; i < State.suggestions.length; i++) {
+        const t = State.suggestions[i];
+        if (!t) continue;
+        if ((t.artist || '').trim().toLowerCase() === target) {
+            matchedIdx.push(i);
+        }
+    }
+    for (let i = matchedIdx.length - 1; i >= 0; i--) {
+        animateRemove(matchedIdx[i]);
+    }
+    return matchedIdx.length;
 }
 
 export function animateRemove(idx) {

@@ -58,11 +58,18 @@ async function loadDiscoverPicker() {
 }
 
 export async function onPlaylistModeChange() {
-    const mode = getPlaylistMode();
+    // The inline playlist-mode UI was relocated into the apply-playlist
+    // modal; the original `#playlistNameRow` / `#playlistPickerRow` no
+    // longer exist in the rendered DOM. Bail before touching null nodes
+    // — otherwise this throws on every DOMContentLoaded and kills the
+    // rest of the init chain (Discover Artists, presets, …).
     const nameRow = el('playlistNameRow');
     const pickerRow = el('playlistPickerRow');
-    nameRow.classList.toggle('hidden', mode !== 'create');
-    pickerRow.classList.toggle('hidden', mode !== 'append' && mode !== 'replace');
+    if (!nameRow && !pickerRow) return;
+
+    const mode = getPlaylistMode();
+    if (nameRow) nameRow.classList.toggle('hidden', mode !== 'create');
+    if (pickerRow) pickerRow.classList.toggle('hidden', mode !== 'append' && mode !== 'replace');
 
     if ((mode === 'append' || mode === 'replace') && pickerRow && !pickerRow.dataset.loaded) {
         pickerRow.dataset.loaded = '1';

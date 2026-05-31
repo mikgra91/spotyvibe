@@ -718,7 +718,10 @@ gcloud run jobs update spotivibe-rag-builder --region=us-central1 \
 Disable temporarily: `DISABLE_LASTFM_ENRICHMENT=1` env var (passthrough — MB-only corpus).
 
 ### 9.3 Throughput
-~3 API calls × 174K artists × 0.18 s throttle ≈ 90-100 min. Fits inside one 3 h Cloud Run execution. Checkpoint+resume is built in (`gs://<bucket>/lastfm-checkpoint.jsonl.gz`) so a mid-run timeout / crash resumes cleanly.
+~3 API calls per artist at ~5.5 req/s. A full pass over ~176K artists is ~17 h, run as a self-chaining batched workflow (`BATCH_SIZE` artists/execution; progress in `build-state.json`; results accumulated in `gs://<bucket>/lastfm-checkpoint.jsonl`). Checkpoint+resume is built in, so a mid-run timeout / crash resumes cleanly.
+
+### 9.4 Incremental seeding (2026-05-30)
+A new cycle no longer re-fetches every artist. After the Phase-1 MB build, `cloud_run_publish.py` calls `merge_corpus.py` to **carry the previously-published corpus's Last.fm layer forward** onto the fresh MB build (matched by `mbid`) and writes the result as the seed `lastfm-checkpoint.jsonl`. Phase B's existing skip-set then skips every carried-forward artist and fetches **only the delta** — new mbids plus any still lacking Last.fm data. First production run (2026-05-30): of 176,560 artists, **146,493 were carried forward** and only **30,067** needed fetching (~17 %), turning a ~17 h pass into ~4–5 h. The Last.fm, MusicBrainz, and (local, manual) AI layers each own their own fields, so an update to one never clobbers the others. On a first-ever build (no previous corpus on GCS) the job falls back to a full enrichment pass. See `core/tests/test_merge_corpus.py` for the merge contract.
 ---
 ## 10. Circuit breaker & auto-retry (2026-04)
 ### 10.1 Why this exists

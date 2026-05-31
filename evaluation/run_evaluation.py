@@ -527,8 +527,14 @@ def main() -> int:
             # Disable keyring overlay so the real OpenAI key in Windows
             # Credential Manager doesn't clobber the OR bearer.
             os.environ["SPOTYVIBE_SKIP_KEYRING"] = "1"
-            # Free-tier max_tokens cap — anything over ~8k 402s on free routes.
-            os.environ.setdefault("SPOTYVIBE_MAX_OUTPUT_TOKENS", "4000")
+            # 4000-token cap ONLY on `:free` routes (free tier has ~8k
+            # credit budget per call). Paid routes get 8000 so verbose-
+            # reasoning models (Claude Haiku/Sonnet) don't truncate
+            # mid-playlist. See analysis.md §1 (2026-05-23).
+            if any(":free" in m.lower() for m in models):
+                os.environ.setdefault("SPOTYVIBE_MAX_OUTPUT_TOKENS", "4000")
+            else:
+                os.environ.setdefault("SPOTYVIBE_MAX_OUTPUT_TOKENS", "8000")
             logger.info("OpenRouter routing active for this run (key + base URL set, keyring overlay disabled, max_tokens=%s).",
                         os.environ["SPOTYVIBE_MAX_OUTPUT_TOKENS"])
         else:

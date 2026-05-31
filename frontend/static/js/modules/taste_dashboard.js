@@ -159,16 +159,44 @@ function renderBars(container, decades) {
     });
 }
 
+/* ── Horizontal bar chart: top artists ───────────────────────────── */
+function renderArtists(container, artists) {
+    if (!artists || artists.length === 0) return;
+    const w = 260, rowH = 22, labelW = 96, top = 6;
+    const h = artists.length * rowH + top + 4;
+    const max = Math.max(...artists.map(a => a.count));
+    const barMaxW = w - labelW - 24;
+
+    let svg = `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img">`;
+    svg += `<title>${i18n('dashboard.card_artists', 'Top artists')}</title>`;
+    artists.forEach((a, i) => {
+        const y = top + i * rowH;
+        const barW = max > 0 ? (a.count / max) * barMaxW : 0;
+        const name = a.artist.length > 16 ? a.artist.slice(0, 15) + '…' : a.artist;
+        svg += `<text x="0" y="${y + rowH / 2 + 2}" font-size="10" fill="var(--text-muted)">${_esc(name)}</text>`;
+        svg += `<rect x="${labelW}" y="${y + 2}" width="${barW}" height="${rowH - 8}" rx="2" fill="${CHART_COLOURS[i % CHART_COLOURS.length]}" fill-opacity="0.85" data-artist="${_esc(a.artist)}" data-count="${a.count}" style="cursor:pointer"/>`;
+        svg += `<text x="${labelW + barW + 4}" y="${y + rowH / 2 + 2}" font-size="9" fill="var(--text-muted)">${a.count}</text>`;
+    });
+    svg += `</svg>`;
+    container.innerHTML = `<h4>${i18n('dashboard.card_artists', 'Top artists')}</h4>${svg}`;
+
+    container.querySelectorAll('rect[data-artist]').forEach(rect => {
+        rect.addEventListener('pointermove', e => _showTooltip(e, `${rect.dataset.artist} — ${rect.dataset.count} ${i18n('dashboard.tracks_unit', 'tracks')}`));
+        rect.addEventListener('pointerleave', _hideTooltip);
+    });
+}
+
 /* ── Render a sentiment section ──────────────────────────────────── */
 function _renderSection(sectionEl, slice) {
     if (!sectionEl || !slice) return false;
     const grid = sectionEl.querySelector('.dashboard-grid');
     if (!grid) return false;
 
+    const hasArtists = (slice.top_artists || []).length > 0;
     const hasGenres = (slice.top_genres || []).length > 0;
     const hasScatter = (slice.energy_valence || []).length > 0;
     const hasDecades = (slice.decades || []).length > 0;
-    const hasAny = hasGenres || hasScatter || hasDecades;
+    const hasAny = hasArtists || hasGenres || hasScatter || hasDecades;
 
     if (!hasAny) {
         sectionEl.classList.add('hidden');
@@ -178,12 +206,14 @@ function _renderSection(sectionEl, slice) {
     sectionEl.classList.remove('hidden');
     grid.classList.remove('hidden');
 
-    const [genreCard, scatterCard, decadesCard] = [
+    const [artistsCard, genreCard, scatterCard, decadesCard] = [
+        grid.querySelector('.dashboard-card--artists'),
         grid.querySelector('.dashboard-card--genres'),
         grid.querySelector('.dashboard-card--scatter'),
         grid.querySelector('.dashboard-card--decades'),
     ];
 
+    if (artistsCard) { artistsCard.innerHTML = ''; if (hasArtists) renderArtists(artistsCard, slice.top_artists); }
     if (genreCard) { genreCard.innerHTML = ''; if (hasGenres) renderDonut(genreCard, slice.top_genres); }
     if (scatterCard) { scatterCard.innerHTML = ''; if (hasScatter) renderScatter(scatterCard, slice.energy_valence); }
     if (decadesCard) { decadesCard.innerHTML = ''; if (hasDecades) renderBars(decadesCard, slice.decades); }
@@ -206,7 +236,8 @@ async function loadDashboard() {
         // Neutral slice (main)
         const neutralSlice = data.neutral || {};
         const neutralHasData = (data.tracks_considered || 0) >= 10
-            && ((neutralSlice.top_genres || []).length > 0
+            && ((neutralSlice.top_artists || []).length > 0
+                || (neutralSlice.top_genres || []).length > 0
                 || (neutralSlice.energy_valence || []).length > 0
                 || (neutralSlice.decades || []).length > 0);
 

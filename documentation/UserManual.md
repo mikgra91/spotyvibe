@@ -111,7 +111,7 @@ The header carries a small **Spotify status pill** with a coloured dot — green
 The UI has two provider sections:
 
 - **OpenAI** — profile editor, AI profile update, Band/Song Analysis.
-- **Spotify** — Discover Music, Refine Playlist, History.
+- **Spotify** — Discover Tracks, Discover Artists, Refine Playlist, History.
 
 Each section header is clickable to expand/collapse.
 
@@ -151,7 +151,7 @@ Appear under **Edit profile** mode:
 
 ## Generating a Playlist
 
-Expand **Discover Music** in the Spotify section.
+Expand **Discover Tracks** in the Spotify section.
 
 ### Quick vs Advanced mode
 
@@ -252,6 +252,21 @@ Tracks persist across page reloads (capped at 100). A counter shows the current 
 
 ---
 
+## Discover Artists
+
+The **Discover Artists** section sits between Discover Tracks and Refine Playlist. It finds **new artists** matching your taste profile, each with a few representative tracks — artist-level discovery rather than a track playlist.
+
+Two controls:
+
+- **Artists size** — how many new artists to discover (1–10).
+- **Exploration vs Accuracy** — *Familiar* favours close matches; *Adventurous* surfaces obscure, under-the-radar artists.
+
+Every pick is **new**: artists already confirmed or previously suggested in your profile are excluded. SpotyVibe retrieves a wide candidate pool from the music corpus, then a single AI pass selects the final list — each artist shown with a one-line reason, genre tags, and a few tracks.
+
+Tracks are verified on Spotify; found tracks are linked, missing ones marked *not on Spotify*. **Apply to Playlist** adds the verified tracks to a playlist (create / append / replace — same modal as Discover Tracks); **Clear** discards the list.
+
+---
+
 ## Refine Playlist
 
 Load any of your Spotify playlists and review tracks one by one.
@@ -266,7 +281,7 @@ Useful for cleaning up old playlists and teaching SpotyVibe retroactively.
 
 ## Run History
 
-Collapsible **History** panel below Discover Music. Records the last 5 runs with date, track count, and playlist link. Click a row to expand the full track list. Refreshes automatically when a new run completes while open.
+Collapsible **History** panel below Discover Tracks. Records the last 5 runs with date, track count, and playlist link. Click a row to expand the full track list. Refreshes automatically when a new run completes while open.
 
 ---
 

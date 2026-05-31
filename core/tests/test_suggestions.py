@@ -1610,6 +1610,105 @@ class TestSelectTracks:
         assert "no track examples available" in user_msg
 
 
+class TestSelectTracksQ1PoolShuffle:
+    """Q1 (2026-05-23) — per-batch deterministic shuffle of the approved
+    artist pool.
+
+    Production post-mortem against the user's `japanese_theatrical`
+    profile (run f334693d, 2026-05-22) showed Stage 3 picking the same
+    ~6 anchor artists across all 6 batches when given a pool of 50.
+    Classic positional-attention bias. Shuffling by `batch_num` breaks
+    the bias while keeping runs reproducible.
+    """
+
+    _GOOD_RESULT = {
+        "playlist": [
+            {"artist": "x", "track": "y", "reason": "r",
+             "energy": 0.5, "valence": 0.5, "genres": ["g"],
+             "rationale": [{"type": "profile_match", "arg": "z"}]}
+        ]
+    }
+
+    def _make_profile(self):
+        return {
+            "preferences": {"must_have": ["hooks"], "soft_preferences": [], "avoid": []},
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {"liked_tracks": [], "disliked_tracks": []},
+            "artists": {"confirmed": [], "rejected": []},
+            "meta": {},
+        }
+
+    def _capture_user_message(self, approved_names, batch_num, env=None):
+        """Invoke select_tracks and return the rendered user-role message."""
+        import os
+        import json as _json
+        from unittest.mock import patch
+        from core.src.suggestions import select_tracks
+
+        captured = {}
+
+        def _fake_create(**kw):
+            captured["messages"] = kw.get("messages")
+            return {"choices": [{"message": {"content": _json.dumps(self._GOOD_RESULT)}}],
+                    "usage": {"prompt_tokens": 10, "completion_tokens": 5,
+                              "total_tokens": 15}}
+
+        with patch.dict(os.environ, env or {}, clear=False):
+            with patch("core.src.suggestions.chat_completions_create",
+                       side_effect=_fake_create):
+                with patch("core.src.suggestions.extract_chat_content",
+                           side_effect=lambda r: r["choices"][0]["message"]["content"]):
+                    select_tracks(approved_names, "summary", 5, self._make_profile(),
+                                  batch_num=batch_num)
+
+        return next(m["content"] for m in captured["messages"]
+                    if m["role"] == "user")
+
+    @staticmethod
+    def _artist_order_in_block(user_msg, candidates):
+        """Return the order in which `candidates` appear in user_msg."""
+        positions = []
+        for name in candidates:
+            idx = user_msg.find(f"- {name}")
+            positions.append((idx, name))
+        # Keep only ones actually present, sort by position.
+        return [n for idx, n in sorted(p for p in positions if p[0] >= 0)]
+
+    def test_shuffle_changes_artist_order_across_batches(self):
+        names = [f"Artist{i:02d}" for i in range(20)]
+        msg_b1 = self._capture_user_message(names, batch_num=1)
+        msg_b2 = self._capture_user_message(names, batch_num=2)
+        order_b1 = self._artist_order_in_block(msg_b1, names)
+        order_b2 = self._artist_order_in_block(msg_b2, names)
+        assert order_b1 != names, "batch 1 should NOT match input order"
+        assert order_b2 != names, "batch 2 should NOT match input order"
+        assert order_b1 != order_b2, "different batches must yield different orders"
+
+    def test_shuffle_is_deterministic_per_batch(self):
+        names = [f"Artist{i:02d}" for i in range(20)]
+        msg_a = self._capture_user_message(names, batch_num=3)
+        msg_b = self._capture_user_message(names, batch_num=3)
+        order_a = self._artist_order_in_block(msg_a, names)
+        order_b = self._artist_order_in_block(msg_b, names)
+        assert order_a == order_b, "same batch_num must yield identical order"
+
+    def test_env_override_disables_shuffle(self):
+        names = [f"Artist{i:02d}" for i in range(20)]
+        msg = self._capture_user_message(
+            names, batch_num=5,
+            env={"SPOTYVIBE_DISABLE_POOL_SHUFFLE": "1"},
+        )
+        order = self._artist_order_in_block(msg, names)
+        assert order == names, "shuffle disabled must preserve input order"
+
+    def test_shuffle_does_not_drop_or_duplicate_artists(self):
+        names = [f"Artist{i:02d}" for i in range(50)]
+        msg = self._capture_user_message(names, batch_num=7)
+        order = self._artist_order_in_block(msg, names)
+        assert sorted(order) == sorted(names)
+        assert len(order) == len(set(order))
+
+
 class TestSelectTracksA6PoolStarvationRefusal:
     """A6 (2026-05-13) — pool-starvation refusal gate.
 

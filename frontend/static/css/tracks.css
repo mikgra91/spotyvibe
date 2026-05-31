@@ -24,6 +24,19 @@
     }
 }
 
+/* Bug-1 fix (2026-05-30): liked tracks stay in the Discover list with a
+   persistent green glow + left accent so the user sees what they liked
+   and can still apply it to a playlist. */
+.track-item.liked {
+    border-left: 3px solid var(--spotify-green, #1ed760);
+    box-shadow: 0 0 16px rgba(30, 215, 96, 0.30), 0 0 5px rgba(30, 215, 96, 0.20);
+    background: linear-gradient(90deg, rgba(30, 215, 96, 0.08), transparent 60%);
+}
+.track-item.liked .track-name::after {
+    content: " 👍";
+    font-size: 0.85em;
+}
+
 .track-header { display: flex; align-items: flex-start; gap: var(--sp-4); }
 
 .track-cover-wrap {
@@ -139,12 +152,30 @@
 .songlist-counter-row { min-height: 1.4em; padding: var(--sp-1) 0 2px; }
 .songlist-counter { font-size: var(--fs-sm); color: var(--text-muted); }
 
+/* 2026-05-23: sticky header row pinning the counter + Apply/Clear buttons.
+   Counter left, buttons right; position:sticky pins the row to the
+   viewport top while the user scrolls through the tracklist and releases
+   when discoverTrackArea (the sticky context) ends. Background covers
+   tracks scrolling underneath. */
+.tracklist-sticky-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg, #1b212a);
+    padding-top: var(--sp-2);
+    padding-bottom: var(--sp-2);
+    border-bottom: 1px solid var(--border);
+}
+
 /* ---- Tracklist action buttons (Apply / Clear) ---- */
 .tracklist-actions-row {
-.btn-apply {
-    background: var(--primary);
-    color: var(--btn-cta-text);
-    font-weight: 600;
+    display: flex;
+    gap: var(--sp-2);
+    align-items: center;
 }
 .btn-clear-list {
     background: rgba(27,33,42,0.8);
@@ -162,3 +193,49 @@
 
 .help-loading-text { color: var(--text-muted); }
 
+
+/* ── Discover Artists results ─────────────────────────────────────── */
+.artist-discovery-list { list-style: none; margin: 0; padding: 0; }
+.artist-discovery-item {
+    padding: var(--sp-2) 0;
+    border-bottom: 1px solid var(--border);
+}
+.artist-discovery-item:last-child { border-bottom: none; }
+.artist-discovery-head {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--sp-1);
+}
+.artist-discovery-name {
+    font-weight: 600;
+    font-size: var(--fs-md);
+    color: var(--text);
+}
+.artist-discovery-genre {
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+    background: rgba(27,33,42,0.8);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1px 8px;
+}
+.artist-discovery-reason {
+    font-size: var(--fs-sm);
+    color: var(--text-secondary);
+    margin: 2px 0 var(--sp-1);
+}
+.artist-discovery-tracks {
+    list-style: none;
+    margin: 0;
+    padding-left: var(--sp-2);
+}
+.artist-discovery-track {
+    font-size: var(--fs-sm);
+    color: var(--text-secondary);
+    padding: 1px 0;
+}
+.artist-discovery-track a { color: var(--text-secondary); text-decoration: none; }
+@media (hover: hover) { .artist-discovery-track a:hover { color: var(--text); } }
+.artist-discovery-track--missing { opacity: 0.55; }
+.artist-discovery-missing { font-size: var(--fs-xs, 0.75rem); color: var(--text-muted); font-style: italic; }

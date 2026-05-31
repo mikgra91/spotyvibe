@@ -1,0 +1,111 @@
+{
+  "name": "aged_japanese_s5_BENCHMARK",
+  "last_updated": "2026-05-23T00:00:00+00:00",
+  "meta": {
+    "goal": "Benchmark fixture — simulates a Japanese rock/metal profile after 4 prior sessions. 25 history entries, 5 disliked tracks, 2 rejected artists. Tests dedup-driven exhaustion (Q1/Q2/Q3 regression scenario). DO NOT MODIFY THIS FIXTURE without regenerating benchmark baselines.",
+    "primary_reference": "BABYMETAL"
+  },
+  "preferences": {
+    "core_description": "Japanese rock and metal with theatrical energy, vocal melodies, and high tempo. Prefers Japanese-language vocals. Avoids pure electronic/EDM and 80s-style production.",
+    "must_have": [
+      "Japanese artists",
+      "Rock or metal instrumentation",
+      "High-energy vocal performance"
+    ],
+    "must_have_tags": [
+      "japanese",
+      "j-rock",
+      "j-metal",
+      "j-pop"
+    ],
+    "corpus_tag_hints": [
+      "japanese rock",
+      "japanese metal",
+      "visual kei",
+      "kawaii metal",
+      "anime rock"
+    ],
+    "soft_preferences": [
+      "Theatrical/cinematic arrangement",
+      "Female lead vocals"
+    ],
+    "avoid": [
+      "Pure electronic music",
+      "EDM",
+      "80s production style",
+      "Synth-pop"
+    ],
+    "vibe_description": "Energetic, theatrical, distinctly Japanese."
+  },
+  "artists": {
+    "confirmed": [
+      "BABYMETAL",
+      "Band-Maid",
+      "ONE OK ROCK",
+      "Lovebites"
+    ],
+    "moderate": [],
+    "rejected": [
+      "Fictional Generic Synthpop Band",
+      "Placeholder American 80s Hair Metal"
+    ]
+  },
+  "history": {
+    "suggested_artists": [
+      "babymetal", "band-maid", "one ok rock", "lovebites",
+      "aldious", "mary's blood", "nemophila",
+      "asterism", "passcode", "necronomidol",
+      "ladybaby", "mardelas", "show-ya"
+    ],
+    "suggested_tracks": [
+      {"artist": "babymetal", "track": "gimme chocolate!!"},
+      {"artist": "babymetal", "track": "karate"},
+      {"artist": "band-maid", "track": "domination"},
+      {"artist": "band-maid", "track": "thrill"},
+      {"artist": "one ok rock", "track": "the beginning"},
+      {"artist": "one ok rock", "track": "wherever you are"},
+      {"artist": "lovebites", "track": "shadowmaker"},
+      {"artist": "lovebites", "track": "the apocalypse"},
+      {"artist": "aldious", "track": "die for you"},
+      {"artist": "aldious", "track": "dominator"},
+      {"artist": "mary's blood", "track": "world's end"},
+      {"artist": "mary's blood", "track": "change the fate"},
+      {"artist": "nemophila", "track": "oiran"},
+      {"artist": "nemophila", "track": "rebirth"},
+      {"artist": "asterism", "track": "rough draft"},
+      {"artist": "passcode", "track": "ray"},
+      {"artist": "necronomidol", "track": "skulls in the stars"},
+      {"artist": "ladybaby", "track": "nippon manju"},
+      {"artist": "mardelas", "track": "rise above"},
+      {"artist": "show-ya", "track": "limit"},
+      {"artist": "babymetal", "track": "road of resistance"},
+      {"artist": "babymetal", "track": "megitsune"},
+      {"artist": "band-maid", "track": "endless story"},
+      {"artist": "one ok rock", "track": "we are"},
+      {"artist": "lovebites", "track": "swan song"}
+    ]
+  },
+  "feedback": {
+    "liked_tracks": [
+      {"artist": "babymetal", "track": "karate"},
+      {"artist": "lovebites", "track": "shadowmaker"},
+      {"artist": "band-maid", "track": "thrill"}
+    ],
+    "disliked_tracks": [
+      {"artist": "ladybaby", "track": "nippon manju"},
+      {"artist": "necronomidol", "track": "skulls in the stars"},
+      {"artist": "passcode", "track": "ray"},
+      {"artist": "asterism", "track": "rough draft"},
+      {"artist": "show-ya", "track": "limit"}
+    ],
+    "liked_artists": ["babymetal", "lovebites"],
+    "disliked_artists": []
+  },
+  "taste_rules": {
+    "primary_driver": "Japanese language + rock/metal instrumentation",
+    "dealbreaker_priority": [
+      "Non-Japanese artist",
+      "Pure electronic production"
+    ]
+  }
+}

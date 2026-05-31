@@ -39,11 +39,12 @@ from collections import defaultdict
 from pathlib import Path
 from config import (BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_THRESHOLD,
                     RECENT_VERBATIM_TRACKS,
-                    STAGE3_OVER_REQUEST,
+                    STAGE3_OVER_REQUEST, ARTIST_DISCOVERY_POOL_SIZE,
                     get_model, get_gpt_language, get_stage2_model, get_debug_mode)
 from .utils import strip_code_fences, loads_lenient, debug_log
 from .openai_http import chat_completions_create, extract_chat_content
-from .rag import score_artists, score_artists_stratified, format_candidate_pool_block
+from .rag import (score_artists, score_artists_stratified,
+                  format_candidate_pool_block, retrieve_candidates)
 from .rag.corpus import RagCorpus
 
 # Process-wide corpus handle. Populated once by set_rag_corpus() from app.py
@@ -143,6 +144,10 @@ TRACK_SELECT_SYSTEM_FILE_LOCAL = BASE_DIR / "prompts" / "track_select_system_loc
 # JSON. The minimal schema is `{"playlist": [...]}` only.
 TRACK_SELECT_SYSTEM_FILE_LOCAL_MINIMAL = BASE_DIR / "prompts" / "track_select_system_local_minimal.txt"
 TRACK_SELECT_USER_FILE = BASE_DIR / "prompts" / "track_select_user.txt"
+# Discover Artists feature (2026-05-22): artist-level discovery — suggest
+# N new artists, each with a few representative real tracks.
+ARTIST_SELECT_SYSTEM_FILE = BASE_DIR / "prompts" / "artist_select_system.txt"
+ARTIST_SELECT_USER_FILE = BASE_DIR / "prompts" / "artist_select_user.txt"
 
 
 
@@ -1820,8 +1825,24 @@ def select_tracks(
         system_prompt += emerging_constraint
 
     user_template = load_text_file(TRACK_SELECT_USER_FILE)
+
+    # Q1 (2026-05-23): per-batch deterministic shuffle of approved artists.
+    # Production-trace post-mortem (japanese_theatrical profile,
+    # 2026-05-22) showed Stage 3 recycling the same 6 anchor artists
+    # across 6 batches when given a pool of 50 — classic positional
+    # attention bias. Seeding with batch_num keeps runs reproducible
+    # while ensuring different batches see a different artist order
+    # in the prompt. Set SPOTYVIBE_DISABLE_POOL_SHUFFLE=1 to revert
+    # if a future eval shows regression on a particular model.
+    _shuffled_names = list(approved_artist_names or [])
+    if (_shuffled_names
+            and os.environ.get("SPOTYVIBE_DISABLE_POOL_SHUFFLE") != "1"):
+        import random as _random
+        _rng = _random.Random(batch_num if batch_num else 0)
+        _rng.shuffle(_shuffled_names)
+
     artists_str = _format_approved_artists_block(
-        approved_artist_names, approved_top_tracks
+        _shuffled_names, approved_top_tracks
     )
 
     feedback_summary = build_feedback_summary(profile)
@@ -2108,6 +2129,163 @@ def select_tracks(
     return result, meta
 
 
+# ── Discover Artists ─────────────────────────────────────────────────
+# Artist-level discovery: surface NEW artists worth exploring, each with a
+# small representative selection of real tracks. Separate from the track
+# pipeline — a single RAG retrieval + one LLM pass, no batch loop.
+
+_ARTIST_EXPLORATION_HINTS = {
+    1: "EXPLORATION: Familiar — favour artists closest to the seed; well-known acts are fine.",
+    2: "EXPLORATION: Lean familiar — mostly close matches, an occasional lesser-known pick.",
+    3: "EXPLORATION: Balanced — mix recognisable and lesser-known artists.",
+    4: "EXPLORATION: Lean adventurous — favour lesser-known artists that still fit the seed.",
+    5: "EXPLORATION: Adventurous — favour obscure, under-the-radar artists; avoid obvious mainstream picks.",
+}
+
+
+def select_artists(profile, artist_count=8, exploration=3, corpus=None,
+                   tracks_per_artist=3):
+    """Discover NEW artists for the user (the Discover Artists feature).
+
+    RAG-retrieves a wide candidate pool with known artists excluded (so
+    every pick is new), then a single LLM pass selects up to
+    ``artist_count`` artists, each with up to ``tracks_per_artist`` real
+    released tracks (``prompts/artist_select_*``). The ``exploration``
+    notch (1 = familiar … 5 = adventurous) drives both the RAG popularity
+    penalty and a prompt hint — pure RAG can shift obscurity, but the LLM
+    makes the nuanced taste-fit calls.
+
+    Returns ``(result, meta)`` where result is
+    ``{"artists": [{"artist", "reason", "genres",
+                    "tracks": [{"track", "reason"}], "rationale": [...]}],
+       "reasoning": {...}}``.
+    """
+    import time as _time
+
+    artist_count = max(1, min(int(artist_count or 8), 10))
+    exploration = max(1, min(int(exploration or 3), 5))
+    tracks_per_artist = max(1, min(int(tracks_per_artist or 3), 5))
+
+    def _empty():
+        return {"artists": [], "reasoning": {}}
+
+    if corpus is None or not isinstance(profile, dict):
+        return _empty(), {"latency_s": 0.0, "usage": None, "status": "no_corpus"}
+
+    # Exploration → RAG popularity penalty: familiar (notch 1) lets popular
+    # artists through; adventurous (notch 5) heavily penalises them so the
+    # pool skews obscure.
+    popularity_penalty = round((exploration - 1) / 4 * 0.9, 3)
+
+    # Every pick must be NEW — exclude forbidden + already-suggested artists.
+    deny_keys = collect_forbidden_artists(profile)
+    _history = {
+        a.lower().strip()
+        for a in (profile.get("history", {}) or {}).get("suggested_artists", [])
+    }
+    deny_keys = deny_keys | _history
+
+    candidates = retrieve_candidates(
+        corpus, profile, deny_keys=deny_keys,
+        target_size=ARTIST_DISCOVERY_POOL_SIZE,
+        popularity_penalty=popularity_penalty,
+    )
+    if not candidates:
+        return _empty(), {"latency_s": 0.0, "usage": None, "status": "empty_pool"}
+
+    approved_names = [a.name for a in candidates]
+    approved_top_tracks = {}
+    for a in candidates:
+        key = (a.name or "").lower().strip()
+        if key:
+            approved_top_tracks[key] = list(a.top_tracks or [])[:5]
+
+    taste_summary = build_taste_summary(profile)
+    gpt_language = get_gpt_language()
+
+    prefs = profile.get("preferences", {}) or {}
+    facets = len(prefs.get("must_have") or []) + len(prefs.get("soft_preferences") or [])
+    rationale_count = "4" if facets >= 5 else ("3" if facets >= 2 else "2")
+
+    system_prompt = load_text_file(ARTIST_SELECT_SYSTEM_FILE)
+    for _k, _v in (("{gpt_language}", gpt_language),
+                   ("{artist_count}", str(artist_count)),
+                   ("{tracks_per_artist}", str(tracks_per_artist)),
+                   ("{rationale_count}", rationale_count)):
+        system_prompt = system_prompt.replace(_k, _v)
+    system_prompt = system_prompt + "\n\n" + _ARTIST_EXPLORATION_HINTS[exploration]
+
+    user_message = load_text_file(ARTIST_SELECT_USER_FILE)
+    for _k, _v in (("{approved_artists}",
+                    _format_approved_artists_block(approved_names, approved_top_tracks)),
+                   ("{taste_summary}", taste_summary),
+                   ("{recent_feedback}", build_feedback_summary(profile)),
+                   ("{audio_filters_block}", ""),
+                   ("{artist_count}", str(artist_count)),
+                   ("{tracks_per_artist}", str(tracks_per_artist))):
+        user_message = user_message.replace(_k, _v)
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message},
+    ]
+    model = _resolve_stage3_model(profile)
+
+    _t0 = _time.monotonic()
+    response = chat_completions_create(
+        model=model, messages=messages, temperature=0.4,
+        response_format={"type": "json_object"},
+    )
+    latency_s = _time.monotonic() - _t0
+    raw_content = extract_chat_content(response)
+    debug_log("Artist Discovery", messages, raw_content)
+
+    meta = {
+        "latency_s": latency_s,
+        "usage": response.get("usage") if isinstance(response, dict) else None,
+        "model": model,
+        "status": "ok",
+    }
+
+    content = strip_code_fences(raw_content)
+    if not content:
+        logger.warning("Artist discovery returned an empty response.")
+        return _empty(), meta
+    try:
+        parsed = loads_lenient(content)
+    except json.JSONDecodeError:
+        logger.warning("Artist discovery JSON parse failed: %s", content[:200])
+        return _empty(), meta
+
+    raw_artists = parsed.get("artists") if isinstance(parsed, dict) else None
+    if not isinstance(raw_artists, list):
+        raw_artists = []
+
+    # HC: only artists from the approved pool, distinct, capped at artist_count.
+    approved_lower = {n.lower().strip() for n in approved_names}
+    seen: set[str] = set()
+    clean: list[dict] = []
+    for entry in raw_artists:
+        if not isinstance(entry, dict):
+            continue
+        name = (entry.get("artist") or "").strip()
+        key = name.lower()
+        if not name or key in seen or key not in approved_lower:
+            continue
+        seen.add(key)
+        clean.append(entry)
+        if len(clean) >= artist_count:
+            break
+
+    logger.info("[Discover Artists] pool=%d → returned %d artists (exploration=%d)",
+                len(approved_names), len(clean), exploration)
+    return (
+        {"artists": clean,
+         "reasoning": parsed.get("reasoning", {}) if isinstance(parsed, dict) else {}},
+        meta,
+    )
+
+
 def update_profile(profile, result):
     """Append newly suggested artists and tracks to the profile history.
 
@@ -2209,6 +2387,14 @@ def filter_duplicate_suggestions(profile, result):
     filtered = []
     filtered_out = []
 
+    def _drop(item, reason):
+        # Tag drop reason so the trace post-mortem can group filter
+        # losses by cause (rejected artist vs. exhausted vs. duplicate).
+        # Copy to avoid mutating the original (downstream may inspect).
+        tagged = dict(item)
+        tagged["reason"] = reason
+        filtered_out.append(tagged)
+
     for item in result.get("playlist", []):
         artist = item.get("artist", "").lower().strip()
         track = item.get("track", "").lower().strip()
@@ -2217,28 +2403,28 @@ def filter_duplicate_suggestions(profile, result):
 
         if artist_key in forbidden_artist_keys:
             logger.debug("Filtered (rejected/disliked artist): %s", artist)
-            filtered_out.append(item)
+            _drop(item, "rejected_or_disliked_artist")
             continue
 
         if artist_key in exhausted_artist_keys:
             logger.debug("Filtered (exhausted artist): %s", artist)
-            filtered_out.append(item)
+            _drop(item, "exhausted_artist")
             continue
 
         if key in exclude_keys:
             logger.debug("Filtered (already suggested / disliked): %s - %s", artist, track)
-            filtered_out.append(item)
+            _drop(item, "already_suggested_or_disliked_track")
             continue
 
         if key in seen_in_batch:
             logger.debug("Filtered (duplicate in batch): %s - %s", artist, track)
-            filtered_out.append(item)
+            _drop(item, "duplicate_in_batch")
             continue
 
         artist_counts_in_batch[artist_key] += 1
         if artist_counts_in_batch[artist_key] > 2:
             logger.debug("Filtered (max 2 per artist exceeded): %s", artist)
-            filtered_out.append(item)
+            _drop(item, "max_2_per_artist_exceeded")
             continue
 
         seen_in_batch.add(key)

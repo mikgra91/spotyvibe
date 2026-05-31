@@ -37,6 +37,7 @@ Diese Anleitung erklärt, wie du die **SpotyVibe-Oberfläche** nutzt, um deine V
   <li><a href="#getting-started">Erste Schritte</a></li>
   <li><a href="#user-preferences">Benutzereinstellungen</a></li>
   <li><a href="#discovery--analysis">Band-/Song-Analyse</a></li>
+  <li><a href="#discover-artists">Künstler entdecken</a></li>
   <li><a href="#track-review--feedback">Track-Bewertung &amp; Feedback</a></li>
   <li><a href="#taste-dashboard">Geschmacks-Dashboard</a></li>
   <li><a href="#song-list--run-history">Songliste &amp; Lauf-Verlauf</a></li>
@@ -116,7 +117,7 @@ Die Hauptansicht ist in aufklappbare Komponenten unterteilt, gruppiert unter zwe
 - **🔍 Band-/Song-Analyse** — Erhalte eine KI-gestützte Analyse eines beliebigen Künstlers oder Tracks mit kopierfertigen Profilvorschlägen.
 
 **Spotify-Bereich:**
-- **🎧 Musik entdecken** — Erstelle KI-gestützte Playlists und speichere sie direkt in deinem Spotify-Konto. Enthält ein optionales **Audio-Filter**-Panel, um Vorschläge nach Stimmung einzugrenzen. *(Standardmäßig zugeklappt.)*
+- **🎧 Tracks entdecken** — Erstelle KI-gestützte Playlists und speichere sie direkt in deinem Spotify-Konto. Enthält ein optionales **Audio-Filter**-Panel, um Vorschläge nach Stimmung einzugrenzen. *(Standardmäßig zugeklappt.)*
 - **🔄 Playlist verfeinern** — Lade eine bestehende Playlist und gib Track-für-Track-Feedback, um dein Geschmacksprofil zu verfeinern. *(Standardmäßig zugeklappt.)*
 - **🕓 Verlauf** — Vergangene Generierungs-Läufe anzeigen.
 
@@ -539,11 +540,11 @@ Das ist besonders hilfreich, wenn du weißt, was dir gefällt, aber nicht sicher
 <a id="playlist-generation"></a>
 ## Playlist-Generierung
 
-Sobald dein Profil fertig und Spotify verbunden ist, gehe zum **Spotify**-Bereich und klicke auf **Einblenden** bei der **Musik entdecken**-Überschrift (oder klicke irgendwo auf die Überschrift), um sie aufzuklappen.
+Sobald dein Profil fertig und Spotify verbunden ist, gehe zum **Spotify**-Bereich und klicke auf **Einblenden** bei der **Tracks entdecken**-Überschrift (oder klicke irgendwo auf die Überschrift), um sie aufzuklappen.
 
 Hier erstellt SpotyVibe Playlist-Vorschläge basierend auf deinem Geschmack. Der Bereich ist standardmäßig zugeklappt, um die Seite kompakt zu halten.
 
-![Musik entdecken Bereich aufgeklappt](/docs/screenshots/19_discover_section.png)
+![Tracks entdecken Bereich aufgeklappt](/docs/screenshots/19_discover_section.png)
 
 ---
 
@@ -619,7 +620,7 @@ Im Erweitert-Modus ermöglicht ein **Voreinstellung**-Dropdown oben das Speicher
 <a id="use-audio-filters"></a>
 ### Audio-Filter verwenden
 
-Klicke im **Musik entdecken**-Bereich auf die **🎚 Audio-Filter (optional)**-Leiste, um das Filter-Panel aufzuklappen. Diese optionalen Filter leiten GPT an, Tracks passend zu deiner gewünschten Stimmung und Atmosphäre vorzuschlagen.
+Klicke im **Tracks entdecken**-Bereich auf die **🎚 Audio-Filter (optional)**-Leiste, um das Filter-Panel aufzuklappen. Diese optionalen Filter leiten GPT an, Tracks passend zu deiner gewünschten Stimmung und Atmosphäre vorzuschlagen.
 
 Verfügbare Filter:
 
@@ -645,7 +646,7 @@ Der einfachste Weg, Audio-Filter auszufüllen, ist über die **Band-/Song-Analys
 
 Dies überbrückt die Lücke zwischen Analyse und Generierung — kein Merken von Zahlen mehr nötig.
 
-![Audio-Filter Sub-Panel in Musik entdecken](/docs/screenshots/21_audio_filters.png)
+![Audio-Filter Sub-Panel in Tracks entdecken](/docs/screenshots/21_audio_filters.png)
 
 ![Band-/Song-Analyse mit Filter-Buttons](/docs/screenshots/18_analysis_panel.png)
 
@@ -698,6 +699,24 @@ Während der Generierung können zwei hilfreiche Optionen erscheinen:
 Das ist nützlich, wenn dir die bisherigen Ergebnisse bereits gefallen und du nicht länger warten möchtest.
 
 ![Abbrechen und X Tracks verwenden Buttons](/docs/screenshots/30_cancel_use_tracks.png)
+
+---
+
+<a id="discover-artists"></a>
+## Künstler entdecken
+
+**Künstler entdecken** liegt zwischen „Tracks entdecken“ und „Playlist verfeinern“. Statt einer Track-Playlist bringt es **neue Künstler** zum Vorschein, die einen Blick wert sind — jeweils mit ein paar echten Tracks zum Einstieg.
+
+Klappe den Bereich mit **Einblenden** auf und stelle zwei Regler ein:
+
+- **Anzahl Künstler** — wie viele neue Künstler entdeckt werden (1–10).
+- **Erkundung vs. Genauigkeit** — *Vertraut* bevorzugt Künstler nahe deinem Geschmack; *Abenteuerlich* bringt unbekannte Geheimtipps.
+
+Jeder vorgeschlagene Künstler ist **neu** — Künstler, die bereits in deinem Profil sind (bestätigt oder zuvor vorgeschlagen), werden ausgeschlossen.
+
+Klicke auf **Künstler entdecken**. SpotyVibe ruft einen großen Kandidaten-Pool ab, und ein einzelner KI-Durchlauf wählt die endgültige Liste. Jeder Künstler wird mit einer kurzen Begründung, Genre-Tags und einigen repräsentativen Tracks angezeigt. Auf Spotify gefundene Tracks sind verlinkt; nicht gefundene sind als *nicht auf Spotify* markiert.
+
+Mit **Auf Playlist anwenden** fügst du die auf Spotify verifizierten Tracks einer Playlist hinzu — erstellen, anhängen oder ersetzen, dieselben Optionen wie bei „Tracks entdecken“ — oder **Leeren**, um die Liste zu verwerfen.
 
 ---
 

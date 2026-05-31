@@ -24,6 +24,7 @@ Technologies & patterns used:
 
 import logging
 import os
+import random
 import re
 import time
 from datetime import datetime, timezone
@@ -50,7 +51,7 @@ from spotipy.exceptions import SpotifyException
 # authorises via browser, the app receives a code, exchanges it for
 # access + refresh tokens, and caches them locally.
 from spotipy.oauth2 import SpotifyOAuth, CacheFileHandler
-from config import CACHE_FILE
+from config import CACHE_FILE, COOLDOWN_FILE
 from .errors import TranslatableError
 from .rag.corpus import normalise_name
 from .utils import app_log
@@ -84,17 +85,68 @@ def _is_serial_search_mode() -> bool:
     )
 
 
+# P2 (2026-05-24) — default hard cap on parallel Spotify search workers.
+# Two workers + jitter keeps the API-side fingerprint close to a human
+# clicking quickly (≈3-4 queries/sec) while still parallelising enough
+# to hide network latency. Field-tunable via the env var below; the
+# range is clamped to [1, 5] so a misconfiguration can't reproduce the
+# 2026-05-24 ban incident.
+DEFAULT_MAX_SEARCH_WORKERS = 2
+_MAX_SEARCH_WORKERS_ENV = "SPOTIVIBE_MAX_SEARCH_WORKERS"
+_MAX_SEARCH_WORKERS_FLOOR = 1
+_MAX_SEARCH_WORKERS_CEILING = 5
+
+# P2 (2026-05-24) — jitter window prepended to each Spotify search.
+# 50–150 ms staggers parallel calls enough that Spotify's anomaly
+# detection doesn't see N identical-timestamp queries.
+_JITTER_MIN_S = 0.05
+_JITTER_MAX_S = 0.15
+
+
+def _resolved_max_search_workers() -> int:
+    """Return the active worker cap, reading the env var at call time.
+
+    Reading per-call (not at import) lets a test or a power user flip
+    ``SPOTIVIBE_MAX_SEARCH_WORKERS`` without restarting the process.
+    Invalid values (non-int, out of range) silently fall back to the
+    default — we never want a bad env var to break Spotify search.
+    """
+    raw = os.environ.get(_MAX_SEARCH_WORKERS_ENV, "").strip()
+    if not raw:
+        return DEFAULT_MAX_SEARCH_WORKERS
+    try:
+        n = int(raw)
+    except ValueError:
+        return DEFAULT_MAX_SEARCH_WORKERS
+    if n < _MAX_SEARCH_WORKERS_FLOOR or n > _MAX_SEARCH_WORKERS_CEILING:
+        logger.warning(
+            "%s=%d out of range [%d, %d]; using default %d",
+            _MAX_SEARCH_WORKERS_ENV, n,
+            _MAX_SEARCH_WORKERS_FLOOR, _MAX_SEARCH_WORKERS_CEILING,
+            DEFAULT_MAX_SEARCH_WORKERS,
+        )
+        return DEFAULT_MAX_SEARCH_WORKERS
+    return n
+
+
 def _resolve_search_pool_size(default_max: int, n_unique: int) -> int:
     """Compute the ThreadPoolExecutor max_workers for a search batch.
 
     Serial mode forces 1 worker so a multi-batch eval run can never
-    burst-saturate the Spotify per-token sliding-window quota. Default
-    mode preserves the prior ``min(default_max, n_unique) or 1``
-    behaviour for the user-facing app path.
+    burst-saturate the Spotify per-token sliding-window quota.
+
+    P2 (2026-05-24) — clamp the default-mode cap to the resolved
+    ``MAX_SEARCH_WORKERS`` (default 2) so a single playlist can't fire
+    5+ concurrent Spotify searches against one user token. The prior
+    default (5) looked small but combined with bursty per-batch
+    verification it tripped Spotify's anomaly-detection in field
+    testing (2026-05-24 incident: `Retry-After=38401s` after 3 small
+    playlists in 15 min).
     """
     if _is_serial_search_mode():
         return 1
-    return min(default_max, n_unique) or 1
+    effective_cap = min(default_max, _resolved_max_search_workers())
+    return min(effective_cap, n_unique) or 1
 
 
 def _post_search_throttle() -> None:
@@ -115,6 +167,104 @@ def _post_search_throttle() -> None:
         return
     if delay > 0:
         time.sleep(delay)
+
+
+# ─── P0 (2026-05-24) Spotify long-cooldown gate ─────────────────────
+# When Spotify returns 429 with a Retry-After far longer than our
+# per-request retry cap (90 s), the only safe response is to stop
+# calling Spotify until the cool-down expires. Retrying through a
+# multi-hour ban looks like scraping/probing to Spotify's anomaly
+# detection and can extend the ban. The expiry timestamp is persisted
+# so a restart of the app, or a later run in the same day, still
+# respects the gate.
+
+# Threshold above which a 429 Retry-After triggers the long cool-down
+# gate. Anything below this (transient throttling) is handled by the
+# normal per-request retry path with the existing cap.
+_LONG_COOLDOWN_THRESHOLD_S = 60
+
+
+class SpotifyCooldownError(Exception):
+    """Raised when Spotify has imposed a long cool-down on this token.
+
+    Carries ``seconds_remaining`` so the caller can format a useful UI
+    message. Distinct from ``SpotifyException`` so the executor loop
+    can recognise the cooldown and short-circuit instead of treating
+    it as a per-track failure.
+    """
+
+    def __init__(self, seconds_remaining: int):
+        self.seconds_remaining = int(max(0, seconds_remaining))
+        super().__init__(
+            f"Spotify cooldown active for ~{self.seconds_remaining}s"
+        )
+
+
+def _set_spotify_cooldown(seconds_from_now: int) -> None:
+    """Persist a future timestamp until which Spotify calls must NOT fire.
+
+    Writes a single-line unix epoch second to ``COOLDOWN_FILE``. The
+    parent directory is assumed to exist (it's created at app start
+    for the other state files in the same dir).
+    """
+    if seconds_from_now <= 0:
+        return
+    expires_at = int(time.time()) + int(seconds_from_now)
+    try:
+        COOLDOWN_FILE.parent.mkdir(parents=True, exist_ok=True)
+        COOLDOWN_FILE.write_text(str(expires_at), encoding="utf-8")
+    except OSError as exc:
+        logger.warning("Could not persist Spotify cooldown: %s", exc)
+
+
+def spotify_cooldown_remaining_s() -> int:
+    """Return seconds remaining on the Spotify cool-down, or 0 if clear.
+
+    Reads ``COOLDOWN_FILE`` and computes the remainder. Returns 0 when
+    the file is missing, unreadable, malformed, or already expired —
+    so a stale cool-down file from a long-past incident can't block
+    today's runs forever.
+    """
+    try:
+        if not COOLDOWN_FILE.exists():
+            return 0
+        raw = COOLDOWN_FILE.read_text(encoding="utf-8").strip()
+        if not raw:
+            return 0
+        expires_at = int(raw)
+    except (OSError, ValueError):
+        return 0
+    remaining = expires_at - int(time.time())
+    return remaining if remaining > 0 else 0
+
+
+def is_spotify_in_cooldown() -> bool:
+    """Convenience wrapper — True iff a non-zero cool-down is active."""
+    return spotify_cooldown_remaining_s() > 0
+
+
+def clear_spotify_cooldown() -> None:
+    """Remove the cool-down marker (e.g. on user-initiated retry).
+
+    Safe to call when no marker exists.
+    """
+    try:
+        if COOLDOWN_FILE.exists():
+            COOLDOWN_FILE.unlink()
+    except OSError as exc:
+        logger.warning("Could not clear Spotify cooldown: %s", exc)
+
+
+def _apply_search_jitter() -> None:
+    """Sleep a small random interval before a Spotify search.
+
+    See ``_JITTER_MIN_S``/``_JITTER_MAX_S``. Skipped in serial-search
+    mode because the eval harness already paces calls explicitly via
+    ``_post_search_throttle``.
+    """
+    if _is_serial_search_mode():
+        return
+    time.sleep(random.uniform(_JITTER_MIN_S, _JITTER_MAX_S))
 
 
 # Track A (2026-05-12): pluggable existence verifier. ``None`` =
@@ -659,6 +809,18 @@ def _do_spotify_search(t, shared_sp):
 
     query = _build_track_artist_query(t["artist"], t["track"])
 
+    # P0 (2026-05-24): refuse the call outright if a long cool-down is
+    # active. Cheaper and safer than firing one more request that the
+    # 429-handler below will just re-route into the same SpotifyCooldownError.
+    cooldown_s = spotify_cooldown_remaining_s()
+    if cooldown_s > 0:
+        raise SpotifyCooldownError(cooldown_s)
+
+    # P2 (2026-05-24): stagger parallel workers so N searches don't fire
+    # in the same millisecond. Negligible per-call latency, large drop
+    # in anomaly-detection signal from Spotify's side.
+    _apply_search_jitter()
+
     res = None
     for attempt in range(4):
         try:
@@ -675,6 +837,24 @@ def _do_spotify_search(t, shared_sp):
                 # too low and let the eval cascade into a flagged
                 # account. Honour Retry-After up to 90 s in serial mode.
                 cap = 90 if _is_serial_search_mode() else 30
+                # P0 (2026-05-24): when Spotify reports a Retry-After
+                # longer than the per-request cap (i.e. a real
+                # multi-minute-or-more cooldown, not transient
+                # throttling), STOP. Retrying through a long ban only
+                # extends it; the 2026-05-24 incident saw
+                # Retry-After=38401s (~10.7 h) repeatedly served back
+                # while the app retried every 30 s. Persist the
+                # cool-down so subsequent runs (and a restart) honour
+                # it, then surface a typed exception the caller can
+                # short-circuit on.
+                if retry_after >= _LONG_COOLDOWN_THRESHOLD_S:
+                    _set_spotify_cooldown(retry_after)
+                    logger.warning(
+                        "Spotify 429 — Retry-After=%ds exceeds threshold "
+                        "(%ds); persisting cool-down + stopping retries",
+                        retry_after, _LONG_COOLDOWN_THRESHOLD_S,
+                    )
+                    raise SpotifyCooldownError(retry_after)
                 sleep_s = min(max(retry_after, backoff_floor), cap)
                 logger.warning(
                     "Spotify 429 on attempt %d — Retry-After=%ds (raw), "
@@ -751,6 +931,20 @@ def iter_search_tracks(tracks):
     if not unique_tracks:
         return
 
+    # P0 (2026-05-24): if a long cool-down is already active from a
+    # prior incident, don't even bother spinning up the pool. Surface
+    # the same not_found path the caller already handles so the run
+    # can decide whether to abort the playlist or keep going from cache.
+    _cooldown_s = spotify_cooldown_remaining_s()
+    if _cooldown_s > 0 and _VERIFIER is None:
+        logger.warning(
+            "Spotify search short-circuited — cool-down active for %ds",
+            _cooldown_s,
+        )
+        for t in unique_tracks:
+            yield "not_found", f"{t['artist']} - {t['track']}"
+        return
+
     # N3 (2026-05-13): Track-A verifier abstraction bug-fix. Previously
     # the Spotify-token fetch + spotipy client construction ran
     # unconditionally BEFORE the ``_VERIFIER`` check below, which made
@@ -785,9 +979,38 @@ def iter_search_tracks(tracks):
     try:
         with ThreadPoolExecutor(max_workers=pool_size) as executor:
             futures = {executor.submit(search_one, t): t for t in unique_tracks}
+            # P0 (2026-05-24): when ONE worker discovers a long cool-down,
+            # the pending workers MUST stop — every additional call only
+            # extends the ban. Cancel everything still queued and emit
+            # not_found for the remainder so the SSE stream finalises
+            # cleanly instead of hanging or throwing.
+            cooldown_tripped = False
             for future in as_completed(futures):
+                if cooldown_tripped:
+                    t = futures[future]
+                    yield "not_found", f"{t['artist']} - {t['track']}"
+                    continue
                 try:
                     result_type, result_data = future.result()
+                except SpotifyCooldownError as cd_exc:
+                    cooldown_tripped = True
+                    t = futures[future]
+                    label = f"{t['artist']} - {t['track']}"
+                    logger.warning(
+                        "Spotify cool-down tripped (~%ds) during search — "
+                        "cancelling pending workers",
+                        cd_exc.seconds_remaining,
+                    )
+                    app_log(
+                        f"Spotify cool-down active (~{cd_exc.seconds_remaining}s) "
+                        f"— halting remaining searches"
+                    )
+                    # Best-effort cancel of futures that haven't started yet.
+                    for f in futures:
+                        if not f.done():
+                            f.cancel()
+                    yield "not_found", label
+                    continue
                 except Exception as e:
                     t = futures[future]
                     label = f"{t['artist']} - {t['track']}"

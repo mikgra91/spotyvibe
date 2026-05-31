@@ -10,11 +10,21 @@ import { ensurePlaylistsLoaded, refreshDiscoverPlaylistPicker, rememberLastPlayl
 import { populateReviewPlaylistPicker } from './review.js';
 import { renderTracks } from './tracklist.js';
 
+// Non-default apply source. When set by openApplyModal({tracks, onApplied}),
+// the modal applies these tracks instead of the Discover Tracks staging
+// list and runs onApplied() (instead of clearing State.suggestions) on
+// success. Lets Discover Artists reuse the same modal + endpoint.
+let _applyCtx = null;
+
 /**
  * Open the apply-playlist modal.
+ * @param {{tracks: Array, onApplied: Function}} [ctx] - optional alternate
+ *   source; omit to apply the Discover Tracks staging list (default).
  */
-export async function openApplyModal() {
-    const tracks = State.suggestions.filter(Boolean);
+export async function openApplyModal(ctx = null) {
+    // onclick="openApplyModal()" passes the DOM event — ignore non-track args.
+    _applyCtx = (ctx && Array.isArray(ctx.tracks)) ? ctx : null;
+    const tracks = _applyCtx ? _applyCtx.tracks : State.suggestions.filter(Boolean);
     if (tracks.length === 0) {
         showAlert(i18n('apply.no_tracks', 'No suggestions to apply. Generate some first.'));
         return;
@@ -78,7 +88,7 @@ function _getSelectedMode() {
  * Submit: apply staged tracks to Spotify playlist.
  */
 export async function submitApply() {
-    const tracks = State.suggestions.filter(Boolean);
+    const tracks = _applyCtx ? _applyCtx.tracks : State.suggestions.filter(Boolean);
     if (tracks.length === 0) {
         showAlert(i18n('apply.no_tracks', 'No suggestions to apply.'));
         return;
@@ -145,9 +155,16 @@ export async function submitApply() {
                 .replace('{count}', data.added || tracks.length)
         );
 
-        // Clear the staging list
-        State.setSuggestions([]);
-        renderTracks();
+        // Clear the source list: an alternate source (Discover Artists)
+        // runs its own onApplied cleanup; the default source clears the
+        // Discover Tracks staging list.
+        if (_applyCtx && typeof _applyCtx.onApplied === 'function') {
+            try { _applyCtx.onApplied(); } catch (_) { /* ignore */ }
+        } else {
+            State.setSuggestions([]);
+            renderTracks();
+        }
+        _applyCtx = null;
         closeApplyModal();
 
         // Refresh playlist pickers

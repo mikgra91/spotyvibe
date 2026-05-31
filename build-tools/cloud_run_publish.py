@@ -327,6 +327,48 @@ def _run_phase1_mb_build(top_n: str, keep_intermediates: bool) -> Path:
     return CORPUS_PATH
 
 
+def _seed_lastfm_checkpoint_from_previous(bucket, bucket_name: str) -> bool:
+    """Carry the previous corpus's Last.fm layer forward onto the fresh MB build.
+
+    The published corpus is layered by ``mbid``: an MB tag change does not
+    change an artist's Last.fm data, so re-fetching all ~175k artists from
+    Last.fm every cycle (~29 h) is wasted work. Instead we merge the
+    previously-published ``artists.jsonl.gz`` against the freshly-built
+    MB-only corpus (``merge_corpus.py``) and write a *seed checkpoint*
+    containing every artist that already has Last.fm data — with the new
+    MB fields applied. Uploaded as ``LASTFM_CHECKPOINT_BLOB``, Phase B's
+    existing skip-set then skips all carried-forward artists and fetches
+    only the delta (new / never-enriched mbids).
+
+    Returns True when a seed was produced (a previous corpus existed),
+    False for a first-ever build (caller falls back to a full pass).
+    """
+    prev_local = DATA_DIR / "previous-corpus.jsonl.gz"
+    if not _download(bucket, CORPUS_BLOB, prev_local):
+        print("No previously-published corpus on GCS — first build. "
+              "Last.fm pass will enrich the full corpus.", flush=True)
+        return False
+    local_checkpoint = DATA_DIR / "lastfm-checkpoint.jsonl"
+    _run([
+        sys.executable, "build-tools/rag/merge_corpus.py",
+        "--new-mb", str(MB_ONLY_PATH),
+        "--previous", str(prev_local),
+        "--seed-checkpoint", str(local_checkpoint),
+    ])
+    if not local_checkpoint.exists() or local_checkpoint.stat().st_size == 0:
+        print("WARNING: merge produced no seed checkpoint — falling back to "
+              "a full Last.fm pass.", flush=True)
+        return False
+    # Plain JSONL (no gzip): matches the per-execution checkpoint format
+    # the enricher appends to and finalise reads.
+    _upload(bucket, local_checkpoint, LASTFM_CHECKPOINT_BLOB, "private, max-age=0")
+    carried = _count_rows(local_checkpoint)
+    print(f"Seeded Last.fm checkpoint with {carried} carried-forward rows → "
+          f"gs://{bucket_name}/{LASTFM_CHECKPOINT_BLOB}. Phase B will fetch "
+          f"only new / never-enriched artists.", flush=True)
+    return True
+
+
 def _upload(bucket, src: Path, blob_name: str, cache_control: str) -> None:
     blob = bucket.blob(blob_name)
     blob.cache_control = cache_control
@@ -575,12 +617,18 @@ def main() -> int:
             "completed_batches": [],
             "structural_failures": [],
         }
-        # Clear any prior checkpoint — new corpus, new enrichment pass.
-        try:
-            bucket.blob(LASTFM_CHECKPOINT_BLOB).delete()
-            print(f"Cleared prior {LASTFM_CHECKPOINT_BLOB} (new cycle).", flush=True)
-        except NotFound:
-            pass
+        # Incremental Last.fm: carry the previous corpus's Last.fm layer
+        # forward onto the fresh MB build so this cycle re-fetches only
+        # new / never-enriched artists instead of all ~175k (saves ~29 h).
+        # Falls back to a full enrichment pass on a first-ever build.
+        seeded = _seed_lastfm_checkpoint_from_previous(bucket, bucket_name)
+        if not seeded:
+            try:
+                bucket.blob(LASTFM_CHECKPOINT_BLOB).delete()
+                print(f"Cleared prior {LASTFM_CHECKPOINT_BLOB} "
+                      "(first build / no seed).", flush=True)
+            except NotFound:
+                pass
         _save_state(bucket, state)
         print(f"Cycle initialised: {total_artists} artists, batch_size={batch_size}.",
               flush=True)

@@ -15,7 +15,7 @@ AI-powered music discovery. Describe what you like — SpotyVibe asks an LLM for
 
 ## Features
 
-- **Configurable LLM** — default is **DeepSeek V4 Flash via OpenRouter** (best quality-per-$ as of 2026-05). Switch to OpenAI (gpt-5.4-mini, gpt-4.1, …), Ollama, LM Studio, or any OpenAI-compatible endpoint from Settings → Provider.
+- **Configurable LLM** — default is **Gemini 3.1 Flash Lite via OpenRouter** (cheapest/fastest of the recommended models). Switch to gpt-5.4-mini, Claude Haiku 4.5, Ollama, LM Studio, or any OpenAI-compatible endpoint from Settings → Provider.
 - **Structured taste profile** with multi-profile support, import/export, one-step undo, and an AI-seed-from-playlist option.
 - **Exploration slider** (5 notches) that adjusts playlist size, new-artist %, emerging-artists toggle, and temperature in one pull. Advanced mode exposes every knob individually.
 - **Audio feature filters** (energy, valence, tempo, danceability, acousticness) injected into the GPT prompt. Populate them in one click from a Band/Song Analysis result.
@@ -24,6 +24,7 @@ AI-powered music discovery. Describe what you like — SpotyVibe asks an LLM for
 - **Feedback-aware prompts** — recent like/dislike reasons are summarised and fed back to GPT.
 - **Rationale chips** on every suggestion: `matches '<trait>'`, `similar to <Artist>`, `released YYYY`, `discovery pick`, `matches energy/tempo`.
 - **Taste dashboard** — genre donut, energy × valence scatter, decade bar, once you have ≥ 10 unique tracks.
+- **Discover Artists** — surface new artists matching your taste (1–10 at a time), each with a few representative tracks; apply the Spotify-verified ones straight to a playlist.
 - **Refine Playlist** — load any existing Spotify playlist and curate it track by track.
 - **Run history** — last 5 runs with expandable track lists.
 - **Getting Started checklist** — a floating home-page card that auto-checks setup steps as you complete them.
@@ -52,7 +53,7 @@ Open <http://127.0.0.1:5000> (desktop opens automatically).
 
 > **macOS port 5000:** AirPlay Receiver uses this port by default. Disable it in **System Settings → General → AirDrop & Handoff** if SpotyVibe can't bind.
 
-> **💰 Cost:** DeepSeek V4 Flash via OpenRouter costs ~$0.015 per playlist (paid tier) or **free** on the `:free` route (200 RPD aggregate cap, ~40-65 playlists/day per OR account). OpenAI `gpt-5.4-mini` costs ~$0.05/playlist. Free local providers (Ollama, LM Studio) are supported via Settings → Provider.
+> **💰 Cost:** Gemini 3.1 Flash Lite via OpenRouter costs roughly ~$0.015–0.02 per playlist; `gpt-5.4-mini` ~$0.04 and Claude Haiku 4.5 ~$0.08. Free local providers (Ollama, LM Studio) are supported via Settings → Provider. See [`evaluation/model-performance-result.md`](evaluation/model-performance-result.md) for the full verdict.
 
 ---
 

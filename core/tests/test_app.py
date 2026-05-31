@@ -842,6 +842,74 @@ class TestA6PoolReRetrieve:
         # The run must recover rather than dead-stop with an empty playlist.
         assert '"track": "wide song"' in body
 
+
+class TestDiscoverArtists:
+    """Discover Artists endpoint — RAG + LLM artist-selection, then Spotify
+    verification of each artist's tracks so they can be applied."""
+
+    @patch("app.search_tracks")
+    @patch("app.select_artists")
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    @patch("app.load_profile")
+    @patch("app.normalize_history")
+    @patch("app.get_rag_corpus")
+    @patch("app.is_profile_trained", return_value=True)
+    def test_returns_artists_with_spotify_verified_tracks(
+        self, mock_trained, mock_corpus, mock_norm, mock_load,
+        mock_spotify, mock_select, mock_search, client,
+    ):
+        profile = {"history": {}, "preferences": {}}
+        mock_load.return_value = profile
+        mock_norm.return_value = profile
+        mock_corpus.return_value = object()  # non-None → corpus available
+        mock_select.return_value = (
+            {"artists": [{
+                "artist": "tally hall",
+                "reason": "quirky theatrical pop",
+                "genres": ["art pop"],
+                "tracks": [
+                    {"track": "good day", "reason": "gateway"},
+                    {"track": "ruler of everything", "reason": "range"},
+                ],
+                "rationale": [],
+            }], "reasoning": {"seed_interpretation": "x"}},
+            {"status": "ok"},
+        )
+
+        # search_tracks echoes input dicts ({**t, **payload}) — only the
+        # first track resolves on Spotify.
+        def _search(tracks):
+            found = []
+            for t in tracks:
+                if t["track"] == "good day":
+                    found.append({**t, "uri": "spotify:track:1", "track_id": "1",
+                                  "cover_url": None, "spotify_url": "https://x"})
+            return found, ["tally hall - ruler of everything"]
+        mock_search.side_effect = _search
+
+        resp = client.post(
+            "/api/discover_artists",
+            data=json.dumps({"artist_count": 5, "exploration": 3}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "ok"
+        assert len(data["artists"]) == 1
+        tracks = data["artists"][0]["tracks"]
+        assert len(tracks) == 2
+        # _tid mapping: first track verified, second marked not-found.
+        assert tracks[0]["found"] is True
+        assert tracks[0]["uri"] == "spotify:track:1"
+        assert tracks[1]["found"] is False
+
+    @patch("app.is_profile_trained", return_value=False)
+    def test_requires_trained_profile(self, mock_trained, client):
+        resp = client.post("/api/discover_artists", data=json.dumps({}),
+                            content_type="application/json")
+        assert resp.status_code == 400
+
+
 class TestSpotifyCallback:
     def test_xss_in_error_param_is_escaped(self, client):
         xss_payload = '<script>alert("xss")</script>'
@@ -1721,3 +1789,181 @@ class TestNullUriDedupeRegression:
                 f"artist-{i} missing — null-uri dedup regression "
                 "(only one track survives instead of all 10)"
             )
+
+
+class TestQ2OverlayPruning:
+    """Q2 (2026-05-23) — per-batch overlay pruning.
+
+    Production post-mortem (run 435c7016, 2026-05-22 evening) showed
+    Spotify-found rate collapsing 26% → 7% → 0% across consecutive
+    runs because Stage 3 kept picking from a static `known:` overlay
+    where most tracks failed Spotify verify but were re-offered every
+    batch. ``_prune_dead_tracks_from_overlay`` strips already-verified
+    AND already-failed-this-run tracks so each batch sees a strictly
+    smaller overlay.
+    """
+
+    def test_passthrough_when_no_dead_tracks(self):
+        from app import _prune_dead_tracks_from_overlay
+        overlay = {"foo": ["one", "two"], "bar": ["three"]}
+        result = _prune_dead_tracks_from_overlay(overlay, [], [])
+        assert result == overlay
+
+    def test_passthrough_on_empty_overlay(self):
+        from app import _prune_dead_tracks_from_overlay
+        assert _prune_dead_tracks_from_overlay(None, [], []) is None
+        assert _prune_dead_tracks_from_overlay({}, [], []) == {}
+
+    def test_drops_verified_tracks_from_overlay(self):
+        from app import _prune_dead_tracks_from_overlay
+        overlay = {"foo": ["one", "two", "three"]}
+        verified = [{"artist": "Foo", "track": "Two"}]
+        out = _prune_dead_tracks_from_overlay(overlay, verified, [])
+        assert out == {"foo": ["one", "three"]}
+
+    def test_drops_unverified_tracks_from_overlay(self):
+        from app import _prune_dead_tracks_from_overlay
+        overlay = {"foo": ["one", "two", "three"]}
+        unverified = [{"artist": "Foo", "track": "Three"}]
+        out = _prune_dead_tracks_from_overlay(overlay, [], unverified)
+        assert out == {"foo": ["one", "two"]}
+
+    def test_artist_can_be_drained_to_empty_list(self):
+        from app import _prune_dead_tracks_from_overlay
+        overlay = {"foo": ["one", "two"]}
+        unverified = [{"artist": "FOO", "track": "ONE"},
+                      {"artist": "Foo", "track": "two"}]
+        out = _prune_dead_tracks_from_overlay(overlay, [], unverified)
+        assert out == {"foo": []}
+
+    def test_case_insensitive_matching(self):
+        from app import _prune_dead_tracks_from_overlay
+        overlay = {"foo": ["Mixed Case Track"]}
+        verified = [{"artist": "FOO", "track": "mixed case track"}]
+        out = _prune_dead_tracks_from_overlay(overlay, verified, [])
+        assert out == {"foo": []}
+
+    def test_does_not_affect_other_artists(self):
+        from app import _prune_dead_tracks_from_overlay
+        overlay = {"foo": ["one"], "bar": ["one"]}
+        verified = [{"artist": "Foo", "track": "One"}]
+        out = _prune_dead_tracks_from_overlay(overlay, verified, [])
+        assert out == {"foo": [], "bar": ["one"]}, (
+            "track 'one' under 'bar' must survive — different artist"
+        )
+
+    def test_missing_artist_or_track_in_dead_entries_is_safe(self):
+        from app import _prune_dead_tracks_from_overlay
+        overlay = {"foo": ["one"]}
+        verified = [{"artist": "", "track": "one"}, {"artist": "foo"}]
+        out = _prune_dead_tracks_from_overlay(overlay, verified, [])
+        assert out == overlay, "blank/missing keys must not match anything"
+
+
+class TestPerArtistCap:
+    """2026-05-30 — per-artist diversity cap with overflow backfill."""
+
+    def _tracks(self, *pairs):
+        return [{"artist": a, "track": t} for a, t in pairs]
+
+    def test_caps_and_frontloads_diversity(self):
+        from app import _enforce_per_artist_cap
+        tracks = self._tracks(
+            ("A", "1"), ("A", "2"), ("A", "3"),
+            ("B", "1"), ("B", "2"),
+            ("C", "1"),
+        )
+        out = _enforce_per_artist_cap(tracks, 2)
+        # No track is lost (stable reorder, not a filter).
+        assert len(out) == len(tracks)
+        # The leading window (first 4 = within-cap picks) has <=2 per artist.
+        leading = out[:4]
+        from collections import Counter
+        counts = Counter(t["artist"] for t in leading)
+        assert all(c <= 2 for c in counts.values())
+        # A's 3rd track is pushed to the overflow tail.
+        assert out[-1] == {"artist": "A", "track": "3"}
+
+    def test_thin_pool_still_fills_via_overflow(self):
+        # 3 artists, 5 tracks each — pool is "thin" in variety. With a
+        # target of 10 the playlist must still contain 10 tracks, but the
+        # first slots favour variety.
+        from app import _enforce_per_artist_cap
+        tracks = self._tracks(*[("A", str(i)) for i in range(5)],
+                              *[("B", str(i)) for i in range(5)],
+                              *[("C", str(i)) for i in range(5)])
+        out = _enforce_per_artist_cap(tracks, 2)
+        assert len(out) == 15  # nothing dropped
+        first6 = out[:6]
+        from collections import Counter
+        assert set(Counter(t["artist"] for t in first6)) == {"A", "B", "C"}
+        assert all(c == 2 for c in Counter(t["artist"] for t in first6).values())
+
+    def test_case_insensitive_artist_key(self):
+        from app import _enforce_per_artist_cap
+        tracks = self._tracks(("Foo", "1"), ("foo", "2"), ("FOO", "3"))
+        out = _enforce_per_artist_cap(tracks, 2)
+        assert out[-1]["track"] == "3"  # 3rd 'foo' overflows regardless of case
+
+    def test_cap_zero_is_noop(self):
+        from app import _enforce_per_artist_cap
+        tracks = self._tracks(("A", "1"), ("A", "2"))
+        assert _enforce_per_artist_cap(tracks, 0) == tracks
+
+
+class TestQ3LowFoundRateTrigger:
+    """Q3 (2026-05-23) — low-found-rate pool widening trigger.
+
+    Production trace 435c7016 verified 4/30 tracks across 7 batches at
+    a cumulative Spotify-found rate of 7% while never firing A6 (the
+    existing trigger required `consecutive_empty_batches`, which only
+    catches post-dedup-empty batches, not Spotify-cascade misses).
+    This trigger fires earlier on the Spotify-cascade failure mode.
+    """
+
+    def _f(self, **kw):
+        from app import _should_widen_pool_on_low_found_rate
+        defaults = dict(
+            batch_num=3,
+            cum_stage3_returned=30,
+            cum_spotify_found=2,  # 7% — the production failure rate
+            use_staged_pipeline=True,
+            reretrieve_done=False,
+            corpus_loaded=True,
+        )
+        defaults.update(kw)
+        return _should_widen_pool_on_low_found_rate(**defaults)
+
+    def test_fires_at_production_failure_rate(self):
+        # 2/30 = 6.7% — well under the 30% threshold.
+        assert self._f() is True
+
+    def test_does_not_fire_when_found_rate_is_healthy(self):
+        assert self._f(cum_spotify_found=15) is False  # 50% > 30%
+
+    def test_does_not_fire_before_min_batches(self):
+        assert self._f(batch_num=1) is False
+
+    def test_fires_on_exactly_min_batches(self):
+        assert self._f(batch_num=2) is True
+
+    def test_skipped_when_reretrieve_already_done(self):
+        assert self._f(reretrieve_done=True) is False
+
+    def test_skipped_when_corpus_not_loaded(self):
+        assert self._f(corpus_loaded=False) is False
+
+    def test_skipped_when_staged_pipeline_off(self):
+        assert self._f(use_staged_pipeline=False) is False
+
+    def test_safe_on_zero_stage3_returns(self):
+        # Division-by-zero guard: stage3 returned nothing yet.
+        assert self._f(cum_stage3_returned=0, cum_spotify_found=0) is False
+
+    def test_at_threshold_exactly_does_not_fire(self):
+        # 3/10 = 0.3 exactly — must be STRICTLY less than 0.3 to fire.
+        assert self._f(cum_stage3_returned=10, cum_spotify_found=3) is False
+
+    def test_just_below_threshold_fires(self):
+        # 2/10 = 0.2 — clearly below 0.3.
+        assert self._f(cum_stage3_returned=10, cum_spotify_found=2) is True

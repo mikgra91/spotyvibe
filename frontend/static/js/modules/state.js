@@ -33,6 +33,18 @@ export function spliceSuggestion(idx) {
     const counterEl = el('songlistCounter');
     if (counterEl) counterEl.textContent = i18n('songlist.counter', '{count} / {max} songs').replace('{count}', count).replace('{max}', maxSize);
 }
+// Bug-1 fix (2026-05-30): liking a track must KEEP it in the discover
+// list (so it can still be applied to a playlist) and mark it liked,
+// rather than removing it like a dislike does. Mutates the live object
+// reference so a subsequent renderTracks() preserves the marker.
+export function markSuggestionLiked(idx, liked = true) {
+    const t = suggestions[idx];
+    if (t) t._liked = liked;
+}
+export function markReviewTrackLiked(idx, liked = true) {
+    const t = reviewTracks[idx];
+    if (t) t._liked = liked;
+}
 export function setOpenFormIndex(val) { openFormIndex = val; }
 export function setOpenFormAction(val) { openFormAction = val; }
 export function setSpotifyAuthStatus(val) { spotifyAuthStatus = val; }

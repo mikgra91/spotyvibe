@@ -31,3 +31,7 @@ evaluation/.run.lock
 # Graphify (local knowledge graph)
 .graphify_detect.json
 graphify-out/
+
+# AI enrichment overlay — 156 MB generated artifact, published to GCS (not git)
+evaluation/enrichment_probe/ai_tags_overlay.json
+evaluation/enrichment_probe/*.tmp

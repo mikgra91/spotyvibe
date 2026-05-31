@@ -37,6 +37,7 @@
   <li><a href="#getting-started">はじめに</a></li>
   <li><a href="#user-preferences">ユーザー設定</a></li>
   <li><a href="#discovery--analysis">Band/Song Analysis</a></li>
+  <li><a href="#discover-artists">アーティストを見つける</a></li>
   <li><a href="#track-review--feedback">曲のレビューとフィードバック</a></li>
   <li><a href="#taste-dashboard">Taste Dashboard</a></li>
   <li><a href="#song-list--run-history">曲リストと実行履歴</a></li>
@@ -530,7 +531,7 @@ SpotyVibe が良いおすすめを生成するには、まずあなたの好み�
 
 ここで SpotyVibe は、あなたの好みに基づいてプレイリスト候補を作成します。ページをコンパクトに保つため、このセクションはデフォルトで折りたたまれています。
 
-![Discover Music section expanded](/docs/screenshots/19_discover_section.png)
+![Discover Tracks section expanded](/docs/screenshots/19_discover_section.png)
 
 ---
 
@@ -629,7 +630,7 @@ Advanced モードでは、上部の **Preset** ドロップダウンから、�
 
 これにより、分析と生成がスムーズにつながり、数値を覚えておく必要がなくなります。
 
-![Audio Filters sub-panel inside Discover Music](/docs/screenshots/21_audio_filters.png)
+![Audio Filters sub-panel inside Discover Tracks](/docs/screenshots/21_audio_filters.png)
 
 ![Band/Song Analysis with Filter buttons](/docs/screenshots/18_analysis_panel.png)
 
@@ -684,6 +685,24 @@ Advanced モードでは、上部の **Preset** ドロップダウンから、�
 すでに結果に満足していて、これ以上待ちたくない場合に便利です。
 
 ![Cancel and Use X Tracks Now buttons](/docs/screenshots/30_cancel_use_tracks.png)
+
+---
+
+<a id="discover-artists"></a>
+## アーティストを見つける
+
+**アーティストを見つける**は「トラックを見つける」と「プレイリストを調整」の間にあります。トラックのプレイリストを作る代わりに、探索する価値のある**新しいアーティスト**を、最初の数曲とともに提示します。
+
+**表示**でセクションを開き、2 つのコントロールを設定します：
+
+- **アーティスト数** — 発見する新しいアーティストの数（1〜10）。
+- **探索 vs 正確さ** — 「身近」はあなたの好みに近いアーティストを優先し、「冒険的」は無名の隠れた名手を掘り起こします。
+
+提案されるアーティストはすべて**新規**です — すでにプロフィールにいるアーティスト（確定済みまたは過去に提案済み）は除外されます。
+
+**アーティストを見つける**をクリックします。SpotyVibe は広い候補プールを取得し、1 回の AI パスで最終リストを選びます。各アーティストは短い理由、ジャンルタグ、代表的な数曲とともに表示されます。Spotify で見つかったトラックはリンクされ、見つからないものは*Spotify にありません*と表示されます。
+
+**プレイリストに適用**で、Spotify で確認済みのトラックをプレイリストに追加できます（作成・追加・置換、「トラックを見つける」と同じオプション）。**クリア**でリストを破棄します。
 
 ---
 

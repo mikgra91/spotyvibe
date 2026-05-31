@@ -102,3 +102,53 @@ def test_aggregate_sentiment_slicing():
     assert result["liked"]["top_genres"][0]["genre"] == "pop"
     assert result["disliked"]["top_genres"][0]["genre"] == "metal"
 
+
+# ── Feedback-store merge (the dashboard bug fix, 2026-05-31) ──────────
+
+def test_feedback_appears_without_any_runs():
+    """Likes/dislikes given on suggestions/previews show up even when no
+    playlist run was ever saved (the reported '0 tracks from 0 runs' bug)."""
+    profile = {"feedback": {
+        "liked_tracks": [{"artist": "Muse", "track": "Hysteria"}],
+        "disliked_tracks": [{"artist": "Nickelback", "track": "Photograph"}],
+    }}
+    result = aggregate_taste([], profile=profile)
+    assert result["runs_considered"] == 0
+    assert result["tracks_considered"] == 2
+    assert result["liked"]["top_artists"][0]["artist"] == "Muse"
+    assert result["disliked"]["top_artists"][0]["artist"] == "Nickelback"
+
+
+def test_feedback_sentiment_overrides_run_and_borrows_metadata():
+    """A track that is 'neutral' in a run but liked in feedback moves to the
+    liked slice, keeping the run's rich metadata (genres)."""
+    runs = [{"tracks": [
+        {"artist": "Muse", "track": "Hysteria", "genres": ["alternative rock"],
+         "sentiment": "neutral", "release_year": 2003},
+    ]}]
+    profile = {"feedback": {"liked_tracks": [{"artist": "muse", "track": "hysteria"}],
+                            "disliked_tracks": []}}
+    result = aggregate_taste(runs, profile=profile)
+    assert result["liked"]["tracks_considered"] == 1
+    assert result["neutral"]["tracks_considered"] == 0
+    # Run metadata is preserved, so the genre + decade charts populate.
+    assert result["liked"]["top_genres"][0]["genre"] == "alternative rock"
+    assert result["liked"]["decades"][0]["decade"] == "2000s"
+
+
+def test_no_profile_preference_genre_fallback():
+    """must_have / soft_preferences vibe phrases must NOT appear as genres."""
+    profile = {
+        "preferences": {
+            "must_have": ["rich vocal harmonies", "momentous song progression"],
+            "soft_preferences": ["upbeat energy"],
+        },
+        "feedback": {"liked_tracks": [{"artist": "A1", "track": "T1"}],
+                     "disliked_tracks": []},
+    }
+    result = aggregate_taste([], profile=profile)
+    # The liked track has no genre data → genre chart is empty, NOT the
+    # profile's vibe phrases.
+    assert result["liked"]["top_genres"] == []
+    assert result["neutral"]["top_genres"] == []
+

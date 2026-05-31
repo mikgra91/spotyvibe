@@ -4,6 +4,8 @@ import { i18n } from './i18n.js';
 import { el } from './dom.js';
 import * as Sdk from './spotify-sdk.js';
 import { postFeedback, postRemove } from './feedback-api.js';
+import { resetDashboard } from './taste_dashboard.js';
+import { removeDiscoverTracksByArtist } from './feedback.js';
 
 let currentPreviewIndex = -1;
 let currentPreviewSource = 'discover'; // 'discover' or 'review'
@@ -236,8 +238,12 @@ export function closePreviewOverlay() {
     const overlay = el('spotifyPreviewOverlay');
     if (!overlay) return;
     overlay.classList.remove('visible');
-    const iframe = el('spotifyPreviewIframe');
-    if (iframe) iframe.src = '';
+    // BUG 2026-05-23: setting iframe.src = '' is ambiguous — some browsers
+    // keep the embedded Spotify player's audio context alive, leaving the
+    // user with audio playing they cannot stop. Replacing the iframe DOM
+    // element with one pointing at about:blank guarantees the audio
+    // context is destroyed.
+    replaceIframe('about:blank');
     currentPreviewIndex = -1;
     // Pause any SDK playback so audio doesn't continue after close.
     if (_playbackMode === 'sdk') {
@@ -271,8 +277,9 @@ export function onExternalTrackRemoved(removedIdx, source = 'discover') {
         if (_playbackMode === 'sdk') {
             Sdk.getPlayer()?.pause().catch(() => {});
         }
-        const iframe = el('spotifyPreviewIframe');
-        if (iframe) iframe.src = '';
+        // Hard-stop iframe audio: see closePreviewOverlay() comment for why
+        // src='' is not enough.
+        replaceIframe('about:blank');
         _stopTicker();
         _sdkAdvanceFiredFor = null;
         const overlay = el('spotifyPreviewOverlay');
@@ -684,9 +691,29 @@ async function _postFeedbackAndReact(action, artist, track, reason) {
             window.refreshGettingStarted();
         }
 
+        // Bug-2 fix (2026-05-30): the preview-overlay quick-rate path never
+        // refreshed "Your taste at a glance", so ratings made while
+        // previewing didn't show up. Reset it like the Discover path does.
+        resetDashboard();
+
         _maybeTriggerRegenProfileTip();
 
-        removeCurrentAndAdvance();
+        // Bug-1 fix (2026-05-30): a LIKE must keep the track in the list
+        // (so the user can still apply it to a playlist) and mark it
+        // liked; only a DISLIKE removes it.
+        if (action === 'dislike') {
+            // Bug-3 fix (2026-05-30): an artist-level dislike (track field
+            // cleared) means "exclude the whole band" — remove ALL their
+            // tracks from the Discover list, not just the current one.
+            if (!track && currentPreviewSource === 'discover') {
+                removeDiscoverTracksByArtist(artist);
+                _advanceToAnyPreviewable();
+            } else {
+                removeCurrentAndAdvance();
+            }
+        } else {
+            markLikedAndAdvance();
+        }
     } catch (e) {
         showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
     }
@@ -742,6 +769,59 @@ export async function previewDismiss() {
  * Remove the currently previewed track from the source list,
  * animate the card out, update counters, and advance to the next track.
  */
+/**
+ * Bug-1 fix (2026-05-30): mark the current track liked and advance to
+ * the next previewable track WITHOUT removing it. The card stays in the
+ * discover list (green-glow via the `.liked` class) so it remains
+ * applicable to a playlist.
+ */
+function markLikedAndAdvance() {
+    closePreviewFeedback();
+
+    const idx = currentPreviewIndex;
+    const source = currentPreviewSource;
+
+    if (source === 'review') {
+        State.markReviewTrackLiked && State.markReviewTrackLiked(idx);
+        const node = el(`review-track-${idx}`);
+        if (node) node.classList.add('liked');
+    } else {
+        State.markSuggestionLiked(idx);
+        const node = el(`track-${idx}`);
+        if (node) node.classList.add('liked');
+    }
+
+    // Advance to the next previewable track. Unlike the remove path the
+    // current track is still present, so step strictly past it.
+    const tracks = getPreviewableTracks();
+    const nextTrack = tracks.find(t => t._origIdx > idx);
+    if (nextTrack) {
+        loadTrackByIndex(nextTrack._origIdx);
+    }
+    // No next track → leave the overlay on the (now-liked) current track
+    // instead of closing, so the user keeps their place.
+}
+
+/**
+ * Bug-3 helper (2026-05-30): after a cascade artist-removal the current
+ * track and several siblings are gone. Jump to any remaining previewable
+ * track, or close the overlay if the list is now empty.
+ */
+function _advanceToAnyPreviewable() {
+    closePreviewFeedback();
+    const tracks = getPreviewableTracks();
+    if (tracks.length === 0) {
+        closePreviewOverlay();
+        return;
+    }
+    const next = tracks.find(t => t._origIdx > currentPreviewIndex) || tracks[0];
+    if (next) {
+        loadTrackByIndex(next._origIdx);
+    } else {
+        closePreviewOverlay();
+    }
+}
+
 function removeCurrentAndAdvance() {
     closePreviewFeedback();
 

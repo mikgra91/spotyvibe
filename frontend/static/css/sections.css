@@ -676,7 +676,8 @@
 }
 
 /* ── Shared generation controls (size + exploration, outside mode bodies) ── */
-.gen-shared-controls { margin-top: var(--sp-1); margin-bottom: var(--sp-1); }
+.gen-shared-controls,
+.discover-artists-controls { margin-top: var(--sp-1); margin-bottom: var(--sp-1); }
 
 .playlist-destination-label {
     display: block;

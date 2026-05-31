@@ -16,16 +16,17 @@ export const PROVIDER_PRESETS = {
     lmstudio:   { id: 'lmstudio',   name_i18n: 'provider.lmstudio',   default_base_url: 'http://localhost:1234/v1',         local: true,  doc_url: 'https://lmstudio.ai/' },
     llamacpp:   { id: 'llamacpp',   name_i18n: 'provider.llamacpp',   default_base_url: 'http://localhost:8080/v1',         local: true,  doc_url: 'https://github.com/ggerganov/llama.cpp' },
     openrouter: { id: 'openrouter', name_i18n: 'provider.openrouter', default_base_url: 'https://openrouter.ai/api/v1',    local: false, doc_url: 'https://openrouter.ai/keys',
-        // 2026-05-20: ordered by the n=3 cross-model eval (see
-        // evaluation/model-performance-result.md). gpt-5.4-mini is the
-        // default — best quality (80.6% must-have cite rate). Gemini 3.1
-        // Flash Lite is the cheap/fast alternative (~3x cheaper, ~2.4x
-        // faster, but 58.9% cite rate). DeepSeek V4 Flash was removed
-        // (60-80% hidden reasoning-token overhead). Users can still add
-        // any model via free-text or the fetch button.
+        // 2026-05-22: ordered by the n=3 cross-model eval (see
+        // evaluation/model-performance-result.md). Gemini 3.1 Flash Lite is
+        // the default — cheapest/fastest, and ~83% must-have cite rate after
+        // the Stage-3 prompt-hierarchy fix. gpt-5.4-mini is the balanced
+        // second choice; claude-haiku-4.5 the highest-quality third.
+        // DeepSeek V4 Flash was removed (60-80% hidden reasoning-token
+        // overhead). Users can still add any model via free-text or fetch.
         suggested_models: [
-            'openai/gpt-5.4-mini',
             'google/gemini-3.1-flash-lite',
+            'openai/gpt-5.4-mini',
+            'anthropic/claude-haiku-4.5',
         ],
     },
 };

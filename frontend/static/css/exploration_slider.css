@@ -23,7 +23,8 @@
     letter-spacing: 0.05em;
 }
 
-.exploration-value {
+.exploration-value,
+.exploration-value-artist {
     font-size: var(--fs-md);
     color: var(--primary);
     font-weight: 600;

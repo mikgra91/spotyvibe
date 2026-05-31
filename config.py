@@ -84,6 +84,15 @@ MAX_SONG_LIST_SIZE = 100
 # the loop is broken and the playlist is created with whatever was found.
 MAX_CONSECUTIVE_EMPTY_BATCHES = 3
 
+# 2026-05-30: max tracks by a single artist in one generated playlist.
+# Field testing showed playlists collapsing to 3 artists × 5 tracks when
+# the candidate pool was thin — which concentrates risk: if the user
+# dislikes that one band, a huge fraction of the playlist is wiped. The
+# cap is applied diverse-first with overflow backfill, so a thin pool
+# still fills to the same count (no fill-rate regression), just with the
+# variety front-loaded.
+MAX_TRACKS_PER_ARTIST_PER_PLAYLIST = 2
+
 # Hard cost guardrails — max GPT calls per single /api/run invocation.
 # 2026-04-27: lowered from 20 → 4 during the Phase 1 quality investigation.
 # When the model is misbehaving, retry-loops just multiply the bill without
@@ -101,14 +110,14 @@ MAX_GPT_CALLS_PER_RUN = 4
 DEFAULT_NEW_ARTIST_PERCENTAGE = 30
 
 # Default LLM model used when none is configured.
-# 2026-05-20: gpt-5.4-mini (routed via OpenRouter) is the project default.
-# The n=3 cross-model eval confirmed it is the best model for this
-# workload — must-have cite rate 80.6% vs Gemini 3.1 Flash Lite's 58.9%,
-# with far tighter run-to-run variance. Gemini remains the recommended
-# cheap/fast alternative (~3x cheaper, ~2.4x faster) for cost-sensitive
-# users. DeepSeek V4 Flash was dropped (60-80% hidden reasoning-token
-# overhead). Full verdict + evidence: evaluation/model-performance-result.md.
-DEFAULT_OPENAI_MODEL = "openai/gpt-5.4-mini"
+# 2026-05-22: gemini-3.1-flash-lite (routed via OpenRouter) is the project
+# default — cheapest and fastest of the recommended three, and after the
+# Stage-3 prompt-hierarchy fix its must-have cite rate climbed from 58.9%
+# to ~83% (n=3 cross-model eval). gpt-5.4-mini is the balanced second
+# choice; claude-haiku-4.5 the highest-quality (and priciest) third.
+# DeepSeek V4 Flash was dropped (60-80% hidden reasoning-token overhead).
+# Full verdict + evidence: evaluation/model-performance-result.md.
+DEFAULT_OPENAI_MODEL = "google/gemini-3.1-flash-lite"
 
 # Stage 2 avoid-compliance checker model (binary classification — cheapest mini).
 # Used by check_avoid_compliance() in suggestions.py. Falls back to get_model()
@@ -152,6 +161,13 @@ RETRIEVE_CANDIDATES_SIZE = 50
 # widening — fires only on an already-failing run, and only once per run.
 RAG_RERETRIEVE_SIZE = 120
 
+# Discover Artists feature (2026-05-22): candidate pool size for artist-level
+# discovery. Larger than the track-pipeline pool (50) so the LLM has real
+# headroom to make exploration-aware picks — the user explicitly asked for
+# "more than 20" so a wider net + light AI curation can express the
+# Exploration-vs-Accuracy slider.
+ARTIST_DISCOVERY_POOL_SIZE = 80
+
 # Curated list of known-good OpenAI model IDs for chat completions.
 # Order determines display order in the Settings dropdown.
 OPENAI_SUPPORTED_MODELS_JSON = [
@@ -168,6 +184,35 @@ OPENAI_SUPPORTED_MODELS_JSON = [
 # candidate — see documentation/ModelRecommendations.md for the canonical
 # 4-model recommendation set.
 OPENAI_EXTRA_ALLOWED_MODELS: list[str] = ["gpt-4o"]
+
+
+# Per-provider model dropdown lists. The Settings model dropdown should
+# show models that ACTUALLY work for the active provider — when the
+# user selects OpenRouter, the dropdown must list OpenRouter-routable
+# ids (provider/model form), not OpenAI's native ids.
+#
+# Source of truth: must stay in sync with
+# `frontend/static/js/modules/provider.js` `PROVIDER_PRESETS[*].suggested_models`.
+# The endpoint `/api/settings/models` reads this when the preset is
+# non-OpenAI so the initial dropdown population matches the JS
+# `onProviderChange` repopulation users see on provider switch.
+PROVIDER_SUGGESTED_MODELS: dict[str, list[str]] = {
+    "openai": OPENAI_SUPPORTED_MODELS_JSON + OPENAI_EXTRA_ALLOWED_MODELS,
+    # 2026-05-22: ordered to match evaluation/model-performance-result.md.
+    # Gemini default (cheap+fast), gpt-5.4-mini second (balanced),
+    # Haiku third (highest cite-rate, candidate). Mirrors provider.js.
+    "openrouter": [
+        "google/gemini-3.1-flash-lite",
+        "openai/gpt-5.4-mini",
+        "anthropic/claude-haiku-4.5",
+    ],
+    # Local providers expose their own model list via /v1/models; the
+    # `Fetch models` button in Settings populates the dropdown live.
+    # The empty defaults below keep the initial render sane until fetch.
+    "ollama": [],
+    "lmstudio": [],
+    "llamacpp": [],
+}
 
 # Reasoning-tier models that reject any explicit `temperature` parameter
 # (even one equal to the default). When such a model is added to
@@ -285,6 +330,14 @@ _APP_DIR = _get_app_dir()
 CREDENTIALS_FILE = _APP_DIR / ".credentials"
 SETTINGS_FILE = _APP_DIR / "settings.conf"
 CACHE_FILE = _APP_DIR / ".spotify-cache"
+# P0 (2026-05-24) — Spotify rate-limit cooldown gate. When the API
+# returns a 429 with a Retry-After far longer than our per-request
+# retry cap, the only safe response is to stop calling Spotify
+# entirely until the cool-down expires; retrying through a long ban
+# only extends it. The unix-epoch second at which calls may resume
+# is persisted here so subsequent runs (and a restart of the app)
+# still respect the gate.
+COOLDOWN_FILE = _APP_DIR / ".spotify-cooldown"
 PROFILES_DIR = _APP_DIR / "profiles"
 
 

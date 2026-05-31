@@ -134,6 +134,7 @@ Secrets are stored in the OS keychain (Windows Credential Manager / macOS Keycha
 | POST | `/api/feedback/dislike-artist` | Record artist-level dislike AND strip every track by that artist from the active playlist. Returns `{removal: {removed_count, removed_tracks}}`. |
 | POST | `/api/remove` | Remove a track from Spotify without recording feedback. |
 | POST | `/api/analyze` | Band/song analysis. |
+| POST | `/api/discover_artists` | Discover Artists feature. Body: `artist_count` (1–10), `exploration` (1–5). Non-streaming JSON. One RAG retrieval (known artists excluded) + one LLM pass via `suggestions.select_artists()` using `prompts/artist_select_*`; returns `artists` (each with `reason`, `genres`, `tracks` verified on Spotify) + `reasoning`. |
 | GET | `/api/profile/status` | Trained state + timestamp. |
 | GET | `/api/profile/data` | Active profile JSON (for edit-mode pre-fill). |
 | GET | `/api/profile/export` | Download active profile as `spotyvibe_profile.json`. |
@@ -314,17 +315,27 @@ The corpus (`artists.jsonl.gz`, ~10 MB) is **not** bundled with the app. It is b
 
 1. Runs `refresh_rag_corpus.py` — downloads the latest MusicBrainz JSON dump (~3 GB), **streams** directly from the compressed `.tar.xz` archives (no 33 GB extraction to disk), and invokes `build_rag_corpus.py` to produce the corpus.
 2. **(Optional, currently disabled)** Runs `run_spotify_enrichment.py` if `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` are set and `DISABLE_SPOTIFY_ENRICHMENT` is unset. Disabled since 2026-05-04: Spotify's `genres` field returns empty for all artists post-Feb-2026. Code retained for future re-enablement.
-3. **(Phase B, 2026-05)** Runs `run_lastfm_enrichment.py` if `LASTFM_API_KEY` is set — looks up each MB artist on Last.fm via MBID and attaches `lastfm_listeners`, `lastfm_playcount`, and `lastfm_tags` (weighted community tags, min-weight cutoff ≥ 30). Rate-limited to ~5.5 req/s. Estimated wall-clock for all ~174k artists: ~17 h (within the 24 h timeout). Distinct exit codes: 43 (rate-limit → `halt.flag`) / 44 (auth-error → loud fail). See `build-tools/rag/lastfm_enrichment/client.py`.
+3. **(Phase B — Last.fm enrichment)** Runs `run_lastfm_enrichment.py` if `LASTFM_API_KEY` is set — looks up each MB artist on Last.fm via MBID and attaches `lastfm_listeners`, `lastfm_playcount`, `lastfm_tags` (weighted community tags, min-weight cutoff ≥ 30), and `top_tracks`. Runs as a **self-chaining batched workflow** (`BATCH_SIZE` artists per execution, progress in `build-state.json`, results accumulated in `lastfm-checkpoint.jsonl`). **Incremental since 2026-05-30:** at the start of a new cycle the job no longer discards prior Last.fm work — `merge_corpus.py` carries the previously-published corpus's Last.fm layer forward onto the fresh MB build (matched by `mbid`) and seeds the checkpoint with it, so Phase B re-fetches **only new / never-enriched artists** instead of all ~175k. First-ever full pass: ~17 h. An incremental cycle fetches only artists still lacking Last.fm data — the first run after this change (2026-05-30) carried **146,493** rows forward and fetched a **30,067**-artist delta (~17 %, ~4–5 h); once coverage is complete, later cycles shrink to just genuinely-new artists (≈1 k/month → minutes). Distinct exit codes: 43 (rate-limit → `halt.flag`) / 44 (auth-error → loud fail). See `build-tools/rag/lastfm_enrichment/client.py`.
 4. Computes SHA-256 of the resulting `artists.jsonl.gz`.
 5. Uploads `artists.jsonl.gz` + `manifest.json` to the public GCS bucket.
 6. Wipes the ephemeral working directory.
 
-**Bucket contents** — always exactly two objects:
+**Layered merge/update architecture (2026-05-30)** — the corpus is composed of three independently-owned layers keyed by `mbid`, so rebuilding one layer never discards the others:
+
+- **MusicBrainz base** — `name, begin_year, tags, tag_weights, listener_popularity`; rebuilt from the monthly dump by `build_rag_corpus.py`.
+- **Last.fm** — `lastfm_listeners, lastfm_playcount, lastfm_tags, top_tracks`; fetched only for the delta (see Phase B).
+- **AI** — `ai_tags` (+ confidence); produced **locally and manually** (`evaluation/enrichment_probe/`, run in intervals — *not* automated in Cloud Run) and shipped as a sibling overlay. It survives every base/Last.fm rebuild because it lives in its own file, merged client-side at load (same pattern as `top_tracks_overlay.json`).
+
+[`build-tools/rag/merge_corpus.py`](../build-tools/rag/merge_corpus.py) (`merge_layers()`) is the pure, unit-tested core ([core/tests/test_merge_corpus.py](../core/tests/test_merge_corpus.py)): MB fields come from the fresh build, Last.fm + AI are carried forward by `mbid`, removed mbids are dropped, and `needs_lastfm` reports the exact fetch delta the Last.fm pass must cover.
+
+**Bucket contents** — the two **published** objects clients consume, plus working artifacts the batched cycle maintains:
 
 | Asset | Purpose |
 |---|---|
-| `artists.jsonl.gz` | Top 350,000 artists by Option A popularity proxy (release count + tag total), filtered to acts with `begin_year >= 1960`. One NDJSON row per artist. |
+| `artists.jsonl.gz` | Published corpus: top artists by Option A popularity proxy (release count + tag total), filtered to acts with `begin_year >= 1960`. One NDJSON row per artist. |
 | `manifest.json` | `{corpus_version, built_at, sha256, size_bytes, corpus_url}`. Clients fetch this once per startup to decide whether to prompt for an update. |
+| `artists.mb-only.jsonl.gz`, `lastfm-checkpoint.jsonl`, `build-state.json` | Private working artifacts of the in-flight cycle (MB-only base, accumulating/seeded Last.fm checkpoint, batch progress). Not consumed by clients. |
+| `halt.flag` | Present only when the circuit breaker is open (see § Circuit breaker in `cloud-run-rag-setup.md`). |
 
 **Manual rebuild** (if the weekly Job is insufficient or you need an ad-hoc refresh):
 

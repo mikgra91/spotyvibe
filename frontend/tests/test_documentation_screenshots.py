@@ -488,13 +488,22 @@ class TestDocumentationScreenshotAcquire:
     # -- Playlist Generation ------------------------------------------------
 
     def test_19_discover_section(self, page: Page, screenshot_url):
-        """Screenshot: Discover Music section expanded"""
+        """Screenshot: Discover Tracks section expanded"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
         _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(400)
         _shot_element(page, "19_discover_section", "#generateSection")
+
+    def test_19b_discover_artists_section(self, page: Page, screenshot_url):
+        """Screenshot: Discover Artists section expanded"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#discoverArtistsToggleBtn").click()
+        page.wait_for_timeout(400)
+        _shot_element(page, "19b_discover_artists_section", "#discoverArtistsSection")
 
     def test_20_playlist_mode_selector(self, page: Page, screenshot_url):
         """Screenshot: Playlist mode selector"""

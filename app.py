@@ -23,6 +23,7 @@ from config import (
     CREDENTIALS_FILE,
     BATCH_SIZE, BASE_DIR, get_model, get_settings, get_debug_mode,
     get_playlist_size, DEBUG_LOG_FILE, MAX_CONSECUTIVE_EMPTY_BATCHES,
+    MAX_TRACKS_PER_ARTIST_PER_PLAYLIST,
     get_new_artist_percentage, get_gpt_language, PROFILE_IMPORT_MAX_BYTES,
     GENERAL_REQUEST_MAX_BYTES, MAX_GPT_CALLS_PER_RUN,
     MAX_CORE_DESCRIPTION_LEN, MAX_PROFILE_SECTION_LEN,
@@ -97,7 +98,7 @@ from core.src.suggestions import (
     filter_duplicate_suggestions,
     set_rag_corpus, get_rag_corpus,
     build_taste_summary, build_focused_taste_summary,
-    check_avoid_compliance, select_tracks,
+    check_avoid_compliance, select_tracks, select_artists,
     collect_forbidden_artists,
     get_last_rag_pool_names, get_last_prompt_components,
     set_last_rag_pool_names,
@@ -119,6 +120,7 @@ from core.src.playlist import (
     filter_emerging_artists, fetch_user_playlists, fetch_playlist_items_for_seed,
     get_spotify_client, get_spotify_access_token, get_spotify_session_info,
     remove_all_tracks_by_artist,
+    spotify_cooldown_remaining_s, is_spotify_in_cooldown,
 )
 from core.src.taste import aggregate_taste
 
@@ -732,6 +734,107 @@ def _add_tracks_to_suggested(profile, tracks):
         save_profile(profile)
 
 
+def _should_widen_pool_on_low_found_rate(
+    *,
+    batch_num: int,
+    cum_stage3_returned: int,
+    cum_spotify_found: int,
+    use_staged_pipeline: bool,
+    reretrieve_done: bool,
+    corpus_loaded: bool,
+    min_batches: int = 2,
+    threshold: float = 0.3,
+) -> bool:
+    """Q3 (2026-05-23): trigger condition for the low-found-rate A6
+    pool widening.
+
+    Returns True when the cumulative Spotify-found rate has fallen
+    below *threshold* after at least *min_batches* completed batches
+    and re-retrieve hasn't already been attempted this run. The
+    existing A6 trigger (`consecutive_empty_batches`) only sees
+    post-dedup-empty batches; this catches the Spotify-cascade
+    failure mode (production trace 435c7016: 4/30 verified across
+    7 batches at 7% Spotify-found, never tripped the old trigger).
+    """
+    if not (use_staged_pipeline and corpus_loaded) or reretrieve_done:
+        return False
+    if batch_num < min_batches:
+        return False
+    if cum_stage3_returned <= 0:
+        return False
+    return (cum_spotify_found / cum_stage3_returned) < threshold
+
+
+def _enforce_per_artist_cap(tracks: list, cap: int) -> list:
+    """2026-05-30: reorder a verified-track list so no artist exceeds *cap*
+    in the leading (kept) portion, with the overflow appended after.
+
+    This is a STABLE reorder, not a filter — every input track survives, so
+    the playlist's fill count never regresses. The first ``cap`` tracks per
+    artist are front-loaded; anything beyond the cap is pushed to the tail
+    and only surfaces if the diverse set alone can't fill the target size.
+
+    Motivation: field testing produced playlists of 3 artists × 5 tracks
+    when the candidate pool was thin. Concentrating a playlist on a handful
+    of bands makes a single artist-dislike wipe most of it — exactly the
+    chain reaction users complained about.
+    """
+    if cap <= 0:
+        return tracks
+    from collections import defaultdict
+    counts: dict = defaultdict(int)
+    primary: list = []
+    overflow: list = []
+    for t in tracks:
+        key = (t.get("artist") or "").lower().strip()
+        if counts[key] < cap:
+            counts[key] += 1
+            primary.append(t)
+        else:
+            overflow.append(t)
+    return primary + overflow
+
+
+def _prune_dead_tracks_from_overlay(
+    approved_top_tracks: dict | None,
+    verified_tracks: list,
+    run_unverified: list,
+) -> dict | None:
+    """Q2 (2026-05-23): drop already-verified + already-failed-verify
+    tracks from the per-batch `approved_top_tracks` overlay.
+
+    Production trace 435c7016 showed Spotify-found rate collapsing
+    batch-over-batch because Stage 3 kept seeing the SAME `known:`
+    track titles every batch and re-picking ones that had already
+    failed Spotify resolution. Stripping them here makes each batch's
+    overlay strictly smaller than the last, so the model is forced
+    onto a different choice the moment a track has been tried.
+
+    Returns the same shape (dict[str, list[str]]) with dead tracks
+    removed. Returns the input unchanged when there's nothing to prune.
+    """
+    if not approved_top_tracks:
+        return approved_top_tracks
+    dead_keys = set()
+    for entries, _src in ((verified_tracks, "verified"),
+                          (run_unverified, "unverified")):
+        for t in entries or []:
+            a = (t.get("artist") or "").lower().strip()
+            tk = (t.get("track") or "").lower().strip()
+            if a and tk:
+                dead_keys.add((a, tk))
+    if not dead_keys:
+        return approved_top_tracks
+    pruned = {}
+    for artist_key, tracks in approved_top_tracks.items():
+        live = [
+            t for t in (tracks or [])
+            if (artist_key, (t or "").lower().strip()) not in dead_keys
+        ]
+        pruned[artist_key] = live
+    return pruned
+
+
 @app.route("/api/run", methods=["POST"])
 @app.route("/api/run", methods=["POST"])
 def run_pipeline():
@@ -810,6 +913,25 @@ def run_pipeline():
                 )
                 return
 
+            # P0 (2026-05-24): refuse to start a run while a Spotify
+            # long-cooldown is active. The verify pipeline would just
+            # short-circuit every pick to not_found, burning LLM cost
+            # for a guaranteed-empty playlist. Surface a clear error
+            # with the wait time so the user knows when to retry.
+            _cd_seconds = spotify_cooldown_remaining_s()
+            if _cd_seconds > 0 and not _skip_spotify_check:
+                _cd_minutes = (_cd_seconds + 59) // 60
+                yield _sse(
+                    "error",
+                    message=(
+                        f"Spotify rate-limit cooldown active "
+                        f"(~{_cd_minutes} min remaining). Please try again later."
+                    ),
+                    error_key="error.spotify.cooldown",
+                    error_params={"seconds_remaining": _cd_seconds},
+                )
+                return
+
             # Clear debug log at the start of each run so it only
             # contains data from the current generation.
             if get_debug_mode():
@@ -884,6 +1006,15 @@ def run_pipeline():
             # recent before injection.
             _run_unverified: list[dict] = []
             _RUN_UNVERIFIED_CAP = 80
+
+            # Q3 (2026-05-23): cumulative spotify-found tracking. Drives
+            # the low-found-rate A6 trigger (production post-mortem
+            # showed a 4/30 fill at 7% found-rate with A6 never firing
+            # because dedup filter was passing the batches and the
+            # `consecutive_empty_batches` trigger only sees post-filter
+            # empties, not the Spotify cascade).
+            _cum_stage3_returned = 0
+            _cum_spotify_found = 0
 
             def _build_config_signature(batch_size_used: int) -> str:
                 """Build the eval-log config_signature for this run/batch.
@@ -1128,6 +1259,31 @@ def run_pipeline():
                             key = (a.name or "").lower().strip()
                             if key and key in _approved_lower:
                                 _approved_top_tracks[key] = list(a.top_tracks or [])[:5]
+
+                    # Diagnostic: snapshot the pool the batching loop will
+                    # run against, so a trace post-mortem can answer "did
+                    # the pool have enough material to fill N tracks?".
+                    try:
+                        from core.src import trace as _diag_trace
+                        if _diag_trace.is_active():
+                            _coverage = sum(
+                                1 for n in _approved_names
+                                if _approved_top_tracks.get((n or "").lower().strip())
+                            )
+                            _diag_trace.record("run_pool_initial", {
+                                "stage1_size": len(_stage1_candidates),
+                                "stage2_approved_size": len(_approved_names),
+                                "approved_names": list(_approved_names),
+                                "approved_top_tracks_coverage": _coverage,
+                                "avoid_traits": list(_avoid_traits),
+                                "primary_reference": (
+                                    _primary_ref.get("name") if isinstance(_primary_ref, dict) else None
+                                ),
+                                "playlist_size": playlist_size,
+                                "batch_size": BATCH_SIZE,
+                            })
+                    except Exception as _diag_exc:  # pragma: no cover
+                        logger.debug("trace run_pool_initial skipped: %s", _diag_exc)
                 except Exception as _stage_exc:
                     logger.warning("Phase 1 staging failed (%s) — falling back to legacy path", _stage_exc)
                     _use_staged_pipeline = False
@@ -1166,6 +1322,91 @@ def run_pipeline():
                 if cancel_event.is_set():
                     was_cancelled = True
                     break
+
+                # Q3 (2026-05-23): low-found-rate A6 trigger. The existing
+                # A6 path only fires on `consecutive_empty_batches` AFTER
+                # the dedup filter — it misses the Spotify-cascade failure
+                # mode where every batch returns 10 picks but Spotify
+                # resolves 0-1 of them (production trace 435c7016:
+                # 4/30 verified across 7 batches at 7% found-rate, A6
+                # never fired). Fire pool widening when:
+                #   (a) at least 2 batches have completed,
+                #   (b) cumulative found-rate < 0.3,
+                #   (c) re-retrieve hasn't already been attempted this run,
+                #   (d) the staged pipeline is in use and a corpus is loaded.
+                # The re-retrieve uses the same path A6 uses today (just
+                # promoted to fire earlier on this failure shape).
+                if _should_widen_pool_on_low_found_rate(
+                    batch_num=batch_num,
+                    cum_stage3_returned=_cum_stage3_returned,
+                    cum_spotify_found=_cum_spotify_found,
+                    use_staged_pipeline=_use_staged_pipeline,
+                    reretrieve_done=_rag_reretrieve_done,
+                    corpus_loaded=_corpus is not None,
+                ):
+                    _rag_reretrieve_done = True
+                    _old_pool_size = len(_approved_names)
+                    _found_rate_pct = round(
+                        100 * _cum_spotify_found / _cum_stage3_returned, 1
+                    )
+                    logger.warning(
+                        "[Q3] low spotify-found rate %.1f%% after batch %d — "
+                        "triggering pool re-retrieve (old_pool=%d)",
+                        _found_rate_pct, batch_num, _old_pool_size,
+                    )
+                    yield _sse(
+                        "progress",
+                        message=(
+                            f"Spotify resolved only {_cum_spotify_found}/"
+                            f"{_cum_stage3_returned} picks ({_found_rate_pct}%) — "
+                            f"widening candidate pool…"
+                        ),
+                    )
+                    try:
+                        from core.src import trace as _e1_trace
+                        with _e1_trace.time_stage(_e1_trace.STAGE_RAG_RETRIEVE):
+                            _stage1_candidates = retrieve_candidates(
+                                _corpus, profile,
+                                deny_keys=_deny_keys,
+                                target_size=RAG_RERETRIEVE_SIZE,
+                                popularity_penalty=0.0,
+                                primary_reference=_primary_ref,
+                            )
+                        set_last_rag_pool_names(
+                            [a.name for a in _stage1_candidates])
+                        if _stage1_candidates:
+                            from core.src.rag.retrieval import get_last_retrieval_meta
+                            _rr_meta = get_last_retrieval_meta() or {}
+                            _approved_names, _stage2_meta = check_avoid_compliance(
+                                [a.name for a in _stage1_candidates],
+                                _avoid_traits,
+                                pool_avoid_overlap=_rr_meta.get("pool_avoid_overlap"),
+                                avoid_traits_fully_covered=bool(
+                                    _rr_meta.get("avoid_traits_fully_covered")),
+                            )
+                            if _approved_names:
+                                _taste_summary = _build_taste_summary_for_pool(
+                                    profile, _stage1_candidates, _approved_names)
+                                _approved_top_tracks = {}
+                                _rr_lower = {n.lower().strip() for n in _approved_names}
+                                for a in _stage1_candidates:
+                                    key = (a.name or "").lower().strip()
+                                    if key and key in _rr_lower:
+                                        _approved_top_tracks[key] = list(a.top_tracks or [])[:5]
+                                logger.info(
+                                    "[Q3] re-retrieve widened approved pool %d → %d artists",
+                                    _old_pool_size, len(_approved_names))
+                                yield _sse(
+                                    "progress",
+                                    message=(
+                                        f"Pool widened to {len(_approved_names)} "
+                                        f"artists — continuing…"
+                                    ),
+                                )
+                    except Exception as _rr_exc:
+                        logger.warning(
+                            "[Q3] low-found-rate re-retrieve failed (%s) — "
+                            "continuing with old pool", _rr_exc)
 
                 batch_num += 1
                 remaining = playlist_size - len(verified_tracks)
@@ -1216,6 +1457,18 @@ def run_pipeline():
 
                 gpt_call_count += 1
                 if _use_staged_pipeline:
+                    # Q2 (2026-05-23): per-batch overlay pruning. Production
+                    # post-mortem showed Spotify-found rate collapsing
+                    # run-over-run (26% → 7% → 0%) because Stage 3 kept
+                    # picking from the SAME `known:` track lines even
+                    # after Spotify proved them unresolvable in this run.
+                    # Strip already-verified tracks AND tracks that
+                    # failed Spotify verify in this run from the overlay
+                    # the model sees this batch — turns repeated misses
+                    # into a strictly monotonic walk away from dead picks.
+                    _live_overlay_for_batch = _prune_dead_tracks_from_overlay(
+                        _approved_top_tracks, verified_tracks, _run_unverified,
+                    )
                     # Phase 1 path: Stage 3 select_tracks uses approved artists
                     # and compact taste summary — no deny list, no full profile JSON.
                     result, _llm_meta = select_tracks(
@@ -1232,7 +1485,7 @@ def run_pipeline():
                         audio_filters=audio_filters or None,
                         emerging_only=emerging_only,
                         temperature=temperature,
-                        approved_top_tracks=_approved_top_tracks or None,
+                        approved_top_tracks=_live_overlay_for_batch or None,
                     )
                 else:
                     # Legacy path: full build_messages + call_gpt (RAG disabled
@@ -1254,6 +1507,17 @@ def run_pipeline():
                 _batch_latencies.append(_llm_meta.get("latency_s") or 0.0)
                 _gpt_returned_count = len(result.get("playlist", []))
 
+                # Diagnostic: snapshot Stage 3's RAW picks BEFORE the HC
+                # drops below so the per-batch trace can show what the
+                # model originally produced vs. what survived enforcement.
+                _stage3_raw_picks_snapshot = [
+                    {"artist": _p.get("artist"), "track": _p.get("track")}
+                    for _p in (result.get("playlist") or [])
+                ]
+                # Always-defined (HC block below may not run on legacy path).
+                _hc2_violations = []
+                _hc1_violations = []
+
                 # ── HC2 + HC1 enforcement (2026-04-27) ──
                 # Phase 2.5 hardening: previously these checks only LOGGED
                 # violations. Now they DROP the offending entries from the
@@ -1264,8 +1528,6 @@ def run_pipeline():
                 if _use_staged_pipeline:
                     _approved_lower = {n.lower().strip() for n in (_approved_names or [])}
                     _stage3_picks = result.get("playlist", []) if isinstance(result, dict) else []
-                    _hc2_violations = []
-                    _hc1_violations = []
                     _kept_picks = []
                     for _entry in _stage3_picks:
                         _a = (_entry.get("artist") or "").lower().strip()
@@ -1441,6 +1703,34 @@ def run_pipeline():
                                 f"(retry {consecutive_empty_batches}/{MAX_CONSECUTIVE_EMPTY_BATCHES}). "
                                 f"Sending explicit reminder to GPT…",
                     )
+                    # Diagnostic: empty-after-filter batch (Stage 3 picked
+                    # but every pick was a duplicate / disliked). Records
+                    # WHICH tracks were dropped so the post-mortem can see
+                    # whether Stage 3 is recycling the same artist's
+                    # catalogue or hitting genuine pool exhaustion.
+                    try:
+                        from core.src import trace as _diag_trace
+                        if _diag_trace.is_active():
+                            _diag_trace.append("run_batches", {
+                                "batch_num": batch_num,
+                                "outcome": "empty_after_filter",
+                                "requested": request_count,
+                                "stage3_returned": _gpt_returned_count,
+                                "stage3_raw_picks": _stage3_raw_picks_snapshot,
+                                "hc2_violations": list(_hc2_violations),
+                                "hc1_violations": list(_hc1_violations),
+                                "filter_dropped": [
+                                    {"artist": _x.get("artist"), "track": _x.get("track"),
+                                     "reason": _x.get("reason")}
+                                    for _x in (filtered_out or [])
+                                ],
+                                "consecutive_empty_after": consecutive_empty_batches,
+                                "temperature": temperature,
+                                "effective_new_artist_pct": effective_nap,
+                                "a6_reretrieve_triggered": _rag_reretrieve_done,
+                            })
+                    except Exception as _diag_exc:  # pragma: no cover
+                        logger.debug("trace run_batches (empty) skipped: %s", _diag_exc)
                     profile = update_profile(profile, result)
                     continue
 
@@ -1612,6 +1902,10 @@ def run_pipeline():
                 profile = update_profile(profile, result)
 
                 last_found_rate = len(found) / max(request_count, 1)
+                # Q3: cumulative spotify-found rate drives the new A6
+                # low-found-rate trigger at the top of the next iteration.
+                _cum_stage3_returned += _gpt_returned_count
+                _cum_spotify_found += len(found)
                 yield _sse(
                     "progress",
                     message=f"Batch {batch_num}: {len(found)} found on Spotify, "
@@ -1620,6 +1914,44 @@ def run_pipeline():
                 # Inform the UI how many tracks we have so far (drives the
                 # "Use X tracks now" button label)
                 yield _sse("batch_verified", count=len(verified_tracks), total=playlist_size)
+
+                # Diagnostic: consolidate per-batch outcome. Lets a
+                # post-mortem walk batch-by-batch through "Stage 3 picked
+                # X, HC dropped Y, dedup dropped Z, Spotify resolved W".
+                try:
+                    from core.src import trace as _diag_trace
+                    if _diag_trace.is_active():
+                        _diag_trace.append("run_batches", {
+                            "batch_num": batch_num,
+                            "outcome": "verified",
+                            "requested": request_count,
+                            "stage3_returned": _gpt_returned_count,
+                            "stage3_raw_picks": _stage3_raw_picks_snapshot,
+                            "hc2_violations": list(_hc2_violations),
+                            "hc1_violations": list(_hc1_violations),
+                            "filter_dropped": [
+                                {"artist": _x.get("artist"), "track": _x.get("track"),
+                                 "reason": _x.get("reason")}
+                                for _x in (filtered_out or [])
+                            ],
+                            "spotify_found": [
+                                {"artist": _t.get("artist"), "track": _t.get("track"),
+                                 "uri": _t.get("uri")}
+                                for _t in found
+                            ],
+                            "spotify_not_found": [
+                                {"artist": _t.get("artist"), "track": _t.get("track")}
+                                for _t in not_found
+                            ],
+                            "verified_total_after": len(verified_tracks),
+                            "playlist_size": playlist_size,
+                            "consecutive_empty_after": consecutive_empty_batches,
+                            "temperature": temperature,
+                            "effective_new_artist_pct": effective_nap,
+                            "gpt_call_count_after": gpt_call_count,
+                        })
+                except Exception as _diag_exc:  # pragma: no cover
+                    logger.debug("trace run_batches (verified) skipped: %s", _diag_exc)
 
             # P0.2: emit run-level latency baseline (Goal #3 measurability).
             try:
@@ -1639,6 +1971,34 @@ def run_pipeline():
                 )
             except Exception as _exc:  # pragma: no cover
                 logger.warning("log_run_summary skipped: %s", _exc)
+
+            # Diagnostic: why did the batching loop terminate?
+            try:
+                from core.src import trace as _diag_trace
+                if _diag_trace.is_active():
+                    if was_cancelled:
+                        _exit_reason = "cancelled"
+                    elif gpt_exhausted:
+                        _exit_reason = "gpt_exhausted"
+                    elif len(verified_tracks) >= playlist_size:
+                        _exit_reason = "target_hit"
+                    elif gpt_call_count >= MAX_GPT_CALLS_PER_RUN:
+                        _exit_reason = "max_calls_reached"
+                    else:
+                        _exit_reason = "other"
+                    _diag_trace.record("run_exit", {
+                        "reason": _exit_reason,
+                        "batches_run": batch_num,
+                        "verified_total": len(verified_tracks),
+                        "playlist_size": playlist_size,
+                        "gpt_calls_used": gpt_call_count,
+                        "gpt_call_limit": MAX_GPT_CALLS_PER_RUN,
+                        "a6_reretrieve_triggered": _rag_reretrieve_done,
+                        "fill_ratio": (len(verified_tracks) / playlist_size
+                                        if playlist_size else 0.0),
+                    })
+            except Exception as _diag_exc:  # pragma: no cover
+                logger.debug("trace run_exit skipped: %s", _diag_exc)
 
             # ── Handle cancellation ────────────────────────────────────────
             if was_cancelled:
@@ -1677,6 +2037,13 @@ def run_pipeline():
 
             # Persist accumulated profile updates (history) once after all batches
             save_profile(profile)
+
+            # 2026-05-30: front-load artist variety before the size cap so a
+            # thin pool can't produce a 3-band playlist. Stable reorder +
+            # overflow backfill ⇒ the track count is unchanged (no fill-rate
+            # regression), only the ordering favours diversity.
+            verified_tracks = _enforce_per_artist_cap(
+                verified_tracks, MAX_TRACKS_PER_ARTIST_PER_PLAYLIST)
 
             # Cap at target count — skip when emerging_only so all survivors are shown
             emerging_checked = len(verified_tracks)
@@ -1889,6 +2256,110 @@ def apply_playlist():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/discover_artists", methods=["POST"])
+def discover_artists():
+    """Discover NEW artists matching the user's taste profile.
+
+    Body: { artist_count: int (1-10), exploration: int (1-5) }
+
+    Runs one RAG retrieval + one LLM artist-selection pass, then verifies
+    each artist's tracks on Spotify so they can be applied to a playlist.
+    Non-streaming JSON — the single LLM call is fast enough not to need
+    SSE progress.
+    """
+    if not is_profile_trained():
+        return jsonify({"error": "Train your taste profile first."}), 400
+
+    data = request.get_json(force=True, silent=True) or {}
+
+    def _clamp(value, lo, hi, default):
+        try:
+            return max(lo, min(int(value), hi))
+        except (TypeError, ValueError):
+            return default
+
+    artist_count = _clamp(data.get("artist_count"), 1, 10, 8)
+    exploration = _clamp(data.get("exploration"), 1, 5, 3)
+
+    try:
+        corpus = get_rag_corpus()
+        if corpus is None:
+            return jsonify({"error": "Artist discovery needs the music corpus. "
+                                     "Enable RAG in Settings."}), 400
+
+        profile = normalize_history(load_profile())
+        result, _meta = select_artists(
+            profile, artist_count=artist_count,
+            exploration=exploration, corpus=corpus,
+        )
+        artists = result.get("artists", []) or []
+
+        # Verify each artist's tracks on Spotify so they can be applied to
+        # a playlist. A stable per-track id (_tid) survives the search
+        # (search_tracks returns {**input, **payload}) so found tracks map
+        # back to their artist unambiguously.
+        flat = []
+        for a in artists:
+            for t in (a.get("tracks") or []):
+                title = (t.get("track") or "").strip()
+                if title:
+                    flat.append({"artist": a.get("artist", ""), "track": title,
+                                 "_tid": len(flat)})
+
+        found_by_tid = {}
+        if flat and get_spotify_auth_status() == "authenticated":
+            found, _nf = search_tracks(flat)
+            for f in found:
+                if "_tid" in f:
+                    found_by_tid[f["_tid"]] = f
+
+        out_artists = []
+        tid = 0
+        for a in artists:
+            tracks_out = []
+            for t in (a.get("tracks") or []):
+                title = (t.get("track") or "").strip()
+                if not title:
+                    continue
+                hit = found_by_tid.get(tid)
+                tid += 1
+                entry = {
+                    "artist": a.get("artist", ""),
+                    "track": title,
+                    "reason": t.get("reason", ""),
+                }
+                if hit:
+                    entry.update({
+                        "track_id": hit.get("track_id"),
+                        "uri": hit.get("uri"),
+                        "cover_url": hit.get("cover_url"),
+                        "spotify_url": hit.get("spotify_url"),
+                        "found": True,
+                    })
+                else:
+                    entry["found"] = False
+                tracks_out.append(entry)
+            out_artists.append({
+                "artist": a.get("artist", ""),
+                "reason": a.get("reason", ""),
+                "genres": a.get("genres", []) or [],
+                "rationale": a.get("rationale", []) or [],
+                "tracks": tracks_out,
+            })
+
+        return jsonify({
+            "status": "ok",
+            "artists": out_artists,
+            "reasoning": result.get("reasoning", {}) or {},
+        })
+
+    except TranslatableError as e:
+        return jsonify(as_response_payload(e)), e.status_code
+    except Exception as e:
+        logger.exception("discover_artists failed")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/feedback", methods=["POST"])
 def submit_feedback():
     """Record a like or dislike and persist it in music_profile.json.
@@ -2035,18 +2506,28 @@ def write_credentials():
 
 @app.route("/api/settings/models")
 def list_models():
-    """Return available OpenAI chat models and the currently selected one.
+    """Return available chat models for the active provider preset.
 
-    Results are cached for _MODELS_CACHE_TTL seconds to avoid redundant
-    API calls each time the Settings panel is opened.
+    Provider-aware as of 2026-05-23: ``get_openai_models()`` reads
+    ``PROVIDER_SUGGESTED_MODELS[preset]`` so the dropdown matches the
+    JS-side ``PROVIDER_PRESETS`` declarations. The cache MUST key on
+    the provider preset so switching from OpenAI → OpenRouter does
+    not return a stale OpenAI list.
     """
+    from config import get_llm_provider_preset
+    preset = get_llm_provider_preset()
     now = time.time()
-    if _models_cache["data"] is not None and now < _models_cache["expires"]:
-        return jsonify({"models": _models_cache["data"], "selected": get_model()})
+    cache_key = _models_cache.get("preset")
+    if (cache_key == preset
+            and _models_cache["data"] is not None
+            and now < _models_cache["expires"]):
+        return jsonify({"models": _models_cache["data"],
+                        "selected": get_model()})
 
     try:
         models = get_openai_models()
         _models_cache["data"] = models
+        _models_cache["preset"] = preset
         _models_cache["expires"] = now + _MODELS_CACHE_TTL
         return jsonify({"models": models, "selected": get_model()})
     except (ValueError, OpenAIConfigError) as e:
@@ -2136,19 +2617,34 @@ def write_settings():
         if url:
             payload["LLM_BASE_URL"] = url
 
+    # Detect whether the RAG toggle actually changed value — the frontend
+    # sends `rag_enabled` on every Save (its current checkbox state), and
+    # reloading a 175k-artist corpus on every Save takes 30-50 s, hanging
+    # the Settings dialog for unrelated changes.
+    from config import get_rag_enabled as _get_rag_enabled_now
+    _rag_was = _get_rag_enabled_now() if "rag_enabled" in data else None
     if "rag_enabled" in data:
         payload["RAG_ENABLED"] = "true" if data["rag_enabled"] else "false"
 
     save_settings(payload)
     app_log(f"Settings changed: {list(payload.keys())}")
 
-    # Hot-swap the RAG corpus handle when the toggle flips. Avoids the
-    # need to restart the app for the flag to take effect.
-    if "rag_enabled" in data:
+    # Invalidate the model-list cache when provider OR model changes
+    # so the next /api/settings/models call rebuilds against the new
+    # PROVIDER_SUGGESTED_MODELS list (2026-05-23 fix: dropdown was
+    # showing OpenAI's models after switching to OpenRouter).
+    if ("provider_preset" in data or "model" in data
+            or "llm_base_url" in data):
+        _models_cache["data"] = None
+        _models_cache["preset"] = None
+        _models_cache["expires"] = 0.0
+
+    # Hot-swap the RAG corpus handle ONLY when the toggle actually flipped.
+    if "rag_enabled" in data and bool(data["rag_enabled"]) != bool(_rag_was):
         try:
-            from config import get_rag_enabled, RAG_CORPUS_PATH, RAG_TAG_ALIASES_PATH
+            from config import RAG_CORPUS_PATH, RAG_TAG_ALIASES_PATH
             from core.src.rag import RagCorpus
-            if get_rag_enabled():
+            if _get_rag_enabled_now():
                 set_rag_corpus(RagCorpus.load(RAG_CORPUS_PATH, RAG_TAG_ALIASES_PATH))
             else:
                 set_rag_corpus(None)

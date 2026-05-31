@@ -10,6 +10,7 @@ import { renderTracks } from './modules/tracklist.js';
 import { openPreviewOverlay, closePreviewOverlay, prevPreview, nextPreview, quickLike, quickDislike, previewDismiss, submitPreviewFeedback, closePreviewFeedback, openPreviewFeedbackPanel, togglePreviewAutoplay, sdkTogglePlay } from './modules/preview.js';
 import { toggleFeedback, closeFeedback, submitFeedback, removeTrack, animateRemove } from './modules/feedback.js';
 import { openApplyModal, closeApplyModal, submitApply, clearSuggestions, _onModeChange as applyModeChange } from './modules/apply-playlist.js';
+import * as DiscoverArtists from './modules/discover-artists.js';
 import { toggleReviewBody, loadPlaylistTracks, renderReviewTracks, toggleReviewFeedback, closeReviewFeedback, submitReviewFeedback, dismissReviewTrack, populateReviewPlaylistPicker, refreshReviewPlaylistPicker, deleteSelectedPlaylist } from './modules/review.js';
 import { showStatus, showStatusHtml, showPlaylistLink, hidePlaylistLink, esc, attr, sanitizeHtml, escHtml, toggleSettingsMenu, showToast } from './modules/ui.js';
 import { openCredentials, saveCredentials, clearCredential, saveSettings, openSettings, openHelp, openSectionHelp, closeSectionHelp, openDataDir, closeModal, dismissHelpBanner, dismissSectionHelpBanner, openQuickstart, closeQuickstart, maybeShowQuickstart, downloadRagCorpus } from './modules/modals.js';
@@ -117,6 +118,10 @@ window.closeApplyModal = closeApplyModal;
 window.submitApply = submitApply;
 window.clearSuggestions = clearSuggestions;
 window.applyModeChange = applyModeChange;
+window.toggleDiscoverArtistsBody = DiscoverArtists.toggleDiscoverArtistsBody;
+window.runDiscoverArtists = DiscoverArtists.runDiscoverArtists;
+window.clearDiscoveredArtists = DiscoverArtists.clearDiscoveredArtists;
+window.openArtistApplyModal = DiscoverArtists.openArtistApplyModal;
 window.toggleReviewBody = toggleReviewBody;
 window.loadPlaylistTracks = loadPlaylistTracks;
 window.renderReviewTracks = renderReviewTracks;
@@ -278,6 +283,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Wave 2: Quick/Advanced mode, exploration slider, presets, completeness
     QuickAdvanced.init();
     Exploration.init();
+    DiscoverArtists.init();
     Presets.init();
     Completeness.init();
 

@@ -847,10 +847,20 @@ class TestSerialSearchModeResolvers:
             assert _is_serial_search_mode() is False, f"failed for {val!r}"
 
     def test_pool_size_default_uses_min(self, monkeypatch):
-        from core.src.playlist import _resolve_search_pool_size
+        # P2 (2026-05-24): default cap clamped to DEFAULT_MAX_SEARCH_WORKERS
+        # (2) so callers can no longer accidentally fire 5+ concurrent
+        # searches. The previous behaviour (raw min) is preserved when
+        # n_unique < cap.
+        from core.src.playlist import (
+            _resolve_search_pool_size, DEFAULT_MAX_SEARCH_WORKERS,
+        )
         monkeypatch.delenv("SPOTIVIBE_SPOTIFY_SEARCH_SERIAL", raising=False)
-        assert _resolve_search_pool_size(5, 10) == 5
-        assert _resolve_search_pool_size(5, 3) == 3
+        monkeypatch.delenv("SPOTIVIBE_MAX_SEARCH_WORKERS", raising=False)
+        assert DEFAULT_MAX_SEARCH_WORKERS == 2
+        assert _resolve_search_pool_size(5, 10) == 2
+        assert _resolve_search_pool_size(5, 3) == 2
+        assert _resolve_search_pool_size(5, 2) == 2
+        assert _resolve_search_pool_size(5, 1) == 1
         assert _resolve_search_pool_size(5, 0) == 1
 
     def test_pool_size_serial_forces_one(self, monkeypatch):
@@ -858,6 +868,30 @@ class TestSerialSearchModeResolvers:
         monkeypatch.setenv("SPOTIVIBE_SPOTIFY_SEARCH_SERIAL", "1")
         assert _resolve_search_pool_size(5, 10) == 1
         assert _resolve_search_pool_size(5, 0) == 1
+
+    def test_pool_size_env_var_override_in_range(self, monkeypatch):
+        # P2 (2026-05-24): SPOTIVIBE_MAX_SEARCH_WORKERS lets a power
+        # user tune concurrency without code change. Values in [1, 5]
+        # are honoured.
+        from core.src.playlist import _resolve_search_pool_size
+        monkeypatch.delenv("SPOTIVIBE_SPOTIFY_SEARCH_SERIAL", raising=False)
+        monkeypatch.setenv("SPOTIVIBE_MAX_SEARCH_WORKERS", "4")
+        assert _resolve_search_pool_size(5, 10) == 4
+        monkeypatch.setenv("SPOTIVIBE_MAX_SEARCH_WORKERS", "1")
+        assert _resolve_search_pool_size(5, 10) == 1
+
+    def test_pool_size_env_var_out_of_range_falls_back(self, monkeypatch):
+        # Misconfigured values silently use the safe default so a typo
+        # can't reproduce the 2026-05-24 ban incident.
+        from core.src.playlist import (
+            _resolve_search_pool_size, DEFAULT_MAX_SEARCH_WORKERS,
+        )
+        monkeypatch.delenv("SPOTIVIBE_SPOTIFY_SEARCH_SERIAL", raising=False)
+        for bad in ("0", "99", "-3", "notanumber", ""):
+            monkeypatch.setenv("SPOTIVIBE_MAX_SEARCH_WORKERS", bad)
+            assert _resolve_search_pool_size(5, 10) == DEFAULT_MAX_SEARCH_WORKERS, (
+                f"bad value {bad!r} should fall back to default"
+            )
 
     def test_post_search_throttle_no_op_when_unset(self, monkeypatch):
         import core.src.playlist as pl
@@ -964,3 +998,175 @@ class TestIterSearchTracksVerifierPrecedence:
         results = list(pl.iter_search_tracks([{"artist": "X", "track": "Y"}]))
         assert results == [("not_found", "X - Y")]
 
+
+# ── P0 (2026-05-24): Spotify long-cooldown gate ─────────────────────
+
+
+class TestSpotifyCooldown:
+    """Round-trip + behavioural tests for the Retry-After gate.
+
+    The cooldown is a one-line file; tests use a per-test temp path so
+    state never leaks between runs.
+    """
+
+    def _redirect_cooldown(self, monkeypatch, tmp_path):
+        import core.src.playlist as pl
+        cf = tmp_path / ".spotify-cooldown"
+        monkeypatch.setattr(pl, "COOLDOWN_FILE", cf)
+        return pl, cf
+
+    def test_no_cooldown_when_file_missing(self, monkeypatch, tmp_path):
+        pl, _ = self._redirect_cooldown(monkeypatch, tmp_path)
+        assert pl.spotify_cooldown_remaining_s() == 0
+        assert pl.is_spotify_in_cooldown() is False
+
+    def test_set_and_read_roundtrip(self, monkeypatch, tmp_path):
+        pl, cf = self._redirect_cooldown(monkeypatch, tmp_path)
+        pl._set_spotify_cooldown(300)
+        remaining = pl.spotify_cooldown_remaining_s()
+        # Allow a small window for test execution time.
+        assert 295 <= remaining <= 300
+        assert pl.is_spotify_in_cooldown() is True
+        assert cf.exists()
+
+    def test_expired_cooldown_reads_zero(self, monkeypatch, tmp_path):
+        pl, cf = self._redirect_cooldown(monkeypatch, tmp_path)
+        import time as _t
+        cf.write_text(str(int(_t.time()) - 10), encoding="utf-8")
+        assert pl.spotify_cooldown_remaining_s() == 0
+
+    def test_malformed_file_treated_as_no_cooldown(self, monkeypatch, tmp_path):
+        pl, cf = self._redirect_cooldown(monkeypatch, tmp_path)
+        cf.write_text("not-a-number", encoding="utf-8")
+        assert pl.spotify_cooldown_remaining_s() == 0
+
+    def test_clear_removes_file(self, monkeypatch, tmp_path):
+        pl, cf = self._redirect_cooldown(monkeypatch, tmp_path)
+        pl._set_spotify_cooldown(60)
+        assert cf.exists()
+        pl.clear_spotify_cooldown()
+        assert not cf.exists()
+        assert pl.spotify_cooldown_remaining_s() == 0
+
+    def test_set_zero_or_negative_is_noop(self, monkeypatch, tmp_path):
+        pl, cf = self._redirect_cooldown(monkeypatch, tmp_path)
+        pl._set_spotify_cooldown(0)
+        pl._set_spotify_cooldown(-5)
+        assert not cf.exists()
+
+
+class TestSpotifySearch429LongRetryAfter:
+    """P0 (2026-05-24): when Retry-After exceeds the threshold the
+    handler must persist a cooldown and raise SpotifyCooldownError
+    instead of looping retries that extend the ban."""
+
+    def _setup(self, monkeypatch, tmp_path):
+        import core.src.playlist as pl
+        cf = tmp_path / ".spotify-cooldown"
+        monkeypatch.setattr(pl, "COOLDOWN_FILE", cf)
+        # Skip the jitter sleep in tests for speed/determinism.
+        monkeypatch.setattr(pl, "_apply_search_jitter", lambda: None)
+        # Skip post-search throttle (no-op for safety).
+        monkeypatch.setattr(pl, "_post_search_throttle", lambda: None)
+        return pl, cf
+
+    def test_long_retry_after_persists_cooldown_and_raises(
+            self, monkeypatch, tmp_path):
+        pl, cf = self._setup(monkeypatch, tmp_path)
+        from spotipy.exceptions import SpotifyException
+
+        sp = MagicMock()
+        sp.search.side_effect = SpotifyException(
+            http_status=429,
+            code=-1,
+            msg="rate limited",
+            headers={"Retry-After": "38401"},
+        )
+
+        with pytest.raises(pl.SpotifyCooldownError) as excinfo:
+            pl._do_spotify_search({"artist": "a", "track": "b"}, sp)
+
+        assert excinfo.value.seconds_remaining >= 38000
+        # Spotify is called exactly once — no retries against a banned token.
+        assert sp.search.call_count == 1
+        # Cooldown persisted for future runs.
+        assert cf.exists()
+        assert pl.spotify_cooldown_remaining_s() > 0
+
+    def test_short_retry_after_still_uses_retry_loop(
+            self, monkeypatch, tmp_path):
+        pl, cf = self._setup(monkeypatch, tmp_path)
+        from spotipy.exceptions import SpotifyException
+
+        # Skip the actual sleep
+        monkeypatch.setattr(pl.time, "sleep", lambda s: None)
+
+        sp = MagicMock()
+        # First call 429 (short Retry-After), second call succeeds.
+        sp.search.side_effect = [
+            SpotifyException(
+                http_status=429, code=-1, msg="throttle",
+                headers={"Retry-After": "5"},
+            ),
+            {"tracks": {"items": [{
+                "uri": "spotify:track:1",
+                "album": {"images": [], "release_date": "2024-01-01"},
+                "external_urls": {"spotify": "u"},
+                "artists": [{"external_urls": {"spotify": "au"}, "id": "aid"}],
+                "preview_url": None,
+            }]}},
+        ]
+
+        result_type, _ = pl._do_spotify_search(
+            {"artist": "a", "track": "b"}, sp)
+        assert result_type == "found"
+        # No cooldown should have been persisted for a transient 429.
+        assert not cf.exists() or pl.spotify_cooldown_remaining_s() == 0
+        assert sp.search.call_count == 2
+
+    def test_existing_cooldown_short_circuits_before_call(
+            self, monkeypatch, tmp_path):
+        pl, _ = self._setup(monkeypatch, tmp_path)
+        pl._set_spotify_cooldown(600)
+        sp = MagicMock()
+        with pytest.raises(pl.SpotifyCooldownError):
+            pl._do_spotify_search({"artist": "a", "track": "b"}, sp)
+        # Pre-emptive raise — Spotify never touched.
+        assert sp.search.call_count == 0
+
+
+class TestIterSearchTracksCooldown:
+    """The streaming wrapper must short-circuit when cool-down is set
+    AND must cancel pending workers if one mid-stream raises."""
+
+    def test_pre_existing_cooldown_short_circuits_all(
+            self, monkeypatch, tmp_path):
+        import core.src.playlist as pl
+        cf = tmp_path / ".spotify-cooldown"
+        monkeypatch.setattr(pl, "COOLDOWN_FILE", cf)
+        pl._set_spotify_cooldown(900)
+
+        # No verifier installed, no Spotify call should happen.
+        tracks = [{"artist": "x", "track": str(i)} for i in range(3)]
+        results = list(pl.iter_search_tracks(tracks))
+        assert len(results) == 3
+        assert all(k == "not_found" for k, _ in results)
+
+
+class TestApplySearchJitter:
+    def test_jitter_sleeps_in_default_mode(self, monkeypatch):
+        import core.src.playlist as pl
+        monkeypatch.delenv("SPOTIVIBE_SPOTIFY_SEARCH_SERIAL", raising=False)
+        slept = []
+        monkeypatch.setattr(pl.time, "sleep", lambda s: slept.append(s))
+        pl._apply_search_jitter()
+        assert len(slept) == 1
+        assert pl._JITTER_MIN_S <= slept[0] <= pl._JITTER_MAX_S
+
+    def test_jitter_skipped_in_serial_mode(self, monkeypatch):
+        import core.src.playlist as pl
+        monkeypatch.setenv("SPOTIVIBE_SPOTIFY_SEARCH_SERIAL", "1")
+        slept = []
+        monkeypatch.setattr(pl.time, "sleep", lambda s: slept.append(s))
+        pl._apply_search_jitter()
+        assert slept == []
