@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
+from .ai_vocab import GENERIC_AI_TAGS
+
 logger = logging.getLogger(__name__)
 
 # Expected schema per JSONL line. Extra fields are ignored; missing fields
@@ -60,6 +62,13 @@ class ArtistRow:
     lastfm_playcount: int | None = None
     lastfm_tags: list[str] = field(default_factory=list)
     lastfm_tag_weights: list[int] = field(default_factory=list)
+    # ── AI controlled-vocabulary tags (2026-06). Merged at load time from
+    # the ``ai_tags_overlay.json`` sibling file (same durable pattern as
+    # top_tracks). The full set is kept here as metadata; only the
+    # *discriminative* subset (genre/scene/vocal — see ai_vocab.py) is
+    # indexed for retrieval, which densifies the sparse long tail (artists
+    # with ≤1 MB tag become findable via their AI tags).
+    ai_tags: list[str] = field(default_factory=list)
 
 
 def normalise_tag(tag: str) -> str:
@@ -139,6 +148,18 @@ class RagCorpus:
                     continue
                 seen_tags.add(nlt)
                 self.tag_index.setdefault(nlt, []).append(idx)
+            # AI controlled-vocab tags: index only the DISCRIMINATIVE ones
+            # (genre/scene/vocal). Generic mood/rhythm/era/instrumentation
+            # AI tags are excluded (GENERIC_AI_TAGS) — they bloat posting
+            # lists and dilute precision. This is the densification step:
+            # tail artists with no usable MB/Last.fm tags become findable
+            # via their AI tags.
+            for at in a.ai_tags:
+                nat = normalise_tag(at)
+                if not nat or nat in seen_tags or nat in GENERIC_AI_TAGS:
+                    continue
+                seen_tags.add(nat)
+                self.tag_index.setdefault(nat, []).append(idx)
             for nt in seen_tags:
                 doc_freq[nt] = doc_freq.get(nt, 0) + 1
 
@@ -209,12 +230,39 @@ class RagCorpus:
                 except (OSError, json.JSONDecodeError) as exc:
                     logger.warning("Ignoring unreadable top_tracks overlay at %s: %s", op, exc)
 
+        # AI-tags overlay — same durable sibling-file pattern as top_tracks.
+        # Auto-detected next to the corpus; survives Cloud Run base rebuilds
+        # because it lives in its own file. Merged by mbid BEFORE indices are
+        # built so the discriminative AI tags are indexed (see _build_indices).
+        n_ai_merged = 0
+        ai_overlay_path = corpus_path.parent / "ai_tags_overlay.json"
+        if ai_overlay_path.exists():
+            try:
+                ai_doc = json.loads(ai_overlay_path.read_text(encoding="utf-8"))
+                ai_entries = (ai_doc.get("entries") if isinstance(ai_doc, dict)
+                              else None) or (ai_doc if isinstance(ai_doc, dict) else {})
+                if isinstance(ai_entries, dict):
+                    by_mbid_ai: dict[str, ArtistRow] = {a.mbid: a for a in artists if a.mbid}
+                    for mbid, entry in ai_entries.items():
+                        if not isinstance(entry, dict):
+                            continue
+                        row = by_mbid_ai.get(str(mbid))
+                        if row is None:
+                            continue
+                        tags = entry.get("ai_tags") or []
+                        if tags:
+                            row.ai_tags = [str(t) for t in tags if t]
+                            n_ai_merged += 1
+            except (OSError, json.JSONDecodeError) as exc:
+                logger.warning("Ignoring unreadable ai_tags overlay at %s: %s",
+                               ai_overlay_path, exc)
+
         n_enriched = sum(1 for a in artists if a.spotify_id)
         n_with_tracks = sum(1 for a in artists if a.top_tracks)
-        logger.info("RagCorpus loaded: %d artists, %d enriched (%.1f%%), %d with top_tracks (%d from overlay), %d aliases",
+        logger.info("RagCorpus loaded: %d artists, %d enriched (%.1f%%), %d with top_tracks (%d from overlay), %d with ai_tags, %d aliases",
                     len(artists), n_enriched,
                     100.0 * n_enriched / max(1, len(artists)),
-                    n_with_tracks, n_overlay_merged,
+                    n_with_tracks, n_overlay_merged, n_ai_merged,
                     len(aliases))
         return cls(artists, aliases)
 
@@ -294,6 +342,7 @@ class RagCorpus:
                                        if raw.get("lastfm_playcount") is not None else None),
                     lastfm_tags=lastfm_names,
                     lastfm_tag_weights=lastfm_weights,
+                    ai_tags=[str(t) for t in (raw.get("ai_tags") or []) if t],
                 )
 
     # ── lookup helpers ──────────────────────────────────────────────

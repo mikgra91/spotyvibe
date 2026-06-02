@@ -190,7 +190,8 @@ def prepare_sandbox(sandbox_dir: Path, settings: dict,
     dst_rag_dir = sandbox_dir / "rag_corpus"
     dst_rag_dir.mkdir(parents=True, exist_ok=True)
     if src_rag_dir.exists():
-        for fname in ("artists.jsonl.gz", "artists.meta.json", "top_tracks_overlay.json"):
+        for fname in ("artists.jsonl.gz", "artists.meta.json",
+                      "top_tracks_overlay.json", "ai_tags_overlay.json"):
             src = src_rag_dir / fname
             if not src.exists():
                 continue

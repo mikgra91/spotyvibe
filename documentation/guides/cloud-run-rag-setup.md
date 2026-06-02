@@ -722,6 +722,61 @@ Disable temporarily: `DISABLE_LASTFM_ENRICHMENT=1` env var (passthrough — MB-o
 
 ### 9.4 Incremental seeding (2026-05-30)
 A new cycle no longer re-fetches every artist. After the Phase-1 MB build, `cloud_run_publish.py` calls `merge_corpus.py` to **carry the previously-published corpus's Last.fm layer forward** onto the fresh MB build (matched by `mbid`) and writes the result as the seed `lastfm-checkpoint.jsonl`. Phase B's existing skip-set then skips every carried-forward artist and fetches **only the delta** — new mbids plus any still lacking Last.fm data. First production run (2026-05-30): of 176,560 artists, **146,493 were carried forward** and only **30,067** needed fetching (~17 %), turning a ~17 h pass into ~4–5 h. The Last.fm, MusicBrainz, and (local, manual) AI layers each own their own fields, so an update to one never clobbers the others. On a first-ever build (no previous corpus on GCS) the job falls back to a full enrichment pass. See `core/tests/test_merge_corpus.py` for the merge contract.
+
+### 9.5 AI tag layer (controlled-vocabulary enrichment) — 2026-06
+The **third** corpus layer. An LLM (`gpt-4o-mini`) tags each artist with controlled-vocabulary `ai_tags` (genre / scene / vocal / mood / rhythm / era / instrumentation; vocabulary **v3**, 364 terms) plus an `ai_confidence`. Discriminative tags (genre / scene / vocal) are indexed by `core/src/rag/retrieval.py` so sparse / long-tail artists become findable; generic tags (mood / rhythm / era / instrumentation) are deliberately **not** indexed (they dilute precision). See `core/src/rag/ai_vocab.py::GENERIC_AI_TAGS`.
+
+Result fields added to each row:
+- `ai_tags` (list of controlled-vocabulary strings)
+- `ai_confidence` (float 0–1)
+
+**Unlike Last.fm, the AI layer is produced locally, in intervals, by hand** — it is *not* fetched inside the Cloud Run job (no per-artist LLM budget on the cron path). It ships as an mbid-keyed overlay and is **baked into the published rows**.
+
+#### 9.5.1 Produce / update the overlay (local)
+The producer is `evaluation/enrichment_probe/enrich_ai_layer.py`; it writes the working overlay `ai_tags_overlay.json` (entries: `{mbid: {ai_tags, ai_confidence, _usage, _oov, source_hash, …}}`). It is **superset-stable + source-hash gated**, so re-runs only enrich new / changed artists and skip already-tagged ones:
+```bash
+python evaluation/enrichment_probe/enrich_ai_layer.py --sample 400000 --workers 8 --model gpt-4o-mini
+```
+> ⚠ **Tail-cap gotcha:** stratified sampling caps each stratum at a fraction of `--sample`; the corpus is tail-heavy, so use `--sample 400000` to cover the full ~176k. A smaller `n` silently leaves the tail un-enriched.
+
+Then build the **slim** production overlay (drops QA metadata; keeps `mbid → {ai_tags, ai_confidence}`; ~163 MB → ~30 MB) and upload it once:
+```bash
+# slim build: read ai_tags_overlay.json → write ai_tags_overlay.slim.json
+#   {schema_version, layer:"ai_tags", model, vocabulary_version,
+#    entries:{mbid:{ai_tags[, ai_confidence]}}}  (drop rows with empty ai_tags)
+gsutil -h "Cache-Control:private, max-age=0" cp ai_tags_overlay.slim.json \
+  gs://spotivibe-rag-corpus/ai_tags_overlay.json
+```
+
+#### 9.5.2 How it reaches the published corpus
+`cloud_run_publish.py::_bake_ai_overlay` (called from `_finalise_cycle`) downloads `ai_tags_overlay.json` from GCS and runs `merge_corpus.py --new-mb <checkpoint> --previous <checkpoint> --ai-overlay <overlay>`, writing `ai_tags`/`ai_confidence` **into** `artists.jsonl.gz`. Clients get the tags via the normal corpus download — **no separate sidecar fetch, no `distribution.py` change**; `core/src/rag/corpus.py` reads `ai_tags` straight off each row. `merge_layers` also **carries the AI fields forward by `mbid`**, so once baked they survive weekly MB / Last.fm rebuilds even if the overlay isn't re-uploaded; uploading a newer overlay refreshes them. (A local sibling `ai_tags_overlay.json` next to the corpus is still auto-merged by `corpus.py` as a dev / eval convenience.)
+
+#### 9.5.3 Immediate release without waiting for a cycle (one-off bake)
+To push AI tags onto the *current* published corpus without a full rebuild — the procedure used on **2026-06-02**:
+```bash
+gsutil cp gs://spotivibe-rag-corpus/artists.jsonl.gz artists.cur.jsonl.gz
+python build-tools/rag/merge_corpus.py \
+  --new-mb artists.cur.jsonl.gz --previous artists.cur.jsonl.gz \
+  --ai-overlay ai_tags_overlay.slim.json --out artists.baked.jsonl.gz
+# verify: row count preserved + ai_tags populated; recompute sha256/size;
+# bump manifest corpus_version (+ "ai_tags_baked": true).
+gsutil cp gs://.../artists.jsonl.gz gs://.../artists.prev-<date>.jsonl.gz          # 1) backup
+gsutil -h "Cache-Control:public, max-age=86400" cp artists.baked.jsonl.gz gs://.../artists.jsonl.gz  # 2) corpus
+gsutil -h "Cache-Control:public, max-age=300"   cp manifest.json          gs://.../manifest.json     # 3) manifest LAST
+```
+Always upload the corpus **before** the manifest (the manifest must never point at a stale / missing asset), and back up the live corpus first for instant rollback.
+
+#### 9.5.4 Cost
+| Item | Cost |
+|---|---|
+| Full corpus enrichment (~176k artists, `gpt-4o-mini`, vocab v3) | **~€25, ~3 h** (one-off; ~88 % prompt-cached; ~1.7 % empty) |
+| Incremental top-up (only new / changed artists via source-hash gate) | proportional — e.g. a ~30k delta ≈ **~€4–5** |
+| Bake + publish (merge + GCS upload) | **$0** (local CPU + GCS free tier) |
+| Per generated playlist at serve time | **$0** — tags are static corpus data; no per-request LLM cost |
+
+**Model choice:** `gpt-4o-mini` was chosen over `gpt-5.4-mini` — the latter was **~6.3× the cost** for within-noise quality on this controlled-vocab task. Don't revisit unless tag quality regresses (see `evaluation/model-performance-result.md` + `evaluation/enrichment_probe/` verdicts).
+
+**Release log — 2026-06-02:** first AI-tag bake (**173,559** of 176,560 rows; vocab v3) published as `corpus_version` 2026-06-02 over the 2026-05-30 base (+3.4 MB → 25.2 MB gz). Retrieval-quality gate (`run_evaluation.py`, 6 iters): found-rate non-regression on 4 models; must-have-cite within noise (−1.6 / −1.7 pp, < 1 SE) on gpt-5.4-mini / gpt-4.1-mini. A positional "must-have first" prompt enforcement (Lever A) was tested and **rejected** (regressed gpt-5.4-mini −9.7 pp on the gated metric while helping gpt-4.1-mini).
 ---
 ## 10. Circuit breaker & auto-retry (2026-04)
 ### 10.1 Why this exists

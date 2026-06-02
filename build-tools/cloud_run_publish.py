@@ -88,6 +88,11 @@ CORPUS_BLOB = "artists.jsonl.gz"
 MB_ONLY_BLOB = "artists.mb-only.jsonl.gz"
 LASTFM_CHECKPOINT_BLOB = "lastfm-checkpoint.jsonl"
 STATE_BLOB = "build-state.json"
+# AI controlled-vocabulary tag overlay (mbid -> {ai_tags, ai_confidence}).
+# Produced locally in intervals (evaluation/enrichment_probe/enrich_ai_layer.py)
+# and uploaded once; merged into every published corpus so the AI layer
+# survives weekly MB/Last.fm rebuilds (carry-forward by mbid).
+AI_OVERLAY_BLOB = "ai_tags_overlay.json"
 
 DEFAULT_BATCH_SIZE = 5000
 
@@ -369,6 +374,49 @@ def _seed_lastfm_checkpoint_from_previous(bucket, bucket_name: str) -> bool:
     return True
 
 
+def _bake_ai_overlay(bucket, checkpoint_path: Path) -> Path:
+    """Merge the AI tag overlay (if present on GCS) into the final corpus.
+
+    The AI layer (``ai_tags`` / ``ai_confidence``) is produced locally in
+    intervals (``evaluation/enrichment_probe/enrich_ai_layer.py``) and
+    uploaded once as ``AI_OVERLAY_BLOB``. Baking it into the published rows
+    means clients get enriched tags via the normal corpus download — no
+    separate sidecar fetch — and ``merge_layers`` carries the AI fields
+    forward by ``mbid`` on subsequent cycles.
+
+    Best-effort: if no overlay is on GCS the checkpoint is published
+    unchanged (existing ai_tags still survive via carry-forward from the
+    previous corpus during Last.fm seeding). Re-applying the overlay here
+    also lets a freshly-uploaded overlay refresh the published tags.
+
+    Returns the path to publish — the baked file when an overlay was
+    applied, otherwise the original *checkpoint_path*.
+    """
+    ai_local = DATA_DIR / "ai_tags_overlay.json"
+    if not _download(bucket, AI_OVERLAY_BLOB, ai_local):
+        print("No AI overlay on GCS — publishing without an explicit AI bake "
+              "(carry-forward still preserves any existing ai_tags).",
+              flush=True)
+        return checkpoint_path
+    baked = DATA_DIR / "artists.baked.jsonl"
+    # new-mb == previous == checkpoint: MB + Last.fm fields are taken from the
+    # checkpoint itself (authoritative + carried), and only the AI layer is
+    # (re)applied from the overlay. merge_layers is idempotent here.
+    _run([
+        sys.executable, "build-tools/rag/merge_corpus.py",
+        "--new-mb", str(checkpoint_path),
+        "--previous", str(checkpoint_path),
+        "--ai-overlay", str(ai_local),
+        "--out", str(baked),
+    ])
+    if not baked.exists() or baked.stat().st_size == 0:
+        print("WARNING: AI bake produced no output — publishing checkpoint "
+              "unchanged.", flush=True)
+        return checkpoint_path
+    print(f"Baked AI overlay into corpus → {baked}", flush=True)
+    return baked
+
+
 def _upload(bucket, src: Path, blob_name: str, cache_control: str) -> None:
     blob = bucket.blob(blob_name)
     blob.cache_control = cache_control
@@ -460,6 +508,11 @@ def _finalise_cycle(bucket, bucket_name: str, state: dict) -> int:
         print(f"ERROR: no MB-only corpus at gs://{bucket_name}/{MB_ONLY_BLOB}; "
               "cannot finalise.", file=sys.stderr, flush=True)
         return 1
+
+    # Bake the AI tag layer into the corpus before publishing (best-effort;
+    # see _bake_ai_overlay). Row count is preserved, so the sanity ratios
+    # below are unaffected.
+    local_corpus = _bake_ai_overlay(bucket, local_corpus)
 
     final_rows = _count_rows(local_corpus)
     mb_rows = _count_rows(MB_ONLY_PATH)

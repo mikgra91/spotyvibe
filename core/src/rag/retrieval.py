@@ -406,6 +406,13 @@ def _artist_tag_weight(artist: ArtistRow, qtag: str) -> int:
     for g in artist.spotify_genres:
         if normalise_tag(g) == qtag:
             return 2
+    # AI controlled-vocab tags (only the discriminative subset is indexed,
+    # so reaching here means the artist was surfaced via its AI tag — common
+    # for sparse tail artists with no usable MB/Last.fm tags). Curated
+    # controlled vocabulary → solid constant signal, on par with Spotify.
+    for at in artist.ai_tags:
+        if normalise_tag(at) == qtag:
+            return 2
     return 1
 
 

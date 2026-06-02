@@ -2360,13 +2360,32 @@ def discover_artists():
         return jsonify({"error": str(e)}), 500
 
 
+def _request_json_object():
+    """Parse the request body as a JSON object, or yield a 400.
+
+    Hardening (2026-06-01): several POST/DELETE endpoints read
+    ``request.get_json(force=True)`` then call ``data.get(...)`` directly.
+    A wrong-type body (JSON ``null`` / list / number / string) made that
+    ``.get`` raise ``AttributeError`` → HTTP 500. This returns
+    ``(data, None)`` for a JSON object, or ``(None, <400 response>)``
+    otherwise, so callers reject malformed bodies with 400 instead of
+    crashing:  ``data, err = _request_json_object()``; ``if err: return err``.
+    """
+    data = request.get_json(force=True, silent=True)
+    if not isinstance(data, dict):
+        return None, (jsonify({"error": "Request body must be a JSON object."}), 400)
+    return data, None
+
+
 @app.route("/api/feedback", methods=["POST"])
 def submit_feedback():
     """Record a like or dislike and persist it in music_profile.json.
 
     For dislikes the track is also removed from the Spotify playlist.
     """
-    data   = request.get_json(force=True)
+    data, _jerr = _request_json_object()
+    if _jerr:
+        return _jerr
     action = data.get("action")
     artist = safe_text(data, "artist")
     track  = safe_text(data, "track") or None
@@ -2432,7 +2451,9 @@ def dislike_artist_purge():
     Body: {"artist": str, "playlist_id": str, "reason": str (optional)}
     Returns: {"status": "ok", "removal": {...}}
     """
-    data = request.get_json(force=True)
+    data, _jerr = _request_json_object()
+    if _jerr:
+        return _jerr
     artist = safe_text(data, "artist")
     playlist_id = _safe_spotify_id(safe_text(data, "playlist_id") or None)
     reason = safe_text(data, "reason") or None
@@ -2462,7 +2483,9 @@ def dislike_artist_purge():
 @app.route("/api/remove", methods=["POST"])
 def remove_track():
     """Remove a track. In review mode, also removes from Spotify playlist."""
-    data   = request.get_json(force=True)
+    data, _jerr = _request_json_object()
+    if _jerr:
+        return _jerr
     artist = safe_text(data, "artist")
     track  = safe_text(data, "track")
     playlist_id = _safe_spotify_id(safe_text(data, "playlist_id") or None)
@@ -2499,7 +2522,9 @@ def read_credentials():
 @app.route("/api/settings/credentials", methods=["POST"])
 def write_credentials():
     """Update one or more credentials.  Only non-empty values are written."""
-    data = request.get_json(force=True)
+    data, _jerr = _request_json_object()
+    if _jerr:
+        return _jerr
     save_credentials(data)
     return jsonify({"status": "ok", "path": str(CREDENTIALS_FILE)})
 
@@ -2581,7 +2606,9 @@ def download_rag_corpus():
 @app.route("/api/settings", methods=["POST"])
 def write_settings():
     """Update non-secret settings (model, debug mode, playlist size)."""
-    data = request.get_json(force=True)
+    data, _jerr = _request_json_object()
+    if _jerr:
+        return _jerr
     payload = {}
     if "model" in data:
         payload["OPENAI_MODEL"] = data["model"]
@@ -3027,7 +3054,9 @@ def _parse_profile_sections(data, require_description=False):
 @app.route("/api/train-profile", methods=["POST"])
 def train_profile_endpoint():
     """Send the user's structured taste description to GPT and update the profile."""
-    data = request.get_json(force=True)
+    data, _jerr = _request_json_object()
+    if _jerr:
+        return _jerr
 
     sections, error = _parse_profile_sections(data, require_description=True)
     if error:
@@ -3046,7 +3075,9 @@ def train_profile_endpoint():
 @app.route("/api/save-profile", methods=["POST"])
 def save_profile_endpoint():
     """Save the user's profile preferences directly without AI processing."""
-    data = request.get_json(force=True)
+    data, _jerr = _request_json_object()
+    if _jerr:
+        return _jerr
 
     sections, error = _parse_profile_sections(data, require_description=False)
     if error:
@@ -3171,7 +3202,9 @@ def get_songlist():
 @app.route("/api/songlist", methods=["POST"])
 def save_songlist():
     """Save/update the persistent song list."""
-    data = request.get_json(force=True)
+    data, _jerr = _request_json_object()
+    if _jerr:
+        return _jerr
     songs = data.get("songs", [])
     if len(songs) > MAX_SONG_LIST_SIZE:
         return jsonify(error=f"Song list exceeds maximum of {MAX_SONG_LIST_SIZE}"), 400
@@ -3184,7 +3217,9 @@ def save_songlist():
 @app.route("/api/songlist/track", methods=["DELETE"])
 def delete_songlist_track():
     """Permanently remove a specific track from the persistent song list."""
-    data = request.get_json(force=True)
+    data, _jerr = _request_json_object()
+    if _jerr:
+        return _jerr
     artist = sanitize_text(data.get("artist", "")).strip()
     track = sanitize_text(data.get("track", "")).strip()
     with _songlist_lock:

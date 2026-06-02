@@ -32,6 +32,9 @@ evaluation/.run.lock
 .graphify_detect.json
 graphify-out/
 
-# AI enrichment overlay — 156 MB generated artifact, published to GCS (not git)
+# AI enrichment overlay — large generated artifact, published to GCS (not git)
 evaluation/enrichment_probe/ai_tags_overlay.json
+evaluation/enrichment_probe/ai_tags_overlay.slim.json
 evaluation/enrichment_probe/*.tmp
+# Transient corpus-release scratch (downloaded + baked corpus, manifests)
+evaluation/_release_tmp/
