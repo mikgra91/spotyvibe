@@ -267,8 +267,8 @@ class TestOnboardingWizardWave1:
 
     def test_wizard_howto_accordion_toggles(self, page: Page, base_url):
         navigate_onboarding_to_page(page, base_url, 1)
-        toggle = page.locator("#ob-guide-openai .ob-cred-guide-toggle")
-        body = page.locator("#ob-openai-guide-body")
+        toggle = page.locator("#ob-guide-openrouter .ob-cred-guide-toggle")
+        body = page.locator("#ob-openrouter-guide-body")
         expect(body).not_to_have_class(re.compile(r"open"))
         toggle.click()
         page.wait_for_timeout(100)

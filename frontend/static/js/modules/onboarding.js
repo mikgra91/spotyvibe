@@ -80,7 +80,7 @@ const obTouched = {
 };
 
 /* ── B.1/B.4: Provider custom dropdown state ─────────────────── */
-let _obSelectedProvider = 'openai';
+let _obSelectedProvider = 'openrouter';
 
 /* ── AI readiness tracking (key set + model chosen) ──────────── */
 let _obAiReady = false;

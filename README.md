@@ -46,7 +46,7 @@ AI-powered music discovery. Describe what you like — SpotyVibe asks an LLM for
 Open <http://127.0.0.1:5000> (desktop opens automatically).
 
 > **Prerequisites:** Python 3.10+, Spotify Premium, and API keys from:
-> - **[OpenRouter](https://openrouter.ai/keys)** (default — DeepSeek V4 Flash route) OR [OpenAI](https://platform.openai.com/api-keys) (alternative)
+> - **[OpenRouter](https://openrouter.ai/keys)** (default — GPT-5.4-mini route) OR [OpenAI](https://platform.openai.com/api-keys) (alternative)
 > - **[Spotify Developer](https://developer.spotify.com/dashboard)** (always required)
 >
 > Register the redirect URI on the Spotify app: `http://127.0.0.1:5000/callback`.

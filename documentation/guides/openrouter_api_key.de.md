@@ -15,8 +15,6 @@ Klicke oben rechts auf deinen Avatar → **Keys**, oder gehe direkt zu [openrout
 Klicke auf **Create Key**, gib einen beliebigen Namen ein (z.B. `SpotyVibe`) und klicke **Create**. Kopiere den Schlüssel sofort — OpenRouter zeigt ihn nicht noch einmal an.
 ![Neuen Schlüssel erstellen](/docs/guides/openrouter/step3_create.png)
 
-## Schritt 4 — (Optional) Guthaben einzahlen
-Für die bezahlte `deepseek/deepseek-v4-flash`-Route (~$0,015 pro SpotyVibe-Playlist) klicke in der Seitenleiste auf **Credits** und zahle €5-10 ein. Das reicht für ~330-660 Generierungen.
-
-Um komplett kostenlos zu bleiben, kannst du diesen Schritt überspringen — wähle einfach `deepseek/deepseek-v4-flash:free` als Modell in den SpotyVibe-Einstellungen. Die kostenlose Route ist auf 200 Requests/Tag pro Konto begrenzt (ca. 40-65 SpotyVibe-Playlists/Tag).
+## Schritt 4 — Guthaben einzahlen
+Klicke in der Seitenleiste auf **Credits** und zahle €5-10 ein. SpotyVibes Standardmodell `openai/gpt-5.4-mini` kostet **~$0,045 pro SpotyVibe-Playlist** — €5 reichen für rund 120 Generierungen. Die günstigere empfohlene Alternative `google/gemini-3.1-flash-lite` (~$0,015 pro Playlist) kommt mit demselben Budget etwa 3× weiter — das Modell lässt sich jederzeit in den SpotyVibe-Einstellungen wechseln.
 ![Credits-Dashboard](/docs/guides/openrouter/step4_credits.png)

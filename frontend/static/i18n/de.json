@@ -514,6 +514,8 @@
   "ob.openrouter_step2": "Gehe zu Keys und erstelle einen neuen API-Schlüssel",
   "ob.openrouter_step3": "Kopiere den Schlüssel (beginnt mit sk-or-)",
   "ob.visit_openrouter": "openrouter.ai besuchen",
+  "ob.openrouter_step4": "Lade unter Credits €5–10 auf — das Standardmodell kostet ca. $0,045 pro Playlist",
+  "ob.provider_hint": "Lege fest, woher SpotyVibe seine KI bezieht. OpenRouter ist der empfohlene Standard — ein Schlüssel für ~300 Modelle.",
   "ob.step3_title": "Spotify-App verbinden",
   "ob.step3_subtitle": "SpotyVibe spricht mit Spotify über deine eigene kostenlose Developer-App. Das dauert etwa 2 Minuten.",
   "ob.spotify_id_hint": "Den Wert bekommst du, nachdem du deine App im Spotify-Dashboard erstellt hast.",

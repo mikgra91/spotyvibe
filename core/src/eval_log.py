@@ -69,11 +69,100 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
 logger = logging.getLogger(__name__)
+
+
+# ── Must-have cite detection ─────────────────────────────────────────
+# ``has_must_have_cite`` asks: did the model's profile_match rationale
+# actually name a must-have trait? It is a TEXT proxy (the F8 leakage /
+# fit checks are the authoritative quality signals), so it must be
+# tolerant of how the model wraps the value without bleeding into other
+# facets. Two real misses motivated the 2026-06 hardening, found by
+# re-scoring eval logs against recovered profiles:
+#   1. Composite must-have entries. A must-have like
+#      "modern, theatrical, hook-forward anchor" was matched only when
+#      ALL its tokens appeared in one ≤80-char arg — impossible when the
+#      model (correctly) cited a single sub-trait ("hook-forward anchor").
+#   2. Wrapping noise. Models emit '"Must: modern"' (surrounding quotes +
+#      an echoed "Must:" label) or hyphen variants ("math-rock" vs
+#      "math rock"), which broke the plain substring / token checks.
+# The fix splits composite entries into sub-traits and normalises the arg.
+# It stays must-have-scoped (soft preferences are never passed in), so it
+# cannot turn a genuine soft-pref miscite into a false "cite".
+_MH_STOP = frozenset({
+    "a", "an", "the", "and", "or", "of", "with", "to", "in",
+    "on", "for", "is", "are", "be", "by", "at", "as", "but",
+})
+# Label prefixes the model echoes into the arg, e.g. '"Must: modern"'.
+_ARG_LABEL_PREFIX = re.compile(r"^(must|genre|profile|tag|category)s?\s*:\s*", re.I)
+# Delimiters that separate sub-traits inside one composite must-have entry.
+# Punctuation only — NOT " and ", which is part of phrase-names like
+# "rock and roll" / "rhythm and blues" (those must stay whole so they
+# require all their tokens, not just one).
+_SUBTRAIT_SPLIT = re.compile(r"\s*[,;/]\s*")
+
+
+def _collapse_alnum(s: str) -> str:
+    """Lowercase, drop every non-alphanumeric char (hyphen/space-insensitive)."""
+    return re.sub(r"[^a-z0-9]", "", s.lower())
+
+
+def build_must_have_subtraits(must_have_tags: Iterable[str]):
+    """Expand must-have entries into matchable sub-traits.
+
+    Each composite entry ("modern, theatrical, hook-forward anchor") is
+    split into its parts AND kept whole, so citing one sub-trait counts.
+    Returns a list of ``(phrase_lower, collapsed_alnum, token_set)``.
+    """
+    out: list[tuple[str, str, frozenset]] = []
+    seen: set[str] = set()
+    for mh in must_have_tags:
+        mh = str(mh).strip()
+        if not mh:
+            continue
+        for part in [mh, *_SUBTRAIT_SPLIT.split(mh)]:
+            p = part.strip()
+            if not p or p.lower() in seen:
+                continue
+            toks = frozenset(
+                t for t in (_collapse_alnum(w) for w in p.split())
+                if t and t not in _MH_STOP
+            )
+            if toks:
+                seen.add(p.lower())
+                out.append((p.lower(), _collapse_alnum(p), toks))
+    return out
+
+
+def arg_satisfies_must_have(arg: str, subtraits) -> bool:
+    """True if rationale *arg* cites at least one must-have sub-trait.
+
+    *subtraits* comes from :func:`build_must_have_subtraits`. Tolerant of
+    surrounding quotes, an echoed "Must:"/"Genre:" label prefix, and
+    hyphen/space variance; accepts a single sub-trait of a composite
+    must-have. Must-have-scoped only.
+    """
+    if not arg:
+        return False
+    a = arg.strip().strip('"').strip("'").strip()
+    a = _ARG_LABEL_PREFIX.sub("", a).strip()
+    if not a:
+        return False
+    al = a.lower()
+    ac = _collapse_alnum(a)
+    for phrase, collapsed, toks in subtraits:
+        if phrase in al:                      # legacy substring (preserved)
+            return True
+        if collapsed and collapsed in ac:     # hyphen/space-insensitive substring
+            return True
+        if all(t in al for t in toks):        # every token present as substring
+            return True
+    return False
 
 
 def _now_iso() -> str:
@@ -192,40 +281,12 @@ def log_batch_outcome(
         ((profile or {}).get("preferences", {}) or {}).get("must_have", []) or []
         if str(t).strip()
     ]
-    # CF-Telemetry-1 (2026-04-28): tokenise must-have tags so paraphrases
-    # like "uplifting modern production" satisfy the "modern production"
-    # must-have. Match if every meaningful token of the tag appears in
-    # the rationale arg as a separate word (case-insensitive). Falls
-    # back to the legacy substring contains so existing matches still
-    # count. Stop-words filtered to avoid trivial matches like "and",
-    # "or" forcing every must-have to look satisfied.
-    _MH_STOP = {
-        "a", "an", "the", "and", "or", "of", "with", "to", "in",
-        "on", "for", "is", "are", "be", "by", "at", "as", "but",
-    }
-    must_have_token_sets: list[tuple[str, set[str]]] = []
-    for _mh in must_have_tags:
-        _toks = {
-            "".join(c for c in w.lower() if c.isalnum())
-            for w in _mh.split()
-        }
-        _toks = {t for t in _toks if t and t not in _MH_STOP}
-        if _toks:
-            must_have_token_sets.append((_mh, _toks))
-
-    def _arg_satisfies_must_have(arg: str) -> bool:
-        if not arg:
-            return False
-        _arg_lower = arg.lower()
-        for _mh, _toks in must_have_token_sets:
-            # Legacy contains (preserves prior matches)
-            if _mh.lower() in _arg_lower:
-                return True
-            # Token-set containment: every alnum token of the must-have
-            # appears as a word substring in the rationale arg.
-            if all(_t in _arg_lower for _t in _toks):
-                return True
-        return False
+    # CF-Telemetry-1 (2026-04-28) + 2026-06 hardening: see
+    # build_must_have_subtraits / arg_satisfies_must_have. Composite
+    # must-have entries are split into sub-traits and the arg is
+    # normalised (quotes / "Must:" prefix / hyphen variance) so a genuine
+    # single-sub-trait cite counts, without bleeding into other facets.
+    must_have_subtraits = build_must_have_subtraits(must_have_tags)
     ts = _now_iso()
 
     eval_log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -264,10 +325,10 @@ def log_batch_outcome(
                     "rationale_count": len(rationale_types),
                     "has_must_have_cite": any(
                         r.get("type") == "profile_match"
-                        and _arg_satisfies_must_have(r.get("arg") or "")
+                        and arg_satisfies_must_have(r.get("arg") or "", must_have_subtraits)
                         for r in (entry.get("rationale") or [])
                         if isinstance(r, dict)
-                    ) if must_have_token_sets else None,
+                    ) if must_have_subtraits else None,
                     "effective_batch_size": effective_batch_size,
                     "config_signature": config_signature,
                 }

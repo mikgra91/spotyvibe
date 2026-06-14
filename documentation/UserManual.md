@@ -17,14 +17,14 @@ Setup and usage guide for **SpotyVibe** — your AI-powered Spotify playlist gen
 | OpenAI API key (alternative) | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
 | Spotify Client ID + Secret | [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) |
 
-> SpotyVibe ships with **OpenRouter + DeepSeek V4 Flash** as the default provider/model. Switched 2026-05-14 after extensive eval: best quality-per-$ measured. OpenAI is still supported — switch via Settings → Provider.
+> SpotyVibe ships with **OpenRouter + GPT-5.4-mini** (`openai/gpt-5.4-mini`) as the default provider/model. Switched 2026-05-20 after extensive eval — see [model-performance-result.md](../evaluation/model-performance-result.md). OpenAI is still supported — switch via Settings → Provider.
 
 > When registering the Spotify app, add the redirect URI:
 > - `http://127.0.0.1:5000/callback`
 
 > **💰 Cost:**
-> - **DeepSeek V4 Flash via OpenRouter (paid)** — ~$0.015 per playlist; deposit €5-10 on [openrouter.ai/credits](https://openrouter.ai/credits) lasts ~330-660 playlists.
-> - **DeepSeek V4 Flash :free** — pick `deepseek/deepseek-v4-flash:free` in the model dropdown for **zero-cost** usage. Capped at 200 requests/day aggregate per OpenRouter account (≈ 40-65 SpotyVibe playlists/day, then resets at midnight UTC).
+> - **GPT-5.4-mini via OpenRouter (default)** — ~$0.045 per playlist; a €5-10 deposit on [openrouter.ai/credits](https://openrouter.ai/credits) lasts ~120-240 playlists.
+> - **Gemini 3.1 Flash Lite via OpenRouter (cheap)** — ~$0.015 per playlist; the same deposit lasts ~330-660 playlists.
 > - **OpenAI gpt-5.4-mini** — ~$0.05/playlist. See [OpenAI Pricing](https://platform.openai.com/docs/pricing).
 > - **Free local runtimes** (Ollama, LM Studio) — zero cost; quality varies. See [Custom AI Provider](#custom-ai-provider).
 
@@ -78,9 +78,9 @@ When you open SpotyVibe, a **Getting Started** card appears on the home page wit
 
 ### 2. Pick a model
 
-☰ → **⚙️ Settings**. Default is `deepseek/deepseek-v4-flash` (OpenRouter). To run for free, switch the model to `deepseek/deepseek-v4-flash:free`. To switch to OpenAI, change **Provider** to `openai` — the dropdown then offers `gpt-5.4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`.
+☰ → **⚙️ Settings**. Default is `openai/gpt-5.4-mini` (OpenRouter); the cheaper recommended alternative is `google/gemini-3.1-flash-lite`. To switch to OpenAI, change **Provider** to `openai` — the dropdown then offers `gpt-5.4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`.
 
-The mode-strategy switch (Fast / Best / Auto / Custom) was removed on 2026-05-14: the DeepSeek default matches gpt-5.4's quality at 1/10 the cost, eliminating the trade-off the picker used to manage. Pick a model — that's it.
+The mode-strategy switch (Fast / Best / Auto / Custom) was removed on 2026-05-14: the default model matches gpt-5.4's quality at a fraction of the cost, eliminating the trade-off the picker used to manage. Pick a model — that's it.
 
 The Settings modal also exposes:
 

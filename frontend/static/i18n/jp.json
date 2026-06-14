@@ -738,6 +738,8 @@
   "ob.openrouter_step2": "Keys に移動して新しい API キーを作成",
   "ob.openrouter_step3": "キーをコピー（sk-or- で始まります）",
   "ob.visit_openrouter": "openrouter.ai を開く",
+  "ob.openrouter_step4": "Credits で €5–10 をチャージ — デフォルトモデルはプレイリスト1件あたり約 $0.045 です",
+  "ob.provider_hint": "SpotyVibe が AI を取得する先を選択します。OpenRouter が推奨デフォルトです — 1つのキーで約300のモデルを利用できます。",
   "ob.credentials_title": "認証情報を設定",
   "ob.credentials_subtitle": "SpotyVibe はプレイリスト生成に API キーを必要とします。",
   "ob.credentials_explain": "<strong>OpenAI API key</strong> は音楽推薦に使われます。<strong>Spotify 認証情報</strong> はライブラリ内にプレイリストを作成するために使われます。キーはデバイス上のみに保存されます。",

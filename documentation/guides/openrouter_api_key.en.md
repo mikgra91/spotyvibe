@@ -15,8 +15,6 @@ Click your avatar (top-right) → **Keys**, or go directly to [openrouter.ai/key
 Click **Create Key**, give it any name (e.g. `SpotyVibe`), and click **Create**. Copy the key immediately — OpenRouter will not show it again.
 ![Create new key](/docs/guides/openrouter/step3_create.png)
 
-## Step 4 — (Optional) Deposit credit
-For the paid `deepseek/deepseek-v4-flash` route (~$0.015 per SpotyVibe playlist), click **Credits** in the sidebar and deposit €5-10. That budget lasts ~330-660 generations.
-
-To stay 100 % free, you can skip this step entirely — just pick `deepseek/deepseek-v4-flash:free` as your model in SpotyVibe Settings. The free route is capped at 200 requests/day aggregate per account (≈ 40-65 SpotyVibe playlists/day).
+## Step 4 — Deposit a small credit
+Click **Credits** in the sidebar and deposit €5-10. SpotyVibe's default model `openai/gpt-5.4-mini` costs **~$0.045 per SpotyVibe playlist**, so €5 lasts roughly 120 generations. The cheaper recommended alternative `google/gemini-3.1-flash-lite` (~$0.015 per playlist) stretches the same budget about 3× further — you can switch models any time in SpotyVibe Settings.
 ![Credits dashboard](/docs/guides/openrouter/step4_credits.png)
