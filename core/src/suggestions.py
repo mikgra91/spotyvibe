@@ -42,6 +42,7 @@ from config import (BASE_DIR, BATCH_SIZE, GPT_HISTORY_LIMIT, EXHAUSTED_ARTIST_TH
                     STAGE3_OVER_REQUEST, ARTIST_DISCOVERY_POOL_SIZE,
                     get_model, get_gpt_language, get_stage2_model, get_debug_mode)
 from .utils import strip_code_fences, loads_lenient, debug_log
+from .prompt_safety import neutralize_untrusted
 from .openai_http import chat_completions_create, extract_chat_content
 from .rag import (score_artists, score_artists_stratified,
                   format_candidate_pool_block, retrieve_candidates)
@@ -169,9 +170,10 @@ def build_feedback_summary(profile, max_chars=2000, recent_n=3, line_cap=300):
 
     def _format(prefix, entries):
         for entry in entries[-recent_n:]:
-            artist = entry.get("artist", "")
-            track = entry.get("track", "")
-            reason = entry.get("reason", "")
+            # WS6 (F6/T3): like/dislike fields are user-authored free text.
+            artist = neutralize_untrusted(entry.get("artist", ""))
+            track = neutralize_untrusted(entry.get("track", ""))
+            reason = neutralize_untrusted(entry.get("reason", ""))
             line = f"  {prefix} {artist} - {track}"
             if reason:
                 line += f" (reason: {reason})"
@@ -1248,6 +1250,12 @@ def build_taste_summary(profile: dict) -> str:
             anchors.append(name)
     sections_raw["style_anchors"] = ", ".join(anchors) if anchors else ""
 
+    # WS6 (F6/T3): neutralize injection mechanics in every untrusted free-text
+    # section before it is rendered into the Stage-3 prompt. A strict no-op on
+    # legitimate music descriptors (so quality/eval is unaffected) — only
+    # adversarial values carrying newlines / fences / override phrases change.
+    sections_raw = {k: neutralize_untrusted(v) for k, v in sections_raw.items()}
+
     # Apply per-section caps and record telemetry.
     telemetry: dict = {}
     emitted: dict = {}
@@ -1624,12 +1632,15 @@ def _format_approved_artists_block(
     overlay = approved_top_tracks or {}
     lines: list[str] = []
     for name in approved_artist_names:
-        lines.append(f"- {name}")
+        # WS6 (F6/T3): artist names and known-track titles are corpus/Spotify
+        # supplied — neutralize injection mechanics before they enter the
+        # prompt. Single-line names/titles are unchanged (strict no-op).
+        lines.append(f"- {neutralize_untrusted(name)}")
         key = (name or "").lower().strip()
         tracks = overlay.get(key) or []
         tracks = [t for t in tracks if isinstance(t, str) and t.strip()][:max_tracks_per_artist]
         if tracks:
-            quoted = ", ".join(f'"{t}"' for t in tracks)
+            quoted = ", ".join(f'"{neutralize_untrusted(t)}"' for t in tracks)
             lines.append(f"    known: {quoted}")
         elif overlay:
             # Overlay is in use but we have no entry for this artist — be

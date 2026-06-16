@@ -330,6 +330,41 @@ _APP_DIR = _get_app_dir()
 CREDENTIALS_FILE = _APP_DIR / ".credentials"
 SETTINGS_FILE = _APP_DIR / "settings.conf"
 CACHE_FILE = _APP_DIR / ".spotify-cache"
+SECRET_KEY_FILE = _APP_DIR / ".flask_secret"
+
+
+def _chmod_600(path) -> None:
+    """Best-effort: restrict a secret file to owner-only (POSIX). No-op on Windows."""
+    if os.name != "posix":
+        return
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+
+def get_or_create_secret_key() -> bytes:
+    """Stable Flask secret key: env override, else a persisted per-install key.
+
+    Replaces the previous ``os.urandom(24)``-per-start behaviour that reset
+    sessions on every launch. Falls back to an ephemeral key if the data dir
+    is not writable.
+    """
+    env = os.environ.get("FLASK_SECRET_KEY")
+    if env:
+        return env.encode("utf-8") if isinstance(env, str) else env
+    try:
+        if SECRET_KEY_FILE.exists():
+            data = SECRET_KEY_FILE.read_bytes()
+            if len(data) >= 16:
+                return data
+        key = os.urandom(32)
+        SECRET_KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        SECRET_KEY_FILE.write_bytes(key)
+        _chmod_600(SECRET_KEY_FILE)
+        return key
+    except OSError:
+        return os.urandom(32)
 # P0 (2026-05-24) — Spotify rate-limit cooldown gate. When the API
 # returns a 429 with a Retry-After far longer than our per-request
 # retry cap, the only safe response is to stop calling Spotify
@@ -738,6 +773,9 @@ def save_credentials(credentials):
             # Update os.environ immediately
             os.environ[key] = value
     load_dotenv(dotenv_path=str(CREDENTIALS_FILE), override=True)
+    # Restrict the credentials file to owner-only (matters when keyring is
+    # unavailable and secrets fall back to this dotenv file). POSIX-only.
+    _chmod_600(CREDENTIALS_FILE)
     # Re-overlay keyring so os.environ has the real values
     if _KEYRING_AVAILABLE:
         for key in CREDENTIALS_KEYS:

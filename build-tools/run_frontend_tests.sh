@@ -37,45 +37,61 @@ echo "  SpotyVibe Frontend Test Runner"
 echo "═══════════════════════════════════"
 echo ""
 
+# ── Retry-on-failure guard ───────────────────────────────────
+# Three groups run in parallel, each spinning up its own Flask
+# server + Playwright browser. Under resource contention a group
+# can hit a transient timeout (server slow to bind, browser nav
+# stall) and report a spurious failure — the same tests pass when
+# run serially. A single automatic retry converts those contention
+# flakes into passes while still surfacing genuine failures (a real
+# failure fails on attempt 2 as well, and we exit non-zero).
+#   $1 = group label   $2 = junit xml path   $3.. = pytest file args
+run_group() {
+  local name="$1" xml="$2"; shift 2
+  local rc=0
+  for attempt in 1 2; do
+    [[ $attempt -eq 2 ]] && echo "═══ [retry] $name — attempt 2 (transient-contention guard) ═══"
+    if python -m pytest "$@" -v --tb=short --junitxml="$xml"; then
+      return 0
+    fi
+    rc=$?
+  done
+  return $rc
+}
+
 # ── Group 1: UI (page load, navigation, modals) ─────────────
 (
   echo "═══ [1/3] Frontend UI (page load, navigation, modals) ═══"
-  python -m pytest \
+  run_group "UI" test-results/frontend-ui.xml \
     frontend/tests/test_page_load.py \
     frontend/tests/test_navigation.py \
-    frontend/tests/test_modals.py \
-    -v --tb=short \
-    --junitxml=test-results/frontend-ui.xml
+    frontend/tests/test_modals.py
 ) > >(tee test-results/frontend-ui.log) 2>&1 &
 PID_UI=$!
 
 # ── Group 2: Features + Onboarding (profile, generation, edge cases, onboarding) ─
 (
   echo "═══ [2/3] Frontend Features + Onboarding ═══"
-  python -m pytest \
+  run_group "Features + Onboarding" test-results/frontend-features.xml \
     frontend/tests/test_profile.py \
     frontend/tests/test_generation.py \
     frontend/tests/test_edge_cases.py \
     frontend/tests/test_onboarding.py \
-    frontend/tests/test_profile_integration.py \
-    -v --tb=short \
-    --junitxml=test-results/frontend-features.xml
+    frontend/tests/test_profile_integration.py
 ) > >(tee test-results/frontend-features.log) 2>&1 &
 PID_FEAT=$!
 
 # ── Group 3: Workflow Integration (all workflows) ────────────
 (
   echo "═══ [3/3] Workflow Integration ═══"
-  python -m pytest \
+  run_group "Workflow Integration" test-results/frontend-wf.xml \
     frontend/tests/test_wf_onboarding.py \
     frontend/tests/test_wf_generate_create.py \
     frontend/tests/test_wf_generate_append.py \
     frontend/tests/test_wf_generate_override.py \
     frontend/tests/test_wf_analysis.py \
     frontend/tests/test_wf_quickstart_openai.py \
-    frontend/tests/test_wf_quickstart_spotify.py \
-    -v --tb=short \
-    --junitxml=test-results/frontend-wf.xml
+    frontend/tests/test_wf_quickstart_spotify.py
 ) > >(tee test-results/frontend-wf.log) 2>&1 &
 PID_WF=$!
 

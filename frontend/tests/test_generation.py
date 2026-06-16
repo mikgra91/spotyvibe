@@ -91,9 +91,10 @@ class TestGenerationPipeline:
         assert tracks.count() == 3
         expect(tracks.first).to_contain_text("Test Artist")
         expect(tracks.first).to_contain_text("Test Song")
-        expect(page.locator("#playlistLinkBox")).to_be_visible()
-        expect(page.locator("#playlistLinkBox")).to_contain_text("open.spotify.com")
-        expect(page.locator("#statusBox")).to_contain_text("3 suggestions generated")
+        # Generation builds the suggestion LIST; pushing to Spotify is now a
+        # separate step (apply-playlist modal), so the status reflects
+        # "added to list" and no playlist link is shown at this stage.
+        expect(page.locator("#statusBox")).to_contain_text("added to list")
 
     def test_partial_results_on_cancel(self, page: Page, base_url):
         page.goto(base_url)
@@ -489,51 +490,50 @@ class TestAudioFilters:
         expect(page.locator("#audioFiltersBody")).to_be_hidden()
 
 
-class TestPlaylistMode:
-    """Playlist mode radio buttons and conditional UI inside Generate section."""
+class TestApplyPlaylistModal:
+    """Apply-to-Playlist modal mode selection.
+
+    The inline playlist-mode radios were relocated into this modal (see
+    ``apply-playlist.js`` / ``apply_playlist_modal.html``). create → name
+    input; append/replace → existing-playlist picker. Opened directly via
+    the exposed ``window.openApplyModal({tracks})`` so the test does not
+    depend on a full generation run.
+    """
+
+    def _open_modal(self, page: Page, base_url):
+        page.goto(base_url)
+        page.wait_for_load_state("domcontentloaded")
+        page.route("**/api/playlists", lambda route: route.fulfill(
+            status=200,
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({"playlists": FAKE_PLAYLISTS}),
+        ))
+        page.evaluate(
+            "window.openApplyModal({tracks:[{artist:'A',track:'T'}]})")
+        expect(page.locator("#applyPlaylistModal")).to_be_visible()
 
     def test_create_mode_shows_name_input_by_default(self, page: Page, base_url):
-        page.goto(base_url)
-        open_generate_section(page)
-        expect(page.locator("#playlistNameRow")).to_be_visible()
-        expect(page.locator("#playlistNameInput")).to_be_visible()
-
-    def test_picker_row_hidden_in_create_mode(self, page: Page, base_url):
-        page.goto(base_url)
-        open_generate_section(page)
-        expect(page.locator("#playlistPickerRow")).to_be_hidden()
+        self._open_modal(page, base_url)
+        expect(page.locator("#applyPlaylistNameRow")).to_be_visible()
+        expect(page.locator("#applyPlaylistNameInput")).to_be_visible()
+        expect(page.locator("#applyPlaylistPickerRow")).to_be_hidden()
 
     def test_append_mode_shows_picker(self, page: Page, base_url):
-        page.goto(base_url)
-        page.route("**/api/playlists", lambda route: route.fulfill(
-            status=200,
-            headers={"Content-Type": "application/json"},
-            body=json.dumps({"playlists": FAKE_PLAYLISTS}),
-        ))
-        open_generate_section(page)
-        page.locator('input[name="playlist_mode"][value="append"]').check()
-        expect(page.locator("#playlistPickerRow")).to_be_visible()
+        self._open_modal(page, base_url)
+        page.locator("#applyModeAppend").check()
+        expect(page.locator("#applyPlaylistPickerRow")).to_be_visible()
+        expect(page.locator("#applyPlaylistNameRow")).to_be_hidden()
 
     def test_replace_mode_shows_picker(self, page: Page, base_url):
-        page.goto(base_url)
-        page.route("**/api/playlists", lambda route: route.fulfill(
-            status=200,
-            headers={"Content-Type": "application/json"},
-            body=json.dumps({"playlists": FAKE_PLAYLISTS}),
-        ))
-        open_generate_section(page)
-        page.locator('input[name="playlist_mode"][value="replace"]').check()
-        expect(page.locator("#playlistPickerRow")).to_be_visible()
+        self._open_modal(page, base_url)
+        page.locator("#applyModeReplace").check()
+        expect(page.locator("#applyPlaylistPickerRow")).to_be_visible()
 
-    def test_default_mode_hides_name_and_picker(self, page: Page, base_url):
+    def test_modal_does_not_open_without_suggestions(self, page: Page, base_url):
         page.goto(base_url)
-        open_generate_section(page)
-        default_radio = page.locator('input[name="playlist_mode"][value="default"]')
-        if default_radio.count() == 0:
-            return
-        default_radio.check()
-        expect(page.locator("#playlistNameRow")).to_be_hidden()
-        expect(page.locator("#playlistPickerRow")).to_be_hidden()
+        page.wait_for_load_state("domcontentloaded")
+        page.evaluate("window.openApplyModal({tracks:[]})")
+        expect(page.locator("#applyPlaylistModal")).to_be_hidden()
 
 
 class TestRefinePlaylist:

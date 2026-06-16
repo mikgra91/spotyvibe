@@ -38,7 +38,11 @@ export async function openApplyModal(ctx = null) {
     if (createRadio) createRadio.checked = true;
     _onModeChange();
 
+    // .modal-overlay is display:none until the `.open` class is added — the
+    // shared convention every other modal uses (modals.css). Toggling only
+    // `.hidden` (legacy) left this modal permanently invisible.
     modal.classList.remove('hidden');
+    modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
 
     // Load playlists for picker
@@ -63,6 +67,7 @@ export async function openApplyModal(ctx = null) {
 export function closeApplyModal() {
     const modal = el('applyPlaylistModal');
     if (modal) {
+        modal.classList.remove('open');
         modal.classList.add('hidden');
         modal.setAttribute('aria-hidden', 'true');
     }

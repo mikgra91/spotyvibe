@@ -1,9 +1,11 @@
 import html
+import ipaddress
 import logging
 import logging.handlers
 import math
 import os
 import re
+import socket
 import sys
 import json
 import threading
@@ -11,6 +13,7 @@ import time
 import traceback
 import uuid
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 
 # Ensure the spotyvibe package directory is on sys.path so all
@@ -33,6 +36,7 @@ from config import (
     get_ui_language,
     EVAL_LOG_FILE, RAG_META_PATH, get_rag_enabled,
     RETRIEVE_CANDIDATES_SIZE, RAG_POPULARITY_PENALTY, RAG_RERETRIEVE_SIZE,
+    get_or_create_secret_key,
 )
 import markdown
 
@@ -202,8 +206,10 @@ except Exception as _exc:  # pragma: no cover
 
 
 app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
-app.secret_key = os.environ.get("FLASK_SECRET_KEY") or os.urandom(24)
+app.secret_key = get_or_create_secret_key()
 app.config["MAX_CONTENT_LENGTH"] = GENERAL_REQUEST_MAX_BYTES
+# Session cookie hardening (WS1): scope cookies to same-site, no JS access.
+app.config.update(SESSION_COOKIE_SAMESITE="Lax", SESSION_COOKIE_HTTPONLY=True)
 
 # --- Performance: gzip compression for all responses ---
 try:
@@ -222,7 +228,67 @@ def _add_cache_headers(response):
         else:
             # CSS, JS, images, fonts: cache for 1 day
             response.headers['Cache-Control'] = 'public, max-age=86400'
+    # Security headers (WS4) — defense-in-depth, non-breaking on every
+    # response. nosniff stops MIME-confusion; DENY blocks clickjacking
+    # (the app is never framed; the desktop webview is not an iframe);
+    # same-origin Referrer-Policy avoids leaking paths to external links.
+    # NOTE: a Content-Security-Policy is intentionally deferred — the app
+    # uses ~80-120 inline event handlers, so even report-only CSP floods
+    # the console (breaking console-assertion tests) and needs the
+    # handler→listener migration first. See HARDENING_PLAN.md WS4.
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('X-Frame-Options', 'DENY')
+    response.headers.setdefault('Referrer-Policy', 'same-origin')
     return response
+
+
+# --- Security: same-origin guard for state-changing requests (WS1) ---
+# SpotyVibe binds to loopback, but other web pages in the user's browser can
+# still issue cross-origin requests to 127.0.0.1 (CSRF) — including to the
+# credential-storage endpoint. For mutating methods we require the request's
+# Origin (or Referer) to be same-origin or a loopback host; everything else
+# is rejected with 403. GET/HEAD/OPTIONS are never blocked.
+_CSRF_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def _header_host(value):
+    """Hostname of an Origin/Referer header value (or None)."""
+    if not value:
+        return None
+    try:
+        return urlparse(value).hostname
+    except ValueError:
+        return None
+
+
+def _request_is_loopback():
+    host = _header_host("//" + (request.host or ""))
+    return (host or "") in _LOOPBACK_HOSTS
+
+
+@app.before_request
+def _csrf_origin_guard():
+    if request.method in _CSRF_SAFE_METHODS:
+        return None
+    origin = request.headers.get("Origin")
+    referer = request.headers.get("Referer")
+    src = origin if origin is not None else referer
+    if src is None:
+        # A cross-origin fetch always sends Origin, so a request with neither
+        # header is normally a same-origin or native (pywebview) caller. Allow
+        # only when we are bound to loopback (the desktop default); log it.
+        if _request_is_loopback():
+            return None
+        logger.warning("Blocked mutating %s %s: no Origin/Referer on non-loopback host %s",
+                       request.method, request.path, request.host)
+        return jsonify({"error": "Origin required."}), 403
+    same_origin = urlparse(src).netloc == request.host
+    if same_origin or _header_host(src) in _LOOPBACK_HOSTS:
+        return None
+    logger.warning("Blocked cross-origin mutating %s %s from %s",
+                   request.method, request.path, src)
+    return jsonify({"error": "Cross-origin request rejected."}), 403
 
 
 @app.template_filter("datetimeformat")
@@ -294,6 +360,63 @@ _DEFAULT_AUDIO_FILTERS = {
     k: {"min": None, "max": None}
     for k in ("energy", "valence", "tempo", "danceability", "acousticness")
 }
+
+
+def _sanitize_audio_filters(raw):
+    """Structurally sanitise client audio filters (WS2).
+
+    Keep only known audio-feature keys, each with numeric-or-None ``min`` /
+    ``max``. Drops malformed shapes (non-dict, non-numeric, unknown keys) so
+    downstream filtering never sees an unexpected type. No value range is
+    imposed — ``tempo`` is BPM, the others are 0-1 — this is type/shape
+    hardening only.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    out = {}
+    for key in _DEFAULT_AUDIO_FILTERS:
+        spec = raw.get(key)
+        if not isinstance(spec, dict):
+            continue
+        clean = {}
+        for bound in ("min", "max"):
+            v = spec.get(bound)
+            if v is None:
+                clean[bound] = None
+            else:
+                try:
+                    clean[bound] = float(v)
+                except (TypeError, ValueError):
+                    clean[bound] = None
+        out[key] = clean
+    return out
+
+
+def _is_internal_host(hostname):
+    """True if *hostname* resolves to a non-loopback private/reserved address.
+
+    SSRF guard for user-supplied provider URLs (WS2/F8). Loopback is allowed
+    (local LLMs are first-class) and public hosts are allowed (custom
+    OpenAI-compatible providers), but RFC1918 / link-local (incl. the
+    169.254.169.254 cloud-metadata endpoint) / reserved ranges are blocked.
+    """
+    if not hostname:
+        return False
+    try:
+        infos = socket.getaddrinfo(hostname, None)
+    except OSError:
+        return False  # unresolvable → let the request fail naturally downstream
+    for info in infos:
+        try:
+            ip = ipaddress.ip_address(info[4][0])
+        except ValueError:
+            continue
+        if ip.is_loopback:
+            continue
+        if (ip.is_private or ip.is_link_local or ip.is_reserved
+                or ip.is_multicast or ip.is_unspecified):
+            return True
+    return False
 
 
 @app.route("/")
@@ -836,7 +959,6 @@ def _prune_dead_tracks_from_overlay(
 
 
 @app.route("/api/run", methods=["POST"])
-@app.route("/api/run", methods=["POST"])
 def run_pipeline():
     """Generate suggestions via OpenAI in batches of BATCH_SIZE, verify on
     Spotify, and repeat until the configured playlist_size is reached.
@@ -849,7 +971,7 @@ def run_pipeline():
     body = request.get_json(force=True, silent=True) or {}
     run_id = body.get("run_id") or str(uuid.uuid4())
     # Audio feature filters: {"energy": {"min": 0.6, "max": 1.0}, ...}
-    audio_filters = body.get("audio_filters") or {}
+    audio_filters = _sanitize_audio_filters(body.get("audio_filters"))
     emerging_only = bool(body.get("emerging_only"))
     # Wave 2: client-specified temperature (clamped to 0.0–2.0)
     client_temperature = body.get("temperature")
@@ -2705,6 +2827,9 @@ def fetch_llm_models():
         return jsonify({"error": "Only HTTPS is allowed for remote providers."}), 400
     if parsed.scheme not in ("http", "https"):
         return jsonify({"error": "Invalid URL scheme."}), 400
+    # SSRF: block private/link-local/reserved targets (loopback + public OK).
+    if _is_internal_host(parsed.hostname):
+        return jsonify({"error": "Requests to internal/private addresses are not allowed."}), 400
 
     # Determine timeout: 2s for localhost, 5s for remote
     timeout = 2 if is_local else 5

@@ -237,9 +237,15 @@ class TestGetOpenaiModels:
             assert "(unsupported)" not in m["label"]
 
     def test_includes_default_model(self):
+        # The shipped default must be a curated, supported entry in the
+        # dropdown. Use the actual constant so this survives model-list
+        # changes (was hard-coded to the retired "gpt-4.1-mini").
+        from config import DEFAULT_OPENAI_MODEL
         models = get_openai_models()
         ids = [m["id"] for m in models]
-        assert "gpt-4.1-mini" in ids
+        assert DEFAULT_OPENAI_MODEL in ids
+        default = next(m for m in models if m["id"] == DEFAULT_OPENAI_MODEL)
+        assert default["supported"] is True
 
     def test_appends_configured_model_if_not_in_allowlist(self):
         with patch("core.src.utils.get_model", return_value="custom-preview-model"):
