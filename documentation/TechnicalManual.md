@@ -730,6 +730,7 @@ User clicks Generate
 | Date | Commit | Action |
 |---|---|---|
 | 2026-05-04 | `a212e55` | Consolidated and deleted 6 working documents (see below). Relevant technical content merged into this manual; open tasks merged into `next-steps.md`. |
+| 2026-06-23 | _(working tree)_ | Opensource release cleanup: deleted finished plan docs (`HARDENING_PLAN.md`, `analysis.md`, `testcase.md`); relocated the internal dev ledger (`next-steps.md`, `analysis_automation.md`, `documentation/history/sessions-2026-Q2.md`, the enrichment runbook) to a gitignored `.dev-notes/` that is **not shipped**. Any reference to those filenames below now lives in `.dev-notes/` or in git history. |
 
 **Files deleted in the 2026-05-04 cleanup:**
 

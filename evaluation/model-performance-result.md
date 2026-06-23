@@ -328,7 +328,7 @@ Cite-rate of the load-bearing first must_have:
 `facets_20_focused` variant testing `build_focused_taste_summary`;
 the focused compactor reduced token count but did **not** recover
 cite-rate — the degradation begins at ≥ 6 facets regardless. Open
-problem; see `next-steps.md` P-compact section.)
+problem (the P-compact / taste-summary compaction work).)
 
 **Takeaway for model choice.** No model is immune to large-profile
 degradation. This is a *pipeline* problem (taste-summary compaction),

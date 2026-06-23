@@ -191,8 +191,8 @@ the next post-mortem, and they erode trust in the benchmark.
 complains
 
 The benchmark covers the failure axes we KNOW about. It does NOT
-substitute for the manual `testcase.md` flow (the user runs the new
-profile in the real app, captures the trace, we analyse). Treat them
+substitute for a manual test-profile flow (run a fresh profile in the
+real app, capture the trace, then analyse it). Treat them
 as complementary:
 
 - **Benchmark** → automated, catches REGRESSIONS we've codified.
