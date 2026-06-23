@@ -6,29 +6,52 @@ import { showToast } from './ui.js';
 import { el } from './dom.js';
 
 export const PROVIDER_PRESETS = {
-    openai:     { id: 'openai',     name_i18n: 'provider.openai',     default_base_url: 'https://api.openai.com/v1',       local: false, doc_url: 'https://platform.openai.com/api-keys' },
+    openai:     { id: 'openai',     name_i18n: 'provider.openai',     default_base_url: 'https://api.openai.com/v1',       local: false, doc_url: 'https://platform.openai.com/api-keys',
+        suggested_models: [
+            'gpt-5.4-mini',
+            'gpt-5.4',
+        ],
+    },
     ollama:     { id: 'ollama',     name_i18n: 'provider.ollama',     default_base_url: 'http://localhost:11434/v1',        local: true,  doc_url: 'https://ollama.com/download' },
     lmstudio:   { id: 'lmstudio',   name_i18n: 'provider.lmstudio',   default_base_url: 'http://localhost:1234/v1',         local: true,  doc_url: 'https://lmstudio.ai/' },
-    groq:       { id: 'groq',       name_i18n: 'provider.groq',       default_base_url: 'https://api.groq.com/openai/v1',  local: false, doc_url: 'https://console.groq.com/keys' },
-    openrouter: { id: 'openrouter', name_i18n: 'provider.openrouter', default_base_url: 'https://openrouter.ai/api/v1',    local: false, doc_url: 'https://openrouter.ai/keys' },
+    llamacpp:   { id: 'llamacpp',   name_i18n: 'provider.llamacpp',   default_base_url: 'http://localhost:8080/v1',         local: true,  doc_url: 'https://github.com/ggerganov/llama.cpp' },
+    openrouter: { id: 'openrouter', name_i18n: 'provider.openrouter', default_base_url: 'https://openrouter.ai/api/v1',    local: false, doc_url: 'https://openrouter.ai/keys',
+        // 2026-05-22: ordered by the n=3 cross-model eval (see
+        // evaluation/model-performance-result.md). Gemini 3.1 Flash Lite is
+        // the default — cheapest/fastest, and ~83% must-have cite rate after
+        // the Stage-3 prompt-hierarchy fix. gpt-5.4-mini is the balanced
+        // second choice; claude-haiku-4.5 the highest-quality third.
+        // DeepSeek V4 Flash was removed (60-80% hidden reasoning-token
+        // overhead). Users can still add any model via free-text or fetch.
+        suggested_models: [
+            'google/gemini-3.1-flash-lite',
+            'openai/gpt-5.4-mini',
+            'anthropic/claude-haiku-4.5',
+        ],
+    },
 };
 
 let _currentPreset = 'openai';
 
-export function onProviderChange() {
+export function onProviderChange(opts) {
     const select = el('settings-provider');
     if (!select) return;
     const preset = select.value;
     _currentPreset = preset;
     const p = PROVIDER_PRESETS[preset] || PROVIDER_PRESETS.openai;
+    // `resetUrl` defaults to true (user-driven onchange clobbers stale URL).
+    // The initial sync from saved settings passes `{ resetUrl: false }` so a
+    // user-customised port (e.g. llama.cpp on :9000) survives a page reload.
+    const resetUrl = !opts || opts.resetUrl !== false;
 
-    // Base URL row — always hidden (presets have fixed URLs)
+    // Local providers expose the Base URL field so users can point at
+    // non-default ports (llama.cpp 8080, custom Ollama setups, etc.).
+    // Remote presets keep it hidden — their URLs are fixed.
     const urlRow = el('providerBaseUrlRow');
-    if (urlRow) urlRow.classList.add('hidden');
+    if (urlRow) urlRow.classList.toggle('hidden', !p.local);
 
-    // Set default base URL
     const urlInput = el('settings-base-url');
-    if (urlInput) urlInput.value = p.default_base_url;
+    if (urlInput && resetUrl) urlInput.value = p.default_base_url;
 
     // API key label
     const keyLabel = el('settings-api-key-label');
@@ -54,6 +77,24 @@ export function onProviderChange() {
     // Clear fetch error
     const fetchErr = el('providerFetchError');
     if (fetchErr) { fetchErr.textContent = ''; fetchErr.classList.add('hidden'); }
+
+    // Pre-populate model dropdown with provider's suggested models. User can
+    // still override via free-text or fetch button. Skip on initial load
+    // (resetUrl=false) so saved settings aren't clobbered.
+    if (resetUrl && p.suggested_models && p.suggested_models.length) {
+        const modelSelect = el('settings-model');
+        if (modelSelect) {
+            const currentVal = modelSelect.value;
+            modelSelect.innerHTML = '';
+            p.suggested_models.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = m;
+                modelSelect.appendChild(opt);
+            });
+            if (p.suggested_models.includes(currentVal)) modelSelect.value = currentVal;
+        }
+    }
 }
 
 export async function fetchProviderModels() {
@@ -61,7 +102,10 @@ export async function fetchProviderModels() {
     const preset = select ? select.value : 'openai';
     const p = PROVIDER_PRESETS[preset] || PROVIDER_PRESETS.openai;
 
-    const base_url = p.default_base_url;
+    // Prefer the user-entered Base URL when the field is visible (local
+    // providers). Falls back to the preset default for remote providers.
+    const urlInput = el('settings-base-url');
+    const base_url = (urlInput && urlInput.value && urlInput.value.trim()) || p.default_base_url;
 
     const keyInput = el('settings-api-key');
     const api_key = keyInput ? keyInput.value.trim() : '';
@@ -149,6 +193,9 @@ export function init() {
         if (select) select.value = _currentPreset;
         const urlInput = el('settings-base-url');
         if (urlInput && data.llm_base_url) urlInput.value = data.llm_base_url;
+        // Apply provider-dependent visibility (Base URL row) WITHOUT
+        // clobbering the saved URL we just restored.
+        onProviderChange({ resetUrl: false });
     }).catch(() => {});
 }
 

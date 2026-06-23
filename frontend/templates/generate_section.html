@@ -2,7 +2,7 @@
 <div class="generate-section" id="generateSection">
     <div class="train-header" role="button" tabindex="0" onclick="toggleGenerateBody()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleGenerateBody()}" aria-expanded="false" aria-controls="generateBody">
         <div class="train-header-left">
-            <h2><span aria-hidden="true">🎧</span> <span data-i18n="generate.title">Discover Music</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('playlist-generation')" data-i18n-title="help.section_help_title" title="Open help for this section" aria-label="Help for Discover Music">?</button></h2>
+            <h2><span aria-hidden="true">🎧</span> <span data-i18n="generate.title">Discover Music</span> <button class="section-help-icon" onclick="event.stopPropagation(); openSectionHelp('playlist-generation')" data-i18n-title="help.section_help_title" title="Open help for this section" aria-label="Help for Discover Tracks">?</button></h2>
             <span class="train-status train-subtitle" data-i18n="generate.subtitle">Generate AI-powered playlists and save them directly to your Spotify account.</span>
         </div>
         <div class="train-header-actions">
@@ -19,7 +19,6 @@
 
     <!-- ═══ QUICK MODE (empty — shared sliders below) ═══ -->
     <div class="gen-mode-body gen-mode-body--quick">
-        <div class="preset-active-indicator"></div>
     </div>
 
     <!-- ═══ ADVANCED MODE ═══ -->
@@ -35,7 +34,8 @@
                 </button>
                 <ul class="preset-dropdown-list hidden" id="presetDropdownList" role="listbox"></ul>
             </div>
-            <button class="preset-save-btn" onclick="window._presetSaveAs()" data-i18n="preset.save_current">💾 Save current as preset…</button>
+            <button class="preset-save-btn preset-update-btn hidden" id="presetUpdateBtn" onclick="window._presetUpdateCurrent()" data-i18n="preset.update_current">💾 Save preset</button>
+            <button class="preset-save-btn" onclick="window._presetSaveAs()" data-i18n="preset.save_as_new">+ New</button>
         </div>
 
         <!-- Emerging artists filter -->
@@ -109,26 +109,17 @@
         </div>
 
         <!-- New artist % (Advanced exposure) -->
-        <div class="form-row gen-field-new-artist-pct">
+        <div class="form-row gen-field-new-artist-pct" id="genNewArtistPctWrap">
             <label for="genNewArtistPct" data-i18n="settings.new_artist_pct_label">New Artist %</label>
             <input id="genNewArtistPct" type="number" min="1" max="100" step="1" value="{{ settings.new_artist_pct if settings.new_artist_pct is not none else 50 }}">
+            <span class="new-artist-pct-custom-badge hidden" id="genNewArtistPctCustomBadge"
+                  data-i18n="settings.new_artist_pct_custom"
+                  data-i18n-title="settings.new_artist_pct_custom_hint"
+                  title="Differs from the active preset.">CUSTOM</span>
             <p class="inline-hint" data-i18n="settings.new_artist_pct_hint">Minimum share of suggestions from artists you haven't listened to yet.</p>
             {{ learn_more('settings.new_artist_pct_learn_more', 'Higher pushes exploration; lower keeps things familiar. The exploration slider above drives this — edit here to override.') }}
         </div>
 
-        <!-- Dependency status indicators -->
-        <div class="generate-deps-row" id="generateDepsRow">
-            <span class="dep-chip" id="depOpenai">
-                <span class="dep-dot dep-dot--unknown"></span>
-                <span class="dep-label">OpenAI</span>
-            </span>
-            <span class="dep-chip" id="depSpotify">
-                <span class="dep-dot dep-dot--unknown"></span>
-                <span class="dep-label">Spotify</span>
-            </span>
-        </div>
-
-        <div class="preset-active-indicator"></div>
     </div>
 
     <!-- ═══ SHARED: Size slider (visible in both modes) ═══ -->
@@ -138,7 +129,7 @@
                 <label for="genSize" data-i18n="gen.size_label">Playlist size</label>
                 <span class="gen-size-value">20 <span data-i18n="gen.size_suffix">tracks</span></span>
             </div>
-            <input type="range" id="genSize" class="gen-size-slider" min="10" max="30" step="5" value="{{ settings.playlist_size if settings.playlist_size else 20 }}">
+            <input type="range" id="genSize" class="gen-size-slider" min="5" max="30" step="5" value="{{ settings.playlist_size if settings.playlist_size else 10 }}">
             <p class="inline-hint" data-i18n="settings.playlist_size_hint">How many tracks to generate (max 30).</p>
             {{ learn_more('settings.playlist_size_learn_more', 'Max capped at 30 — beyond that GPT starts repeating itself across 10-track fetch blocks, and review fatigue sets in. If you want a longer session, run twice with different presets.') }}
         </div>
@@ -163,41 +154,9 @@
         </div>
     </div>
 
-    <!-- ═══ SHARED: Playlist destination (visible in both modes) ═══ -->
-    <div class="playlist-destination-section">
-        <label class="playlist-destination-label" data-i18n="generate.destination_label">Save to</label>
-        <div class="playlist-mode-row">
-            <div class="playlist-mode-options">
-                {% for mode in playlist_modes %}
-                <label class="playlist-mode-option">
-                    <input type="radio" name="playlist_mode" value="{{ mode.value }}"
-                        {% if current_playlist_mode == mode.value %}checked{% endif %}
-                        onchange="onPlaylistModeChange()"> <span data-i18n="generate.mode_{{ mode.value }}">{{ mode.label }}</span>
-                </label>
-                {% endfor %}
-            </div>
-            <div id="playlistNameRow" class="playlist-name-row {% if current_playlist_mode in ('create',) %}{% else %}hidden{% endif %}">
-                <input id="playlistNameInput" type="text" data-i18n-placeholder="generate.playlist_name_placeholder" placeholder="Playlist name" maxlength="200" class="playlist-name-input" value="{{ playlist_name if playlist_name }}">
-            </div>
-            <div id="playlistPickerRow" class="playlist-picker-row {% if current_playlist_mode in ('append', 'replace') %}{% else %}hidden{% endif %}">
-                <select id="playlistPicker" class="playlist-picker-select">
-                    {% if playlist_options %}
-                        {% for pl in playlist_options %}
-                        <option value="{{ pl.id }}">{{ pl.name }}</option>
-                        {% endfor %}
-                    {% else %}
-                    <option value="">Loading playlists…</option>
-                    {% endif %}
-                </select>
-                <button class="playlist-refresh-btn" onclick="refreshDiscoverPlaylistPicker()" aria-label="Refresh playlist list" data-i18n-title="playlist.refresh_aria" title="Refresh playlist list">↻</button>
-                <button class="btn-icon playlist-delete-btn" onclick="deleteSelectedPlaylist('playlistPicker')" aria-label="Delete selected playlist" data-i18n-title="playlist.delete_aria" title="Delete selected playlist">🗑</button>
-            </div>
-        </div>
-    </div>
-
     <!-- ═══ SHARED: Run section (outside both mode bodies) ═══ -->
     <div class="run-section">
-        <button class="btn-run" id="runBtn" onclick="runPipeline()" {% if not can_generate %}disabled{% endif %}><span aria-hidden="true">▶</span> <span data-i18n="btn.generate">Generate &amp; Create Playlist</span></button>
+        <button class="btn-run" id="runBtn" onclick="runPipeline()" {% if not can_generate %}disabled{% endif %}><span aria-hidden="true">▶</span> <span data-i18n="btn.generate">Generate Suggestions</span></button>
         <button class="btn-run-cancel hidden" id="cancelBtn" onclick="cancelGeneration()"><span aria-hidden="true">⛔</span> <span data-i18n="btn.cancel_generation">Cancel</span></button>
         <button class="btn-use-tracks hidden" id="useTracksBtn" onclick="useCurrentTracks()"><span aria-hidden="true">▶</span> Use 0 tracks now</button>
         <p class="cost-footnote hidden" id="costFootnote" onclick="toggleCostPopover(event)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCostPopover(event)}" role="button" tabindex="0" aria-expanded="false" aria-controls="costPopoverCard">
@@ -256,10 +215,18 @@
         <hr class="inline-divider">
         <div id="statusBox" class="hidden"></div>
         <div id="playlistLinkBox" class="playlist-link-box hidden"></div>
-        <div class="songlist-counter-row">
+        <!-- Sticky header row: track counter (left) + Apply/Clear (right).
+             Stays pinned to the viewport top while the user scrolls through
+             the tracklist; sticky context is the parent discoverTrackArea,
+             so the row releases when the area scrolls past. -->
+        <div class="songlist-counter-row tracklist-sticky-header">
             <span id="songlistCounter" class="songlist-counter">
                 {% if tracklist %}{{ tracklist|length }} / {{ max_song_list_size }} songs{% endif %}
             </span>
+            <div class="tracklist-actions-row {% if not tracklist %}hidden{% endif %}" id="discoverTrackActions">
+                <button class="btn btn-apply" onclick="openApplyModal()" data-i18n="btn.apply_playlist">Apply to Playlist</button>
+                <button class="btn btn-clear-list" onclick="clearSuggestions()" data-i18n="btn.clear_list">Clear</button>
+            </div>
         </div>
         <ul id="trackList" class="track-list">
             {% if tracklist %}
@@ -297,28 +264,34 @@
                             {% endif %}
                         </div>
                         <div class="track-actions">
-                            <button class="btn btn-like"    onclick="toggleFeedback({{ idx }},'like')" aria-label="Like {{ track.artist|e }} — {{ track.title|e }}"><span aria-hidden="true">👍</span> Like</button>
-                            <button class="btn btn-dislike" onclick="toggleFeedback({{ idx }},'dislike')" aria-label="Dislike {{ track.artist|e }} — {{ track.title|e }}"><span aria-hidden="true">👎</span> Dislike</button>
-                            <button class="btn btn-remove"  onclick="removeTrack({{ idx }})" aria-label="Remove {{ track.artist|e }} — {{ track.title|e }}">✕</button>
+                            <button class="btn btn-feedback" onclick="toggleFeedback({{ idx }})"
+                                    data-i18n-attr="aria-label:feedback.button_aria"
+                                    aria-label="Open feedback panel for this track"><span aria-hidden="true">💬</span> <span data-i18n="feedback.open_panel">Feedback</span></button>
+                            <button class="btn btn-remove"  onclick="removeTrack({{ idx }})"
+                                    data-i18n-attr="aria-label:feedback.delete_aria"
+                                    aria-label="Remove this track from the playlist">🗑</button>
                         </div>
                     </div>
                     <div class="feedback-form" id="form-{{ idx }}">
                         <div class="form-row">
-                            <label for="artist-{{ idx }}">Artist</label>
+                            <label for="artist-{{ idx }}" data-i18n="feedback.artist_label">Artist</label>
                             <input id="artist-{{ idx }}" type="text" value="{{ track.artist|e }}">
                         </div>
                         <div class="form-row">
-                            <label for="title-{{ idx }}">Track</label>
+                            <label for="title-{{ idx }}" data-i18n="feedback.track_label">Track</label>
                             <input id="title-{{ idx }}" type="text" value="{{ track.title|e }}">
-                            <div class="form-hint">Leave empty to apply feedback to the artist in general.</div>
+                            <div class="form-hint" data-i18n="feedback.form_hint">Leave empty to apply feedback to the artist in general.</div>
                         </div>
                         <div class="form-row">
-                            <label for="reason-{{ idx }}">Reason (optional)</label>
-                            <input id="reason-{{ idx }}" type="text" placeholder="e.g. perfect energy, boring melody…">
+                            <label for="reason-{{ idx }}" data-i18n="feedback.reason_label">Reason (optional)</label>
+                            <input id="reason-{{ idx }}" type="text"
+                                   data-i18n-placeholder="feedback.reason_placeholder"
+                                   placeholder="e.g. perfect energy, boring melody…">
                         </div>
-                        <div class="form-actions">
-                            <button class="btn" id="submitBtn-{{ idx }}" onclick="submitFeedback({{ idx }})">Submit</button>
-                            <button class="btn btn-cancel" onclick="closeFeedback({{ idx }})">Cancel</button>
+                        <div class="form-actions form-actions-dual">
+                            <button class="btn btn-submit-like" id="submitBtn-{{ idx }}-like" onclick="submitFeedback({{ idx }},'like')" data-i18n="btn.submit_like">👍 Like</button>
+                            <button class="btn btn-submit-dislike" id="submitBtn-{{ idx }}-dislike" onclick="submitFeedback({{ idx }},'dislike')" data-i18n="btn.submit_dislike">👎 Dislike</button>
+                            <button class="btn btn-cancel" onclick="closeFeedback({{ idx }})" data-i18n="btn.cancel">Cancel</button>
                         </div>
                     </div>
                 </li>

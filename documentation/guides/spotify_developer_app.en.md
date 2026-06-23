@@ -3,25 +3,31 @@ title: Create your Spotify developer app
 subtitle: A free Spotify developer account with your own app credentials.
 ---
 
-## Step 1 — Open the Spotify Developer Dashboard
-Go to [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) and log in with your Spotify account (or create one if you don't have one).
-![Spotify Developer Dashboard](/docs/guides/spotify/step1_dashboard.png)
+## Step 1 — Log in at Spotify for Developers
+Go to [developer.spotify.com](https://developer.spotify.com) and click **Log in** in the top-right corner.
+![Log in button on the Spotify for Developers page](/docs/guides/spotify/step1_login.png)
 
-## Step 2 — Create a new app
-Click **Create app**. Give it any name (e.g. `SpotyVibe`) and any description. Select **Web API** as the API you want to use.
-![Create app](/docs/guides/spotify/step2_create.png)
+Sign in with your regular Spotify account — or click **Sign up** at the bottom if you don't have one yet.
+![Spotify login form](/docs/guides/spotify/step2_login_form.png)
 
-## Step 3 — Set the Redirect URI
-Paste this exact URL into the **Redirect URIs** field and click **Add**:
+## Step 2 — Open the Dashboard
+Click your profile name in the top-right corner and select **Dashboard** from the menu.
+![Profile menu with the Dashboard entry](/docs/guides/spotify/step3_dashboard_menu.png)
+
+## Step 3 — Create a new app
+On the Dashboard, click **Create app**.
+![Create app button on the Dashboard](/docs/guides/spotify/step4_create_app.png)
+
+## Step 4 — Fill in the app details and Redirect URI
+Give the app any name (e.g. `SpotyVibe`) and any description. Then paste this exact URL into the **Redirect URIs** field and click **Add**:
 
 ```copy
 http://127.0.0.1:5000/callback
 ```
 
-This tells Spotify where to send the authentication response back to SpotyVibe.
-![Redirect URI](/docs/guides/spotify/step3_redirect.png)
+This tells Spotify where to send the authentication response back to SpotyVibe. Under **Which API/SDKs are you planning to use?** select **Web API**, accept the developer terms, and save the app.
+![App creation form with Redirect URI and Web API selected](/docs/guides/spotify/step5_app_form.png)
 
-## Step 4 — Copy your Client ID and Secret
-After creating the app, you'll see the **Client ID** on the app's overview page. Click **Show client secret** to reveal the secret. Copy both values and paste them into SpotyVibe.
-![Client ID and Secret](/docs/guides/spotify/step4_secret.png)
-
+## Step 5 — Copy your Client ID and Secret
+On the app's settings page you'll see the **Client ID**. Click **Show client secret** to reveal the secret. Copy both values and paste them into SpotyVibe.
+![Client ID and Client secret fields on the app settings page](/docs/guides/spotify/step6_credentials.png)

@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch, mock_open, MagicMock
 
+import pytest
 
 import config
 
@@ -27,29 +28,15 @@ class TestGetModel:
 
 
 class TestGetDebugMode:
-    @patch.dict(os.environ, {"DEBUG_MODE": "true"})
-    def test_true_when_true(self):
-        assert config.get_debug_mode() is True
+    @pytest.mark.parametrize("value", ["true", "1", "on", "ON"])
+    def test_true_values(self, value):
+        with patch.dict(os.environ, {"DEBUG_MODE": value}):
+            assert config.get_debug_mode() is True
 
-    @patch.dict(os.environ, {"DEBUG_MODE": "1"})
-    def test_true_when_one(self):
-        assert config.get_debug_mode() is True
-
-    @patch.dict(os.environ, {"DEBUG_MODE": "on"})
-    def test_true_when_on(self):
-        assert config.get_debug_mode() is True
-
-    @patch.dict(os.environ, {"DEBUG_MODE": "ON"})
-    def test_case_insensitive(self):
-        assert config.get_debug_mode() is True
-
-    @patch.dict(os.environ, {"DEBUG_MODE": ""})
-    def test_false_when_empty(self):
-        assert config.get_debug_mode() is False
-
-    @patch.dict(os.environ, {"DEBUG_MODE": "false"})
-    def test_false_when_false(self):
-        assert config.get_debug_mode() is False
+    @pytest.mark.parametrize("value", ["", "false"])
+    def test_false_values(self, value):
+        with patch.dict(os.environ, {"DEBUG_MODE": value}):
+            assert config.get_debug_mode() is False
 
 
 class TestGetPlaylistSize:
@@ -58,9 +45,9 @@ class TestGetPlaylistSize:
         assert config.get_playlist_size() == 25
 
     @patch.dict(os.environ, {"PLAYLIST_SIZE": "3"})
-    def test_clamps_to_batch_size(self):
-        # Must be at least BATCH_SIZE
-        assert config.get_playlist_size() == config.BATCH_SIZE
+    def test_clamps_to_minimum(self):
+        # Hard minimum of 5 tracks
+        assert config.get_playlist_size() == 5
 
     @patch.dict(os.environ, {"PLAYLIST_SIZE": ""})
     def test_falls_back_to_default(self):
@@ -72,25 +59,19 @@ class TestGetPlaylistSize:
 
 
 class TestGetNewArtistPercentage:
-    @patch.dict(os.environ, {"NEW_ARTIST_PERCENTAGE": "50"})
-    def test_returns_configured_value(self):
-        assert config.get_new_artist_percentage() == 50
+    @pytest.mark.parametrize("env_value,expected", [
+        ("50", 50),
+        ("0", 1),       # clamped low
+        ("200", 100),   # clamped high
+    ])
+    def test_returns_or_clamps(self, env_value, expected):
+        with patch.dict(os.environ, {"NEW_ARTIST_PERCENTAGE": env_value}):
+            assert config.get_new_artist_percentage() == expected
 
-    @patch.dict(os.environ, {"NEW_ARTIST_PERCENTAGE": "0"})
-    def test_clamps_low_to_one(self):
-        assert config.get_new_artist_percentage() == 1
-
-    @patch.dict(os.environ, {"NEW_ARTIST_PERCENTAGE": "200"})
-    def test_clamps_high_to_hundred(self):
-        assert config.get_new_artist_percentage() == 100
-
-    @patch.dict(os.environ, {"NEW_ARTIST_PERCENTAGE": ""})
-    def test_falls_back_to_default(self):
-        assert config.get_new_artist_percentage() == config.DEFAULT_NEW_ARTIST_PERCENTAGE
-
-    @patch.dict(os.environ, {"NEW_ARTIST_PERCENTAGE": "abc"})
-    def test_falls_back_on_invalid(self):
-        assert config.get_new_artist_percentage() == config.DEFAULT_NEW_ARTIST_PERCENTAGE
+    @pytest.mark.parametrize("env_value", ["", "abc"])
+    def test_falls_back_on_empty_or_invalid(self, env_value):
+        with patch.dict(os.environ, {"NEW_ARTIST_PERCENTAGE": env_value}):
+            assert config.get_new_artist_percentage() == config.DEFAULT_NEW_ARTIST_PERCENTAGE
 
 
 class TestGetSettings:
@@ -198,6 +179,67 @@ class TestSaveCredentials:
         config.save_credentials({"UNKNOWN_KEY": "value"})
         mock_set_key.assert_not_called()
 
+    @patch("config._KEYRING_AVAILABLE", True)
+    @patch("config._keyring")
+    @patch("config.load_dotenv")
+    @patch("config.set_key")
+    @patch("config.ensure_env")
+    @patch("builtins.open", mock_open(read_data="OPENAI_API_KEY=\n"))
+    def test_keyring_branch_stores_secret_and_writes_empty_placeholder(
+        self, mock_ensure, mock_set_key, mock_load, mock_keyring
+    ):
+        # Non-empty secret with keyring available: secret goes to OS keychain,
+        # .credentials gets an empty placeholder so plaintext never lands on disk.
+        mock_keyring.get_password.return_value = "sk-new"
+        config.save_credentials({"OPENAI_API_KEY": "sk-new"})
+        mock_keyring.set_password.assert_called_once_with(
+            config._KEYRING_SERVICE, "OPENAI_API_KEY", "sk-new"
+        )
+        mock_keyring.delete_password.assert_not_called()
+        mock_set_key.assert_called_once_with(
+            str(config.CREDENTIALS_FILE), "OPENAI_API_KEY", ""
+        )
+        assert os.environ["OPENAI_API_KEY"] == "sk-new"
+
+    @patch("config._KEYRING_AVAILABLE", True)
+    @patch("config._keyring")
+    @patch("config.load_dotenv")
+    @patch("config.set_key")
+    @patch("config.ensure_env")
+    @patch("builtins.open", mock_open(read_data="OPENAI_API_KEY=\n"))
+    def test_keyring_branch_deletes_on_empty_value(
+        self, mock_ensure, mock_set_key, mock_load, mock_keyring
+    ):
+        # Empty string explicitly clears the secret — keyring entry deleted,
+        # dotenv placeholder still emptied.
+        mock_keyring.get_password.return_value = None
+        config.save_credentials({"OPENAI_API_KEY": ""})
+        mock_keyring.delete_password.assert_called_once_with(
+            config._KEYRING_SERVICE, "OPENAI_API_KEY"
+        )
+        mock_keyring.set_password.assert_not_called()
+        mock_set_key.assert_called_once_with(
+            str(config.CREDENTIALS_FILE), "OPENAI_API_KEY", ""
+        )
+
+    @patch("config._KEYRING_AVAILABLE", True)
+    @patch("config._keyring")
+    @patch("config.load_dotenv")
+    @patch("config.set_key")
+    @patch("config.ensure_env")
+    @patch("builtins.open", mock_open(read_data="OPENAI_API_KEY=\n"))
+    def test_keyring_failure_falls_back_to_dotenv(
+        self, mock_ensure, mock_set_key, mock_load, mock_keyring
+    ):
+        # Keyring write failure must fall back to plaintext .credentials so
+        # the user is not silently locked out.
+        mock_keyring.set_password.side_effect = Exception("keychain locked")
+        mock_keyring.get_password.return_value = None
+        config.save_credentials({"OPENAI_API_KEY": "sk-new"})
+        mock_set_key.assert_called_once_with(
+            str(config.CREDENTIALS_FILE), "OPENAI_API_KEY", "sk-new"
+        )
+
 
 class TestSaveSettings:
     @patch("config.load_dotenv")
@@ -255,7 +297,7 @@ class TestEnsureEnv:
         assert settings_file.exists()
         cred_content = cred_file.read_text()
         settings_content = settings_file.read_text()
-        for key in config.CREDENTIAL_KEYS:
+        for key in config.CREDENTIALS_KEYS:
             assert f"{key}=" in cred_content
         for key in config.SETTINGS_KEYS:
             assert f"{key}=" in settings_content
@@ -326,32 +368,10 @@ class TestEnsureEnv:
         content = cred_file.read_text()
         assert "OPENAI_API_KEY=sk-old" in content
 
-    def test_skips_migration_on_android(self, tmp_path):
-        """On Android the old .env migration must be skipped."""
-        old_env = tmp_path / ".env"
-        old_env.write_text("OPENAI_API_KEY=sk-old\n")
-        cred_file = tmp_path / ".credentials"
-        settings_file = tmp_path / "settings.conf"
-        app_dir = tmp_path
-
-        with patch.object(config, "_APP_DIR", app_dir), \
-             patch.object(config, "CREDENTIALS_FILE", cred_file), \
-             patch.object(config, "SETTINGS_FILE", settings_file), \
-             patch.object(config, "_OLD_ENV_FILE", old_env), \
-             patch.object(config, "IS_ANDROID", True):
-            config.ensure_env()
-
-        # .env should NOT have been migrated
-        assert old_env.exists()
-        # Fresh files should have been created instead
-        assert cred_file.exists()
-        assert settings_file.exists()
-
 
 class TestGetAppDir:
     def test_desktop_uses_localappdata(self):
-        with patch.object(config, "IS_ANDROID", False), \
-             patch("sys.platform", "win32"), \
+        with patch("sys.platform", "win32"), \
              patch.dict(os.environ, {"LOCALAPPDATA": "C:\\Users\\test\\AppData\\Local"}):
             result = config._get_app_dir()
             assert result == Path("C:\\Users\\test\\AppData\\Local") / "spotyvibe"
@@ -359,30 +379,10 @@ class TestGetAppDir:
     def test_desktop_falls_back_to_home(self):
         env = os.environ.copy()
         env.pop("LOCALAPPDATA", None)
-        with patch.object(config, "IS_ANDROID", False), \
-             patch("sys.platform", "win32"), \
+        with patch("sys.platform", "win32"), \
              patch.dict(os.environ, env, clear=True):
             result = config._get_app_dir()
             assert result == Path(os.path.expanduser("~")) / "spotyvibe"
-
-    def test_android_uses_files_dir_env(self):
-        with patch.object(config, "IS_ANDROID", True), \
-             patch.dict(os.environ, {"SPOTYVIBE_FILES_DIR": "/data/data/com.spotyvibe.app/files"}):
-            result = config._get_app_dir()
-            assert result == Path("/data/data/com.spotyvibe.app/files") / "spotyvibe"
-
-    def test_android_falls_back_to_home(self):
-        env = os.environ.copy()
-        env.pop("SPOTYVIBE_FILES_DIR", None)
-        with patch.object(config, "IS_ANDROID", True), \
-             patch.dict(os.environ, env, clear=True):
-            result = config._get_app_dir()
-            assert result == Path(os.path.expanduser("~")) / "spotyvibe"
-
-
-class TestIsAndroid:
-    def test_false_on_desktop(self):
-        assert config.IS_ANDROID is False
 
 
 class TestBaseDir:
@@ -422,41 +422,19 @@ class TestBaseDir:
 class TestIsOnboardingCompleted:
     """Tests for is_onboarding_completed — reads from settings.conf file."""
 
-    def test_returns_true_when_file_has_true(self, tmp_path):
+    @pytest.mark.parametrize("file_value,expected", [
+        ("ONBOARDING_COMPLETED=true\n", True),
+        ("ONBOARDING_COMPLETED=yes\n", True),
+        ("ONBOARDING_COMPLETED=1\n", True),
+        ("ONBOARDING_COMPLETED=false\n", False),
+        ("ONBOARDING_COMPLETED=\n", False),
+        ("OPENAI_MODEL=gpt-4o\n", False),  # key missing from file
+    ])
+    def test_settings_file_value(self, tmp_path, file_value, expected):
         settings_file = tmp_path / "settings.conf"
-        settings_file.write_text("ONBOARDING_COMPLETED=true\n")
+        settings_file.write_text(file_value)
         with patch.object(config, "SETTINGS_FILE", settings_file):
-            assert config.is_onboarding_completed() is True
-
-    def test_returns_true_when_file_has_yes(self, tmp_path):
-        settings_file = tmp_path / "settings.conf"
-        settings_file.write_text("ONBOARDING_COMPLETED=yes\n")
-        with patch.object(config, "SETTINGS_FILE", settings_file):
-            assert config.is_onboarding_completed() is True
-
-    def test_returns_true_when_file_has_1(self, tmp_path):
-        settings_file = tmp_path / "settings.conf"
-        settings_file.write_text("ONBOARDING_COMPLETED=1\n")
-        with patch.object(config, "SETTINGS_FILE", settings_file):
-            assert config.is_onboarding_completed() is True
-
-    def test_returns_false_when_file_has_false(self, tmp_path):
-        settings_file = tmp_path / "settings.conf"
-        settings_file.write_text("ONBOARDING_COMPLETED=false\n")
-        with patch.object(config, "SETTINGS_FILE", settings_file):
-            assert config.is_onboarding_completed() is False
-
-    def test_returns_false_when_file_has_empty_value(self, tmp_path):
-        settings_file = tmp_path / "settings.conf"
-        settings_file.write_text("ONBOARDING_COMPLETED=\n")
-        with patch.object(config, "SETTINGS_FILE", settings_file):
-            assert config.is_onboarding_completed() is False
-
-    def test_returns_false_when_key_missing_from_file(self, tmp_path):
-        settings_file = tmp_path / "settings.conf"
-        settings_file.write_text("OPENAI_MODEL=gpt-4o\n")
-        with patch.object(config, "SETTINGS_FILE", settings_file):
-            assert config.is_onboarding_completed() is False
+            assert config.is_onboarding_completed() is expected
 
     def test_returns_false_when_file_does_not_exist(self, tmp_path):
         settings_file = tmp_path / "settings.conf"
@@ -480,4 +458,5 @@ class TestIsOnboardingCompleted:
         with patch.dict(os.environ, {"ONBOARDING_COMPLETED": "true"}):
             with patch.object(config, "SETTINGS_FILE", settings_file):
                 assert config.is_onboarding_completed() is False
+
 

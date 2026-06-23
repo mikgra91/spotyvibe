@@ -2,7 +2,7 @@
  * playlist_seed.js — Seed profile from a Spotify playlist (Wave 3 C.1)
  */
 import { i18n } from './i18n.js';
-import { showToast } from './ui.js';
+import { showToast, attr } from './ui.js';
 import { el } from './dom.js';
 
 let _selectedPlaylistId = null;
@@ -89,7 +89,7 @@ function _renderPlaylistList(playlists, source) {
         li.className = 'playlist-seed-item';
         li.dataset.playlistId = p.id;
         li.innerHTML = `
-            ${p.cover_url ? `<img class="playlist-seed-cover" src="${p.cover_url}" alt="" loading="lazy">` : '<div class="playlist-seed-cover"></div>'}
+            ${p.cover_url ? `<img class="playlist-seed-cover" src="${attr(p.cover_url)}" alt="" loading="lazy">` : '<div class="playlist-seed-cover"></div>'}
             <div class="playlist-seed-text">
                 <div class="playlist-seed-name">${_esc(p.name)}</div>
                 <div class="playlist-seed-meta">${i18n('seed.track_count', '{count} tracks').replace('{count}', p.track_count)} · ${i18n('seed.owner', 'by {owner}').replace('{owner}', _esc(p.owner))}</div>

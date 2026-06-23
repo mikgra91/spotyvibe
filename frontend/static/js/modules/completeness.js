@@ -1,9 +1,8 @@
 /**
  * completeness.js — Profile completeness score calculator & meter DOM updater.
  *
- * Computes a 0–100% "Profile Strength" based on five weighted dimensions:
- *   Core Description (40%), Must Have (25%), Soft Preferences (15%),
- *   Avoid (10%), User-edited (10%).
+ * Computes a 0–100% "Profile Strength" based on four weighted dimensions:
+ *   Core Description (45%), Must Have (27%), Soft Preferences (17%), Avoid (11%).
  *
  * The meter is visible only while score < 60%. Once ≥ 60 it flashes green
  * and hides.
@@ -22,7 +21,6 @@ const MOOD_GENRE_WORDS = [
 ];
 
 let _debounceTimer = null;
-let _pristine = true; // tracks whether any field has been touched
 
 // ── Dimension scorers ───────────────────────────────────────────────
 
@@ -53,19 +51,13 @@ function _scoreAvoid(text) {
     if (lines.length === 0) return { value: 0, state: 'empty', detail: '0 lines' };
     return { value: 1.0, state: 'strong', detail: `${lines.length} lines` };
 }
-function _scoreTouched() {
-    if (!_pristine) return { value: 1.0, state: 'strong', detail: '✓' };
-    return { value: 0, state: 'empty', detail: '—' };
-}
-
 // ── Score computation ───────────────────────────────────────────────
 
 const DIMENSIONS = [
-    { key: 'core',  weight: 0.40, label: 'profile.core_description', scorer: _scoreCore,     field: 'trainCoreDesc' },
-    { key: 'must',  weight: 0.25, label: 'profile.must_have',        scorer: _scoreMustHave,  field: 'trainMustHave' },
-    { key: 'soft',  weight: 0.15, label: 'profile.soft_preferences', scorer: _scoreSoftPrefs, field: 'trainSoftPrefs' },
-    { key: 'avoid', weight: 0.10, label: 'profile.avoid',            scorer: _scoreAvoid,     field: 'trainAvoid' },
-    { key: 'touch', weight: 0.10, label: 'profile.touched',          scorer: _scoreTouched,   field: null },
+    { key: 'core',  weight: 0.45, label: 'profile.core_description', scorer: _scoreCore,     field: 'trainCoreDesc' },
+    { key: 'must',  weight: 0.27, label: 'profile.must_have',        scorer: _scoreMustHave,  field: 'trainMustHave' },
+    { key: 'soft',  weight: 0.17, label: 'profile.soft_preferences', scorer: _scoreSoftPrefs, field: 'trainSoftPrefs' },
+    { key: 'avoid', weight: 0.11, label: 'profile.avoid',            scorer: _scoreAvoid,     field: 'trainAvoid' },
 ];
 
 function compute() {
@@ -171,7 +163,6 @@ function _update() {
 }
 
 function _scheduleUpdate() {
-    _pristine = false;
     clearTimeout(_debounceTimer);
     _debounceTimer = setTimeout(_update, 250);
 }
@@ -221,10 +212,7 @@ export function init() {
     }
 
     // Also update after profile save/load via custom event
-    document.addEventListener('profile-loaded', () => {
-        _pristine = true;
-        _update();
-    });
+    document.addEventListener('profile-loaded', _update);
 
     // Initial render (but only if the profile editor is open)
     const body = el('trainBody');

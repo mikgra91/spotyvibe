@@ -64,17 +64,33 @@ def _ensure_playwright_browsers():
 
 @pytest.fixture(scope="session")
 def browser_context_args(browser_context_args):
-    """Force English locale so i18n doesn't auto-switch to German."""
-    return {**browser_context_args, "locale": "en-US"}
+    """Force English locale and use a tall viewport.
+
+    The default Playwright viewport (1280x720) is too short for the
+    onboarding wizard pages — the bottom CTA buttons end up outside
+    the viewport, causing Playwright's auto-scroll to give up after
+    several retries with "element is outside of the viewport".
+    1280x1024 fits the entire wizard card on every step.
+    """
+    return {
+        **browser_context_args,
+        "locale": "en-US",
+        "viewport": {"width": 1280, "height": 1024},
+    }
 
 
 @pytest.fixture(autouse=True)
 def _reduce_timeouts(page):
-    """Halve default Playwright timeouts and suppress the quickstart modal in tests.
+    """Halve default Playwright timeouts, suppress the quickstart modal, and
+    add automatic retry for ``ERR_ADDRESS_IN_USE`` on navigation.
 
     The quickstart auto-shows on first visit (no localStorage key).  Tests
     shouldn't need to dismiss it manually, so we inject the dismiss flag on
     every page-load event before any JS runs that would open the modal.
+
+    On Windows, rapid page.goto/reload across many tests can exhaust ephemeral
+    TCP ports (TIME_WAIT). Chromium then surfaces ``net::ERR_ADDRESS_IN_USE``
+    on the *client* side. We retry such navigations a few times with backoff.
     """
     page.set_default_timeout(10_000)
     page.set_default_navigation_timeout(10_000)
@@ -83,6 +99,52 @@ def _reduce_timeouts(page):
     page.add_init_script(
         "localStorage.setItem('spotyvibe-quickstart-dismissed', 'true');"
     )
+
+    # S1: hide the RAG-update toast (#ragUpdateTip) for the whole session.
+    # The toast is injected dynamically by rag_update_prompt.js after a
+    # /api/settings fetch resolves to status='update_available' or
+    # 'missing_corpus', so a one-shot DOMContentLoaded hide misses it. A
+    # CSS rule on the id catches the element no matter when it appears,
+    # and prevents it from intercepting pointer events on modal buttons.
+    # S2: disable CSS transitions + animations. Toggle tests (e.g.
+    # test_toggle_opens_and_closes_editor) assert visibility right after
+    # the click, but the slide animation can still be running at the
+    # assertion point. Forcing transition/animation off makes UI state
+    # changes synchronous from the test's perspective.
+    page.add_init_script(
+        "document.addEventListener('DOMContentLoaded', () => {"
+        "  const style = document.createElement('style');"
+        "  style.setAttribute('data-test-overrides', '1');"
+        "  style.textContent = '"
+        "#ragUpdateTip { display: none !important; pointer-events: none !important; } "
+        "*, *::before, *::after { "
+        "transition: none !important; animation-duration: 0s !important;"
+        " animation-delay: 0s !important; }';"
+        "  document.head.appendChild(style);"
+        "});"
+    )
+
+    # Wrap goto/reload to transparently retry on transient port exhaustion.
+    _orig_goto = page.goto
+    _orig_reload = page.reload
+
+    def _retry(fn, *args, **kwargs):
+        last_exc = None
+        for attempt in range(4):
+            try:
+                return fn(*args, **kwargs)
+            except Exception as exc:  # playwright.Error subclass
+                msg = str(exc)
+                if "ERR_ADDRESS_IN_USE" not in msg and "ERR_NETWORK_CHANGED" not in msg:
+                    raise
+                last_exc = exc
+                # Exponential-ish backoff (200ms, 600ms, 1500ms) to let the
+                # OS reclaim ephemeral ports.
+                time.sleep(0.2 * (3 ** attempt))
+        raise last_exc
+
+    page.goto = lambda *a, **kw: _retry(_orig_goto, *a, **kw)
+    page.reload = lambda *a, **kw: _retry(_orig_reload, *a, **kw)
 
 
 def dismiss_quickstart(page) -> None:
@@ -122,7 +184,6 @@ def _base_url():
             "model": "gpt-4.1-mini",
             "debug_mode": False,
             "debug_controls_available": True,
-            "is_android": False,
             "debug_log_path": "debug.log",
             "playlist_size": 10,
             "new_artist_percentage": 30,
@@ -232,12 +293,23 @@ def _base_url():
     from app import app as flask_app
     flask_app.config["TESTING"] = True
 
-    server_thread = threading.Thread(
-        target=lambda: flask_app.run(
+    # Use waitress (production WSGI server) instead of werkzeug's dev server.
+    # werkzeug + threaded=True is slow under load and frequently starves
+    # parallel test runners trying to fetch the ~30 ES module imports of
+    # main.js, surfacing as ``window.switchTab`` never being defined.
+    # Waitress handles the parallel load comfortably and shaves seconds off
+    # cold page loads.
+    try:
+        from waitress import serve as _waitress_serve
+        server_target = lambda: _waitress_serve(
+            flask_app, host="127.0.0.1", port=port, threads=8, _quiet=True,
+        )
+    except ImportError:
+        server_target = lambda: flask_app.run(
             host="127.0.0.1", port=port, use_reloader=False, threaded=True,
-        ),
-        daemon=True,
-    )
+        )
+
+    server_thread = threading.Thread(target=server_target, daemon=True)
     server_thread.start()
 
     for _ in range(50):
@@ -246,6 +318,19 @@ def _base_url():
                 break
         except OSError:
             time.sleep(0.1)
+
+    # Pre-warm: issue one synthetic HTTP request so the very first real test
+    # in the group doesn't pay the cold-start tax (Flask first-request setup,
+    # template compilation, JIT warmup of the WSGI worker pool, etc.).
+    # On slow CI runners this can shave 1–2 s off the first test in each
+    # parallel group and reduces flakiness on tight default timeouts.
+    try:
+        import urllib.request
+        with urllib.request.urlopen(f"{url}/", timeout=5) as resp:
+            resp.read()
+    except Exception:
+        # Pre-warm is best-effort — never fail the session because of it.
+        pass
 
     yield url
 

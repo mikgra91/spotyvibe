@@ -24,6 +24,7 @@ Technologies & patterns used:
 
 import logging
 import os
+import random
 import re
 import time
 from datetime import datetime, timezone
@@ -50,18 +51,339 @@ from spotipy.exceptions import SpotifyException
 # authorises via browser, the app receives a code, exchanges it for
 # access + refresh tokens, and caches them locally.
 from spotipy.oauth2 import SpotifyOAuth, CacheFileHandler
-from config import CACHE_FILE, IS_ANDROID
+from config import CACHE_FILE, COOLDOWN_FILE
+from .errors import TranslatableError
+from .rag.corpus import normalise_name
+from .utils import app_log
 
 logger = logging.getLogger(__name__)
+
+_legacy_track_key_warned = False
+
+
+# 2026-05-07: Spotify rate-limit hardening for the eval harness.
+# These env vars are set by run_evaluation.py before the production
+# code is imported. Production users hit none of this — the env vars
+# stay unset, max_workers stays at the prior default of 5, and no
+# extra sleep is inserted. The eval path is the only consumer because
+# (a) it generates hundreds of searches per session against ONE user
+# token and (b) repeatedly tripping a 429 risks the user account
+# being flagged for unusual API behaviour.
+_SEARCH_SERIAL_ENV = "SPOTIVIBE_SPOTIFY_SEARCH_SERIAL"
+_SEARCH_DELAY_ENV = "SPOTIVIBE_SPOTIFY_SEARCH_DELAY_S"
+
+
+def _is_serial_search_mode() -> bool:
+    """Return True when the eval harness has asked for serial searches.
+
+    Reads ``SPOTIVIBE_SPOTIFY_SEARCH_SERIAL`` at call time so a test
+    can flip the flag mid-process without restarting. Accepts the
+    common truthy spellings.
+    """
+    return os.environ.get(_SEARCH_SERIAL_ENV, "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+
+
+# P2 (2026-05-24) — default hard cap on parallel Spotify search workers.
+# Two workers + jitter keeps the API-side fingerprint close to a human
+# clicking quickly (≈3-4 queries/sec) while still parallelising enough
+# to hide network latency. Field-tunable via the env var below; the
+# range is clamped to [1, 5] so a misconfiguration can't reproduce the
+# 2026-05-24 ban incident.
+DEFAULT_MAX_SEARCH_WORKERS = 2
+_MAX_SEARCH_WORKERS_ENV = "SPOTIVIBE_MAX_SEARCH_WORKERS"
+_MAX_SEARCH_WORKERS_FLOOR = 1
+_MAX_SEARCH_WORKERS_CEILING = 5
+
+# P2 (2026-05-24) — jitter window prepended to each Spotify search.
+# 50–150 ms staggers parallel calls enough that Spotify's anomaly
+# detection doesn't see N identical-timestamp queries.
+_JITTER_MIN_S = 0.05
+_JITTER_MAX_S = 0.15
+
+
+def _resolved_max_search_workers() -> int:
+    """Return the active worker cap, reading the env var at call time.
+
+    Reading per-call (not at import) lets a test or a power user flip
+    ``SPOTIVIBE_MAX_SEARCH_WORKERS`` without restarting the process.
+    Invalid values (non-int, out of range) silently fall back to the
+    default — we never want a bad env var to break Spotify search.
+    """
+    raw = os.environ.get(_MAX_SEARCH_WORKERS_ENV, "").strip()
+    if not raw:
+        return DEFAULT_MAX_SEARCH_WORKERS
+    try:
+        n = int(raw)
+    except ValueError:
+        return DEFAULT_MAX_SEARCH_WORKERS
+    if n < _MAX_SEARCH_WORKERS_FLOOR or n > _MAX_SEARCH_WORKERS_CEILING:
+        logger.warning(
+            "%s=%d out of range [%d, %d]; using default %d",
+            _MAX_SEARCH_WORKERS_ENV, n,
+            _MAX_SEARCH_WORKERS_FLOOR, _MAX_SEARCH_WORKERS_CEILING,
+            DEFAULT_MAX_SEARCH_WORKERS,
+        )
+        return DEFAULT_MAX_SEARCH_WORKERS
+    return n
+
+
+def _resolve_search_pool_size(default_max: int, n_unique: int) -> int:
+    """Compute the ThreadPoolExecutor max_workers for a search batch.
+
+    Serial mode forces 1 worker so a multi-batch eval run can never
+    burst-saturate the Spotify per-token sliding-window quota.
+
+    P2 (2026-05-24) — clamp the default-mode cap to the resolved
+    ``MAX_SEARCH_WORKERS`` (default 2) so a single playlist can't fire
+    5+ concurrent Spotify searches against one user token. The prior
+    default (5) looked small but combined with bursty per-batch
+    verification it tripped Spotify's anomaly-detection in field
+    testing (2026-05-24 incident: `Retry-After=38401s` after 3 small
+    playlists in 15 min).
+    """
+    if _is_serial_search_mode():
+        return 1
+    effective_cap = min(default_max, _resolved_max_search_workers())
+    return min(effective_cap, n_unique) or 1
+
+
+def _post_search_throttle() -> None:
+    """Sleep ``SPOTIVIBE_SPOTIFY_SEARCH_DELAY_S`` seconds after a search.
+
+    Called inside ``_do_spotify_search`` after each successful Spotify
+    response. Eval mode sets this to ~0.5 s so the steady-state call
+    rate stays well under the documented Spotify per-user search budget
+    (≤ 180 calls / 30 s rolling window). No-op when the env var is
+    unset, blank, non-numeric, or ≤ 0.
+    """
+    raw = os.environ.get(_SEARCH_DELAY_ENV, "").strip()
+    if not raw:
+        return
+    try:
+        delay = float(raw)
+    except ValueError:
+        return
+    if delay > 0:
+        time.sleep(delay)
+
+
+# ─── P0 (2026-05-24) Spotify long-cooldown gate ─────────────────────
+# When Spotify returns 429 with a Retry-After far longer than our
+# per-request retry cap (90 s), the only safe response is to stop
+# calling Spotify until the cool-down expires. Retrying through a
+# multi-hour ban looks like scraping/probing to Spotify's anomaly
+# detection and can extend the ban. The expiry timestamp is persisted
+# so a restart of the app, or a later run in the same day, still
+# respects the gate.
+
+# Threshold above which a 429 Retry-After triggers the long cool-down
+# gate. Anything below this (transient throttling) is handled by the
+# normal per-request retry path with the existing cap.
+_LONG_COOLDOWN_THRESHOLD_S = 60
+
+
+class SpotifyCooldownError(Exception):
+    """Raised when Spotify has imposed a long cool-down on this token.
+
+    Carries ``seconds_remaining`` so the caller can format a useful UI
+    message. Distinct from ``SpotifyException`` so the executor loop
+    can recognise the cooldown and short-circuit instead of treating
+    it as a per-track failure.
+    """
+
+    def __init__(self, seconds_remaining: int):
+        self.seconds_remaining = int(max(0, seconds_remaining))
+        super().__init__(
+            f"Spotify cooldown active for ~{self.seconds_remaining}s"
+        )
+
+
+def _set_spotify_cooldown(seconds_from_now: int) -> None:
+    """Persist a future timestamp until which Spotify calls must NOT fire.
+
+    Writes a single-line unix epoch second to ``COOLDOWN_FILE``. The
+    parent directory is assumed to exist (it's created at app start
+    for the other state files in the same dir).
+    """
+    if seconds_from_now <= 0:
+        return
+    expires_at = int(time.time()) + int(seconds_from_now)
+    try:
+        COOLDOWN_FILE.parent.mkdir(parents=True, exist_ok=True)
+        COOLDOWN_FILE.write_text(str(expires_at), encoding="utf-8")
+    except OSError as exc:
+        logger.warning("Could not persist Spotify cooldown: %s", exc)
+
+
+def spotify_cooldown_remaining_s() -> int:
+    """Return seconds remaining on the Spotify cool-down, or 0 if clear.
+
+    Reads ``COOLDOWN_FILE`` and computes the remainder. Returns 0 when
+    the file is missing, unreadable, malformed, or already expired —
+    so a stale cool-down file from a long-past incident can't block
+    today's runs forever.
+    """
+    try:
+        if not COOLDOWN_FILE.exists():
+            return 0
+        raw = COOLDOWN_FILE.read_text(encoding="utf-8").strip()
+        if not raw:
+            return 0
+        expires_at = int(raw)
+    except (OSError, ValueError):
+        return 0
+    remaining = expires_at - int(time.time())
+    return remaining if remaining > 0 else 0
+
+
+def is_spotify_in_cooldown() -> bool:
+    """Convenience wrapper — True iff a non-zero cool-down is active."""
+    return spotify_cooldown_remaining_s() > 0
+
+
+def clear_spotify_cooldown() -> None:
+    """Remove the cool-down marker (e.g. on user-initiated retry).
+
+    Safe to call when no marker exists.
+    """
+    try:
+        if COOLDOWN_FILE.exists():
+            COOLDOWN_FILE.unlink()
+    except OSError as exc:
+        logger.warning("Could not clear Spotify cooldown: %s", exc)
+
+
+def _apply_search_jitter() -> None:
+    """Sleep a small random interval before a Spotify search.
+
+    See ``_JITTER_MIN_S``/``_JITTER_MAX_S``. Skipped in serial-search
+    mode because the eval harness already paces calls explicitly via
+    ``_post_search_throttle``.
+    """
+    if _is_serial_search_mode():
+        return
+    time.sleep(random.uniform(_JITTER_MIN_S, _JITTER_MAX_S))
+
+
+# Track A (2026-05-12): pluggable existence verifier. ``None`` =
+# production default (use the embedded ``_do_spotify_search`` path
+# unchanged). When non-``None``, ``iter_search_tracks`` calls
+# ``_VERIFIER.verify(track)`` instead — the eval harness installs a
+# ``SpotifyVerifier`` / ``NullVerifier`` / future ``OverlayVerifier``
+# in a try/finally so production callers (the Flask SSE endpoint) are
+# untouched. See ``core/src/verify.py`` for the Protocol contract.
+_VERIFIER = None
+
+
+def set_verifier(verifier) -> None:
+    """Install a verifier for the next ``iter_search_tracks`` call(s).
+
+    Pass ``None`` (or call ``clear_verifier``) to revert to the
+    production Spotify path. NOT thread-safe — the eval harness is
+    expected to set this once at the top of a run-for-model loop.
+    """
+    global _VERIFIER
+    _VERIFIER = verifier
+
+
+def get_verifier():
+    """Return the currently-installed verifier or ``None``."""
+    return _VERIFIER
+
+
+def clear_verifier() -> None:
+    """Convenience alias for ``set_verifier(None)``."""
+    set_verifier(None)
+
+
+# L2 (2026-05-06): per-run search-result cache. ``None`` when caching
+# is off; ``{}`` when bracketed by ``start_run_search_cache()`` /
+# ``end_run_search_cache()``. The cache is single-flight, matching the
+# rest of the suggestion pipeline (one playlist generation at a time).
+#
+# Key shape: ``"<artist_lower>|<track_lower>"`` (same normalisation as
+# the in-call dedup at line 521-525, so the two never disagree).
+# Value shape: ``("found", enriched_dict)`` or ``("not_found", label)``
+# — exactly what ``search_one`` would have returned, so a cache hit
+# slots into the result aggregation without any other branch change.
+#
+# Within a single ``search_tracks()`` call the existing dedup already
+# guards against double-search. This cache exists for the cross-batch
+# case: in a multi-batch generation run the LLM occasionally re-proposes
+# an (artist, track) pair from an earlier batch (deny-list slips), and
+# without this cache each repeat costs another Spotify roundtrip.
+_RUN_SEARCH_CACHE: dict | None = None
+
+
+def start_run_search_cache() -> None:
+    """Open the per-run search-result cache.
+
+    Call once at the start of a generation run; subsequent
+    ``search_tracks()`` invocations will skip Spotify for any
+    ``(artist, track)`` pair already verified in this run. Idempotent —
+    re-opening clears any leftover state from a prior run.
+    """
+    global _RUN_SEARCH_CACHE
+    _RUN_SEARCH_CACHE = {}
+
+
+def end_run_search_cache() -> None:
+    """Close the per-run search-result cache.
+
+    Call from a ``finally`` so the cache always tears down even when
+    the generation run errors out — leaving it on between runs would
+    return stale ``not_found`` labels for tracks the LLM tries again
+    later.
+    """
+    global _RUN_SEARCH_CACHE
+    _RUN_SEARCH_CACHE = None
+
+
+def _search_cache_key(artist: str, track: str) -> str:
+    return f"{(artist or '').lower().strip()}|{(track or '').lower().strip()}"
+
+
+def _warn_legacy_track_key_once():
+    """Log once per process when Spotify's playlist item still uses the
+    pre-Feb-2026 'track' key instead of the current 'item' key.
+    A regression here would otherwise be silent — the read-side fallback
+    keeps things working but should not stay invisible.
+    """
+    global _legacy_track_key_warned
+    if not _legacy_track_key_warned:
+        _legacy_track_key_warned = True
+        logger.warning(
+            "Spotify playlist item missing 'item' key — falling back to legacy 'track' key. "
+            "API may have regressed; verify against current Spotify docs."
+        )
 
 # Name used for the managed playlist. If a playlist with this name
 # already exists, new tracks are added to it (idempotent). This avoids
 # creating duplicate playlists on every generation.
 PLAYLIST_NAME = "SpotyVibe Playlist"
 # Redirect URI must match what is configured in the Spotify Developer
-# Dashboard. The Android variant uses a custom URI scheme (deep link)
-# while the desktop variant uses a local HTTP server callback.
-REDIRECT_URI = "spotyvibe://callback" if IS_ANDROID else "http://127.0.0.1:5000/callback"
+# Dashboard — a local HTTP server callback.
+REDIRECT_URI = "http://127.0.0.1:5000/callback"
+
+
+def _pick_album_cover(images: list) -> str | None:
+    """Pick a mid-sized album cover URL.
+
+    Spotify returns images sorted largest-first (typically 640 / 300 / 64).
+    We pick the middle entry so it stays crisp at ~140px (preview player)
+    while avoiding the giant 640px asset.
+
+    With fewer images returned, the middle index degrades gracefully:
+    - 2 images  → index 1 (the smaller one)
+    - 1 image   → index 0 (the only one available — *not* a "smallest"
+                  fallback; whatever Spotify returned is what we use)
+    - 0 images  → ``None``
+    """
+    if not images:
+        return None
+    return images[len(images) // 2].get("url")
 
 
 def _sanitize_spotify_search_value(value):
@@ -115,7 +437,7 @@ def get_spotify_oauth():
         client_id=os.getenv("SPOTIPY_CLIENT_ID"),
         client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
         redirect_uri=REDIRECT_URI,
-        scope="playlist-modify-private playlist-read-private user-read-private",
+        scope="playlist-modify-private playlist-read-private user-read-private streaming",
         cache_handler=cache_handler,
         open_browser=False,
     )
@@ -149,12 +471,16 @@ def get_spotify_auth_status():
     client_secret = os.getenv("SPOTIPY_CLIENT_SECRET")
 
     if not client_id or not client_secret:
+        _auth_status_cache["status"] = "not_configured"
+        _auth_status_cache["expires"] = now + _AUTH_STATUS_TTL
         return "not_configured"
 
     try:
         oauth = get_spotify_oauth()
         token = oauth.validate_token(oauth.cache_handler.get_cached_token())
         if not token:
+            _auth_status_cache["status"] = "not_authenticated"
+            _auth_status_cache["expires"] = now + _AUTH_STATUS_TTL
             return "not_authenticated"
 
         # Validate via auth_manager so expired tokens are auto-refreshed
@@ -165,8 +491,48 @@ def get_spotify_auth_status():
         return "authenticated"
     except Exception as e:
         logger.warning("Spotify auth check failed: %s", e)
-        _auth_status_cache["status"] = None
+        _auth_status_cache["status"] = "not_authenticated"
+        _auth_status_cache["expires"] = now + _AUTH_STATUS_TTL
         return "not_authenticated"
+
+
+def get_spotify_access_token():
+    """Return a valid access token, refreshing via spotipy if expired.
+
+    Used by the frontend Web Playback SDK via /api/spotify/token. The
+    token is never embedded in HTML; the SDK fetches it on demand.
+    Returns None if the user isn't authenticated.
+    """
+    try:
+        oauth = get_spotify_oauth()
+        token_info = oauth.validate_token(oauth.cache_handler.get_cached_token())
+        if not token_info:
+            return None
+        return token_info.get("access_token")
+    except Exception as e:
+        logger.warning("Spotify token fetch failed: %s", e)
+        return None
+
+
+def get_spotify_session_info():
+    """Return session info the frontend needs to pick a playback path.
+
+    Keys: ``is_premium`` (bool), ``product`` (raw Spotify product string
+    — "premium" / "free" / "open" / None). Safe to call unauthenticated;
+    fields are None in that case.
+    """
+    info = {"is_premium": False, "product": None}
+    try:
+        if get_spotify_auth_status() != "authenticated":
+            return info
+        sp = get_spotify_client()
+        me = sp.current_user()
+        product = me.get("product") if isinstance(me, dict) else None
+        info["product"] = product
+        info["is_premium"] = (product == "premium")
+    except Exception as e:
+        logger.warning("Spotify session info failed: %s", e)
+    return info
 
 
 def disconnect_spotify():
@@ -186,7 +552,14 @@ def disconnect_spotify():
 
 
 def get_spotify_auth_url():
-    """Return the Spotify authorization URL the user must visit."""
+    """Return the Spotify authorization URL the user must visit.
+
+    Clears any stale ``.spotify-cache`` first. A leftover cache from a
+    previous OAuth round (e.g. after credentials rotation or a revoked
+    token) makes spotipy reuse the old client_id when exchanging the
+    callback code, producing ``400 invalid_client`` on every reconnect.
+    """
+    CACHE_FILE.unlink(missing_ok=True)
     return get_spotify_oauth().get_authorize_url()
 
 
@@ -223,7 +596,10 @@ def get_existing_track_uris(sp, playlist_id):
     results = sp.playlist_items(playlist_id, fields="items(item(uri)),next", limit=100)
     while True:
         for entry in results.get("items", []):
-            track = entry.get("item") or entry.get("track")
+            track = entry.get("item")
+            if track is None and entry.get("track") is not None:
+                _warn_legacy_track_key_once()
+                track = entry.get("track")
             if track and track.get("uri"):
                 existing.add(track["uri"])
         if results.get("next") is None:
@@ -232,36 +608,114 @@ def get_existing_track_uris(sp, playlist_id):
     return existing
 
 
-def remove_from_playlist(artist, track):
-    """Remove a single track from the SpotyVibe Playlist.
+def remove_from_playlist(artist, track, playlist_id=None, track_id=None):
+    """Remove a single track from a Spotify playlist.
 
-    Searches Spotify for the artist + track combination, then removes all
-    occurrences of its URI from the playlist.
+    When ``playlist_id`` is given it is used directly (supports custom names,
+    preset-renamed playlists, and the Refine flow). Otherwise falls back to
+    looking up the default SpotyVibe Playlist by name.
+
+    When ``track_id`` is given the URI is built from it directly. Otherwise
+    falls back to a text search over ``artist + track``.
 
     Returns a dict:  {"removed": True/False, "reason": "..." (on failure)}
     """
     sp = get_spotify_client()
 
-    playlist = find_existing_playlist(sp)
-    if not playlist:
-        return {"removed": False, "reason": "Playlist not found"}
+    if playlist_id:
+        pid = playlist_id
+    else:
+        playlist = find_existing_playlist(sp)
+        if not playlist:
+            return {"removed": False, "reason": "Playlist not found"}
+        pid = playlist["id"]
 
-    query = _build_track_artist_query(artist, track)
-    res = sp.search(q=query, type="track", limit=1)
+    if track_id:
+        uri = f"spotify:track:{track_id}"
+    else:
+        query = _build_track_artist_query(artist, track)
+        res = sp.search(q=query, type="track", limit=1)
+        if not res or not res["tracks"]["items"]:
+            return {"removed": False, "reason": "Track not found on Spotify"}
+        uri = res["tracks"]["items"][0]["uri"]
 
-    if not res or not res["tracks"]["items"]:
-        return {"removed": False, "reason": "Track not found on Spotify"}
-
-    uri = res["tracks"]["items"][0]["uri"]
-
-    existing_uris = get_existing_track_uris(sp, playlist["id"])
+    existing_uris = get_existing_track_uris(sp, pid)
     if uri not in existing_uris:
         return {"removed": False, "reason": "Track not in playlist"}
 
-    sp.playlist_remove_all_occurrences_of_items(playlist["id"], [uri])
-    logger.info("Removed from playlist: %s - %s", artist, track)
+    sp.playlist_remove_all_occurrences_of_items(pid, [uri])
+    logger.info("Removed from playlist %s: %s - %s", pid, artist, track)
 
     return {"removed": True}
+
+
+def remove_all_tracks_by_artist(artist, playlist_id=None):
+    """Remove every track whose primary artist matches *artist* from a playlist.
+
+    Used by the "dislike entire band" flow (Item 6, 2026-04). Matches
+    artist names case-insensitively after stripping whitespace, against
+    *every* artist credit on the track (Spotify exposes a list).
+
+    Returns a dict::
+
+        {"removed": True/False,
+         "removed_count": int,
+         "removed_tracks": [{"artist": str, "track": str}, ...],
+         "reason": str (only when removed=False)}
+    """
+    sp = get_spotify_client()
+    if playlist_id:
+        pid = playlist_id
+    else:
+        playlist = find_existing_playlist(sp)
+        if not playlist:
+            return {"removed": False, "removed_count": 0,
+                    "removed_tracks": [], "reason": "Playlist not found"}
+        pid = playlist["id"]
+
+    target = (artist or "").strip().lower()
+    if not target:
+        return {"removed": False, "removed_count": 0,
+                "removed_tracks": [], "reason": "Empty artist name"}
+
+    uris_to_remove: list[str] = []
+    removed_tracks: list[dict] = []
+    # Feb 2026: Spotify renamed the inner key from "track" to "item".
+    # Mirror what get_existing_track_uris does — request "item" by name.
+    results = sp.playlist_items(pid, fields="items(item(uri,name,artists(name))),next")
+    while results:
+        for entry in results.get("items", []):
+            track = entry.get("item")
+            if track is None and entry.get("track") is not None:
+                _warn_legacy_track_key_once()
+                track = entry.get("track")
+            if not track or not track.get("uri"):
+                continue
+            artists = [(a.get("name") or "").strip().lower()
+                       for a in (track.get("artists") or [])]
+            if target in artists:
+                uris_to_remove.append(track["uri"])
+                removed_tracks.append({
+                    "artist": (track.get("artists") or [{}])[0].get("name", artist),
+                    "track": track.get("name", ""),
+                })
+        if results.get("next") is None:
+            break
+        results = sp.next(results)
+
+    if not uris_to_remove:
+        return {"removed": False, "removed_count": 0,
+                "removed_tracks": [],
+                "reason": "No tracks by this artist in playlist"}
+
+    # Spotify caps removals at 100 URIs per call.
+    for i in range(0, len(uris_to_remove), 100):
+        sp.playlist_remove_all_occurrences_of_items(pid, uris_to_remove[i:i + 100])
+
+    logger.info("Removed %d tracks by '%s' from playlist %s",
+                len(uris_to_remove), artist, pid)
+    return {"removed": True, "removed_count": len(uris_to_remove),
+            "removed_tracks": removed_tracks}
 
 
 def _parse_release_year(release_date: str | None) -> int | None:
@@ -319,6 +773,269 @@ def _make_pooled_session(pool_size=10):
     return session
 
 
+def _dedup_tracks_for_search(tracks):
+    """Deduplicate `(artist, track)` pairs, lower-cased + stripped.
+
+    Same shape as the L2 cache key (so both stay consistent) and the
+    only place this dedup lives — both ``search_tracks`` and
+    ``iter_search_tracks`` (L3, 2026-05-06) reuse it.
+    """
+    seen = set()
+    out = []
+    for t in tracks:
+        key = f'{t["artist"]} - {t["track"]}'.lower()
+        if key not in seen:
+            seen.add(key)
+            out.append(t)
+    return out
+
+
+def _do_spotify_search(t, shared_sp):
+    """Single-track Spotify search with L2 cache + 429 retry.
+
+    Module-level (not a closure) so both ``search_tracks`` and
+    ``iter_search_tracks`` can hand it to a ``ThreadPoolExecutor``.
+    Returns the same ``("found", enriched)`` / ``("not_found", label)``
+    tuple either generator/wrapper consumes.
+    """
+    cache_key = _search_cache_key(t["artist"], t["track"])
+    if _RUN_SEARCH_CACHE is not None:
+        cached = _RUN_SEARCH_CACHE.get(cache_key)
+        if cached is not None:
+            kind, payload = cached
+            if kind == "found":
+                return "found", {**t, **payload}
+            return "not_found", f"{t['artist']} - {t['track']}"
+
+    query = _build_track_artist_query(t["artist"], t["track"])
+
+    # P0 (2026-05-24): refuse the call outright if a long cool-down is
+    # active. Cheaper and safer than firing one more request that the
+    # 429-handler below will just re-route into the same SpotifyCooldownError.
+    cooldown_s = spotify_cooldown_remaining_s()
+    if cooldown_s > 0:
+        raise SpotifyCooldownError(cooldown_s)
+
+    # P2 (2026-05-24): stagger parallel workers so N searches don't fire
+    # in the same millisecond. Negligible per-call latency, large drop
+    # in anomaly-detection signal from Spotify's side.
+    _apply_search_jitter()
+
+    res = None
+    for attempt in range(4):
+        try:
+            res = shared_sp.search(q=query, type="track", limit=1, market="from_token")
+            break
+        except SpotifyException as e:
+            if e.http_status == 429 and attempt < 3:
+                retry_after = int(e.headers.get("Retry-After", 1))
+                backoff_floor = 2 ** attempt
+                # 2026-05-07: in serial-search mode the harness is
+                # already paying ~0.5 s per call to stay well under the
+                # rolling-window quota. A 429 there means Spotify has
+                # imposed a longer cool-down — the prior 30 s cap was
+                # too low and let the eval cascade into a flagged
+                # account. Honour Retry-After up to 90 s in serial mode.
+                cap = 90 if _is_serial_search_mode() else 30
+                # P0 (2026-05-24): when Spotify reports a Retry-After
+                # longer than the per-request cap (i.e. a real
+                # multi-minute-or-more cooldown, not transient
+                # throttling), STOP. Retrying through a long ban only
+                # extends it; the 2026-05-24 incident saw
+                # Retry-After=38401s (~10.7 h) repeatedly served back
+                # while the app retried every 30 s. Persist the
+                # cool-down so subsequent runs (and a restart) honour
+                # it, then surface a typed exception the caller can
+                # short-circuit on.
+                if retry_after >= _LONG_COOLDOWN_THRESHOLD_S:
+                    _set_spotify_cooldown(retry_after)
+                    logger.warning(
+                        "Spotify 429 — Retry-After=%ds exceeds threshold "
+                        "(%ds); persisting cool-down + stopping retries",
+                        retry_after, _LONG_COOLDOWN_THRESHOLD_S,
+                    )
+                    raise SpotifyCooldownError(retry_after)
+                sleep_s = min(max(retry_after, backoff_floor), cap)
+                logger.warning(
+                    "Spotify 429 on attempt %d — Retry-After=%ds (raw), "
+                    "sleeping %ds (cap=%ds)",
+                    attempt + 1, retry_after, sleep_s, cap,
+                )
+                time.sleep(sleep_s)
+                continue
+            raise
+
+    # 2026-05-07: throttle BEFORE the cache-write / return so even cache
+    # misses pace themselves under serial-search mode. The throttle is
+    # a no-op when the eval harness hasn't set the env var.
+    _post_search_throttle()
+
+    if res and res["tracks"]["items"]:
+        item = res["tracks"]["items"][0]
+        uri = item["uri"]
+        track_id = uri.split(":")[-1] if uri else None
+        images = item.get("album", {}).get("images", [])
+        cover_url = _pick_album_cover(images)
+        preview_url = item.get("preview_url")
+        spotify_url = item.get("external_urls", {}).get("spotify")
+        album_url = item.get("album", {}).get("external_urls", {}).get("spotify")
+        release_date = item.get("album", {}).get("release_date")
+        artists = item.get("artists", [])
+        artist_url = artists[0].get("external_urls", {}).get("spotify") if artists else None
+        artist_id = artists[0].get("id") if artists else None
+        spotify_extras = {
+            "uri": uri,
+            "track_id": track_id,
+            "cover_url": cover_url,
+            "preview_url": preview_url,
+            "spotify_url": spotify_url,
+            "album_url": album_url,
+            "release_date": release_date,
+            "artist_url": artist_url,
+            "artist_id": artist_id,
+        }
+        enriched = {**t, **spotify_extras}
+        if _RUN_SEARCH_CACHE is not None:
+            _RUN_SEARCH_CACHE[cache_key] = ("found", spotify_extras)
+        return "found", enriched
+    if _RUN_SEARCH_CACHE is not None:
+        _RUN_SEARCH_CACHE[cache_key] = ("not_found", None)
+    return "not_found", f"{t['artist']} - {t['track']}"
+
+
+def iter_search_tracks(tracks):
+    """L3 (2026-05-06) — streaming generator over Spotify track search.
+
+    Yields ``("found", enriched_track)`` or ``("not_found", label)`` as
+    each search completes (in completion order, *not* input order; the
+    underlying ``ThreadPoolExecutor`` is the same one ``search_tracks``
+    uses, so the parallelism profile is identical).
+
+    Why this exists: ``search_tracks`` blocks the SSE generator until
+    every track in a batch is verified. For a 10-track batch that's
+    2-3 s during which the user sees no progress. Calling
+    ``iter_search_tracks`` from the SSE generator and yielding a
+    ``track_verified`` event per item gives the user immediate feedback
+    on each Spotify match without any other architectural change.
+
+    Each found track has ``release_year`` already populated (parsed
+    from ``release_date``) so the consumer doesn't need a second
+    enrichment pass — the original ``_enrich_tracks_with_metadata``
+    runs once per batch in the wrapper, but per-track in the
+    generator.
+
+    Same L2 cache, same 429-retry, same per-track-cache populate as
+    ``search_tracks`` — the implementations share ``search_one``.
+    """
+    unique_tracks = _dedup_tracks_for_search(tracks)
+    if not unique_tracks:
+        return
+
+    # P0 (2026-05-24): if a long cool-down is already active from a
+    # prior incident, don't even bother spinning up the pool. Surface
+    # the same not_found path the caller already handles so the run
+    # can decide whether to abort the playlist or keep going from cache.
+    _cooldown_s = spotify_cooldown_remaining_s()
+    if _cooldown_s > 0 and _VERIFIER is None:
+        logger.warning(
+            "Spotify search short-circuited — cool-down active for %ds",
+            _cooldown_s,
+        )
+        for t in unique_tracks:
+            yield "not_found", f"{t['artist']} - {t['track']}"
+        return
+
+    # N3 (2026-05-13): Track-A verifier abstraction bug-fix. Previously
+    # the Spotify-token fetch + spotipy client construction ran
+    # unconditionally BEFORE the ``_VERIFIER`` check below, which made
+    # the entire null / overlay / l0_l1 verify path effectively dead
+    # whenever no Spotify token was available (e.g. CI machine, or the
+    # cache vanished — see OP2). Resolve which verifier is active FIRST;
+    # only fall through to the Spotify-token branch when no alternative
+    # verifier is installed.
+    _v = _VERIFIER
+    pool_size = _resolve_search_pool_size(5, len(unique_tracks))
+    shared_session = None
+    if _v is not None:
+        def search_one(t):
+            return _v.verify(t)
+    else:
+        oauth = get_spotify_oauth()
+        token_info = oauth.validate_token(oauth.cache_handler.get_cached_token())
+        if not token_info:
+            logger.error("Spotify token unavailable — cannot search tracks")
+            for t in unique_tracks:
+                yield "not_found", f"{t['artist']} - {t['track']}"
+            return
+        access_token = token_info["access_token"]
+        shared_session = _make_pooled_session(pool_size)
+        shared_sp = spotipy.Spotify(
+            auth=access_token,
+            requests_session=shared_session,
+        )
+        def search_one(t):
+            return _do_spotify_search(t, shared_sp)
+
+    try:
+        with ThreadPoolExecutor(max_workers=pool_size) as executor:
+            futures = {executor.submit(search_one, t): t for t in unique_tracks}
+            # P0 (2026-05-24): when ONE worker discovers a long cool-down,
+            # the pending workers MUST stop — every additional call only
+            # extends the ban. Cancel everything still queued and emit
+            # not_found for the remainder so the SSE stream finalises
+            # cleanly instead of hanging or throwing.
+            cooldown_tripped = False
+            for future in as_completed(futures):
+                if cooldown_tripped:
+                    t = futures[future]
+                    yield "not_found", f"{t['artist']} - {t['track']}"
+                    continue
+                try:
+                    result_type, result_data = future.result()
+                except SpotifyCooldownError as cd_exc:
+                    cooldown_tripped = True
+                    t = futures[future]
+                    label = f"{t['artist']} - {t['track']}"
+                    logger.warning(
+                        "Spotify cool-down tripped (~%ds) during search — "
+                        "cancelling pending workers",
+                        cd_exc.seconds_remaining,
+                    )
+                    app_log(
+                        f"Spotify cool-down active (~{cd_exc.seconds_remaining}s) "
+                        f"— halting remaining searches"
+                    )
+                    # Best-effort cancel of futures that haven't started yet.
+                    for f in futures:
+                        if not f.done():
+                            f.cancel()
+                    yield "not_found", label
+                    continue
+                except Exception as e:
+                    t = futures[future]
+                    label = f"{t['artist']} - {t['track']}"
+                    logger.error("Spotify search error for %s: %s", label, e)
+                    app_log(f"Spotify search error for {label}: {e}")
+                    yield "not_found", label
+                    continue
+                if result_type == "found":
+                    # Inline the per-track release_year enrichment so a
+                    # streaming consumer doesn't need a post-pass. Genres
+                    # default already-set by GPT survives untouched.
+                    result_data["release_year"] = _parse_release_year(
+                        result_data.get("release_date")
+                    )
+                    result_data.setdefault("genres", [])
+                    yield "found", result_data
+                else:
+                    logger.warning("Not found on Spotify: %s", result_data)
+                    app_log(f"Spotify search miss (possible LLM hallucination): {result_data}")
+                    yield "not_found", result_data
+    finally:
+        if shared_session is not None:
+            shared_session.close()
+
+
 def search_tracks(tracks, on_progress=None):
     """Search Spotify for each track using parallel requests.
 
@@ -346,109 +1063,23 @@ def search_tracks(tracks, on_progress=None):
     """
     found = []
     not_found = []
-
-    # Deduplicate input
-    seen = set()
-    unique_tracks = []
-    for t in tracks:
-        key = f'{t["artist"]} - {t["track"]}'.lower()
-        if key not in seen:
-            seen.add(key)
-            unique_tracks.append(t)
-
-    # ── Pre-fetch token + shared session ──────────────────────────────
-    # Validate / refresh the token once.  All workers then use the raw
-    # access_token string, skipping per-thread OAuth overhead.
-    oauth = get_spotify_oauth()
-    token_info = oauth.validate_token(oauth.cache_handler.get_cached_token())
-    if not token_info:
-        logger.error("Spotify token unavailable — cannot search tracks")
-        return [], [f"{t['artist']} - {t['track']}" for t in unique_tracks]
-    access_token = token_info["access_token"]
-
-    pool_size = min(10, len(unique_tracks)) or 1
-    shared_session = _make_pooled_session(pool_size)
-
-    # Single shared client: pre-fetched token + pooled session.
-    # The underlying requests.Session / urllib3 pool is thread-safe for
-    # concurrent requests — no need for a per-thread client.
-    shared_sp = spotipy.Spotify(
-        auth=access_token,
-        requests_session=shared_session,
-    )
-
-    def search_one(t):
-        query = _build_track_artist_query(t["artist"], t["track"])
-
-        # Retry once on 429 (rate limit) using Retry-After header,
-        # mirroring the pattern in spotify_metadata.py.
-        res = None
-        for attempt in range(2):
-            try:
-                res = shared_sp.search(q=query, type="track", limit=1, market="from_token")
-                break
-            except SpotifyException as e:
-                if e.http_status == 429 and attempt == 0:
-                    retry_after = int(e.headers.get("Retry-After", 1))
-                    time.sleep(min(retry_after, 10))
-                    continue
-                raise
-
-        if res and res["tracks"]["items"]:
-            item = res["tracks"]["items"][0]
-            uri = item["uri"]
-            track_id = uri.split(":")[-1] if uri else None
-            # Extract the smallest album cover (typically 64×64)
-            images = item.get("album", {}).get("images", [])
-            cover_url = images[-1]["url"] if images else None
-            preview_url = item.get("preview_url")
-            spotify_url = item.get("external_urls", {}).get("spotify")
-            album_url = item.get("album", {}).get("external_urls", {}).get("spotify")
-            release_date = item.get("album", {}).get("release_date")
-            artists = item.get("artists", [])
-            artist_url = artists[0].get("external_urls", {}).get("spotify") if artists else None
-            artist_id = artists[0].get("id") if artists else None
-            enriched = {
-                **t,
-                "uri": uri,
-                "track_id": track_id,
-                "cover_url": cover_url,
-                "preview_url": preview_url,
-                "spotify_url": spotify_url,
-                "album_url": album_url,
-                "release_date": release_date,
-                "artist_url": artist_url,
-                "artist_id": artist_id,
-            }
-            return "found", enriched
-        return "not_found", f"{t['artist']} - {t['track']}"
-
-    try:
-        with ThreadPoolExecutor(max_workers=pool_size) as executor:
-            futures = {executor.submit(search_one, t): t for t in unique_tracks}
-            completed = 0
-            for future in as_completed(futures):
-                try:
-                    result_type, result_data = future.result()
-                    if result_type == "found":
-                        found.append(result_data)
-                    else:
-                        logger.warning("Not found on Spotify: %s", result_data)
-                        not_found.append(result_data)
-                except Exception as e:
-                    t = futures[future]
-                    label = f"{t['artist']} - {t['track']}"
-                    logger.error("Spotify search error for %s: %s", label, e)
-                    not_found.append(label)
-                completed += 1
-                if on_progress:
-                    on_progress(completed, len(unique_tracks))
-    finally:
-        shared_session.close()
-
-    # ── Batch-enrich: artist genres + release_year ────────────────────
+    unique_tracks = _dedup_tracks_for_search(tracks)
+    total = len(unique_tracks)
+    completed = 0
+    # L3 (2026-05-06): consume the streaming generator so search_tracks
+    # and iter_search_tracks share one code path. release_year is
+    # already populated per-track inside iter_search_tracks, but we
+    # still call _enrich_tracks_with_metadata at the end as a no-op
+    # safety net (it's idempotent — sets release_year only if missing).
+    for kind, payload in iter_search_tracks(tracks):
+        if kind == "found":
+            found.append(payload)
+        else:
+            not_found.append(payload)
+        completed += 1
+        if on_progress:
+            on_progress(completed, total)
     _enrich_tracks_with_metadata(found)
-
     return found, not_found
 
 
@@ -526,6 +1157,52 @@ def filter_emerging_artists(tracks, cutoff_months=6):
     return survivors, rejected
 
 
+def search_top_tracks_by_name(sp, name: str, max_tracks: int) -> list[str]:
+    """Return up to *max_tracks* relevance-ranked tracks for *name*.
+
+    Uses ``/v1/search?type=track&q=artist:"NAME"`` — the only path that
+    works post-Feb-2026 in Development Mode (``artist_top_tracks`` needs
+    Extended Quota Mode and returns 403). Filters hits to those whose
+    primary artist's normalised name matches the request, so search
+    fuzziness can't poison results with wrong-artist titles. Dedupes
+    on lowercase title to drop regional / remastered variants.
+
+    Returns ``[]`` on any error so a single missing artist never breaks
+    the caller. Mirrors :func:`build-tools/rag/build_top_tracks_overlay.py
+    ._search_top_tracks_by_name`; live MCP verification of the response
+    shape is still pending (see next-steps.md Session 3).
+    """
+    if not name or not name.strip():
+        return []
+    target = normalise_name(name)
+    try:
+        resp = sp.search(
+            q=f'artist:"{name}"', type="track",
+            limit=min(10, max(max_tracks * 2, max_tracks)), market="from_token",
+        )
+    except Exception as exc:
+        logger.warning("search(track artist=%r) failed: %s", name, exc)
+        return []
+    items = ((resp or {}).get("tracks") or {}).get("items") or []
+    out: list[str] = []
+    seen: set[str] = set()
+    for tr in items:
+        if len(out) >= max_tracks:
+            break
+        artists = tr.get("artists") or []
+        if not any(normalise_name(a.get("name", "")) == target for a in artists):
+            continue
+        title = (tr.get("name") or "").strip()
+        if not title:
+            continue
+        key = title.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(title)
+    return out
+
+
 def get_user_playlists():
     """Return the current user's Spotify playlists as a list of dicts.
 
@@ -562,7 +1239,7 @@ def get_playlist_tracks(playlist_id):
             artists = t.get("artists", [])
             artist_name = artists[0]["name"] if artists else "Unknown"
             images = t.get("album", {}).get("images", [])
-            cover_url = images[-1]["url"] if images else None
+            cover_url = _pick_album_cover(images)
             tracks.append({
                 "artist": artist_name,
                 "track": t.get("name", ""),
@@ -670,10 +1347,12 @@ def add_to_playlist(verified_tracks, mode="default", playlist_id=None,
     except SpotifyException as e:
         if e.http_status == 403:
             disconnect_spotify()
-            raise RuntimeError(
+            raise TranslatableError(
+                "error.spotify.reconnect_required",
                 "Spotify returned 403 Forbidden. Your session has expired or "
                 "permissions were revoked. Please reconnect via "
-                "⚙️ Settings → 🔌 Disconnect Spotify, then Connect to Spotify."
+                "⚙️ Settings → 🔌 Disconnect Spotify, then Connect to Spotify.",
+                status_code=403,
             ) from e
         raise
 
@@ -740,11 +1419,19 @@ def fetch_playlist_items_for_seed(playlist_id):
     """
     sp = get_spotify_client()
 
-    # Get playlist metadata
-    playlist_info = sp.playlist(playlist_id, fields="name,owner(display_name),tracks(total)")
+    # Get playlist metadata.
+    # Defensive: the Feb-2026 Spotify rename added an ``items`` key
+    # alongside the legacy ``tracks`` key on some endpoints. Request both
+    # and read whichever is present (mirrors the pattern in
+    # ``fetch_user_playlists``).
+    playlist_info = sp.playlist(
+        playlist_id,
+        fields="name,owner(display_name),items(total),tracks(total)",
+    )
     name = playlist_info.get("name", "")
     owner = (playlist_info.get("owner") or {}).get("display_name", "")
-    total = (playlist_info.get("tracks") or {}).get("total", 0)
+    items_or_tracks = playlist_info.get("items") or playlist_info.get("tracks") or {}
+    total = items_or_tracks.get("total", 0)
 
     # Fetch items (up to 100 for seed — enough for a good profile)
     results = sp.playlist_items(playlist_id, limit=100,

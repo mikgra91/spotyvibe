@@ -91,9 +91,10 @@ class TestGenerationPipeline:
         assert tracks.count() == 3
         expect(tracks.first).to_contain_text("Test Artist")
         expect(tracks.first).to_contain_text("Test Song")
-        expect(page.locator("#playlistLinkBox")).to_be_visible()
-        expect(page.locator("#playlistLinkBox")).to_contain_text("open.spotify.com")
-        expect(page.locator("#statusBox")).to_contain_text("3 suggestions generated")
+        # Generation builds the suggestion LIST; pushing to Spotify is now a
+        # separate step (apply-playlist modal), so the status reflects
+        # "added to list" and no playlist link is shown at this stage.
+        expect(page.locator("#statusBox")).to_contain_text("added to list")
 
     def test_partial_results_on_cancel(self, page: Page, base_url):
         page.goto(base_url)
@@ -193,38 +194,32 @@ class TestFeedbackButtons:
         page.locator(".track-item").first.wait_for(timeout=2500)
         assert page.locator(".track-item").count() == 2
 
-    def test_like_button_opens_feedback_form(self, page: Page, base_url):
+    def test_feedback_button_opens_form(self, page: Page, base_url):
         self._setup_with_tracks(page, base_url)
-        page.locator("#track-0 .btn-like").click()
+        page.locator("#track-0 .btn-feedback").click()
         form = page.locator("#form-0")
         expect(form).to_have_class(re.compile(r"open"))
-        expect(page.locator("#submitBtn-0")).to_contain_text("Submit")
-
-    def test_dislike_button_opens_feedback_form(self, page: Page, base_url):
-        self._setup_with_tracks(page, base_url)
-        page.locator("#track-0 .btn-dislike").click()
-        form = page.locator("#form-0")
-        expect(form).to_have_class(re.compile(r"open"))
-        expect(page.locator("#submitBtn-0")).to_contain_text("Submit")
+        expect(page.locator("#submitBtn-0-like")).to_be_visible()
+        expect(page.locator("#submitBtn-0-dislike")).to_be_visible()
 
     def test_feedback_form_prefills_artist_and_track(self, page: Page, base_url):
         self._setup_with_tracks(page, base_url)
-        page.locator("#track-0 .btn-like").click()
+        page.locator("#track-0 .btn-feedback").click()
         expect(page.locator("#artist-0")).to_have_value("Feedback Artist")
         expect(page.locator("#title-0")).to_have_value("Test Track")
 
     def test_feedback_form_closes_on_cancel(self, page: Page, base_url):
         self._setup_with_tracks(page, base_url)
-        page.locator("#track-0 .btn-like").click()
+        page.locator("#track-0 .btn-feedback").click()
         expect(page.locator("#form-0")).to_have_class(re.compile(r"open"))
         page.locator("#form-0 .btn-cancel").click()
         expect(page.locator("#form-0")).not_to_have_class(re.compile(r"open"))
 
     def test_only_one_form_open_at_a_time(self, page: Page, base_url):
         self._setup_with_tracks(page, base_url)
-        page.locator("#track-0 .btn-like").click()
+        page.locator("#track-0 .btn-feedback").click()
         expect(page.locator("#form-0")).to_have_class(re.compile(r"open"))
-        page.locator("#track-1 .btn-dislike").click()
+        page.locator("#track-1 .btn-feedback").click()
         expect(page.locator("#form-1")).to_have_class(re.compile(r"open"))
         expect(page.locator("#form-0")).not_to_have_class(re.compile(r"open"))
 
@@ -242,8 +237,8 @@ class TestFeedbackButtons:
             )
 
         page.route("**/api/feedback", handle_feedback)
-        page.locator("#track-0 .btn-like").click()
-        page.locator("#submitBtn-0").click()
+        page.locator("#track-0 .btn-feedback").click()
+        page.locator("#submitBtn-0-like").click()
         page.wait_for_timeout(250)
         assert len(feedback_requests) == 1
         assert feedback_requests[0]["action"] == "like"
@@ -263,8 +258,8 @@ class TestFeedbackButtons:
             )
 
         page.route("**/api/feedback", handle_feedback)
-        page.locator("#track-0 .btn-dislike").click()
-        page.locator("#submitBtn-0").click()
+        page.locator("#track-0 .btn-feedback").click()
+        page.locator("#submitBtn-0-dislike").click()
         page.wait_for_timeout(250)
         assert len(feedback_requests) == 1
         assert feedback_requests[0]["action"] == "dislike"
@@ -277,10 +272,12 @@ class TestFeedbackButtons:
             headers={"Content-Type": "application/json"},
             body=json.dumps({"removed": True}),
         ))
-        assert page.locator(".track-item").count() == 2
+        expect(page.locator(".track-item")).to_have_count(2)
         page.locator("#track-0 .btn-remove").click()
-        page.wait_for_timeout(350)
-        assert page.locator(".track-item").count() == 1
+        # Use auto-waiting count assertion instead of a fixed sleep — the
+        # client-side removal is async (route fulfill + DOM update) and
+        # 350ms is not always enough on a busy CI runner.
+        expect(page.locator(".track-item")).to_have_count(1, timeout=3000)
 
 
 class TestBandAnalysis:
@@ -493,51 +490,50 @@ class TestAudioFilters:
         expect(page.locator("#audioFiltersBody")).to_be_hidden()
 
 
-class TestPlaylistMode:
-    """Playlist mode radio buttons and conditional UI inside Generate section."""
+class TestApplyPlaylistModal:
+    """Apply-to-Playlist modal mode selection.
+
+    The inline playlist-mode radios were relocated into this modal (see
+    ``apply-playlist.js`` / ``apply_playlist_modal.html``). create → name
+    input; append/replace → existing-playlist picker. Opened directly via
+    the exposed ``window.openApplyModal({tracks})`` so the test does not
+    depend on a full generation run.
+    """
+
+    def _open_modal(self, page: Page, base_url):
+        page.goto(base_url)
+        page.wait_for_load_state("domcontentloaded")
+        page.route("**/api/playlists", lambda route: route.fulfill(
+            status=200,
+            headers={"Content-Type": "application/json"},
+            body=json.dumps({"playlists": FAKE_PLAYLISTS}),
+        ))
+        page.evaluate(
+            "window.openApplyModal({tracks:[{artist:'A',track:'T'}]})")
+        expect(page.locator("#applyPlaylistModal")).to_be_visible()
 
     def test_create_mode_shows_name_input_by_default(self, page: Page, base_url):
-        page.goto(base_url)
-        open_generate_section(page)
-        expect(page.locator("#playlistNameRow")).to_be_visible()
-        expect(page.locator("#playlistNameInput")).to_be_visible()
-
-    def test_picker_row_hidden_in_create_mode(self, page: Page, base_url):
-        page.goto(base_url)
-        open_generate_section(page)
-        expect(page.locator("#playlistPickerRow")).to_be_hidden()
+        self._open_modal(page, base_url)
+        expect(page.locator("#applyPlaylistNameRow")).to_be_visible()
+        expect(page.locator("#applyPlaylistNameInput")).to_be_visible()
+        expect(page.locator("#applyPlaylistPickerRow")).to_be_hidden()
 
     def test_append_mode_shows_picker(self, page: Page, base_url):
-        page.goto(base_url)
-        page.route("**/api/playlists", lambda route: route.fulfill(
-            status=200,
-            headers={"Content-Type": "application/json"},
-            body=json.dumps({"playlists": FAKE_PLAYLISTS}),
-        ))
-        open_generate_section(page)
-        page.locator('input[name="playlist_mode"][value="append"]').check()
-        expect(page.locator("#playlistPickerRow")).to_be_visible()
+        self._open_modal(page, base_url)
+        page.locator("#applyModeAppend").check()
+        expect(page.locator("#applyPlaylistPickerRow")).to_be_visible()
+        expect(page.locator("#applyPlaylistNameRow")).to_be_hidden()
 
     def test_replace_mode_shows_picker(self, page: Page, base_url):
-        page.goto(base_url)
-        page.route("**/api/playlists", lambda route: route.fulfill(
-            status=200,
-            headers={"Content-Type": "application/json"},
-            body=json.dumps({"playlists": FAKE_PLAYLISTS}),
-        ))
-        open_generate_section(page)
-        page.locator('input[name="playlist_mode"][value="replace"]').check()
-        expect(page.locator("#playlistPickerRow")).to_be_visible()
+        self._open_modal(page, base_url)
+        page.locator("#applyModeReplace").check()
+        expect(page.locator("#applyPlaylistPickerRow")).to_be_visible()
 
-    def test_default_mode_hides_name_and_picker(self, page: Page, base_url):
+    def test_modal_does_not_open_without_suggestions(self, page: Page, base_url):
         page.goto(base_url)
-        open_generate_section(page)
-        default_radio = page.locator('input[name="playlist_mode"][value="default"]')
-        if default_radio.count() == 0:
-            return
-        default_radio.check()
-        expect(page.locator("#playlistNameRow")).to_be_hidden()
-        expect(page.locator("#playlistPickerRow")).to_be_hidden()
+        page.wait_for_load_state("domcontentloaded")
+        page.evaluate("window.openApplyModal({tracks:[]})")
+        expect(page.locator("#applyPlaylistModal")).to_be_hidden()
 
 
 class TestRefinePlaylist:
@@ -593,8 +589,7 @@ class TestRefinePlaylist:
     def test_review_track_has_feedback_buttons(self, page: Page, base_url):
         self._setup_review_with_tracks(page, base_url)
         first = page.locator("#reviewTrackList .track-item").first
-        expect(first.locator(".btn-like")).to_be_visible()
-        expect(first.locator(".btn-dislike")).to_be_visible()
+        expect(first.locator(".btn-feedback")).to_be_visible()
         expect(first.locator(".btn-remove")).to_be_visible()
 
 

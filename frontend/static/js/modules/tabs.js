@@ -1,4 +1,6 @@
 import { el } from './dom.js';
+import { loadHistory } from './history.js';
+import * as State from './state.js';
 /**
  * Tab-based section navigation.
  *
@@ -24,8 +26,6 @@ const _LEGACY_TAB_MAP = {
 };
 
 let _activeTab = 'openai';
-// Tracks which providers have been seen this session (for quickstart auto-show)
-const _seenProviders = new Set();
 
 export function initTabs() {
     // Restore last-active tab from localStorage (with legacy migration)
@@ -52,9 +52,6 @@ export function initTabs() {
 
     // Apply initial tab state
     _applyTab(_activeTab);
-    // Mark the initial provider as already seen — main.js handles the first auto-show
-    const initProvider = TABS[_activeTab]?.provider;
-    if (initProvider) _seenProviders.add(initProvider);
 }
 
 export function switchTab(tabName) {
@@ -63,12 +60,6 @@ export function switchTab(tabName) {
     _applyTab(tabName);
     try { localStorage.setItem(STORAGE_KEY, tabName); } catch(e) {}
 
-    // Auto-show provider quickstart the first time this provider is visited this session
-    const provider = TABS[tabName].provider;
-    if (provider && !_seenProviders.has(provider)) {
-        _seenProviders.add(provider);
-        window.maybeShowQuickstart?.(provider);
-    }
 }
 
 export function getActiveTab() {
@@ -96,6 +87,14 @@ function _applyTab(tabName) {
     if (openaiEl) openaiEl.classList.toggle('hidden', tabName !== 'openai');
     if (spotifyEl) spotifyEl.classList.toggle('hidden', tabName !== 'spotify');
     if (historyEl) historyEl.classList.toggle('hidden', tabName !== 'history');
+
+    // Auto-load run history the first time the tab is shown. Without this,
+    // the server-rendered "No runs yet." stays on screen until the user
+    // manually toggles the Show button inside the section.
+    if (tabName === 'history') {
+        State.setHistoryBodyOpen(true);
+        loadHistory();
+    }
 }
 
 function _handleKeydown(e) {

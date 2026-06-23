@@ -1,5 +1,12 @@
 /* sections.css — Train profile, profile menus, analysis, audio filters, providers, metadata */
 
+/* Vibe CTA — centered primary action inside the "Describe Your Vibe" accordion */
+.vibe-cta-wrap {
+    display: flex;
+    justify-content: center;
+    margin-top: var(--sp-4);
+}
+
 /* =============================================
    Train taste profile
    ============================================= */
@@ -669,7 +676,8 @@
 }
 
 /* ── Shared generation controls (size + exploration, outside mode bodies) ── */
-.gen-shared-controls { margin-top: var(--sp-1); margin-bottom: var(--sp-1); }
+.gen-shared-controls,
+.discover-artists-controls { margin-top: var(--sp-1); margin-bottom: var(--sp-1); }
 
 .playlist-destination-label {
     display: block;
@@ -788,8 +796,8 @@
 
 .audio-filter-grid-header {
     display: grid;
-    grid-template-columns: max-content 1fr 1fr auto;
-    gap: var(--sp-1) 8px;
+    grid-template-columns: 160px 1fr 1fr minmax(100px, auto);
+    gap: var(--sp-1) var(--sp-2);
     align-items: center;
     margin-bottom: var(--sp-1);
 }
@@ -817,15 +825,29 @@
     .audio-filter-clear-btn:hover { color: var(--error); background: rgba(255, 80, 80, 0.1); }
 }
 
-/* Flat grid: label, min, max, hint share four column tracks */
-.audio-filter-grid {
-    display: grid;
-    grid-template-columns: max-content 1fr 1fr auto;
-    gap: var(--sp-2) 8px;
-    align-items: center;
-}
+/* Per-row grid: label + min + max + hint on line 1, inline-hint + learn-more on line 2 */
+.audio-filter-grid { display: block; }
 
-.audio-filter-row { display: contents; }
+.audio-filter-row {
+    display: grid;
+    grid-template-columns: 160px 1fr 1fr minmax(100px, auto);
+    grid-template-areas:
+        "label min  max  hint"
+        "desc  desc desc desc"
+        "lm    lm   lm   lm";
+    gap: var(--sp-1) var(--sp-2);
+    align-items: center;
+    padding: var(--sp-2) 0;
+    border-bottom: 1px solid var(--border-subtle, var(--border));
+}
+.audio-filter-row:last-child { border-bottom: none; }
+
+.audio-filter-row > label { grid-area: label; }
+.audio-filter-row > input[id$="-min"] { grid-area: min; }
+.audio-filter-row > input[id$="-max"] { grid-area: max; }
+.audio-filter-row .audio-filter-hint-text { grid-area: hint; justify-self: end; }
+.audio-filter-row .inline-hint { grid-area: desc; margin: 0; }
+.audio-filter-row .learn-more { grid-area: lm; justify-self: start; }
 
 .audio-filter-row label {
     font-size: var(--fs-sm);

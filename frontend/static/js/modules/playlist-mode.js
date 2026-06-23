@@ -2,6 +2,17 @@ import * as State from './state.js';
 import { i18n } from './i18n.js';
 import { el } from './dom.js';
 
+const LAST_PLAYLIST_KEY = 'sv.playlist.last_id';
+
+function _readLastPlaylistId() {
+    try { return localStorage.getItem(LAST_PLAYLIST_KEY) || null; } catch (_) { return null; }
+}
+
+export function rememberLastPlaylistId(id) {
+    if (!id) return;
+    try { localStorage.setItem(LAST_PLAYLIST_KEY, id); } catch (_) { /* ignore */ }
+}
+
 export function getPlaylistMode() {
     const checked = document.querySelector('input[name="playlist_mode"]:checked');
     return checked ? checked.value : 'default';
@@ -28,7 +39,7 @@ async function loadDiscoverPicker() {
         }
     }
 
-    const prevValue = sel.value;
+    const prevValue = sel.value || _readLastPlaylistId();
     sel.innerHTML = '';
     if (playlists.length === 0) {
         sel.innerHTML = `<option value="">${i18n('playlist_mode.empty', 'No playlists found')}</option>`;
@@ -39,7 +50,7 @@ async function loadDiscoverPicker() {
             opt.textContent = pl.name;
             sel.appendChild(opt);
         });
-        // Restore previous selection if still present
+        // Restore previous selection (current in-DOM value, or last used across sessions)
         if (prevValue && sel.querySelector(`option[value="${prevValue}"]`)) {
             sel.value = prevValue;
         }
@@ -47,11 +58,18 @@ async function loadDiscoverPicker() {
 }
 
 export async function onPlaylistModeChange() {
-    const mode = getPlaylistMode();
+    // The inline playlist-mode UI was relocated into the apply-playlist
+    // modal; the original `#playlistNameRow` / `#playlistPickerRow` no
+    // longer exist in the rendered DOM. Bail before touching null nodes
+    // — otherwise this throws on every DOMContentLoaded and kills the
+    // rest of the init chain (Discover Artists, presets, …).
     const nameRow = el('playlistNameRow');
     const pickerRow = el('playlistPickerRow');
-    nameRow.classList.toggle('hidden', mode !== 'create');
-    pickerRow.classList.toggle('hidden', mode !== 'append' && mode !== 'replace');
+    if (!nameRow && !pickerRow) return;
+
+    const mode = getPlaylistMode();
+    if (nameRow) nameRow.classList.toggle('hidden', mode !== 'create');
+    if (pickerRow) pickerRow.classList.toggle('hidden', mode !== 'append' && mode !== 'replace');
 
     if ((mode === 'append' || mode === 'replace') && pickerRow && !pickerRow.dataset.loaded) {
         pickerRow.dataset.loaded = '1';
@@ -79,9 +97,46 @@ export function getPlaylistModePayload() {
         if (name) payload.playlist_name = name;
     } else if (mode === 'append' || mode === 'replace') {
         const id = el('playlistPicker')?.value;
-        if (id) payload.playlist_id = id;
+        if (id) {
+            payload.playlist_id = id;
+            rememberLastPlaylistId(id);
+        }
     }
     return payload;
+}
+
+/**
+ * On page load, if the user previously used a playlist, pre-select "Append"
+ * mode pointing at that playlist so they don't accidentally create a new
+ * "My AI Playlist" duplicate each time they return.
+ */
+export async function initPlaylistMode() {
+    const lastId = _readLastPlaylistId();
+    const picker = el('playlistPicker');
+    if (picker) {
+        picker.addEventListener('change', () => {
+            if (picker.value) rememberLastPlaylistId(picker.value);
+        });
+    }
+    if (!lastId) return;
+
+    const appendRadio = document.querySelector('input[name="playlist_mode"][value="append"]');
+    if (!appendRadio) return;
+    appendRadio.checked = true;
+
+    const nameRow = el('playlistNameRow');
+    const pickerRow = el('playlistPickerRow');
+    if (nameRow) nameRow.classList.add('hidden');
+    if (pickerRow) {
+        pickerRow.classList.remove('hidden');
+        pickerRow.dataset.loaded = '1';
+    }
+    await loadDiscoverPicker();
+    if (picker) {
+        if (picker.querySelector(`option[value="${lastId}"]`)) {
+            picker.value = lastId;
+        }
+    }
 }
 
 /**

@@ -320,8 +320,7 @@ async function _cleanupAfterProfileChange() {
     if (State.historyBodyOpen) loadHistory();
 
     await Promise.all([checkProfileStatus(), prefillTrainFields()]);
-    // Signal completeness meter that a fresh profile was loaded (resets _pristine)
-    document.dispatchEvent(new Event('profile-loaded'));
+    // prefillTrainFields already dispatches 'profile-loaded'
 
     // Re-evaluate component warnings (profileTrained may have changed)
     renderComponentWarnings();
@@ -510,6 +509,8 @@ export async function prefillTrainFields() {
         el('trainSoftPrefs').value = (prefs.soft_preferences || []).join('\n');
         el('trainAvoid').value = (prefs.avoid || []).join('\n');
     } catch (e) { /* ignore — fields stay empty */ }
+    // Signal completeness meter to recalculate with the freshly loaded values
+    document.dispatchEvent(new Event('profile-loaded'));
 }
 
 function _hideAiWarning() {

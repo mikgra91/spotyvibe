@@ -47,6 +47,11 @@ function _updateSizeReadout(slider) {
     if (readout) {
         readout.textContent = slider.value + ' ' + i18n('gen.size_suffix', 'tracks');
     }
+    const min = parseFloat(slider.min) || 0;
+    const max = parseFloat(slider.max) || 100;
+    const val = parseFloat(slider.value) || 0;
+    const pct = max > min ? ((val - min) / (max - min)) * 100 : 0;
+    slider.style.setProperty('--fill-pct', pct + '%');
 }
 
 function _onTabClick(e) {
@@ -64,7 +69,7 @@ function _onSizeInput(e) {
 
 function _onSizeBlur(e) {
     let val = parseInt(e.target.value, 10);
-    if (isNaN(val) || val < 10) val = 10;
+    if (isNaN(val) || val < 5) val = 5;
     if (val > 30) val = 30;
     // Snap to nearest step of 5
     val = Math.round(val / 5) * 5;
@@ -95,7 +100,7 @@ export function init() {
     if (settingsSize) {
         settingsSize.addEventListener('blur', () => {
             let val = parseInt(settingsSize.value, 10);
-            if (isNaN(val) || val < 10) val = 10;
+            if (isNaN(val) || val < 5) val = 5;
             if (val > 30) val = 30;
             settingsSize.value = val;
         });

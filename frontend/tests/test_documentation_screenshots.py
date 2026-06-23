@@ -220,7 +220,6 @@ def screenshot_url():
             "model": "gpt-4.1-mini",
             "debug_mode": False,
             "debug_controls_available": True,
-            "is_android": False,
             "debug_log_path": "debug.log",
             "prompt_log_path": "prompt.log",
             "playlist_size": 30,
@@ -489,13 +488,22 @@ class TestDocumentationScreenshotAcquire:
     # -- Playlist Generation ------------------------------------------------
 
     def test_19_discover_section(self, page: Page, screenshot_url):
-        """Screenshot: Discover Music section expanded"""
+        """Screenshot: Discover Tracks section expanded"""
         page.goto(screenshot_url)
         page.wait_for_load_state("networkidle")
         _switch_tab(page, "spotify")
         page.locator("#generateToggleBtn").click()
         page.wait_for_timeout(400)
         _shot_element(page, "19_discover_section", "#generateSection")
+
+    def test_19b_discover_artists_section(self, page: Page, screenshot_url):
+        """Screenshot: Discover Artists section expanded"""
+        page.goto(screenshot_url)
+        page.wait_for_load_state("networkidle")
+        _switch_tab(page, "spotify")
+        page.locator("#discoverArtistsToggleBtn").click()
+        page.wait_for_timeout(400)
+        _shot_element(page, "19b_discover_artists_section", "#discoverArtistsSection")
 
     def test_20_playlist_mode_selector(self, page: Page, screenshot_url):
         """Screenshot: Playlist mode selector"""
@@ -757,7 +765,7 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(300)
         _inject_discover_tracks(page)
         page.wait_for_timeout(300)
-        page.evaluate("toggleFeedback(0, 'like')")
+        page.evaluate("toggleFeedback(0)")
         page.wait_for_timeout(200)
         _shot_element(page, "34_like_feedback_form", "#track-0")
 
@@ -770,7 +778,7 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(300)
         _inject_discover_tracks(page)
         page.wait_for_timeout(300)
-        page.evaluate("toggleFeedback(1, 'dislike')")
+        page.evaluate("toggleFeedback(1)")
         page.wait_for_timeout(200)
         _shot_element(page, "35_dislike_feedback_form", "#track-1")
 
@@ -825,7 +833,7 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(300)
         _inject_review_tracks(page)
         page.wait_for_timeout(300)
-        page.evaluate("toggleReviewFeedback(0, 'like')")
+        page.evaluate("toggleReviewFeedback(0)")
         page.wait_for_timeout(200)
         _shot_element(page, "39_review_like_form", "#review-track-0")
 
@@ -838,7 +846,7 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(300)
         _inject_review_tracks(page)
         page.wait_for_timeout(300)
-        page.evaluate("toggleReviewFeedback(1, 'dislike')")
+        page.evaluate("toggleReviewFeedback(1)")
         page.wait_for_timeout(200)
         _shot_element(page, "40_review_dislike_form", "#review-track-1")
 
@@ -1023,7 +1031,7 @@ class TestDocumentationScreenshotAcquire:
         page.locator("#genNewArtistPct").fill("33")
         page.locator("body").click()
         page.wait_for_timeout(300)
-        _shot_element(page, "59_exploration_slider_custom", ".gen-mode-body--advanced .exploration-row")
+        _shot_element(page, "59_exploration_slider_custom", ".gen-shared-controls .exploration-row")
 
     def test_60_preset_dropdown_open(self, page: Page, screenshot_url):
         """Screenshot: Preset dropdown expanded in Advanced mode."""
@@ -1313,7 +1321,7 @@ class TestDocumentationScreenshotAcquire:
         ))
         page.reload()
         page.wait_for_load_state("networkidle")
-        page.locator(".taste-dashboard-section .accordion-header").click()
+        page.locator(".taste-dashboard-section .train-header").click()
         page.wait_for_timeout(500)
         _shot_element(page, "75_taste_dashboard", ".taste-dashboard-section")
 
@@ -1329,7 +1337,7 @@ class TestDocumentationScreenshotAcquire:
         ))
         page.reload()
         page.wait_for_load_state("networkidle")
-        page.locator(".taste-dashboard-section .accordion-header").click()
+        page.locator(".taste-dashboard-section .train-header").click()
         page.wait_for_timeout(300)
         _shot_element(page, "76_taste_dashboard_empty", ".taste-dashboard-section")
 
@@ -1384,18 +1392,6 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(200)
         _shot_element(page, "81_provider_dropdown_expanded", "#settingsModal .modal")
 
-    def test_82_provider_custom_selected(self, page: Page, screenshot_url):
-        """Screenshot: Settings modal with Custom provider selected, base URL row visible."""
-        page.goto(screenshot_url)
-        page.wait_for_load_state("networkidle")
-        page.locator(".burger-btn[aria-controls='settingsDropdown']").click()
-        page.wait_for_timeout(200)
-        page.locator("button:has-text('Settings')").click()
-        page.wait_for_timeout(300)
-        page.select_option("#settings-provider", "custom")
-        page.wait_for_timeout(300)
-        _shot_element(page, "82_provider_custom_selected", "#settingsModal .modal")
-
     def test_83_provider_local_ollama(self, page: Page, screenshot_url):
         """Screenshot: Settings modal with Ollama selected, local notice visible."""
         page.goto(screenshot_url)
@@ -1438,8 +1434,7 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(200)
         page.locator("button:has-text('Settings')").click()
         page.wait_for_timeout(300)
-        page.select_option("#settings-provider", "custom")
-        page.locator("#settings-base-url").fill("http://unreachable.example/v1")
+        page.select_option("#settings-provider", "openrouter")
         page.locator("#btnFetchModels").click()
         page.wait_for_timeout(500)
         _shot_element(page, "85_fetch_models_failure", "#settingsModal .modal")

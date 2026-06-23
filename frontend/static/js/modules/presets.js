@@ -150,16 +150,24 @@ function _applyPresetToForm(preset) {
     const emergingCb = el('emergingArtistsCheckbox');
     if (emergingCb && s.emerging_only != null) emergingCb.checked = s.emerging_only;
 
-    // Audio filters
+    // Audio filters — also expand the panel when the preset carries any
+    // non-empty range, so users see the values they just restored.
     if (s.audio_filters) {
+        let anyFilter = false;
         for (const [key, range] of Object.entries(s.audio_filters)) {
             const minEl = el(`af-${key}-min`);
             const maxEl = el(`af-${key}-max`);
             if (minEl) minEl.value = range.min != null ? range.min : '';
             if (maxEl) maxEl.value = range.max != null ? range.max : '';
+            if (range.min != null || range.max != null) anyFilter = true;
         }
-        // Update filter hints
         if (typeof window.updateAllFilterHints === 'function') window.updateAllFilterHints();
+        if (anyFilter) {
+            const body = document.getElementById('audioFiltersBody');
+            if (body && body.classList.contains('hidden') && typeof window.toggleAudioFilters === 'function') {
+                window.toggleAudioFilters();
+            }
+        }
     }
 }
 
@@ -246,8 +254,14 @@ function _renderDropdown() {
     // Footer actions
     const footer = document.createElement('li');
     footer.className = 'preset-dropdown-footer';
+    const active = getActivePreset();
+    const canUpdate = !!(active && !active.builtin);
+    const updateBtn = canUpdate
+        ? `<button onclick="window._presetUpdateCurrent()">${_escHtml(i18n('preset.update_named', '💾 Save "{name}"').replace('{name}', active.name))}</button>`
+        : '';
     footer.innerHTML = `
-        <button onclick="window._presetSaveAs()">${i18n('preset.save_current', '💾 Save current as preset…')}</button>
+        ${updateBtn}
+        <button onclick="window._presetSaveAs()">${i18n('preset.save_as_new', '+ New')}</button>
         <button onclick="window._presetOpenManager()">${i18n('nav.manage_presets', '⚙ Manage presets…')}</button>
     `;
     list.appendChild(footer);
@@ -300,19 +314,50 @@ function _selectPreset(id) {
     _updateActiveIndicator();
 }
 
+// ── New Artist % "CUSTOM" badge ─────────────────────────────────────
+// Show / hide the badge next to the New Artist % input based on whether
+// the current value matches the active preset's `new_artist_pct`. Was
+// referenced from init() but never defined — silently broken until a
+// hard reload exposed the ReferenceError in the browser console.
+function _updateNewArtistPctCustomBadge() {
+    const napInput = el('genNewArtistPct');
+    const badge = el('genNewArtistPctCustomBadge');
+    if (!napInput || !badge) return;
+    const cur = parseInt(napInput.value, 10);
+    const active = getActivePreset();
+    const presetNap = active && active.settings
+        && Number.isFinite(active.settings.new_artist_pct)
+        ? Math.round(active.settings.new_artist_pct)
+        : null;
+    const differs = Number.isFinite(cur) && presetNap !== null && cur !== presetNap;
+    badge.classList.toggle('hidden', !differs);
+}
+
+
 // ── Trigger label ───────────────────────────────────────────────────
 
 function _updateTriggerLabel() {
     const nameEl = el('presetDropdownName');
-    if (!nameEl) return;
     const preset = getActivePreset();
-    if (!preset) {
-        nameEl.textContent = i18n('preset.custom_unsaved', 'Custom (unsaved)');
-        return;
+    if (nameEl) {
+        if (!preset) {
+            nameEl.textContent = i18n('preset.custom_unsaved', 'Custom (unsaved)');
+        } else {
+            const suffix = preset.builtin ? ' ' + i18n('preset.builtin_suffix', '(built-in)') : '';
+            const name = preset.builtin ? i18n(`preset.${preset.id}`, preset.name) : preset.name;
+            nameEl.textContent = name + suffix;
+        }
     }
-    const suffix = preset.builtin ? ' ' + i18n('preset.builtin_suffix', '(built-in)') : '';
-    const name = preset.builtin ? i18n(`preset.${preset.id}`, preset.name) : preset.name;
-    nameEl.textContent = name + suffix;
+    // Toggle the "Update preset" button: only meaningful when a user preset
+    // is active. For built-ins or the unsaved state the only option is Save As.
+    const updateBtn = el('presetUpdateBtn');
+    if (updateBtn) {
+        const canUpdate = !!(preset && !preset.builtin);
+        updateBtn.classList.toggle('hidden', !canUpdate);
+        if (canUpdate) {
+            updateBtn.textContent = i18n('preset.update_named', '💾 Save "{name}"').replace('{name}', preset.name);
+        }
+    }
 }
 
 // ── Active indicator above Generate button ──────────────────────────
@@ -436,6 +481,30 @@ function _exportSingle(id) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+}
+
+// ── Update current user preset in place ─────────────────────────────
+
+function _updateCurrentPreset() {
+    _closeDropdown();
+    const active = getActivePreset();
+    if (!active || active.builtin) {
+        // Nothing to update in place — fall back to save-as so the user
+        // still gets a sensible action instead of a silent no-op.
+        _openSaveAsDialog();
+        return;
+    }
+    const idx = _userPresets.findIndex(p => p.id === active.id);
+    if (idx === -1) { _openSaveAsDialog(); return; }
+    _userPresets[idx] = {
+        ..._userPresets[idx],
+        settings: _collectCurrentSettings(),
+    };
+    _saveUserPresets();
+    _updateTriggerLabel();
+    _updateActiveIndicator();
+    _renderDropdown();
+    showToast(i18n('preset.updated', 'Preset "{name}" updated.').replace('{name}', active.name));
 }
 
 // ── Save as (new preset from current form) ──────────────────────────
@@ -677,17 +746,39 @@ export function init() {
     _updateTriggerLabel();
     _updateActiveIndicator();
 
+    // Apply the active preset to the form on load so audio filters (and other
+    // settings) match what the dropdown advertises — fixes the "needs to be
+    // re-selected to load filters" confusion after refresh.
+    const active = getActivePreset();
+    if (active) _applyPresetToForm(active);
+
     // Wire global functions for onclick handlers in templates
     window.togglePresetDropdown = togglePresetDropdown;
     window.confirmSaveAsPreset = confirmSaveAsPreset;
     window.importPresetFile = importPresetFile;
     window._presetSaveAs = _openSaveAsDialog;
+    window._presetUpdateCurrent = _updateCurrentPreset;
     window._presetOpenManager = _openManager;
     window._presetClone = _clonePreset;
     window._presetItemMenu = _showItemMenu;
     window._presetRename = _renamePreset;
     window._presetDelete = _deletePreset;
     window._presetExportSingle = _exportSingle;
+
+    // Item 7 — keep the "CUSTOM" badge next to the New Artist % field in
+    // sync with both manual edits and preset changes. Wired AFTER the
+    // window.* exports so a defect here cannot strand the onclick handlers.
+    try {
+        const napInput = el('genNewArtistPct');
+        if (napInput) {
+            napInput.addEventListener('input', _updateNewArtistPctCustomBadge);
+            napInput.addEventListener('change', _updateNewArtistPctCustomBadge);
+        }
+        _updateNewArtistPctCustomBadge();
+    } catch (err) {
+        // Non-fatal — keep the rest of the page interactive.
+        console.warn('NewArtistPct badge init failed', err);
+    }
 
     // Import file input
     const importInput = el('presetImportInput');

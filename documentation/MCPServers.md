@@ -26,7 +26,7 @@ Then create a Spotify app at https://developer.spotify.com/dashboard with redire
 }
 ```
 
-**When to use:** Verify Spotify API behavior, test search queries, inspect playlist structures, debug field names after API changes. Consult `SKILL.md` alongside MCP results for known breaking changes.
+**When to use:** Verify Spotify API behavior, test search queries, inspect playlist structures, debug field names after API changes. Consult [`api/spotify.md`](api/spotify.md) alongside MCP results for known breaking changes.
 
 ## GitHub MCP (`github/github-mcp-server`)
 

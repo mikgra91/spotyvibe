@@ -57,11 +57,35 @@ class TestGenerateCreateNewPlaylist:
         expect(tracks.nth(3)).to_contain_text("Queens of the Stone Age")
         expect(tracks.nth(4)).to_contain_text("The Black Keys")
 
-    def test_playlist_link_shown(self, page: Page, base_url):
+    def test_apply_to_playlist_sends_tracks(self, page: Page, base_url):
+        # Generation now builds a list; pushing to Spotify happens via the
+        # apply-playlist modal. Drive that real flow and assert the apply
+        # request carries the generated tracks + chosen mode, and that the
+        # modal closes on success.
         self._setup_generation(page, base_url)
+        page.route("**/api/playlists", lambda route: route.fulfill(
+            status=200, headers={"Content-Type": "application/json"},
+            body=json.dumps({"playlists": []}),
+        ))
+        apply_calls = []
+        page.route("**/api/apply-playlist", lambda route: (
+            apply_calls.append(route.request.post_data_json),
+            route.fulfill(
+                status=200, headers={"Content-Type": "application/json"},
+                body=json.dumps({
+                    "playlist_url": "https://open.spotify.com/playlist/pl-create-1",
+                    "playlist_id": "pl-create-1", "added": 5,
+                }),
+            ),
+        )[1])
         self._run_generation(page)
-        expect(page.locator("#playlistLinkBox")).to_be_visible()
-        expect(page.locator("#playlistLinkBox")).to_contain_text("open.spotify.com")
+        page.locator(".btn-apply").first.click()
+        expect(page.locator("#applyPlaylistModal")).to_be_visible()  # modal fix
+        page.locator("#applySubmitBtn").click()
+        expect(page.locator("#applyPlaylistModal")).to_be_hidden()    # closes on success
+        assert len(apply_calls) == 1
+        assert apply_calls[0]["playlist_mode"] == "create"
+        assert len(apply_calls[0]["tracks"]) == 5
 
     def test_like_tracks_sends_feedback(self, page: Page, base_url):
         self._setup_generation(page, base_url)
@@ -72,11 +96,11 @@ class TestGenerateCreateNewPlaylist:
                           body=json.dumps({"status": "ok"})),
         )[1])
         self._run_generation(page)
-        page.locator("#track-0 .btn-like").click()
-        page.locator("#submitBtn-0").click()
+        page.locator("#track-0 .btn-feedback").click()
+        page.locator("#submitBtn-0-like").click()
         page.wait_for_timeout(150)
-        page.locator("#track-3 .btn-like").click()
-        page.locator("#submitBtn-3").click()
+        page.locator("#track-3 .btn-feedback").click()
+        page.locator("#submitBtn-3-like").click()
         page.wait_for_timeout(150)
         likes = [c for c in feedback_calls if c["action"] == "like"]
         assert len(likes) == 2
@@ -92,8 +116,8 @@ class TestGenerateCreateNewPlaylist:
                           body=json.dumps({"status": "ok", "removal": {"removed": True}})),
         )[1])
         self._run_generation(page)
-        page.locator("#track-2 .btn-dislike").click()
-        page.locator("#submitBtn-2").click()
+        page.locator("#track-2 .btn-feedback").click()
+        page.locator("#submitBtn-2-dislike").click()
         page.wait_for_timeout(150)
         dislikes = [c for c in feedback_calls if c["action"] == "dislike"]
         assert len(dislikes) == 1

@@ -5,7 +5,7 @@
   box-shadow: var(--shadow-elevated, 0 4px 12px rgba(0,0,0,0.3));
   padding: var(--sp-3) var(--sp-4); max-width: 360px;
   display: flex; gap: var(--sp-3); align-items: flex-start;
-  position: fixed; top: 14px; right: 14px; z-index: 500;
+  position: fixed; top: calc(var(--titlebar-h, 0px) + 14px); right: 14px; z-index: 500;
   animation: tipSlideIn 300ms ease-out;
 }
 .toast--tip.hidden { display: none; }
@@ -34,4 +34,10 @@
   border-radius: var(--radius-sm);
 }
 .toast-tip-close:hover { color: var(--text-primary); }
+
+/* RAG update tip status line */
+.rag-update-tip-status {
+  display: block; font-size: var(--fs-sm); color: var(--text-muted);
+  margin-bottom: var(--sp-1);
+}
 

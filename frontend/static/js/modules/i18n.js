@@ -49,6 +49,17 @@ export async function applyLanguage(lang) {
         const key = el.getAttribute('data-i18n-tooltip');
         if (_i18nStrings[key] !== undefined) el.setAttribute('data-tooltip', _i18nStrings[key]);
     });
+    // data-i18n-attr="attr1:key1,attr2:key2" — generic per-attribute applier,
+    // used for things like `aria-label` where a dedicated handler would be overkill.
+    document.querySelectorAll('[data-i18n-attr]').forEach(el => {
+        const spec = el.getAttribute('data-i18n-attr');
+        if (!spec) return;
+        spec.split(',').forEach(pair => {
+            const [attr, key] = pair.split(':').map(s => s && s.trim());
+            if (!attr || !key) return;
+            if (_i18nStrings[key] !== undefined) el.setAttribute(attr, _i18nStrings[key]);
+        });
+    });
 
     _syncToggle(lang);
 
@@ -59,6 +70,30 @@ export async function applyLanguage(lang) {
 export function i18n(key, fallback) {
     return _i18nStrings[key] !== undefined ? _i18nStrings[key] : (fallback || key);
 }
+
+/**
+ * Localise an error payload returned by the backend.
+ *
+ * Accepts the parsed JSON body (or any object with `error_key` / `error`)
+ * and returns a translated string, falling back to the English `error`
+ * field. If `error_params` is present, `{name}` placeholders in the
+ * translation are interpolated.
+ */
+export function localizedError(data, fallback) {
+    if (!data || typeof data !== 'object') return fallback || '';
+    const fallbackText = data.error || fallback || '';
+    if (!data.error_key) return fallbackText;
+    let text = i18n(data.error_key, fallbackText);
+    const params = data.error_params;
+    if (params && typeof params === 'object') {
+        for (const k of Object.keys(params)) {
+            text = text.replace('{' + k + '}', String(params[k]));
+        }
+    }
+    return text;
+}
+
+window._localizedError = localizedError;
 
 // Expose for non-module scripts (e.g. setup_guide.js)
 window._i18n = i18n;
@@ -76,7 +111,9 @@ export async function initI18n() {
     if (!saved) saved = localStorage.getItem('svLang');
     if (!saved) {
         const browserLang = (navigator.language || '').split('-')[0].toLowerCase();
-        saved = (browserLang === 'de') ? 'de' : 'en';
+        if (browserLang === 'de') saved = 'de';
+        else if (browserLang === 'ja') saved = 'jp';
+        else saved = 'en';
     }
     localStorage.setItem('svLang', saved);
     _syncToggle(saved);

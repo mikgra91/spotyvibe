@@ -18,6 +18,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/tracks.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/modals.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/quickstart.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/getting_started.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/sections.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/preview.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/setup_guide.css') }}">
@@ -52,6 +53,19 @@
     </nav>
 
     <main id="main-content">
+    <!-- ── Getting Started checklist (auto-hides when complete or dismissed) ── -->
+    <aside id="gettingStartedCard" class="getting-started" hidden role="region" aria-label="Getting started">
+        <div class="gs-header">
+            <h2 class="gs-title">
+                <span data-i18n="getting_started.title">Getting started</span>
+                <span class="gs-progress" id="gsProgress"></span>
+            </h2>
+            <button type="button" class="gs-dismiss" id="gsDismiss"
+                    aria-label="Dismiss getting started" data-i18n-attr="aria-label:getting_started.dismiss_aria">×</button>
+        </div>
+        <ul class="gs-list" id="gsList"></ul>
+    </aside>
+
     <!-- ── OpenAI Provider Section ── -->
     <section class="provider-section provider-openai" id="providerOpenai" role="tabpanel" aria-labelledby="tab-openai" aria-label="OpenAI tools">
         <div class="provider-header">
@@ -76,6 +90,7 @@
             <div class="provider-status-pills" id="spotifyStatusPills"></div>
         </div>
         {% include "generate_section.html" %}
+        {% include "discover_artists_section.html" %}
         {% include "playlist_review.html" %}
     </section>
 
@@ -98,7 +113,9 @@
     {% include "modals/privacy_modal.html" %}
     {% include "modals/setup_guide_overlay.html" %}
     {% include "modals/preset_manager_modal.html" %}
+    {% include "modals/apply_playlist_modal.html" %}
     {% include "modals/playlist_seed_modal.html" %}
+    {# RAG update notification is now a tip toast (rag_update_prompt.js) #}
 
     <!-- Section help popup (focused single-section view) -->
     <div class="modal-overlay" id="sectionHelpOverlay" role="dialog" aria-modal="true" aria-label="Section help" onclick="if(event.target===this)closeSectionHelp()">

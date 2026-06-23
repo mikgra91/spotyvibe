@@ -23,7 +23,8 @@
     letter-spacing: 0.05em;
 }
 
-.exploration-value {
+.exploration-value,
+.exploration-value-artist {
     font-size: var(--fs-md);
     color: var(--primary);
     font-weight: 600;
@@ -168,7 +169,13 @@
     appearance: none;
     width: 100%;
     height: var(--slider-track-h);
-    background: var(--border);
+    background: linear-gradient(
+        to right,
+        var(--primary) 0%,
+        var(--primary) var(--fill-pct, 0%),
+        var(--border) var(--fill-pct, 0%),
+        var(--border) 100%
+    );
     border-radius: 2px;
     outline: none;
     cursor: pointer;
@@ -195,7 +202,13 @@
 }
 .gen-size-slider::-moz-range-track {
     height: var(--slider-track-h);
-    background: var(--border);
+    background: linear-gradient(
+        to right,
+        var(--primary) 0%,
+        var(--primary) var(--fill-pct, 0%),
+        var(--border) var(--fill-pct, 0%),
+        var(--border) 100%
+    );
     border-radius: 2px;
     border: none;
 }

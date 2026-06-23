@@ -124,8 +124,13 @@ class TestEdgeCases:
         run_calls = []
 
         def handle_run(route):
+            # Intentionally NEVER fulfill — the double-click guard is an
+            # "in-flight protection" check (the runBtn stays disabled
+            # while the SSE request is open). Letting the route hang
+            # keeps it open for the duration of the test, so the second
+            # click happens *during* the first request and is the only
+            # signal that exercises the guard.
             run_calls.append(1)
-            pass
 
         page.route("**/api/profile/status", lambda route: route.fulfill(
             status=200,
@@ -141,7 +146,10 @@ class TestEdgeCases:
             page.locator("#runBtn").click(timeout=500)
         except Exception:
             pass
-        page.wait_for_timeout(250)
+        # Wait long enough that a second request would have arrived if
+        # the guard were broken. Bumped from 250 ms → 750 ms for
+        # parallel-CI tolerance.
+        page.wait_for_timeout(750)
         assert len(run_calls) <= 1, f"Expected ≤1 run request, got {len(run_calls)}"
         page.unroute("**/api/run")
 

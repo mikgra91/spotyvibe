@@ -5,20 +5,24 @@
         <div class="modal-loading" id="settingsLoading">
             <div class="spinner"></div>
         </div>
-        <h2 id="settingsModalTitle" data-i18n="settings.title"><span aria-hidden="true">⚙️</span> Settings</h2>
+        <h2 id="settingsModalTitle"><span aria-hidden="true">⚙️</span> <span data-i18n="settings.title">Settings</span></h2>
 
         <!-- Provider (Wave 4) -->
         <div class="form-row">
             <label for="settings-provider" data-i18n="provider.label">Provider</label>
             <select id="settings-provider" onchange="onProviderChange()">
-                <option value="openai" data-i18n="provider.openai">OpenAI</option>
-                <option value="ollama" data-i18n="provider.ollama">Ollama (local)</option>
-                <option value="lmstudio" data-i18n="provider.lmstudio">LM Studio (local)</option>
-                <option value="groq" data-i18n="provider.groq">Groq</option>
-                <option value="openrouter" data-i18n="provider.openrouter">OpenRouter</option>
+                <optgroup label="Cloud" data-i18n-attr="label:provider.group_cloud">
+                    <option value="openai" data-i18n="provider.openai">OpenAI</option>
+                    <option value="openrouter" data-i18n="provider.openrouter">OpenRouter</option>
+                </optgroup>
+                <optgroup label="Local" data-i18n-attr="label:provider.group_local">
+                    <option value="ollama" data-i18n="provider.ollama">Ollama</option>
+                    <option value="llamacpp" data-i18n="provider.llamacpp">llama.cpp</option>
+                    <option value="lmstudio" data-i18n="provider.lmstudio">LM Studio</option>
+                </optgroup>
             </select>
             <p class="inline-hint" data-i18n="provider.hint">Pick where SpotyVibe gets its AI from.</p>
-            {{ learn_more('provider.learn_more', 'SpotyVibe speaks the OpenAI API protocol. Any OpenAI-compatible provider works — cloud (Groq, OpenRouter) or local (Ollama, LM Studio).') }}
+            {{ learn_more('provider.learn_more', 'SpotyVibe speaks the OpenAI API protocol. Any OpenAI-compatible provider works — cloud (OpenRouter) or local (Ollama, LM Studio).') }}
         </div>
         <div class="form-row provider-base-url-row hidden" id="providerBaseUrlRow">
             <label for="settings-base-url" data-i18n="provider.base_url_label">Base URL</label>
@@ -60,14 +64,37 @@
                 <dt data-i18n="cost.model">Model</dt><dd id="costModelName">—</dd>
                 <dt data-i18n="cost.profile_size">Profile size</dt><dd id="costProfileTokens">—</dd>
                 <dt data-i18n="cost.tracks">Suggestions</dt><dd id="costTracks">—</dd>
+                <dt data-i18n="cost.batches">Batches</dt><dd id="costBatches">—</dd>
                 <dt data-i18n="cost.tokens_in">Tokens in</dt><dd id="costTokensIn">—</dd>
                 <dt data-i18n="cost.tokens_out">Tokens out</dt><dd id="costTokensOut">—</dd>
                 <dt data-i18n="cost.total" class="cost-total-label">Estimated cost</dt><dd id="costTotal" class="cost-total-value">—</dd>
+                <dt data-i18n="cost.ai_update">AI Profile Update</dt><dd id="costAiUpdate">—</dd>
+                <dt data-i18n="cost.session_total">Session spend</dt><dd id="costSessionTotal">—</dd>
             </dl>
             <p class="cost-estimate-disclaimer" data-i18n="cost.disclaimer">Estimate only — actual cost depends on your profile size and provider rates.</p>
             <p class="cost-estimate-unavailable hidden" id="costUnavailable" data-i18n="cost.unavailable">Cost estimate unavailable for this model.</p>
         </div>
 
+
+        <!-- UI scale preference -->
+        <div class="form-row">
+            <label data-i18n="settings.ui_scale.label">Text size</label>
+            <div class="ui-scale-row" role="radiogroup" aria-label="UI scale">
+                <label class="ui-scale-option">
+                    <input type="radio" name="ui_scale" value="0.9" onchange="setUiScale(this.value)">
+                    <span data-i18n="settings.ui_scale.compact">Compact</span>
+                </label>
+                <label class="ui-scale-option">
+                    <input type="radio" name="ui_scale" value="1" onchange="setUiScale(this.value)" checked>
+                    <span data-i18n="settings.ui_scale.normal">Normal</span>
+                </label>
+                <label class="ui-scale-option">
+                    <input type="radio" name="ui_scale" value="1.1" onchange="setUiScale(this.value)">
+                    <span data-i18n="settings.ui_scale.large">Large</span>
+                </label>
+            </div>
+            <p class="inline-hint" data-i18n="settings.ui_scale.hint">Scales text only — stored on this device.</p>
+        </div>
 
         <!-- Debug mode (desktop-only) -->
         <div class="form-row {% if not debug_controls_available %}hidden{% endif %}" id="debugModeRow">
@@ -82,6 +109,30 @@
             <p class="inline-hint" data-i18n="settings.debug_hint">Log every GPT request and response to a local file.</p>
             {{ learn_more('settings.debug_learn_more', 'For developers and bug reports. Never affects behaviour. The log file stays on your device — see the Privacy modal.') }}
             <div class="cred-status" id="status-settings-debug"></div>
+        </div>
+
+        <!-- RAG candidate pool (advanced) -->
+        <div class="form-row" id="ragEnabledRow">
+            <label data-i18n="settings.rag.label">Candidate pool (RAG) <span class="optional-badge" data-i18n="common.optional">(optional)</span></label>
+            <div class="modal-checkbox-row">
+                <label class="modal-checkbox-label">
+                    <input type="checkbox" id="settings-rag-enabled"
+                        {% if settings.rag_enabled %}checked{% endif %}>
+                    <span data-i18n="settings.rag.toggle">Use a local artist corpus to steer suggestions</span>
+                </label>
+                <span class="rag-help-indicator" tabindex="0" role="img"
+                      aria-label="Coverage information"
+                      data-i18n-title="settings.rag.scope_help"
+                      title="Note: the corpus only covers artists that started in the 1960s or later. Pre-1960s music is intentionally excluded.">ⓘ</span>
+            </div>
+            <p class="inline-hint" data-i18n="settings.rag.hint">Retrieves matching artists from the offline artist database and injects them as hints. Requires the database to be downloaded.</p>
+            <div class="rag-update-banner" id="settings-rag-update" hidden>
+                <span id="settings-rag-update-message"></span>
+                <button type="button" class="btn btn-secondary" id="settings-rag-update-btn"
+                        onclick="downloadRagCorpus()"
+                        data-i18n="settings.rag.download_now">Download now</button>
+            </div>
+            <div class="cred-status" id="status-settings-rag"></div>
         </div>
 
         <div class="modal-actions">

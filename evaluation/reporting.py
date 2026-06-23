@@ -1,0 +1,581 @@
+"""Aggregate eval.jsonl rows into per-run summaries and a comparison.md.
+
+Reads the per-run ``eval.jsonl`` slices written by ``harness.py`` and
+rolls up:
+
+  - Cost (input/output tokens × pricing.json $/M-tok rates)
+  - Latency (p50/p95 from run_summary rows; per-feature from the
+    relevant *_summary rows)
+  - Quality signals (Spotify-found rate, must_have cite rate, like/dislike
+    rate against the deterministic feedback rule)
+
+The output is a plain-text ``comparison.md`` file the user can open in
+any editor, plus per-model ``summary.json`` files (already written by
+the harness). The comparison Markdown is the "executive summary" — the
+full row-level data stays in eval.jsonl for pandas analysis.
+"""
+from __future__ import annotations
+
+import json
+import logging
+from collections import defaultdict
+from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+def _load_pricing(repo_root: Path) -> dict[str, dict[str, float]]:
+    """Read pricing.json. Returns model_id → {input_per_1m, output_per_1m}."""
+    p = repo_root / "frontend" / "static" / "data" / "pricing.json"
+    if not p.exists():
+        return {}
+    try:
+        return json.loads(p.read_text(encoding="utf-8")).get("models", {})
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _read_jsonl(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    rows = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    return rows
+
+
+def _cost_for_usage(usage: dict | None, pricing_entry: dict | None) -> float | None:
+    """Compute USD cost for one ``usage`` dict against a pricing entry.
+
+    Returns None when either input is missing — surfaces "unmeasured"
+    rather than silently reporting $0.
+    """
+    if not usage or not pricing_entry:
+        return None
+    pin = usage.get("prompt_tokens") or 0
+    pout = usage.get("completion_tokens") or 0
+    return (pin / 1_000_000) * pricing_entry.get("input_per_1m", 0) + \
+           (pout / 1_000_000) * pricing_entry.get("output_per_1m", 0)
+
+
+# ── Per-run rollup ───────────────────────────────────────────────────
+
+def summarise_run(eval_log: Path, model: str,
+                   pricing: dict[str, dict[str, float]]) -> dict[str, Any]:
+    """Aggregate one run's ``eval.jsonl`` slice into a flat summary dict."""
+    rows = _read_jsonl(eval_log)
+    by_kind: dict[str, list[dict]] = defaultdict(list)
+    for r in rows:
+        by_kind[r.get("kind", "track")].append(r)
+
+    pricing_entry = pricing.get(model)
+
+    # ── Feature costs ─────────────────────────────────────────────
+    feature_costs: dict[str, float | None] = {}
+    feature_latencies: dict[str, float | None] = {}
+    feature_token_totals: dict[str, int | None] = {}
+
+    def _aggregate(rows_for_feature: list[dict]) -> tuple[float | None, float | None, int | None]:
+        if not rows_for_feature:
+            return None, None, None
+        total_cost = 0.0
+        total_latency = 0.0
+        total_tokens = 0
+        any_priced = False
+        for r in rows_for_feature:
+            usage = r.get("usage")
+            # Per-feature rows may use the model under test (analysis,
+            # profile_update, batch_summary) OR a different model
+            # (stage2_summary uses STAGE2_MODEL).
+            row_model = r.get("model") or model
+            row_pricing = pricing.get(row_model) or pricing_entry
+            cost = _cost_for_usage(usage, row_pricing)
+            if cost is not None:
+                total_cost += cost
+                any_priced = True
+            if r.get("latency_s") is not None:
+                total_latency += r["latency_s"]
+            if usage and usage.get("total_tokens"):
+                total_tokens += usage["total_tokens"]
+        return (total_cost if any_priced else None,
+                total_latency if total_latency else None,
+                total_tokens if total_tokens else None)
+
+    for feature in ("batch_summary", "stage2_summary",
+                    "profile_update_summary", "analysis_summary"):
+        c, lat, tok = _aggregate(by_kind.get(feature, []))
+        feature_costs[feature] = c
+        feature_latencies[feature] = lat
+        feature_token_totals[feature] = tok
+
+    total_cost = sum(c for c in feature_costs.values() if c is not None) or None
+
+    # ── Quality signals ───────────────────────────────────────────
+    track_rows = by_kind.get("track", [])
+    spotify_found_rate = None
+    must_have_cite_rate = None
+    if track_rows:
+        spotify_found_rate = round(
+            sum(1 for r in track_rows if r.get("found_on_spotify"))
+            / len(track_rows), 3,
+        )
+        cited_rows = [r for r in track_rows if r.get("has_must_have_cite") is not None]
+        if cited_rows:
+            must_have_cite_rate = round(
+                sum(1 for r in cited_rows if r["has_must_have_cite"])
+                / len(cited_rows), 3,
+            )
+
+    # ── Latency from run_summary if available ─────────────────────
+    run_p50 = run_p95 = total_wall = None
+    if by_kind.get("run_summary"):
+        rs = by_kind["run_summary"][-1]
+        latency_block = rs.get("batch_latency_s") or {}
+        run_p50 = latency_block.get("p50")
+        run_p95 = latency_block.get("p95")
+        total_wall = rs.get("total_wall_s")
+
+    # ── Stage 2 specific ──────────────────────────────────────────
+    stage2_status = stage2_candidates_in = stage2_approved_out = None
+    if by_kind.get("stage2_summary"):
+        s2 = by_kind["stage2_summary"][-1]
+        stage2_status = s2.get("status")
+        stage2_candidates_in = s2.get("candidates_in")
+        stage2_approved_out = s2.get("approved_out")
+
+    return {
+        "model": model,
+        "row_count": len(rows),
+        "rows_by_kind": {k: len(v) for k, v in by_kind.items()},
+        "total_cost_usd": round(total_cost, 4) if total_cost is not None else None,
+        "feature_costs_usd": {
+            k: (round(v, 4) if v is not None else None)
+            for k, v in feature_costs.items()
+        },
+        "feature_latency_s": {
+            k: (round(v, 2) if v is not None else None)
+            for k, v in feature_latencies.items()
+        },
+        "feature_total_tokens": feature_token_totals,
+        "playlist_p50_s": run_p50,
+        "playlist_p95_s": run_p95,
+        "playlist_total_wall_s": total_wall,
+        "spotify_found_rate": spotify_found_rate,
+        "must_have_cite_rate": must_have_cite_rate,
+        "stage2": {
+            "status": stage2_status,
+            "candidates_in": stage2_candidates_in,
+            "approved_out": stage2_approved_out,
+        },
+    }
+
+
+# ── Comparison report ────────────────────────────────────────────────
+
+def write_comparison_report(results_dir: Path, repo_root: Path) -> Path:
+    """Aggregate all per-run summaries into ``comparison.md``.
+
+    Picks up every ``{model}-iter{n}/`` subdirectory under ``results_dir``,
+    reads each one's ``eval.jsonl`` slice, and writes a side-by-side
+    table per model.
+    """
+    pricing = _load_pricing(repo_root)
+    rows: list[dict] = []
+    for sub in sorted(results_dir.iterdir()):
+        if not sub.is_dir():
+            continue
+        eval_log = sub / "eval.jsonl"
+        run_summary = sub / "summary.json"
+        if not run_summary.exists():
+            continue
+        meta = json.loads(run_summary.read_text(encoding="utf-8"))
+        agg = summarise_run(eval_log, meta["model"], pricing)
+        agg["iteration"] = meta["iteration"]
+        agg["duration_s"] = meta.get("duration_s")
+        agg["error"] = meta.get("error")
+        agg["seed_train_status"] = meta.get("seed_train_status")
+        agg["analysis_status"] = meta.get("analysis_status")
+        agg["playlist_status"] = meta.get("playlist_status")
+        agg["feedback_status"] = meta.get("feedback_status")
+        agg["refine_train_status"] = meta.get("refine_train_status")
+        agg["cleanup_status"] = meta.get("cleanup_status")
+        agg["playlist_track_count"] = meta.get("playlist_track_count")
+        # F8 (2026-05-01): playlist-B + leakage are the load-bearing
+        # quality signal — surface them at the top of the report.
+        agg["playlist_b_status"] = meta.get("playlist_b_status")
+        agg["playlist_b_track_count"] = meta.get("playlist_b_track_count") or 0
+        agg["leakage_status"] = meta.get("leakage_status")
+        agg["leakage"] = meta.get("leakage") or {}
+        agg["fit_status"] = meta.get("fit_status")
+        agg["fit"] = meta.get("fit") or {}
+        # P1 #5: pure-count completion gate against the requested
+        # playlist size — surfaces the "I only got 9 of 15" failures
+        # the legacy under_filled status was masking.
+        agg["completion_a_status"] = meta.get("completion_a_status")
+        agg["completion_b_status"] = meta.get("completion_b_status")
+        # P1 #7: trace-bundle paths (None when DEBUG_MODE was off or
+        # the source bundle was missing). Stored relative to the
+        # results dir so the comparison.md can link to them.
+        agg["trace_a_path"] = meta.get("trace_a_path")
+        agg["trace_b_path"] = meta.get("trace_b_path")
+        # E1 (2026-05-06): per-stage rollup pulled out of the trace
+        # bundle by harness._extract_stage_metrics. None on legacy
+        # bundles or DEBUG_MODE-off runs.
+        agg["stage_metrics_a"] = meta.get("stage_metrics_a")
+        agg["stage_metrics_b"] = meta.get("stage_metrics_b")
+        # E2/E3 (2026-05-07): Last.fm coverage + listener distribution
+        # rollups, populated by harness._extract_corpus_metrics. None
+        # when no corpus was loaded or the playlist was empty.
+        agg["corpus_metrics_a"] = meta.get("corpus_metrics_a")
+        agg["corpus_metrics_b"] = meta.get("corpus_metrics_b")
+        # Carry the scenario name through so multi-scenario runs can
+        # group rows in the report. Defaults to "default" for legacy
+        # summaries that pre-date the field.
+        agg["scenario_name"] = meta.get("scenario_name", "default")
+        rows.append(agg)
+
+    if not rows:
+        logger.warning("No run summaries found in %s", results_dir)
+        return results_dir / "comparison.md"
+
+    # ── Format Markdown ───────────────────────────────────────────
+    out = ["# Evaluation comparison",
+           "",
+           f"Generated: {results_dir.name}",
+           ""]
+
+    # F8 (2026-05-01): leakage is the primary quality gate — show it
+    # first so a regression jumps out before the cost/latency tables
+    # below distract from it. A row that says `pass / 0` is the only
+    # acceptable outcome; anything else means production failed to
+    # respect prior feedback when generating the second playlist.
+    out += ["## Quality gate — playlist-B leakage",
+            "",
+            "After feedback (likes + dislikes + refine train) the harness "
+            "generates a SECOND playlist on the same profile. Any leak "
+            "below means the production pipeline ignored an earlier signal.",
+            "",
+            "| Model | Iter | Tracks B | Leak status | Total leaks | Rejected artist | Disliked track | Dislike pattern |",
+            "|---|---:|---:|---|---:|---:|---:|---:|"]
+    for r in rows:
+        leak = r.get("leakage") or {}
+        out.append(
+            f"| {r['model']} | {r['iteration']} "
+            f"| {r.get('playlist_b_track_count') or '—'} "
+            f"| {r.get('leakage_status') or '—'} "
+            f"| {leak.get('total_leaks', '—')} "
+            f"| {leak.get('rejected_artist_count', '—')} "
+            f"| {leak.get('disliked_track_count', '—')} "
+            f"| {leak.get('dislike_pattern_count', '—')} |"
+        )
+
+    # P1 #5: completion gate (pure track-count vs requested size). A
+    # row that says `under` or `empty` for either A or B means the
+    # production pipeline missed the 95 % completion target — a real
+    # production-failure signal the legacy `under_filled` status was
+    # silently swallowing.
+    out += ["",
+            "## Quality gate — playlist completion (≥ 95 % of requested size)",
+            "",
+            "| Model | Iter | Tracks A | Completion A | Tracks B | Completion B |",
+            "|---|---:|---:|---|---:|---|"]
+    for r in rows:
+        out.append(
+            f"| {r['model']} | {r['iteration']} "
+            f"| {r.get('playlist_track_count') or '—'} "
+            f"| {r.get('completion_a_status') or '—'} "
+            f"| {r.get('playlist_b_track_count') or '—'} "
+            f"| {r.get('completion_b_status') or '—'} |"
+        )
+
+    # P1 #7: per-run F9 trace bundle paths (Stage 1 candidates,
+    # Stage 2 in/out, Stage 3 raw, Spotify verify). Empty cell when
+    # DEBUG_MODE was off or the bundle was missing.
+    if any(r.get("trace_a_path") or r.get("trace_b_path") for r in rows):
+        out += ["",
+                "## Diagnostic — F9 trace bundles",
+                "",
+                "| Model | Iter | Trace A | Trace B |",
+                "|---|---:|---|---|"]
+        for r in rows:
+            ta = r.get("trace_a_path") or "—"
+            tb = r.get("trace_b_path") or "—"
+            out.append(
+                f"| {r['model']} | {r['iteration']} | {ta} | {tb} |"
+            )
+
+    # F8.3 (2026-05-01): deterministic per-track fit-check pass rate.
+    # Independent of leakage — fit catches profile drift on tracks the
+    # user has never seen / disliked before.
+    out += ["",
+            "## Quality gate — playlist-B fit-check",
+            "",
+            "Deterministic per-track checks (currently `decade_avoid` "
+            "via Spotify `release_year`). `no_checks_applied` means the "
+            "scenario's profile mentions no decade in its avoid prose.",
+            "",
+            "| Model | Iter | Tracks B | Fit status | Total fails | Decade avoid | Checks applied |",
+            "|---|---:|---:|---|---:|---:|---|"]
+    for r in rows:
+        fit = r.get("fit") or {}
+        applied = fit.get("checks_applied") or []
+        out.append(
+            f"| {r['model']} | {r['iteration']} "
+            f"| {r.get('playlist_b_track_count') or '—'} "
+            f"| {r.get('fit_status') or '—'} "
+            f"| {fit.get('total_fails', '—')} "
+            f"| {fit.get('decade_avoid_count', '—')} "
+            f"| {', '.join(applied) if applied else '—'} |"
+        )
+
+    # Per-run fit-check hits — only print sections for rows that failed.
+    fit_failed_rows = [r for r in rows if (r.get("fit_status") == "fail")]
+    if fit_failed_rows:
+        out += ["", "### Fit-check hits (per run)", ""]
+        for r in fit_failed_rows:
+            hits = (r.get("fit") or {}).get("hits") or []
+            if not hits:
+                continue
+            out.append(f"**{r['model']} iter {r['iteration']}**")
+            out.append("")
+            out.append("| Rule | Artist | Track | Detail |")
+            out.append("|---|---|---|---|")
+            for h in hits[:20]:
+                out.append(
+                    f"| {h.get('rule', '—')} "
+                    f"| {h.get('artist', '—')} "
+                    f"| {h.get('track', '—')} "
+                    f"| {h.get('detail', '—')} |"
+                )
+            out.append("")
+
+    # Per-run leakage hits — only print sections for rows that failed.
+    failed_rows = [r for r in rows if (r.get("leakage_status") == "fail")]
+    if failed_rows:
+        out += ["", "### Leakage hits (per run)", ""]
+        for r in failed_rows:
+            hits = (r.get("leakage") or {}).get("hits") or []
+            if not hits:
+                continue
+            out.append(f"**{r['model']} iter {r['iteration']}**")
+            out.append("")
+            out.append("| Rule | Artist | Track | Detail |")
+            out.append("|---|---|---|---|")
+            for h in hits[:20]:  # cap so the report stays readable
+                out.append(
+                    f"| {h.get('rule', '—')} "
+                    f"| {h.get('artist', '—')} "
+                    f"| {h.get('track', '—')} "
+                    f"| {h.get('detail', '—')} |"
+                )
+            out.append("")
+
+    out += ["",
+            "## Per-run rollup",
+            "",
+            "| Scenario | Model | Iter | Cost ($) | Wall (s) | p50 (s) | p95 (s) | Tracks | Spotify-found | Must-have cite | Stage2 | Status | Cleanup |",
+            "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|"]
+    for r in rows:
+        s2 = r["stage2"]
+        s2_label = (
+            f"{s2['approved_out']}/{s2['candidates_in']} ({s2['status']})"
+            if s2["status"] else "—"
+        )
+        status = "ok"
+        if r["error"]:
+            status = f"error: {r['error'][:40]}"
+        out.append(
+            f"| {r.get('scenario_name', 'default')} "
+            f"| {r['model']} | {r['iteration']} "
+            f"| {_fmt(r['total_cost_usd'])} "
+            f"| {_fmt(r['playlist_total_wall_s'])} "
+            f"| {_fmt(r['playlist_p50_s'])} "
+            f"| {_fmt(r['playlist_p95_s'])} "
+            f"| {r.get('playlist_track_count') or '—'} "
+            f"| {_fmt_pct(r['spotify_found_rate'])} "
+            f"| {_fmt_pct(r['must_have_cite_rate'])} "
+            f"| {s2_label} "
+            f"| {status} "
+            f"| {r.get('cleanup_status', '—')} |"
+        )
+
+    out += ["", "## Cost breakdown by feature ($)", "",
+            "| Model | Iter | Stage 3 (batches) | Stage 2 | Profile updates | Band/Song Analysis | Total |",
+            "|---|---:|---:|---:|---:|---:|---:|"]
+    for r in rows:
+        fc = r["feature_costs_usd"]
+        out.append(
+            f"| {r['model']} | {r['iteration']} "
+            f"| {_fmt(fc['batch_summary'])} "
+            f"| {_fmt(fc['stage2_summary'])} "
+            f"| {_fmt(fc['profile_update_summary'])} "
+            f"| {_fmt(fc['analysis_summary'])} "
+            f"| {_fmt(r['total_cost_usd'])} |"
+        )
+
+    out += ["", "## Latency by feature (s)", "",
+            "| Model | Iter | Stage 3 sum | Stage 2 | Profile updates | Band/Song Analysis |",
+            "|---|---:|---:|---:|---:|---:|"]
+    for r in rows:
+        fl = r["feature_latency_s"]
+        out.append(
+            f"| {r['model']} | {r['iteration']} "
+            f"| {_fmt(fl['batch_summary'])} "
+            f"| {_fmt(fl['stage2_summary'])} "
+            f"| {_fmt(fl['profile_update_summary'])} "
+            f"| {_fmt(fl['analysis_summary'])} |"
+        )
+
+    # E1 (2026-05-06): per-stage breakdown — ms wall-clock + tokens
+    # per stage. Only printed when at least one row carries the
+    # rollup, so legacy / DEBUG-off summaries skip the section
+    # entirely. Splits A/B since the post-feedback playlist often has
+    # very different Stage 2/3 budgets.
+    if any(r.get("stage_metrics_a") or r.get("stage_metrics_b") for r in rows):
+        out += [
+            "",
+            "## Per-stage breakdown (E1)",
+            "",
+            "Wall-clock + LLM tokens per pipeline stage, pulled from the F9 "
+            "trace bundle. `calls` is the number of times the stage fired "
+            "in this run (Stage 3 fires once per generation batch). "
+            "Empty cells when the stage didn't run on that playlist.",
+            "",
+        ]
+        _stage_order = (
+            ("rag_retrieve", "RAG retrieve"),
+            ("stage2_avoid", "Stage 2 avoid"),
+            ("stage3_select", "Stage 3 select"),
+            ("spotify_verify", "Spotify verify"),
+        )
+        for label_letter in ("a", "b"):
+            metrics_key = f"stage_metrics_{label_letter}"
+            if not any(r.get(metrics_key) for r in rows):
+                continue
+            out.append(f"### Playlist {label_letter.upper()}")
+            out.append("")
+            out.append(
+                "| Model | Iter | Stage | Wall (s) | Calls | Tokens in | Tokens out |"
+            )
+            out.append(
+                "|---|---:|---|---:|---:|---:|---:|"
+            )
+            for r in rows:
+                metrics = r.get(metrics_key) or {}
+                if not metrics:
+                    continue
+                for stage_key, stage_label in _stage_order:
+                    m = metrics.get(stage_key)
+                    if not m:
+                        continue
+                    out.append(
+                        f"| {r['model']} | {r['iteration']} | {stage_label} "
+                        f"| {_fmt(m.get('duration_s'))} "
+                        f"| {m.get('calls', 0)} "
+                        f"| {m.get('tokens_in', 0)} "
+                        f"| {m.get('tokens_out', 0)} |"
+                    )
+            out.append("")
+
+    # E2/E3 (2026-05-07): Last.fm-aware coverage + listener distribution.
+    # Only printed when at least one row carries the rollup. The two
+    # metrics live on the same table since they share an axis (the
+    # final playlist) and a reader almost always wants to see both at
+    # once when sanity-checking a Phase B regression.
+    if any(r.get("corpus_metrics_a") or r.get("corpus_metrics_b") for r in rows):
+        from .corpus_metrics import (
+            LASTFM_TAG_COVERAGE_GATE,
+            NICHE_LISTENER_P95_GATE,
+        )
+        out += [
+            "",
+            "## Phase B coverage — Last.fm tags + listener distribution (E2/E3)",
+            "",
+            f"`Coverage` = % of corpus-matched tracks whose artist has "
+            f"`lastfm_tags` populated (gate: ≥ "
+            f"{LASTFM_TAG_COVERAGE_GATE * 100:.0f} %; sub-gate values are "
+            f"flagged with ⚠). `p95 listeners` is computed only over "
+            f"tracks with non-zero `lastfm_listeners` — `n=` shows the "
+            f"sample size. The `niche_only_strict` scenario expects p95 "
+            f"< {NICHE_LISTENER_P95_GATE:,}.",
+            "",
+        ]
+        for label_letter in ("a", "b"):
+            metrics_key = f"corpus_metrics_{label_letter}"
+            if not any(r.get(metrics_key) for r in rows):
+                continue
+            out.append(f"### Playlist {label_letter.upper()}")
+            out.append("")
+            out.append(
+                "| Scenario | Model | Iter | Tracks | Matched | Coverage | "
+                "Median listeners | p95 listeners | n |"
+            )
+            out.append(
+                "|---|---|---:|---:|---:|---:|---:|---:|---:|"
+            )
+            for r in rows:
+                m = r.get(metrics_key)
+                if not m:
+                    continue
+                cov = m.get("lastfm_tag_coverage_pct")
+                cov_str = (
+                    "—" if cov is None
+                    else (f"{cov * 100:.1f}%"
+                          + ("" if cov >= LASTFM_TAG_COVERAGE_GATE else " ⚠"))
+                )
+                med = m.get("lastfm_listeners_median")
+                p95 = m.get("lastfm_listeners_p95")
+                out.append(
+                    f"| {r.get('scenario_name', 'default')} "
+                    f"| {r['model']} | {r['iteration']} "
+                    f"| {m.get('total_tracks', 0)} "
+                    f"| {m.get('matched_in_corpus', 0)} "
+                    f"| {cov_str} "
+                    f"| {med if med is not None else '—'} "
+                    f"| {p95 if p95 is not None else '—'} "
+                    f"| {m.get('lastfm_listeners_sample_size', 0)} |"
+                )
+            out.append("")
+
+    out += ["", "## Eval-log row counts", "",
+            "(Sanity check that telemetry actually fired for every feature.)",
+            "",
+            "| Model | Iter | track | batch_summary | stage2_summary | profile_update_summary | analysis_summary | run_summary |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|"]
+    for r in rows:
+        rk = r["rows_by_kind"]
+        out.append(
+            f"| {r['model']} | {r['iteration']} "
+            f"| {rk.get('track', 0)} "
+            f"| {rk.get('batch_summary', 0)} "
+            f"| {rk.get('stage2_summary', 0)} "
+            f"| {rk.get('profile_update_summary', 0)} "
+            f"| {rk.get('analysis_summary', 0)} "
+            f"| {rk.get('run_summary', 0)} |"
+        )
+
+    out.append("")
+    dest = results_dir / "comparison.md"
+    dest.write_text("\n".join(out), encoding="utf-8")
+    return dest
+
+
+def _fmt(v: float | None, places: int = 4) -> str:
+    if v is None:
+        return "—"
+    if isinstance(v, float):
+        return f"{v:.{places}f}".rstrip("0").rstrip(".") or "0"
+    return str(v)
+
+
+def _fmt_pct(v: float | None) -> str:
+    if v is None:
+        return "—"
+    return f"{v * 100:.1f}%"

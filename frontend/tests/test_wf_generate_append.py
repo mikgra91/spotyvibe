@@ -59,14 +59,14 @@ class TestGenerateAppendPlaylist:
     def test_like_and_dislike_feedback(self, page: Page, base_url):
         feedback_calls = []
         self._setup_and_generate(page, base_url, feedback_calls)
-        page.locator("#track-0 .btn-like").click()
-        page.locator("#submitBtn-0").click()
+        page.locator("#track-0 .btn-feedback").click()
+        page.locator("#submitBtn-0-like").click()
         page.wait_for_timeout(150)
-        page.locator("#track-1 .btn-like").click()
-        page.locator("#submitBtn-1").click()
+        page.locator("#track-1 .btn-feedback").click()
+        page.locator("#submitBtn-1-like").click()
         page.wait_for_timeout(150)
-        page.locator("#track-2 .btn-dislike").click()
-        page.locator("#submitBtn-2").click()
+        page.locator("#track-2 .btn-feedback").click()
+        page.locator("#submitBtn-2-dislike").click()
         page.wait_for_timeout(150)
         likes = [c for c in feedback_calls if c["action"] == "like"]
         dislikes = [c for c in feedback_calls if c["action"] == "dislike"]
@@ -79,14 +79,14 @@ class TestGenerateAppendPlaylist:
     def test_refine_shows_remaining_tracks(self, page: Page, base_url):
         feedback_calls = []
         self._setup_and_generate(page, base_url, feedback_calls)
-        page.locator("#track-0 .btn-like").click()
-        page.locator("#submitBtn-0").click()
+        page.locator("#track-0 .btn-feedback").click()
+        page.locator("#submitBtn-0-like").click()
         page.wait_for_timeout(150)
-        page.locator("#track-1 .btn-like").click()
-        page.locator("#submitBtn-1").click()
+        page.locator("#track-1 .btn-feedback").click()
+        page.locator("#submitBtn-1-like").click()
         page.wait_for_timeout(150)
-        page.locator("#track-2 .btn-dislike").click()
-        page.locator("#submitBtn-2").click()
+        page.locator("#track-2 .btn-feedback").click()
+        page.locator("#submitBtn-2-dislike").click()
         page.wait_for_timeout(150)
         remaining_tracks = [
             {"artist": "Foo Fighters", "track": "Everlong", "track_id": "t1",

@@ -5,67 +5,44 @@ This guide explains how to use the **SpotyVibe interface** to set up your prefer
 
 ---
 
-## Table of Contents
+## Pick a topic
 
-- [Privacy — What Leaves Your Device](#privacy--what-leaves-your-device)
-- [Getting Started](#getting-started)
-  - [Overview](#overview)
-  - [Before You Start](#before-you-start)
-  - [Understanding the Main Screen](#understanding-the-main-screen)
-  - [Quick Start Guide](#quick-start-guide)
-- [Account Setup](#account-setup)
-  - [Open the Menu](#open-the-menu)
-  - [Enter Your Credentials](#enter-your-credentials)
-  - [Connect Your Spotify Account](#connect-your-spotify-account)
-- [User Preferences](#user-preferences)
-  - [Settings](#settings)
-  - [Language](#language)
-  - [Theme](#theme)
-- [Music Profile](#music-profile)
-  - [Create Your Music Profile](#create-your-music-profile)
-    - [Select or Create a Profile](#select-or-create-a-profile)
-    - [Profile Status](#profile-status)
-    - [Describe Your Vibe](#describe-your-vibe)
-    - [Core Description](#core-description)
-    - [Must Have](#must-have)
-    - [Soft Preferences](#soft-preferences)
-    - [Avoid](#avoid)
-    - [Save or AI Profile Update](#save-or-ai-profile-update)
-    - [What the AI Does Behind the Scenes](#what-the-ai-does-behind-the-scenes)
-  - [Import, Export, Reset, and Delete Your Profile](#import-export-reset-and-delete-your-profile)
-  - [Updating Your Taste Over Time](#updating-your-taste-over-time)
-- [Discovery & Analysis](#discovery--analysis)
-  - [Band/Song Analysis](#bandsong-analysis)
-- [Playlist Generation](#playlist-generation)
-  - [Choose a Playlist Mode](#choose-a-playlist-mode)
-  - [Use Audio Filters](#use-audio-filters)
-  - [Emerging Artists Only](#emerging-artists-only)
-  - [Start Generation](#start-generation)
-  - [Stop Early or Use Current Tracks](#stop-early-or-use-current-tracks)
-- [Track Review & Feedback](#track-review--feedback)
-  - [Preview a Track](#preview-a-track)
-  - [Open Spotify Links](#open-spotify-links)
-  - [Like a Track](#like-a-track)
-  - [Dislike a Track](#dislike-a-track)
-  - [Remove a Track](#remove-a-track)
-- [Refine Playlist](#refine-playlist)
-  - [Select and Load a Playlist](#select-and-load-a-playlist)
-  - [Review Tracks](#review-tracks)
-  - [Like a Track (Refine)](#like-a-track-refine)
-  - [Dislike a Track (Refine)](#dislike-a-track-refine)
-  - [Dismiss a Track](#dismiss-a-track)
-- [Taste Dashboard](#taste-dashboard)
-  - [Opening the Dashboard](#opening-the-dashboard)
-  - [Charts](#charts)
-  - [Sentiment Sections](#sentiment-sections)
-  - [Profile Isolation](#profile-isolation)
-- [Song List & Run History](#song-list--run-history)
-  - [Persistent Song List](#persistent-song-list)
-  - [Run History](#run-history)
-- [Mobile Usage](#mobile-usage)
-- [Troubleshooting & Tips](#troubleshooting--tips)
-  - [Troubleshooting](#troubleshooting)
-  - [Final Tips](#final-tips)
+<div class="help-tiles">
+  <a class="help-tile" href="#account-setup">
+    <span class="help-tile-title">1. Set up your keys</span>
+    <span class="help-tile-desc">Save your OpenAI and Spotify credentials and connect Spotify.</span>
+  </a>
+  <a class="help-tile" href="#music-profile">
+    <span class="help-tile-title">2. Build a music profile</span>
+    <span class="help-tile-desc">Describe your taste so the AI can suggest tracks you'll love.</span>
+  </a>
+  <a class="help-tile" href="#playlist-generation">
+    <span class="help-tile-title">3. Generate playlists</span>
+    <span class="help-tile-desc">Pick a mode, tweak filters, and create a new playlist.</span>
+  </a>
+  <a class="help-tile" href="#refine-playlist">
+    <span class="help-tile-title">4. Refine and review</span>
+    <span class="help-tile-desc">Like, dislike, and dismiss tracks to sharpen your profile.</span>
+  </a>
+  <a class="help-tile" href="#troubleshooting--tips">
+    <span class="help-tile-title">5. Troubleshooting</span>
+    <span class="help-tile-desc">Common issues and final tips.</span>
+  </a>
+</div>
+
+**Reference**
+
+<ul class="help-reference-list">
+  <li><a href="#privacy--what-leaves-your-device">Privacy</a></li>
+  <li><a href="#getting-started">Getting Started</a></li>
+  <li><a href="#user-preferences">User Preferences</a></li>
+  <li><a href="#discovery--analysis">Band/Song Analysis</a></li>
+  <li><a href="#discover-artists">Discover Artists</a></li>
+  <li><a href="#track-review--feedback">Track Review &amp; Feedback</a></li>
+  <li><a href="#taste-dashboard">Taste Dashboard</a></li>
+  <li><a href="#song-list--run-history">Song List &amp; Run History</a></li>
+  <li><a href="#mobile-usage">Mobile Usage</a></li>
+</ul>
 
 ---
 
@@ -127,7 +104,7 @@ When you open SpotyVibe, you will see the main interface with two provider secti
 - **OpenAI** — Taste profile editor, AI profile updates, and AI Band/Song Analysis.
 - **Spotify** — Playlist generation, playlist refinement, and run history.
 
-Status pills at the top of each section show whether your credentials are configured and connected.
+Status pills at the top of each section show whether your credentials are configured and connected. The header also carries a small **Spotify status pill** — a coloured dot (green = connected, red = not connected, grey = unknown) next to the word "Spotify". Click it to connect or disconnect; it refreshes whenever the tab regains focus.
 
 Each major component is **collapsible/expandable**. You can click the section header (anywhere in the title area) or the toggle button to expand or collapse it. A short description below each title explains what the component does.
 
@@ -140,7 +117,7 @@ The main screen is organised into collapsible components grouped under two provi
 - **🔍 Band/Song Analysis** — Get an AI-powered breakdown of any artist or track with ready-to-paste profile suggestions.
 
 **Spotify Section:**
-- **🎧 Discover Music** — Generate AI-powered playlists and save them directly to your Spotify account. Includes an optional **Audio Filters** sub-panel to constrain suggestions by mood and feel. *(Collapsed by default.)*
+- **🎧 Discover Tracks** — Generate AI-powered playlists and save them directly to your Spotify account. Includes an optional **Audio Filters** sub-panel to constrain suggestions by mood and feel. *(Collapsed by default.)*
 - **🔄 Refine Playlist** — Load an existing playlist and give track-by-track feedback to refine your taste profile. *(Collapsed by default.)*
 - **🕓 History** — View past generation runs.
 
@@ -254,8 +231,11 @@ Open **Settings** from the menu to customize how SpotyVibe works for you.
 
 Available settings include:
 
+- **Suggestion model strategy**  
+  Pick how SpotyVibe chooses the model: **Fast** (always cheap mini), **Best** (always premium), **Auto** (cheap until you've given feedback, then premium), or **Custom** (use the model you select below — required for local LLMs).
+
 - **Used Model**  
-  Choose which AI model SpotyVibe uses.
+  Choose which AI model SpotyVibe uses. Greyed out unless the strategy above is set to **Custom**.
 
 - **Playlist Size**  
   Set how many tracks SpotyVibe should aim to generate.
@@ -560,11 +540,11 @@ This is especially helpful if you know what you like, but are not sure how to de
 <a id="playlist-generation"></a>
 ## Playlist Generation
 
-Once your profile is ready and Spotify is connected, go to the **Spotify** section and click **Show** on the **Discover Music** header (or click anywhere on the header) to expand it.
+Once your profile is ready and Spotify is connected, go to the **Spotify** section and click **Show** on the **Discover Tracks** header (or click anywhere on the header) to expand it.
 
 This is where SpotyVibe creates playlist suggestions based on your taste. The section is collapsed by default to keep the page compact.
 
-![Discover Music section expanded](/docs/screenshots/19_discover_section.png)
+![Discover Tracks section expanded](/docs/screenshots/19_discover_section.png)
 
 ---
 
@@ -626,13 +606,18 @@ In Advanced mode, a **Preset** dropdown at the top lets you save and recall comp
 - **User presets:** Appear above the built-ins. Save via "💾 Save current as preset…".
 - **Manage presets:** Open via ☰ Menu → 🎛 Manage presets. Rename, delete, reorder, import, or export.
 - Presets are stored locally on your device in the browser's localStorage.
+- **CUSTOM badge:** Hand-editing the **New Artist %** field to a value other than the active preset's value shows a small **CUSTOM** badge next to the input. Save it as a new preset (or update the existing one) to make the change permanent.
+
+> **Artist coverage note:** SpotyVibe's offline artist corpus (the optional **Candidate pool (RAG)** in Settings) only includes acts that started in the **1960s or later**. Pre-1960s music is intentionally excluded — its share of typical SpotyVibe listening is small and dropping it keeps the index lean. The same note appears as a tooltip (ⓘ) next to the toggle in Settings.
+
+> **Local LLM note:** With RAG enabled the prompt typically grows to ~4–6 k tokens (60-slot pool + profile + history + JSON output). If you use a small-context local model (4 k or 8 k tokens) and quality drops, disable RAG in Settings, lower `RAG_POOL_SIZE`, or switch to a 16 k+ context model — RAG was designed for hosted GPT-4-class models.
 
 ---
 
 <a id="use-audio-filters"></a>
 ### Use Audio Filters
 
-Inside the **Discover Music** section, click the **🎚 Audio Filters (optional)** bar to expand the filter panel. These optional filters guide GPT to suggest tracks matching your desired mood and feel.
+Inside the **Discover Tracks** section, click the **🎚 Audio Filters (optional)** bar to expand the filter panel. These optional filters guide GPT to suggest tracks matching your desired mood and feel.
 
 Available filters:
 
@@ -652,13 +637,13 @@ The easiest way to fill in audio filters is via the **Band/Song Analysis** featu
 
 1. Open **Band/Song Analysis** and analyse a reference track.
 2. In the results, each audio feature row (Energy, Valence, etc.) has a **⇒ Filter** button.
-3. Click **⇒ Filter** on any feature — it automatically sets a sensible min/max range (±10%, or ±15 BPM for tempo) in the Discover Music filter panel.
+3. Click **⇒ Filter** on any feature — it automatically sets a sensible min/max range (±10%, or ±15 BPM for tempo) in the Discover Tracks filter panel.
 4. Or click **⇒ Use All as Filters** to apply all features at once.
 5. The Discover section and filter panel open automatically when you apply a filter.
 
 This bridges the gap between analysis and generation — no more memorising numbers.
 
-![Audio Filters sub-panel inside Discover Music](/docs/screenshots/21_audio_filters.png)
+![Audio Filters sub-panel inside Discover Tracks](/docs/screenshots/21_audio_filters.png)
 
 ![Band/Song Analysis with Filter buttons](/docs/screenshots/18_analysis_panel.png)
 
@@ -685,7 +670,7 @@ Leave the checkbox unchecked for normal generation behaviour.
 
 Click **Generate & Create Playlist** to begin.
 
-A loading spinner appears below the button inside the Discover Music section. Progress messages are displayed underneath the spinner as SpotyVibe works:
+A loading spinner appears below the button inside the Discover Tracks section. Progress messages are displayed underneath the spinner as SpotyVibe works:
 
 1. Generate song suggestions
 2. Check them on Spotify
@@ -714,10 +699,30 @@ This is useful if you already like the results and do not want to wait longer.
 
 ---
 
+<a id="discover-artists"></a>
+## Discover Artists
+
+**Discover Artists** sits between Discover Tracks and Refine Playlist. Instead of building a track playlist, it surfaces **new artists** worth exploring — each with a few real tracks as a starting point.
+
+![Discover Artists section expanded](/docs/screenshots/19b_discover_artists_section.png)
+
+Expand the section with **Show**, then set two controls:
+
+- **Artists size** — how many new artists to discover (1–10).
+- **Exploration vs Accuracy** — *Familiar* favours artists close to your taste; *Adventurous* surfaces obscure, under-the-radar acts.
+
+Every suggested artist is **new** — artists already in your profile (confirmed or previously suggested) are excluded.
+
+Click **Discover Artists**. SpotyVibe retrieves a wide candidate pool, and a single AI pass picks the final list. Each artist is shown with a short reason, genre tags, and a few representative tracks. Tracks found on Spotify are linked; any not found are marked *not on Spotify*.
+
+Use **Apply to Playlist** to add the Spotify-verified tracks to a playlist — create, append, or replace, the same options as Discover Tracks — or **Clear** to discard the list.
+
+---
+
 <a id="track-review--feedback"></a>
 ## Track Review & Feedback
 
-After generation, SpotyVibe displays the suggested tracks **inside the Discover Music section**, below the Generate button, separated by a divider. A completion banner and playlist link appear first, followed by the track cards. Track cards glow green on hover.
+After generation, SpotyVibe displays the suggested tracks **inside the Discover Tracks section**, below the Generate button, separated by a divider. A completion banner and playlist link appear first, followed by the track cards. Track cards glow green on hover.
 
 Each card may show:
 
@@ -740,15 +745,15 @@ Click the album art on a song card to open the preview overlay at the bottom of 
 
 The preview uses a three-zone layout:
 
-1. **Spotify player** — the embedded player (centered, wide)
-2. **Action tabs** — a vertical column of file-cabinet register-tab buttons (👍 👎 ✕) to the right of the player
-3. **Feedback form** — slides in to fill the remaining space when you click 👍 or 👎
+1. **Player** — the track player (centered, wide). On Spotify Premium and supported runtimes, SpotyVibe uses the Spotify Web Playback SDK for full-length playback and surfaces 👍 / 👎 quick buttons directly next to the transport controls. Otherwise, the embedded Spotify iframe provides ~30-second previews.
+2. **Action buttons** — a **Feedback** button (opens the reason panel) and a **Delete** button (removes the track from the Spotify playlist without recording feedback), to the right of the player.
+3. **Feedback panel** — slides in when you click **Feedback**. The panel shows the track details plus an optional reason field, and two submit buttons at the bottom: **👍 Like** (green) and **👎 Dislike** (red). Pick your polarity when you submit, not when you open the panel.
 
-Clicking the same tab again closes the feedback form. The ✕ button dismisses the track immediately without opening a form. Active tabs glow green (like) or red (dislike).
+The quick 👍 / 👎 in the player submit immediately with no reason — useful while the song is playing. Dislike additionally removes the track from the Spotify playlist and advances to the next preview.
 
 Use the ‹ and › arrows to navigate between tracks without closing the overlay.
 
-> **Note:** The embedded Spotify player provides **~30-second previews**. Full-length playback is not available because the embed runs in an isolated iframe that cannot access your Spotify session due to browser third-party cookie restrictions. To listen to the full track, click the Spotify icon inside the player or use the Spotify links on the song card.
+> **First time previewing a track?** The player's 👍 / 👎 pulse briefly and a tip explains the quick-rating workflow. The hint only shows on the first open per device.
 
 ![Preview player open](/docs/screenshots/32_preview_player.png)
 
@@ -807,6 +812,10 @@ This helps SpotyVibe avoid similar tracks in future runs.
 
 ![Dislike feedback form](/docs/screenshots/35_dislike_feedback_form.png)
 
+#### Dislike a whole artist
+
+If you submit a Dislike with the **Track** field left empty, SpotyVibe asks for confirmation: *"Remove ALL songs by '<artist>' from this playlist and never suggest them again?"* Clicking OK removes every track by that artist from the active playlist (not just the visible one) and remembers the artist-level dislike, so they will not be suggested again. Cancel does nothing.
+
 ---
 
 <a id="remove-a-track"></a>
@@ -858,7 +867,7 @@ Each track card shows:
 - Album artwork (click to preview)
 - Artist and track name
 - Spotify links (track, artist, album)
-- Action buttons: **👍 Like**, **👎 Dislike**, **✕ Dismiss**
+- Action buttons: **💬 Feedback** (opens the reason panel) and **🗑 Delete** (removes from the Spotify playlist without recording feedback)
 
 You can also click the album art to open the Spotify preview player. When previewing from the Refine list, the prev/next navigation operates within the review track list.
 
@@ -869,9 +878,7 @@ You can also click the album art to open the Spotify preview player. When previe
 <a id="like-a-track-refine"></a>
 ### Like a Track (Refine)
 
-Click **👍 Like** to record positive feedback for a track.
-
-A feedback form opens where you can optionally edit the artist, track name, and add a reason.
+Click **💬 Feedback** on the track card and then click **👍 Like** at the bottom of the panel. You can optionally edit the artist, track name, and add a reason before submitting.
 
 After submitting, the track animates out of the review list. The track **stays in the Spotify playlist** — only your taste profile is updated.
 
@@ -882,9 +889,7 @@ After submitting, the track animates out of the review list. The track **stays i
 <a id="dislike-a-track-refine"></a>
 ### Dislike a Track (Refine)
 
-Click **👎 Dislike** to record negative feedback.
-
-A feedback form opens where you can optionally edit the artist, track name, and add a reason.
+Click **💬 Feedback** on the track card and then click **👎 Dislike** at the bottom of the panel. You can optionally edit the artist, track name, and add a reason before submitting.
 
 After submitting, the track is:
 
@@ -898,9 +903,9 @@ The card animates out of the review list.
 ---
 
 <a id="dismiss-a-track"></a>
-### Dismiss a Track
+### Delete a Track
 
-Click **✕ (Dismiss)** to remove a track from the Spotify playlist **without** recording any taste profile feedback.
+Click **🗑 Delete** to remove a track from the Spotify playlist **without** recording any taste profile feedback.
 
 Use this for tracks you feel neutral about but want to remove from the playlist.
 
@@ -978,7 +983,7 @@ Older runs beyond the most recent 5 are automatically removed to keep the list c
 <a id="persistent-song-list"></a>
 ### Persistent Song List
 
-Your generated song list is saved inside the Discover Music section and restored when you reload the page — you never lose your track cards between sessions.
+Your generated song list is saved inside the Discover Tracks section and restored when you reload the page — you never lose your track cards between sessions.
 
 This means:
 

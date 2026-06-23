@@ -116,3 +116,95 @@ class TestDislikeTrack:
 
         # Should not add a second entry
         assert len(saved["data"]["artists"]["rejected"]) == 1
+
+
+class TestDislikeAutoEscalation:
+    """F4 (2026-05-01): three distinct track-dislikes for the same artist
+    auto-promotes that artist to ``artists.rejected`` so the next playlist
+    run treats them as a hard exclusion. Production profile had 9 disliked
+    DREAMS COME TRUE tracks but the artist was still eligible for
+    re-suggestion."""
+
+    def _stateful_tx(self, profile_data):
+        """Mock transaction whose load_fn returns the SAME dict each
+        call so back-to-back dislike_track() calls can accumulate state."""
+        from contextlib import contextmanager
+
+        @contextmanager
+        def _transaction():
+            yield (lambda: profile_data), (lambda p: None)
+
+        return _transaction, profile_data
+
+    def test_two_dislikes_do_not_auto_reject(self):
+        tx, profile = self._stateful_tx({
+            "artists": {"rejected": []},
+            "feedback": {"disliked_tracks": []},
+        })
+        with patch("core.src.feedback.profile_transaction", tx):
+            dislike_track("Spammy Band", track="One", reason="too loud")
+            dislike_track("Spammy Band", track="Two", reason="80s")
+
+        assert len(profile["feedback"]["disliked_tracks"]) == 2
+        assert profile["artists"]["rejected"] == []
+
+    def test_three_distinct_dislikes_auto_reject(self):
+        tx, profile = self._stateful_tx({
+            "artists": {"rejected": []},
+            "feedback": {"disliked_tracks": []},
+        })
+        with patch("core.src.feedback.profile_transaction", tx):
+            dislike_track("Spammy Band", track="One", reason="too loud")
+            dislike_track("Spammy Band", track="Two", reason="80s")
+            dislike_track("Spammy Band", track="Three", reason="not Japanese")
+
+        assert len(profile["artists"]["rejected"]) == 1
+        entry = profile["artists"]["rejected"][0]
+        assert entry["name"] == "Spammy Band"
+        assert entry.get("auto") is True
+        # Reason carries the dislike-reason context for downstream
+        # train_profile (F5) consumption.
+        assert "auto-rejected after 3 disliked tracks" in entry["reason"]
+        assert "too loud" in entry["reason"]
+
+    def test_repeat_track_does_not_double_count(self):
+        tx, profile = self._stateful_tx({
+            "artists": {"rejected": []},
+            "feedback": {"disliked_tracks": []},
+        })
+        with patch("core.src.feedback.profile_transaction", tx):
+            dislike_track("Spammy Band", track="One", reason="too loud")
+            dislike_track("Spammy Band", track="One", reason="too loud")
+            dislike_track("Spammy Band", track="Two", reason="80s")
+
+        # Only TWO distinct tracks — must not auto-reject yet.
+        assert profile["artists"]["rejected"] == []
+
+    def test_case_insensitive_artist_match(self):
+        tx, profile = self._stateful_tx({
+            "artists": {"rejected": []},
+            "feedback": {"disliked_tracks": []},
+        })
+        with patch("core.src.feedback.profile_transaction", tx):
+            dislike_track("DREAMS COME TRUE", track="One")
+            dislike_track("Dreams Come True", track="Two")
+            dislike_track("dreams come true", track="Three")
+
+        assert len(profile["artists"]["rejected"]) == 1
+        assert profile["artists"]["rejected"][0]["name"] in {
+            "DREAMS COME TRUE", "Dreams Come True", "dreams come true",
+        }
+
+    def test_already_rejected_not_duplicated(self):
+        tx, profile = self._stateful_tx({
+            "artists": {"rejected": [{"name": "Spammy Band", "reason": "manual"}]},
+            "feedback": {"disliked_tracks": []},
+        })
+        with patch("core.src.feedback.profile_transaction", tx):
+            dislike_track("Spammy Band", track="One")
+            dislike_track("Spammy Band", track="Two")
+            dislike_track("Spammy Band", track="Three")
+
+        # Should still have only ONE rejection entry (the manual one).
+        assert len(profile["artists"]["rejected"]) == 1
+        assert profile["artists"]["rejected"][0]["reason"] == "manual"

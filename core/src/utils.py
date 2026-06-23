@@ -2,8 +2,7 @@
 
 Technologies & patterns used:
 - **Direct HTTP**: OpenAI API calls use core.openai_http (stdlib urllib +
-  json) instead of the openai SDK. This removes native/Rust transitive
-  dependencies (jiter, pydantic-core) that break Android/Chaquopy builds.
+  json) instead of the openai SDK.
 - **python-dotenv integration**: API keys live in environment variables,
   loaded from a `.credentials` file by config.py. This module reads them
   via `os.getenv()` — the standard twelve-factor-app approach.
@@ -141,6 +140,34 @@ def strip_code_fences(text):
     return text.strip()
 
 
+def loads_lenient(text):
+    """``json.loads`` that tolerates prose around the JSON object.
+
+    Why this exists: some models (notably Claude Haiku under a strict
+    constraint prompt) append an explanatory sentence *after* the JSON
+    object — e.g. ``{...}\\n\\nZero is correct here.`` Standard
+    ``json.loads`` then raises ``JSONDecodeError: Extra data``, which
+    collapses the whole batch to an empty playlist even though the JSON
+    itself is valid. ``raw_decode`` parses the first complete JSON value
+    and ignores whatever follows. A leading-bracket scan also tolerates
+    prose *before* the JSON.
+
+    Raises ``json.JSONDecodeError`` if no JSON value can be found — callers
+    already catch that and fall back to an empty result.
+    """
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    s = text.lstrip()
+    for i, ch in enumerate(s):
+        if ch in "{[":
+            s = s[i:]
+            break
+    obj, _end = json.JSONDecoder().raw_decode(s)
+    return obj
+
+
 def sanitize_text(text):
     """Remove null bytes, control characters, and normalize whitespace.
 
@@ -177,37 +204,55 @@ def sanitize_profile(profile):
 
 
 def get_openai_models():
-    """Return available OpenAI chat models for the Settings dropdown.
+    """Return available chat models for the Settings dropdown.
 
-    Returns a list of model dicts: {"id", "label", "supported"}.
+    Provider-aware as of 2026-05-23: the dropdown must list models
+    that ACTUALLY work for the active provider preset. Hard-coding
+    the OpenAI allowlist when the user is on OpenRouter produced a
+    dropdown of unreachable model IDs (gpt-4o, gpt-4.1-nano, etc.)
+    and hid the curated OpenRouter list (gemini / gpt-5.4-mini /
+    haiku) the JS layer already declared.
 
-    Uses the curated allowlist from config — no API call required.
-    This approach works on Android/Chaquopy where the openai SDK (and its
-    native deps) are not available, and avoids a network round-trip just
-    to populate a dropdown.
+    Reads ``PROVIDER_SUGGESTED_MODELS[preset]`` from config.py — the
+    single server-side source of truth that mirrors provider.js
+    ``PROVIDER_PRESETS[*].suggested_models``.
 
-    The currently configured model is appended at the end if it is not
-    already in the allowlist, marked as unsupported so the UI can warn
-    the user.
-
-    Model ordering: allowlist order first, then OPENAI_EXTRA_ALLOWED_MODELS,
-    then the configured model (if missing from both lists).
+    Returns a list of dicts ``{"id", "label", "supported"}``. The
+    currently configured model is appended at the end marked
+    ``unsupported`` when it isn't in the provider's curated list.
     """
-    allowed_ids = list(OPENAI_SUPPORTED_MODELS_JSON)
-    extra_ids = list(OPENAI_EXTRA_ALLOWED_MODELS)
-    all_allowed: set = set(allowed_ids) | set(extra_ids)
+    try:
+        # Local import to avoid a circular at module load — config
+        # imports core/src/utils.py only at runtime.
+        from config import (
+            PROVIDER_SUGGESTED_MODELS, get_llm_provider_preset,
+        )
+        preset = get_llm_provider_preset()
+    except Exception:  # pragma: no cover — defensive
+        preset = "openai"
+
+    suggested = PROVIDER_SUGGESTED_MODELS.get(preset)
+    if not suggested:
+        # Fallback to the OpenAI list for any provider without a
+        # curated set (e.g. local LLMs before Fetch Models has been
+        # used). User can still hand-edit via the free-text toggle.
+        suggested = (
+            list(OPENAI_SUPPORTED_MODELS_JSON)
+            + list(OPENAI_EXTRA_ALLOWED_MODELS)
+        )
 
     # Build display list preserving declaration order, deduplicating
     models = []
     seen: set = set()
-    for mid in allowed_ids + extra_ids:
+    for mid in suggested:
         if mid not in seen:
             models.append({"id": mid, "label": mid, "supported": True})
             seen.add(mid)
 
-    # Append configured model at the end if it is not in the allowlist
+    # Append configured model at the end if it is not in the curated
+    # list — marked unsupported so the UI can warn the user.
     current = get_model()
-    if current and current not in all_allowed:
+    if current and current not in seen:
         models.append({
             "id": current,
             "label": f"{current} (unsupported)",

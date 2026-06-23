@@ -1,0 +1,162 @@
+{
+  "model": "gpt-4.1",
+  "captured_at": "2026-05-12T15:29:58.447714+00:00",
+  "fingerprint_version": 1,
+  "total_cost_usd": 0.04907,
+  "total_tokens_in": 4903,
+  "total_tokens_out": 4908,
+  "total_duration_s": 55.749,
+  "probes": [
+    {
+      "probe_id": "B-1.constraint_grammar",
+      "variant": "soft",
+      "runs": 1,
+      "scores": {
+        "avoid_e_rate": 1.0,
+        "primary_quota_met": 1.0,
+        "returned_count": 8.0,
+        "soft_compliance": 1.0
+      }
+    },
+    {
+      "probe_id": "B-1.constraint_grammar",
+      "variant": "hard",
+      "runs": 1,
+      "scores": {
+        "avoid_e_rate": 1.0,
+        "hard_compliance": 1.0,
+        "primary_quota_met": 1.0,
+        "returned_count": 8.0
+      }
+    },
+    {
+      "probe_id": "B-1.constraint_grammar",
+      "variant": "hard_with_quota",
+      "runs": 1,
+      "scores": {
+        "avoid_e_rate": 0.875,
+        "hard_compliance": 0.0,
+        "primary_quota_met": 1.0,
+        "quota_preserved_under_hard": 1.0,
+        "returned_count": 8.0,
+        "secondary_quota_met": 1.0
+      }
+    },
+    {
+      "probe_id": "B-2.over_constraint_collapse",
+      "variant": "free",
+      "runs": 1,
+      "scores": {
+        "primary_length": 10.0,
+        "primary_length_ratio": 1.0,
+        "primary_target": 10.0,
+        "secondary_length": 22.0,
+        "secondary_quota_met": 1.0,
+        "secondary_target": 20.0
+      }
+    },
+    {
+      "probe_id": "B-2.over_constraint_collapse",
+      "variant": "strict",
+      "runs": 1,
+      "scores": {
+        "primary_length": 10.0,
+        "primary_length_ratio": 1.0,
+        "primary_target": 10.0,
+        "secondary_length": 22.0,
+        "secondary_quota_met": 1.0,
+        "secondary_target": 20.0
+      }
+    },
+    {
+      "probe_id": "B-3.confabulation_pressure",
+      "variant": "fictional_author",
+      "runs": 1,
+      "scores": {
+        "omission_rate": 1.0,
+        "returned_count": 0.0,
+        "uncertainty_rate": 0.0,
+        "well_calibrated": 1.0
+      }
+    },
+    {
+      "probe_id": "B-4.omission_discipline",
+      "variant": "mixed",
+      "runs": 1,
+      "scores": {
+        "declared_count": 25.0,
+        "false_positive": 0.0,
+        "omission_precision": 1.0,
+        "omission_recall": 1.0,
+        "padding_rate": 0.0,
+        "true_positive": 25.0
+      }
+    },
+    {
+      "probe_id": "B-5.format_under_contradiction",
+      "variant": "unsatisfiable",
+      "runs": 1,
+      "scores": {
+        "bucket_a": 0.0,
+        "bucket_b": 1.0,
+        "bucket_c": 0.0,
+        "bucket_d": 0.0,
+        "bucket_e": 0.0,
+        "format_healthy": 1.0
+      }
+    },
+    {
+      "probe_id": "B-6.self_consistency_floor",
+      "variant": "strict_repeated",
+      "runs": 5,
+      "scores": {
+        "runs": 5.0,
+        "primary_entries_sigma": 0.0,
+        "secondary_entries_sigma": 0.5477,
+        "primary_ratio_sigma": 0.0,
+        "mean_primary_length": 10.0,
+        "mean_secondary_length": 21.4,
+        "n_required_for_5pp_signal": 5.0
+      }
+    },
+    {
+      "probe_id": "B-10.cite_fidelity",
+      "variant": "verbatim_substring",
+      "runs": 1,
+      "scores": {
+        "any_nonempty_cite": 1.0,
+        "returned_count": 5.0,
+        "target_picks": 5.0,
+        "verbatim_rate": 1.0
+      }
+    },
+    {
+      "probe_id": "B-11.empty_pool_recovery",
+      "variant": "empty_pool",
+      "runs": 1,
+      "scores": {
+        "bucket_a": 1.0,
+        "bucket_b": 0.0,
+        "bucket_c": 0.0,
+        "bucket_d": 0.0,
+        "bucket_e": 0.0,
+        "playlist_length": 0.0,
+        "pool_recovery_healthy": 1.0
+      }
+    },
+    {
+      "probe_id": "B-11.empty_pool_recovery",
+      "variant": "single_artist_no_known",
+      "runs": 1,
+      "scores": {
+        "bucket_a": 0.0,
+        "bucket_b": 0.0,
+        "bucket_c": 1.0,
+        "bucket_d": 0.0,
+        "bucket_e": 0.0,
+        "playlist_length": 8.0,
+        "pool_recovery_healthy": 0.0
+      }
+    }
+  ]
+}

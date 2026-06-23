@@ -6,6 +6,17 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
+# Stub meta dict returned alongside parsed JSON by call_gpt_json_with_meta.
+# Phase 1 review: train_profile / draft_profile_from_playlist now consume
+# (result, meta) tuples so AI Profile Update telemetry rows can be written
+# without breaking the legacy unit-test contracts on result shape.
+_GPT_META_STUB = {
+    "usage": {"prompt_tokens": 200, "completion_tokens": 100, "total_tokens": 300},
+    "latency_s": 0.5,
+    "model": "gpt-test",
+    "raw_response_chars": 800,
+}
+
 from core.src.profile import (
     _load_template,
     ensure_profile,
@@ -148,7 +159,7 @@ class TestGetProfileStatus:
 
 class TestTrainProfile:
     @patch("core.src.profile.save_profile")
-    @patch("core.src.profile.call_gpt_json")
+    @patch("core.src.profile.call_gpt_json_with_meta")
     @patch("core.src.profile.load_profile")
     def test_calls_gpt_and_updates_profile(
         self, mock_load, mock_gpt, mock_save
@@ -173,7 +184,7 @@ class TestTrainProfile:
             "feedback": {"liked_tracks": ["REPLACED"], "disliked_tracks": []},
             "taste_rules": {"primary_driver": "energy", "dealbreaker_priority": ["country"]},
         }
-        mock_gpt.return_value = gpt_output
+        mock_gpt.return_value = (gpt_output, _GPT_META_STUB)
 
         sections = {
             "core_description": "I love rock music",
@@ -199,7 +210,7 @@ class TestTrainProfile:
         mock_save.assert_called_once()
 
     @patch("core.src.profile.save_profile")
-    @patch("core.src.profile.call_gpt_json")
+    @patch("core.src.profile.call_gpt_json_with_meta")
     @patch("core.src.profile.load_profile")
     def test_raises_on_invalid_json(
         self, mock_load, mock_gpt, mock_save
@@ -225,7 +236,7 @@ class TestTrainProfile:
         mock_save.assert_not_called()
 
     @patch("core.src.profile.save_profile")
-    @patch("core.src.profile.call_gpt_json")
+    @patch("core.src.profile.call_gpt_json_with_meta")
     @patch("core.src.profile.load_profile")
     def test_preserves_schema_when_gpt_drops_keys(
         self, mock_load, mock_gpt, mock_save
@@ -245,7 +256,7 @@ class TestTrainProfile:
         gpt_output = {
             "preferences": {"core_description": "heavy rock", "must_have": ["guitar"], "soft_preferences": [], "avoid": []},
         }
-        mock_gpt.return_value = gpt_output
+        mock_gpt.return_value = (gpt_output, _GPT_META_STUB)
 
         result = train_profile({
             "core_description": "heavy rock",
@@ -264,6 +275,155 @@ class TestTrainProfile:
         # history and feedback preserved from original
         assert result["history"] == original_profile["history"]
         assert result["feedback"] == original_profile["feedback"]
+
+
+class TestFormatRecentDislikes:
+    """F5 (2026-05-01): pin RECENT DISLIKES block formatting so a future
+    prompt-engineering tweak cannot silently break the avoid-mining
+    signal (F5)."""
+
+    def test_empty_profile_returns_empty(self):
+        from core.src.profile import _format_recent_dislikes
+        assert _format_recent_dislikes({}) == ""
+        assert _format_recent_dislikes({"feedback": {}}) == ""
+        assert _format_recent_dislikes({"feedback": {"disliked_tracks": []}}) == ""
+
+    def test_skips_dislikes_without_reason(self):
+        from core.src.profile import _format_recent_dislikes
+        # No reason → no avoid signal to mine.
+        block = _format_recent_dislikes({
+            "feedback": {"disliked_tracks": [
+                {"artist": "X", "track": "Y"},
+                {"artist": "X", "track": "Y", "reason": ""},
+                {"artist": "X", "track": "Y", "reason": "user feedback"},
+            ]}
+        })
+        assert block == ""
+
+    def test_includes_dislikes_with_real_reasons(self):
+        from core.src.profile import _format_recent_dislikes
+        block = _format_recent_dislikes({
+            "feedback": {"disliked_tracks": [
+                {"artist": "Spammy Band", "track": "One", "reason": "too 80s"},
+                {"artist": "Spammy Band", "track": "Two", "reason": "old production"},
+                {"artist": "Other", "track": "X", "reason": "not Japanese"},
+            ]}
+        })
+        assert "RECENT DISLIKES" in block
+        assert "Spammy Band — One" in block
+        assert "too 80s" in block
+        assert "old production" in block
+        assert "not Japanese" in block
+
+    def test_caps_at_n_most_recent(self):
+        from core.src.profile import _format_recent_dislikes
+        dislikes = [
+            {"artist": f"A{i}", "track": f"T{i}", "reason": f"reason{i}"}
+            for i in range(50)
+        ]
+        block = _format_recent_dislikes({"feedback": {"disliked_tracks": dislikes}}, n=5)
+        # Should contain only the 5 most recent (A45-A49)
+        for i in range(5, 45):
+            assert f"reason{i}" not in block
+        for i in range(45, 50):
+            assert f"reason{i}" in block
+
+    def test_handles_malformed_entries(self):
+        from core.src.profile import _format_recent_dislikes
+        block = _format_recent_dislikes({
+            "feedback": {"disliked_tracks": [
+                None,
+                "string",
+                {"artist": "", "reason": "anything"},  # empty artist → skip
+                {"artist": "Real", "track": "Song", "reason": "valid"},
+            ]}
+        })
+        assert "Real — Song" in block
+        assert '"valid"' in block
+
+    def test_artist_only_entry_no_track(self):
+        from core.src.profile import _format_recent_dislikes
+        block = _format_recent_dislikes({
+            "feedback": {"disliked_tracks": [
+                {"artist": "ArtistOnly", "reason": "always too generic"},
+            ]}
+        })
+        assert "ArtistOnly:" in block
+        assert "always too generic" in block
+
+
+class TestTrainProfileFeedsRecentDislikes:
+    """F5 (2026-05-01): integration check — the user message handed to
+    the LLM must contain the RECENT DISLIKES block when the profile
+    has dislikes with reasons. Regression guard for the production
+    failure where train_profile silently ignored feedback."""
+
+    @patch("core.src.profile.save_profile")
+    @patch("core.src.profile.call_gpt_json_with_meta")
+    @patch("core.src.profile.load_profile")
+    def test_recent_dislikes_reach_user_message(
+        self, mock_load, mock_gpt, mock_save,
+    ):
+        from core.src.profile import train_profile
+        mock_load.return_value = {
+            "last_updated": None,
+            "meta": {"goal": ""},
+            "preferences": {"core_description": "", "must_have": [],
+                            "soft_preferences": [], "avoid": []},
+            "artists": {"confirmed": [], "moderate": [], "rejected": []},
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {"liked_tracks": [], "disliked_tracks": [
+                {"artist": "Spammy Band", "track": "One",
+                 "reason": "too 80s production"},
+                {"artist": "Spammy Band", "track": "Two",
+                 "reason": "still 80s feel"},
+            ]},
+            "taste_rules": {"primary_driver": "", "dealbreaker_priority": []},
+        }
+        mock_gpt.return_value = (
+            {"preferences": {"avoid": ["80s production style"]}},
+            _GPT_META_STUB,
+        )
+
+        train_profile({"core_description": "", "must_have": "",
+                       "soft_preferences": "", "avoid": ""})
+
+        # The user message handed to call_gpt_json_with_meta must
+        # include the dislike reasons so the LLM can mine recurring
+        # avoid patterns.
+        called_messages = mock_gpt.call_args[0][0]
+        user_msg = next(m["content"] for m in called_messages
+                         if m["role"] == "user")
+        assert "RECENT DISLIKES" in user_msg
+        assert "too 80s production" in user_msg
+        assert "still 80s feel" in user_msg
+
+    @patch("core.src.profile.save_profile")
+    @patch("core.src.profile.call_gpt_json_with_meta")
+    @patch("core.src.profile.load_profile")
+    def test_no_dislikes_omits_section(
+        self, mock_load, mock_gpt, mock_save,
+    ):
+        from core.src.profile import train_profile
+        mock_load.return_value = {
+            "last_updated": None, "meta": {"goal": ""},
+            "preferences": {"core_description": "", "must_have": [],
+                            "soft_preferences": [], "avoid": []},
+            "artists": {"confirmed": [], "moderate": [], "rejected": []},
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {"liked_tracks": [], "disliked_tracks": []},
+            "taste_rules": {"primary_driver": "", "dealbreaker_priority": []},
+        }
+        mock_gpt.return_value = ({"preferences": {}}, _GPT_META_STUB)
+
+        train_profile({"core_description": "x", "must_have": "",
+                       "soft_preferences": "", "avoid": ""})
+
+        called_messages = mock_gpt.call_args[0][0]
+        user_msg = next(m["content"] for m in called_messages
+                         if m["role"] == "user")
+        # No dislikes → section must not appear (saves prompt cost)
+        assert "RECENT DISLIKES" not in user_msg
 
 
 class TestSaveProfileSections:
@@ -587,7 +747,7 @@ class TestDraftProfileFromPlaylist:
             "moods": ["upbeat", "energetic"],
         }
 
-        with patch("core.src.profile.call_gpt_json") as mock_gpt, \
+        with patch("core.src.profile.call_gpt_json_with_meta") as mock_gpt, \
              patch("core.src.profile.SEED_PROMPT_FILE") as mock_file:
             mock_file.read_text.return_value = (
                 "Playlist: {name}, {count} tracks. "
@@ -595,7 +755,7 @@ class TestDraftProfileFromPlaylist:
                 "Energy: {energy}, Valence: {valence}, Tempo: {tempo}. "
                 "Moods: {moods}"
             )
-            mock_gpt.return_value = json.loads(mock_gpt_json)
+            mock_gpt.return_value = (json.loads(mock_gpt_json), _GPT_META_STUB)
 
             result = draft_profile_from_playlist(summary)
 
@@ -629,13 +789,13 @@ class TestDraftProfileFromPlaylist:
             "moods": [],
         }
 
-        with patch("core.src.profile.call_gpt_json") as mock_gpt, \
+        with patch("core.src.profile.call_gpt_json_with_meta") as mock_gpt, \
              patch("core.src.profile.SEED_PROMPT_FILE") as mock_file:
             mock_file.read_text.return_value = (
                 "{name}{count}{top_artists_list}{top_genres_list}"
                 "{energy}{valence}{tempo}{moods}"
             )
-            mock_gpt.return_value = mock_gpt_result
+            mock_gpt.return_value = (mock_gpt_result, _GPT_META_STUB)
 
             result = draft_profile_from_playlist(summary)
 
@@ -891,3 +1051,261 @@ class TestProfileIntegration:
         assert reloaded["artists"]["confirmed"] == ["Rush", "Yes"]
         assert reloaded["name"] == "Cycle"
 
+# ── P3.1 mutable-section projection tests (2026-04-27) ───────────────
+def test_project_mutable_sections_returns_only_preferences_and_meta():
+    from core.src.profile import _project_mutable_sections
+    profile = {
+        "preferences": {"must_have": ["punchy guitars"]},
+        "meta": {"primary_reference": "Bear Ghost"},
+        "history": {"suggested_artists": ["a", "b", "c"]},
+        "feedback": {"liked_tracks": [{"artist": "x", "track": "y"}]},
+        "last_updated": "2026-04-27T00:00:00",
+    }
+    projected = _project_mutable_sections(profile)
+    assert set(projected.keys()) == {"preferences", "meta"}
+    assert projected["preferences"]["must_have"] == ["punchy guitars"]
+    assert projected["meta"]["primary_reference"] == "Bear Ghost"
+def test_project_mutable_sections_handles_missing_keys():
+    from core.src.profile import _project_mutable_sections
+    assert _project_mutable_sections({}) == {}
+    assert _project_mutable_sections({"history": {"x": 1}}) == {}
+    # preferences only, no meta
+    out = _project_mutable_sections({"preferences": {"avoid": ["pop"]}})
+    assert out == {"preferences": {"avoid": ["pop"]}}
+def test_project_mutable_sections_handles_non_dict():
+    from core.src.profile import _project_mutable_sections
+    assert _project_mutable_sections(None) == {}
+    assert _project_mutable_sections("not a dict") == {}
+def test_merge_mutable_back_preserves_history_and_feedback():
+    from core.src.profile import _merge_mutable_back
+    original = {
+        "preferences": {"must_have": ["old"]},
+        "history": {"suggested_artists": ["a", "b"]},
+        "feedback": {"liked_tracks": [{"artist": "x", "track": "y"}]},
+        "last_updated": "2026-04-26T00:00:00",
+    }
+    gpt_response = {
+        "preferences": {"must_have": ["new"], "avoid": ["pop"]},
+        # GPT might return extra keys — they must be ignored
+        "history": {"suggested_artists": ["WIPED"]},
+        "feedback": {"liked_tracks": []},
+    }
+    merged = _merge_mutable_back(original, gpt_response)
+    # history + feedback come from original verbatim (NOT GPT)
+    assert merged["history"]["suggested_artists"] == ["a", "b"]
+    assert merged["feedback"]["liked_tracks"] == [{"artist": "x", "track": "y"}]
+    # preferences merged from GPT
+    assert merged["preferences"]["must_have"] == ["new"]
+    assert merged["preferences"]["avoid"] == ["pop"]
+    # other top-level keys preserved
+    assert merged["last_updated"] == "2026-04-26T00:00:00"
+def test_merge_mutable_back_handles_empty_gpt_response():
+    from core.src.profile import _merge_mutable_back
+    original = {"preferences": {"must_have": ["a"]}, "history": {"x": 1}}
+    assert _merge_mutable_back(original, {}) == original
+    assert _merge_mutable_back(original, None) == {"preferences": {"must_have": ["a"]}, "history": {"x": 1}}
+
+
+# ── S11: orphan swap.tmp recovery ───────────────────────────────────
+
+def _make_profile_dir(tmp_path, pid="pid-1"):
+    d = tmp_path / "profiles" / pid
+    d.mkdir(parents=True, exist_ok=True)
+    return d, d / "profile.json", d / "profile.history.json", d / "profile.json.swap.tmp"
+
+
+def test_recover_orphan_after_step1_rolls_back(tmp_path):
+    """Crash after profile→tmp: profile missing, tmp + history present.
+    Recovery should restore tmp into profile."""
+    from core.src.profile import recover_orphaned_swap_tmps
+    _d, profile_path, history_path, tmp = _make_profile_dir(tmp_path)
+    tmp.write_text('{"v": "old_profile"}')
+    history_path.write_text('{"v": "old_history"}')
+    with patch("core.src.profile.PROFILES_DIR", tmp_path / "profiles"):
+        n = recover_orphaned_swap_tmps()
+    assert n == 1
+    assert not tmp.exists()
+    assert json.loads(profile_path.read_text()) == {"v": "old_profile"}
+    assert json.loads(history_path.read_text()) == {"v": "old_history"}
+
+
+def test_recover_orphan_after_step2_completes_swap(tmp_path):
+    """Crash after history→profile: profile + tmp present, history missing.
+    Recovery should rename tmp into history."""
+    from core.src.profile import recover_orphaned_swap_tmps
+    _d, profile_path, history_path, tmp = _make_profile_dir(tmp_path)
+    profile_path.write_text('{"v": "new_profile"}')
+    tmp.write_text('{"v": "new_history"}')
+    with patch("core.src.profile.PROFILES_DIR", tmp_path / "profiles"):
+        n = recover_orphaned_swap_tmps()
+    assert n == 1
+    assert not tmp.exists()
+    assert json.loads(profile_path.read_text()) == {"v": "new_profile"}
+    assert json.loads(history_path.read_text()) == {"v": "new_history"}
+
+
+def test_recover_orphan_ambiguous_preserves_tmp_as_bak(tmp_path):
+    """Both profile + history present alongside tmp: keep tmp as .bak."""
+    from core.src.profile import recover_orphaned_swap_tmps
+    _d, profile_path, history_path, tmp = _make_profile_dir(tmp_path)
+    profile_path.write_text('{"v": "p"}')
+    history_path.write_text('{"v": "h"}')
+    tmp.write_text('{"v": "t"}')
+    with patch("core.src.profile.PROFILES_DIR", tmp_path / "profiles"):
+        n = recover_orphaned_swap_tmps()
+    assert n == 0
+    assert not tmp.exists()
+    bak = tmp.with_suffix(".bak")
+    assert bak.exists() and json.loads(bak.read_text()) == {"v": "t"}
+
+
+def test_recover_orphan_noop_when_no_tmps(tmp_path):
+    from core.src.profile import recover_orphaned_swap_tmps
+    (tmp_path / "profiles").mkdir()
+    with patch("core.src.profile.PROFILES_DIR", tmp_path / "profiles"):
+        assert recover_orphaned_swap_tmps() == 0
+
+
+def test_recover_orphan_handles_missing_profiles_dir(tmp_path):
+    from core.src.profile import recover_orphaned_swap_tmps
+    with patch("core.src.profile.PROFILES_DIR", tmp_path / "does-not-exist"):
+        assert recover_orphaned_swap_tmps() == 0
+
+
+# ── S9: validate_profile_schema / import_profile_dict ────────────────
+
+class TestValidateProfileSchema:
+    def test_rejects_non_dict(self):
+        from core.src.profile import validate_profile_schema
+        with pytest.raises(ValueError, match="JSON object"):
+            validate_profile_schema(["not", "a", "dict"])  # type: ignore[arg-type]
+
+    def test_strips_unknown_top_level_keys(self):
+        from core.src.profile import validate_profile_schema
+        data = {"preferences": {}, "garbage": 1, "evil_eval": "rm -rf /"}
+        validate_profile_schema(data)
+        assert "garbage" not in data
+        assert "evil_eval" not in data
+        assert "preferences" in data
+
+    def test_meta_must_be_dict(self):
+        from core.src.profile import validate_profile_schema
+        with pytest.raises(ValueError, match="meta"):
+            validate_profile_schema({"meta": "not a dict"})
+
+    def test_meta_goal_string_length_capped(self):
+        from core.src.profile import validate_profile_schema, _MAX_STR_LEN
+        with pytest.raises(ValueError, match="meta.goal"):
+            validate_profile_schema({"meta": {"goal": "x" * (_MAX_STR_LEN + 1)}})
+
+    def test_preferences_must_be_dict(self):
+        from core.src.profile import validate_profile_schema
+        with pytest.raises(ValueError, match="preferences"):
+            validate_profile_schema({"preferences": "nope"})
+
+    def test_preferences_lists_must_be_string_lists(self):
+        from core.src.profile import validate_profile_schema
+        with pytest.raises(ValueError, match=r"preferences\.must_have"):
+            validate_profile_schema({"preferences": {"must_have": [1, 2, 3]}})
+
+    def test_preferences_core_description_string_only(self):
+        from core.src.profile import validate_profile_schema
+        with pytest.raises(ValueError, match="core_description"):
+            validate_profile_schema({"preferences": {"core_description": ["list", "not", "string"]}})
+
+    def test_preferences_list_length_capped(self):
+        from core.src.profile import validate_profile_schema, _MAX_LIST_ITEMS
+        big = ["x"] * (_MAX_LIST_ITEMS + 1)
+        with pytest.raises(ValueError, match="exceeds maximum"):
+            validate_profile_schema({"preferences": {"avoid": big}})
+
+    def test_artists_confirmed_string_list(self):
+        from core.src.profile import validate_profile_schema
+        with pytest.raises(ValueError, match="artists.confirmed"):
+            validate_profile_schema({"artists": {"confirmed": [{"name": "x"}]}})
+
+    def test_artists_moderate_must_be_list(self):
+        from core.src.profile import validate_profile_schema
+        with pytest.raises(ValueError, match="artists.moderate"):
+            validate_profile_schema({"artists": {"moderate": "not a list"}})
+
+    def test_history_long_lists_truncated_in_place(self):
+        from core.src.profile import validate_profile_schema, _MAX_LIST_ITEMS
+        cap = _MAX_LIST_ITEMS * 10
+        big = list(range(cap + 50))
+        data = {"history": {"suggested_artists": big}}
+        validate_profile_schema(data)
+        # Last cap items kept, oldest dropped — silent guard, not an error.
+        assert data["history"]["suggested_artists"] == list(range(50, cap + 50))
+
+    def test_taste_rules_validation(self):
+        from core.src.profile import validate_profile_schema
+        with pytest.raises(ValueError, match="taste_rules"):
+            validate_profile_schema({"taste_rules": "nope"})
+        with pytest.raises(ValueError, match="primary_driver"):
+            validate_profile_schema({"taste_rules": {"primary_driver": ["list"]}})
+        with pytest.raises(ValueError, match="dealbreaker_priority"):
+            validate_profile_schema({"taste_rules": {"dealbreaker_priority": "string"}})
+
+    def test_minimal_valid_profile_passes(self):
+        from core.src.profile import validate_profile_schema
+        data = {"preferences": {"must_have": ["jazz"], "avoid": ["pop"]}}
+        validate_profile_schema(data)  # no raise
+
+
+class TestImportProfileDict:
+    def test_rejects_non_dict(self, tmp_path):
+        from core.src.profile import import_profile_dict
+        with pytest.raises(ValueError, match="JSON object"):
+            import_profile_dict("not a dict")  # type: ignore[arg-type]
+
+    def test_invalid_schema_propagates_value_error(self, tmp_path):
+        from core.src.profile import import_profile_dict
+        p1, p2, p3, p4 = _patch_active_profile(tmp_path)
+        with p1, p2, p3, p4:
+            with pytest.raises(ValueError, match="must_have"):
+                import_profile_dict({"preferences": {"must_have": [1, 2]}})
+
+    def test_round_trip_preserves_known_fields(self, tmp_path):
+        from core.src.profile import import_profile_dict, load_profile
+        p1, p2, p3, p4 = _patch_active_profile(tmp_path)
+        payload = {
+            "preferences": {
+                "core_description": "loves space jazz",
+                "must_have": ["jazz", "ambient"],
+                "avoid": ["edm"],
+            },
+            "meta": {"goal": "discover obscure artists"},
+        }
+        with p1, p2, p3, p4:
+            merged = import_profile_dict(payload)
+            on_disk = load_profile()
+        assert merged["preferences"]["core_description"] == "loves space jazz"
+        assert merged["preferences"]["must_have"] == ["jazz", "ambient"]
+        assert merged["meta"]["goal"] == "discover obscure artists"
+        # Template defaults filled in for missing top-level keys.
+        assert "history" in merged and isinstance(merged["history"], dict)
+        assert "feedback" in merged and isinstance(merged["feedback"], dict)
+        # Persisted to disk.
+        assert on_disk["preferences"]["must_have"] == ["jazz", "ambient"]
+
+    def test_strips_unknown_top_level_keys_on_import(self, tmp_path):
+        from core.src.profile import import_profile_dict
+        p1, p2, p3, p4 = _patch_active_profile(tmp_path)
+        with p1, p2, p3, p4:
+            merged = import_profile_dict({
+                "preferences": {},
+                "evil": {"shell": "rm -rf /"},
+            })
+        assert "evil" not in merged
+
+    def test_sanitises_control_chars_in_strings(self, tmp_path):
+        from core.src.profile import import_profile_dict
+        p1, p2, p3, p4 = _patch_active_profile(tmp_path)
+        with p1, p2, p3, p4:
+            merged = import_profile_dict({
+                "preferences": {"core_description": "loves\x00null bytes\x01"},
+            })
+        # Null + control bytes stripped by sanitize_profile.
+        assert "\x00" not in merged["preferences"]["core_description"]
+        assert "\x01" not in merged["preferences"]["core_description"]

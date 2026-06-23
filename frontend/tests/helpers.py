@@ -24,21 +24,24 @@ def free_port():
 def switch_to_tab(page: Page, tab_name: str):
     """Click a tab and assert it actually became active.
 
-    Waits for networkidle, then clicks. If the click doesn't register
-    (JS modules not yet initialized), retries by calling switchTab()
-    directly — this is the JS function attached by tabs.js.
+    main.js is a large ES module (~30 imports). Under parallel-test load on
+    the Flask dev server, full evaluation can take longer than the default
+    timeout. We wait for the ``load`` state (not just ``domcontentloaded``)
+    and then for ``window.switchTab`` to be defined — that's the signal
+    that tabs.js has wired its click handlers. Without this guard, fast
+    tests race the loader and the click is silently dropped.
     """
-    page.wait_for_load_state("domcontentloaded")
+    page.wait_for_load_state("load", timeout=30_000)
+    page.wait_for_function("typeof window.switchTab === 'function'", timeout=30_000)
     tab = page.locator(f'[data-tab="{tab_name}"]')
     tab.wait_for(state="visible", timeout=10_000)
     tab.click()
     try:
         expect(tab).to_have_attribute("aria-selected", "true", timeout=5_000)
     except (AssertionError, Exception):
-        # Retry via switchTab() — the function that the click handler calls
+        # Fall back to calling switchTab() directly via JS.
         page.wait_for_timeout(150)
-        page.evaluate(f"typeof switchTab === 'function' && switchTab('{tab_name}')")
-        page.wait_for_timeout(150)
+        page.evaluate(f"window.switchTab && window.switchTab('{tab_name}')")
         expect(tab).to_have_attribute("aria-selected", "true", timeout=10_000)
 
 
@@ -75,9 +78,26 @@ def open_generate_section(page: Page):
 
 
 def open_burger_menu(page: Page):
-    """Open the burger menu and assert it opened."""
+    """Open the burger menu and assert it opened.
+
+    Waits for the JS module that wires the burger button (settings.js exposes
+    ``window.toggleSettings``) before clicking — prevents a race where the
+    click happens before the handler is attached.
+    """
+    # Ensure tabs/settings JS is initialized — switchTab is the canary that the
+    # full main.js wiring is done.
+    page.wait_for_load_state("load", timeout=30_000)
+    page.wait_for_function("typeof window.switchTab === 'function'", timeout=30_000)
     page.locator('button[aria-label="Menu"]').click()
-    expect(page.locator("#settingsDropdown")).to_have_class(re.compile(r"open"), timeout=10_000)
+    try:
+        expect(page.locator("#settingsDropdown")).to_have_class(re.compile(r"open"), timeout=5_000)
+    except (AssertionError, PlaywrightTimeoutError):
+        # Fallback: click again — handler may have attached just after first click.
+        # Catching only Playwright timeouts (not bare ``Exception``) so real
+        # test bugs aren't silently retried away.
+        page.wait_for_timeout(200)
+        page.locator('button[aria-label="Menu"]').click()
+        expect(page.locator("#settingsDropdown")).to_have_class(re.compile(r"open"), timeout=10_000)
 
 
 def open_analysis_section(page: Page):
@@ -130,7 +150,11 @@ def navigate_onboarding_to_page(page: Page, base_url: str, target_page: int):
     page.wait_for_timeout(400)
     for i in range(target_page):
         cta = page.locator(".ob-page.active .ob-cta-start, .ob-page.active .ob-cta-skip-inline").first
-        cta.click()
+        cta.scroll_into_view_if_needed()
+        # Use JS click to avoid Playwright's "outside of viewport" auto-retry
+        # when the wizard card ends up taller than the viewport on small
+        # screens. The button is fully functional via its inline onclick.
+        cta.evaluate("el => el.click()")
         page.locator(".ob-page.active").wait_for(timeout=3000)
         page.wait_for_timeout(200)
 
@@ -149,31 +173,10 @@ FAKE_CREDENTIALS = {
     "NEW_ARTIST_PERCENTAGE": "30",
 }
 
-EMPTY_PROFILE = {
-    "meta": {},
-    "preferences": {
-        "core_description": "",
-        "must_have": [],
-        "soft_preferences": [],
-        "avoid": [],
-    },
-    "artists": {"confirmed": [], "moderate": [], "rejected": []},
-    "taste_rules": {},
-    "feedback": {"liked_tracks": [], "disliked_tracks": [], "disliked_artists": []},
-    "suggested_artists": [],
-    "suggested_tracks": [],
-}
-
-TRAINED_PROFILE = {
-    **EMPTY_PROFILE,
-    "preferences": {
-        "core_description": "Upbeat theatrical rock with strong melodies",
-        "must_have": ["high energy", "strong melodies"],
-        "soft_preferences": ["slight prog influence"],
-        "avoid": ["electronic production"],
-    },
-    "last_updated": "2025-01-01T00:00:00",
-}
+# EMPTY_PROFILE / TRAINED_PROFILE live in _shared.py to keep this module and
+# helpers_integration.py from drifting apart. Re-exported here so existing
+# `from helpers import EMPTY_PROFILE` imports keep working.
+from _shared import EMPTY_PROFILE, TRAINED_PROFILE  # noqa: F401
 
 FAKE_ANALYSIS_RESPONSE = {
     "artist": "Muse",

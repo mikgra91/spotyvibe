@@ -126,6 +126,16 @@ class TestSettingsModal:
         page.wait_for_timeout(100)
         expect(page.locator("#genNewArtistPct")).to_be_visible()
 
+    def test_stage3_radios_removed(self, page: Page, base_url):
+        # 2026-05-14: Stage 3 strategy switch ripped out. The model
+        # dropdown is now the sole control — no radio segment should
+        # exist in the rendered settings modal.
+        page.goto(base_url)
+        self._open_settings(page)
+        page.locator("#settingsLoading.active").wait_for(state="detached", timeout=2500)
+        expect(page.locator("input[name='stage3_mode']")).to_have_count(0)
+        expect(page.locator("#settings-model")).to_be_enabled()
+
     def test_shows_debug_mode_checkbox(self, page: Page, base_url):
         page.goto(base_url)
         self._open_settings(page)

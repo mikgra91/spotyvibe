@@ -66,12 +66,21 @@ export function renderComponentWarnings() {
         runBtn.disabled = false;
     }
 
-    const spotifyBtn = el('spotifyToggleBtn');
-    if (State.spotifyAuthStatus === 'authenticated') {
-        spotifyBtn.textContent = '🔌 ' + i18n('nav.disconnect_spotify', 'Disconnect Spotify');
-    } else {
-        spotifyBtn.textContent = '🔌 ' + i18n('nav.connect_spotify', 'Connect Spotify');
+    const spotifyLabel = el('spotifyToggleLabel');
+    if (spotifyLabel) {
+        if (State.spotifyAuthStatus === 'authenticated') {
+            spotifyLabel.setAttribute('data-i18n', 'nav.disconnect_spotify');
+            spotifyLabel.textContent = i18n('nav.disconnect_spotify', 'Disconnect Spotify');
+        } else {
+            spotifyLabel.setAttribute('data-i18n', 'nav.connect_spotify');
+            spotifyLabel.textContent = i18n('nav.connect_spotify', 'Connect Spotify');
+        }
     }
+
+    // 2026-05-11: header Spotify status pill removed — duplicate of the
+    // body provider pill (#spotifyStatusPills, provider-pills.js). The
+    // body pill is the larger, clearer click target the user wants to
+    // keep. The header element no longer exists.
 }
 
 function openCredentials() {

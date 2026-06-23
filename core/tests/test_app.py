@@ -262,6 +262,64 @@ class TestProfileStatus:
         assert data["no_profile"] is True
 
 
+class TestProfilePromptSize:
+    """/api/profile/prompt-size surfaces the model Stage 3 will invoke so the
+    cost estimator doesn't drift from the actual run config.
+    """
+
+    def test_untrained_still_returns_resolved_model(self, client):
+        import os
+        with patch.dict(os.environ, {"OPENAI_MODEL": "gpt-5.4-mini"}), \
+             patch("app.get_active_profile_id", return_value=""), \
+             patch("app.is_profile_trained", return_value=False):
+            resp = client.get("/api/profile/prompt-size")
+        data = resp.get_json()
+        assert data["trained"] is False
+        assert data["stage3_resolved_model"] == "gpt-5.4-mini"
+
+    def test_trained_returns_resolved_model(self, client):
+        loaded_profile = {
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {"disliked_tracks": []},
+        }
+        import os
+        with patch.dict(os.environ, {"OPENAI_MODEL": "deepseek/deepseek-v4-flash"}), \
+             patch("app.get_active_profile_id", return_value="pid"), \
+             patch("app.is_profile_trained", return_value=True), \
+             patch("app.load_profile", return_value=loaded_profile), \
+             patch("app.build_messages", return_value=[
+                 {"role": "system", "content": "sys"},
+                 {"role": "user", "content": "usr"},
+             ]), \
+             patch("app.normalize_history"):
+            resp = client.get("/api/profile/prompt-size")
+        data = resp.get_json()
+        assert data["trained"] is True
+        assert data["stage3_resolved_model"] == "deepseek/deepseek-v4-flash"
+
+    def test_custom_model_returns_get_model_value(self, client):
+        import os
+        with patch.dict(os.environ, {"OPENAI_MODEL": "local-llama-3.1"}), \
+             patch("app.get_active_profile_id", return_value=""), \
+             patch("app.is_profile_trained", return_value=False):
+            resp = client.get("/api/profile/prompt-size")
+        data = resp.get_json()
+        assert data["stage3_resolved_model"] == "local-llama-3.1"
+
+    def test_error_path_still_surfaces_resolved_model(self, client):
+        import os
+        with patch.dict(os.environ, {"OPENAI_MODEL": "gpt-5.4-mini"}), \
+             patch("app.get_active_profile_id", return_value="pid"), \
+             patch("app.is_profile_trained", return_value=True), \
+             patch("app.load_profile", side_effect=RuntimeError("boom")):
+            resp = client.get("/api/profile/prompt-size")
+        assert resp.status_code == 500
+        data = resp.get_json()
+        assert data["trained"] is False
+        assert data["error"] == "boom"
+        assert data["stage3_resolved_model"] == "gpt-5.4-mini"
+
+
 class TestProfileData:
     @patch("app.get_active_profile_id", return_value="some-id")
     @patch("app.load_profile")
@@ -388,7 +446,7 @@ class TestSubmitFeedback:
         mock_remove.return_value = {"removed": True}
         resp = client.post(
             "/api/feedback",
-            data=json.dumps({"action": "dislike", "artist": "Bad", "track": "Song"}),
+            data=json.dumps({"action": "dislike", "artist": "Bad", "track": "Song", "source": "review"}),
             content_type="application/json",
         )
         assert resp.status_code == 200
@@ -430,7 +488,7 @@ class TestRemoveTrack:
         mock_remove.return_value = {"removed": True}
         resp = client.post(
             "/api/remove",
-            data=json.dumps({"artist": "A", "track": "B"}),
+            data=json.dumps({"artist": "A", "track": "B", "source": "review"}),
             content_type="application/json",
         )
         assert resp.status_code == 200
@@ -503,9 +561,55 @@ class TestRunPipeline:
         data = resp.data.decode()
         assert "spotify is not connected" in data.lower()
 
+    @patch("app.get_spotify_auth_status", return_value="not_authenticated")
+    @patch("app.is_profile_trained", return_value=True)
+    def test_skip_spotify_check_env_var_bypasses_connect_gate(
+        self, mock_trained, mock_spotify, client, monkeypatch
+    ):
+        """N3 (2026-05-13): when ``SPOTYVIBE_SKIP_SPOTIFY_CONNECT=1`` is
+        set, ``/api/run`` must NOT short-circuit on a missing Spotify
+        connection. The eval harness uses this seam together with
+        ``--verify-mode null`` so a probe-style run can exercise the
+        full Stage 1+2+3 pipeline on a machine that has never
+        authorized Spotify (no OAuth cache, no live token).
+        """
+        import os as _os
+        monkeypatch.setenv("SPOTYVIBE_SKIP_SPOTIFY_CONNECT", "1")
+        # The full pipeline will still error later (no profile data
+        # loaded, etc.) — what we're asserting here is that the early
+        # Spotify-connect gate is BYPASSED, i.e. the response body does
+        # NOT contain the "spotify is not connected" error sentinel.
+        resp = client.post(
+            "/api/run",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        body = resp.data.decode().lower()
+        assert "spotify is not connected" not in body, (
+            "SPOTYVIBE_SKIP_SPOTIFY_CONNECT=1 must bypass the connect-gate"
+        )
+
+    def test_skip_spotify_check_only_active_when_env_truthy(self, monkeypatch):
+        """Defensive: the seam is opt-in only. Empty / unset / '0' /
+        'no' / 'false' must keep the production behaviour."""
+        import os
+        for falsy in ("", "0", "no", "false", "  ", "off"):
+            monkeypatch.setenv("SPOTYVIBE_SKIP_SPOTIFY_CONNECT", falsy)
+            val = os.environ.get("SPOTYVIBE_SKIP_SPOTIFY_CONNECT", "").strip().lower()
+            assert val not in ("1", "true", "yes"), (
+                f"falsy value {falsy!r} must not enable the bypass"
+            )
+        # Truthy values:
+        for truthy in ("1", "true", "yes", "YES", "True"):
+            monkeypatch.setenv("SPOTYVIBE_SKIP_SPOTIFY_CONNECT", truthy)
+            val = os.environ.get("SPOTYVIBE_SKIP_SPOTIFY_CONNECT", "").strip().lower()
+            assert val in ("1", "true", "yes"), (
+                f"truthy value {truthy!r} must enable the bypass"
+            )
+
     @patch("app.save_run")
     @patch("app.add_to_playlist")
-    @patch("app.search_tracks")
+    @patch("app.iter_search_tracks")
     @patch("app.filter_duplicate_suggestions")
     @patch("app.call_gpt")
     @patch("app.save_profile")
@@ -529,20 +633,28 @@ class TestRunPipeline:
             "preferences": {},
         }
         mock_norm.return_value = mock_load.return_value
-        mock_gpt.return_value = {
-            "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 10,
-            "new_artists": ["a"],
-            "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
-        }
+        mock_gpt.return_value = (
+            {
+                "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 10,
+                "new_artists": ["a"],
+                "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
+            },
+            {"usage": None, "latency_s": 0.0},
+        )
         mock_filter.return_value = {
             "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 10,
             "new_artists": ["a"],
             "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
         }
         mock_update.return_value = mock_load.return_value
-        mock_search.return_value = (
-            [{"artist": "a", "track": "b", "uri": f"spotify:track:{i}", "cover_url": None} for i in range(10)],
-            [],
+        # L3 (2026-05-06): app.py now consumes iter_search_tracks (a
+        # generator yielding ('found' | 'not_found', payload)). side_effect
+        # rebuilds the iterator each time the generator is invoked.
+        mock_search.side_effect = lambda *_a, **_kw: iter(
+            [("found",
+              {"artist": "a", "track": "b", "uri": f"spotify:track:{i}",
+               "cover_url": None})
+             for i in range(10)]
         )
         mock_add.return_value = {"url": "https://open.spotify.com/playlist/test", "added": 10}
 
@@ -553,11 +665,11 @@ class TestRunPipeline:
         )
         data = resp.data.decode()
         assert "result" in data
-        assert "open.spotify.com" in data
+        assert '"artist": "a"' in data
 
     @patch("app.save_run")
     @patch("app.add_to_playlist")
-    @patch("app.search_tracks")
+    @patch("app.iter_search_tracks")
     @patch("app.filter_duplicate_suggestions")
     @patch("app.call_gpt")
     @patch("app.save_profile")
@@ -582,20 +694,25 @@ class TestRunPipeline:
             "preferences": {},
         }
         mock_norm.return_value = mock_load.return_value
-        mock_gpt.return_value = {
-            "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 15,
-            "new_artists": ["a"],
-            "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
-        }
+        mock_gpt.return_value = (
+            {
+                "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 15,
+                "new_artists": ["a"],
+                "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
+            },
+            {"usage": None, "latency_s": 0.0},
+        )
         mock_filter.return_value = {
             "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 15,
             "new_artists": ["a"],
             "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
         }
         mock_update.return_value = mock_load.return_value
-        mock_search.return_value = (
-            [{"artist": "a", "track": "b", "uri": f"spotify:track:{i}", "cover_url": None} for i in range(15)],
-            [],
+        mock_search.side_effect = lambda *_a, **_kw: iter(
+            [("found",
+              {"artist": "a", "track": "b", "uri": f"spotify:track:{i}",
+               "cover_url": None})
+             for i in range(15)]
         )
         mock_add.return_value = {"url": "https://open.spotify.com/playlist/test", "added": 15}
 
@@ -613,6 +730,184 @@ class TestRunPipeline:
         # Temperature should be close to 1.0 (the base_temp from client)
         assert used_temp is not None
         assert used_temp >= 0.8  # at least 0.8 (1.0 - 0.2 max decay)
+
+
+class _FakeArtistRow:
+    """Minimal stand-in for a RAG ArtistRow in staged-pipeline tests."""
+
+    def __init__(self, name):
+        self.name = name
+        self.top_tracks = [f"{name} song"]
+
+
+class TestA6PoolReRetrieve:
+    """A6 (2026-05-21): after MAX_CONSECUTIVE_EMPTY_BATCHES empty Stage-3
+    batches the run must re-retrieve a widened candidate pool ONCE before
+    giving up, instead of dead-stopping with an empty playlist."""
+
+    @patch("app.save_run")
+    @patch("app.add_to_playlist")
+    @patch("app.iter_search_tracks")
+    @patch("app.filter_duplicate_suggestions")
+    @patch("app.select_tracks")
+    @patch("app._build_taste_summary_for_pool", return_value="taste summary")
+    @patch("app.check_avoid_compliance")
+    @patch("app.retrieve_candidates")
+    @patch("app.collect_forbidden_artists", return_value=set())
+    @patch("app.get_rag_enabled", return_value=True)
+    @patch("app.get_rag_corpus")
+    @patch("app.save_profile")
+    @patch("app.update_profile")
+    @patch("app.normalize_history")
+    @patch("app.load_profile")
+    @patch("app.get_new_artist_percentage", return_value=30)
+    @patch("app.get_playlist_size", return_value=10)
+    @patch("app.get_debug_mode", return_value=False)
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    @patch("app.is_profile_trained", return_value=True)
+    def test_empty_batches_trigger_one_widened_reretrieve(
+        self, mock_trained, mock_spotify, mock_debug, mock_size,
+        mock_percentage, mock_load, mock_norm, mock_update, mock_save,
+        mock_corpus, mock_rag_enabled, mock_forbidden, mock_retrieve,
+        mock_avoid, mock_taste, mock_select, mock_filter, mock_search,
+        mock_add, mock_save_run, client,
+    ):
+        from config import RAG_RERETRIEVE_SIZE, MAX_CONSECUTIVE_EMPTY_BATCHES
+
+        profile = {
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {}, "preferences": {}, "meta": {},
+        }
+        mock_load.return_value = profile
+        mock_norm.return_value = profile
+        mock_update.return_value = profile
+        mock_corpus.return_value = object()  # non-None → staged pipeline on
+
+        # Stage 1: first pool narrow, A6 re-retrieve pool wider.
+        mock_retrieve.side_effect = [
+            [_FakeArtistRow("narrow")],
+            [_FakeArtistRow("wide")],
+        ]
+        # Stage 2 approves whatever Stage 1 surfaced.
+        _stage2_meta = {"status": "ok", "latency_s": 0.0, "usage": None,
+                        "model": "m", "prompt_chars": 0}
+        mock_avoid.side_effect = [
+            (["narrow"], _stage2_meta),
+            (["wide"], _stage2_meta),
+        ]
+
+        _meta = {"latency_s": 0.0, "usage": None}
+        _empty = {"playlist": [], "new_artists": [],
+                  "profile_updates": {"suggested_artists": [],
+                                      "suggested_tracks": []}}
+        _full = {
+            "playlist": [{"artist": "wide", "track": "wide song", "reason": "r"}] * 10,
+            "new_artists": ["wide"],
+            "profile_updates": {"suggested_artists": ["wide"],
+                                "suggested_tracks": [{"artist": "wide",
+                                                      "track": "wide song"}]},
+        }
+        # MAX empty Stage-3 batches → A6 fires → next batch fills the playlist.
+        mock_select.side_effect = (
+            [(dict(_empty), _meta)] * MAX_CONSECUTIVE_EMPTY_BATCHES
+            + [(dict(_full), _meta)]
+        )
+        # filter_duplicate_suggestions is a passthrough that adds _filtered_out.
+        def _passthru(_profile, result):
+            out = dict(result)
+            out["_filtered_out"] = []
+            return out
+        mock_filter.side_effect = _passthru
+        mock_search.side_effect = lambda *_a, **_kw: iter(
+            [("found", {"artist": "wide", "track": "wide song",
+                        "uri": f"spotify:track:{i}", "cover_url": None})
+             for i in range(10)]
+        )
+        mock_add.return_value = {"url": "https://open.spotify.com/playlist/x",
+                                 "added": 10}
+
+        with patch("core.src.rag.retrieval.get_last_retrieval_meta",
+                   return_value={}):
+            resp = client.post("/api/run", data=json.dumps({}),
+                               content_type="application/json")
+        body = resp.data.decode()
+
+        # A6 must have re-retrieved exactly once — two retrieve_candidates calls.
+        assert mock_retrieve.call_count == 2, (
+            f"expected 1 initial + 1 A6 retrieval, got {mock_retrieve.call_count}")
+        # The second call must use the widened, popularity-flat net.
+        second_kwargs = mock_retrieve.call_args_list[1].kwargs
+        assert second_kwargs["target_size"] == RAG_RERETRIEVE_SIZE
+        assert second_kwargs["popularity_penalty"] == 0.0
+        # The run must recover rather than dead-stop with an empty playlist.
+        assert '"track": "wide song"' in body
+
+
+class TestDiscoverArtists:
+    """Discover Artists endpoint — RAG + LLM artist-selection, then Spotify
+    verification of each artist's tracks so they can be applied."""
+
+    @patch("app.search_tracks")
+    @patch("app.select_artists")
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    @patch("app.load_profile")
+    @patch("app.normalize_history")
+    @patch("app.get_rag_corpus")
+    @patch("app.is_profile_trained", return_value=True)
+    def test_returns_artists_with_spotify_verified_tracks(
+        self, mock_trained, mock_corpus, mock_norm, mock_load,
+        mock_spotify, mock_select, mock_search, client,
+    ):
+        profile = {"history": {}, "preferences": {}}
+        mock_load.return_value = profile
+        mock_norm.return_value = profile
+        mock_corpus.return_value = object()  # non-None → corpus available
+        mock_select.return_value = (
+            {"artists": [{
+                "artist": "tally hall",
+                "reason": "quirky theatrical pop",
+                "genres": ["art pop"],
+                "tracks": [
+                    {"track": "good day", "reason": "gateway"},
+                    {"track": "ruler of everything", "reason": "range"},
+                ],
+                "rationale": [],
+            }], "reasoning": {"seed_interpretation": "x"}},
+            {"status": "ok"},
+        )
+
+        # search_tracks echoes input dicts ({**t, **payload}) — only the
+        # first track resolves on Spotify.
+        def _search(tracks):
+            found = []
+            for t in tracks:
+                if t["track"] == "good day":
+                    found.append({**t, "uri": "spotify:track:1", "track_id": "1",
+                                  "cover_url": None, "spotify_url": "https://x"})
+            return found, ["tally hall - ruler of everything"]
+        mock_search.side_effect = _search
+
+        resp = client.post(
+            "/api/discover_artists",
+            data=json.dumps({"artist_count": 5, "exploration": 3}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "ok"
+        assert len(data["artists"]) == 1
+        tracks = data["artists"][0]["tracks"]
+        assert len(tracks) == 2
+        # _tid mapping: first track verified, second marked not-found.
+        assert tracks[0]["found"] is True
+        assert tracks[0]["uri"] == "spotify:track:1"
+        assert tracks[1]["found"] is False
+
+    @patch("app.is_profile_trained", return_value=False)
+    def test_requires_trained_profile(self, mock_trained, client):
+        resp = client.post("/api/discover_artists", data=json.dumps({}),
+                            content_type="application/json")
+        assert resp.status_code == 400
 
 
 class TestSpotifyCallback:
@@ -708,7 +1003,6 @@ class TestRunHistoryEndpoints:
         assert resp.get_json()["runs"] == []
 
 
-
 class TestOnboardingEndpoints:
     @patch("app.is_onboarding_completed", return_value=False)
     def test_onboarding_status_not_completed(self, mock_status, client):
@@ -727,6 +1021,52 @@ class TestOnboardingEndpoints:
         resp = client.post("/api/onboarding/complete")
         assert resp.status_code == 200
         mock_set.assert_called_once_with(True)
+
+    @patch("app.load_profile")
+    @patch("app.load_runs", return_value=[])
+    @patch("app.get_active_profile_id", return_value=None)
+    @patch("app.get_spotify_auth_status", return_value="not_authenticated")
+    @patch("app.get_credentials", return_value={
+        "OPENAI_API_KEY":     {"is_set": False, "masked": ""},
+        "SPOTIPY_CLIENT_ID":  {"is_set": False, "masked": ""},
+        "SPOTIPY_CLIENT_SECRET": {"is_set": False, "masked": ""},
+    })
+    def test_progress_initial_state(self, mock_creds, mock_sp, mock_pid, mock_runs, mock_prof, client):
+        resp = client.get("/api/onboarding/progress")
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["keys_saved"] is False
+        assert body["spotify_connected"] is False
+        assert body["profile_created"] is False
+        assert body["playlist_generated"] is False
+        assert body["feedback_count"] == 0
+        assert body["feedback_done"] is False
+        assert body["feedback_target"] == 3
+        # load_profile should not be touched when no profile is active
+        mock_prof.assert_not_called()
+
+    @patch("app.load_profile", return_value={"feedback": {
+        "liked_tracks": [{"a": 1}, {"a": 2}],
+        "disliked_tracks": [{"a": 3}],
+    }})
+    @patch("app.load_runs", return_value=[{"run_id": "r1"}])
+    @patch("app.get_active_profile_id", return_value="profile-uuid")
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    @patch("app.get_credentials", return_value={
+        "OPENAI_API_KEY":     {"is_set": True, "masked": "***k"},
+        "SPOTIPY_CLIENT_ID":  {"is_set": True, "masked": "***1"},
+        "SPOTIPY_CLIENT_SECRET": {"is_set": True, "masked": "***2"},
+    })
+    def test_progress_fully_set_up(self, mock_creds, mock_sp, mock_pid, mock_runs, mock_prof, client):
+        resp = client.get("/api/onboarding/progress")
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["keys_saved"] is True
+        assert body["spotify_connected"] is True
+        assert body["profile_created"] is True
+        assert body["playlist_generated"] is True
+        assert body["feedback_count"] == 3
+        assert body["feedback_done"] is True
 
 
 class TestPlaylistsEndpoint:
@@ -961,8 +1301,8 @@ class TestMainPageStructure:
         assert 'id="trainAvoid"' in self.html
 
     def test_playlist_mode_controls_exist(self):
-        """Playlist mode selector and playlist picker must exist."""
-        assert 'id="playlistPicker"' in self.html or 'name="playlistMode"' in self.html
+        """Apply playlist modal and playlist picker must exist."""
+        assert 'id="applyPlaylistModal"' in self.html or 'id="applyPlaylistPicker"' in self.html
 
 
 class TestOnclickHandlersRegistered:
@@ -1160,3 +1500,470 @@ class TestProfileEndpointIntegration:
         assert len(data["profiles"]) == 1
         assert data["profiles"][0]["name"] == "Good"
 
+
+class TestSessionAndTokenEndpoints:
+    """Endpoints used by the Web Playback SDK (§8a)."""
+
+    @patch("app.get_spotify_session_info")
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    def test_session_returns_premium_flag(self, _mock_auth, mock_info, client):
+        mock_info.return_value = {"is_premium": True, "product": "premium"}
+        resp = client.get("/api/session")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["is_premium"] is True
+        assert data["product"] == "premium"
+        assert data["authenticated"] is True
+
+    @patch("app.get_spotify_session_info")
+    @patch("app.get_spotify_auth_status", return_value="not_authenticated")
+    def test_session_unauthenticated(self, _mock_auth, mock_info, client):
+        mock_info.return_value = {"is_premium": False, "product": None}
+        resp = client.get("/api/session")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["is_premium"] is False
+        assert data["authenticated"] is False
+
+    @patch("app.get_spotify_access_token", return_value="tok_abc")
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    def test_token_endpoint_returns_access_token(self, _mock_auth, _mock_tok, client):
+        resp = client.get("/api/spotify/token")
+        assert resp.status_code == 200
+        assert resp.get_json() == {"access_token": "tok_abc"}
+
+    @patch("app.get_spotify_auth_status", return_value="not_authenticated")
+    def test_token_endpoint_401_when_unauthenticated(self, _mock_auth, client):
+        resp = client.get("/api/spotify/token")
+        assert resp.status_code == 401
+
+    @patch("app.get_spotify_access_token", return_value=None)
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    def test_token_endpoint_401_when_no_token(self, _mock_auth, _mock_tok, client):
+        resp = client.get("/api/spotify/token")
+        assert resp.status_code == 401
+
+
+class TestPerfLogWiring:
+    """M3 (2026-05-07): /api/run finally block records one perf_log row
+    per generation. Patch ``core.src.perf_log.record_run`` and assert
+    the call shape — keeps the wiring honest if a refactor moves the
+    call site."""
+
+    @patch("core.src.perf_log.record_run")
+    @patch("app.save_run")
+    @patch("app.add_to_playlist")
+    @patch("app.iter_search_tracks")
+    @patch("app.filter_duplicate_suggestions")
+    @patch("app.call_gpt")
+    @patch("app.save_profile")
+    @patch("app.update_profile")
+    @patch("app.normalize_history")
+    @patch("app.load_profile")
+    @patch("app.get_new_artist_percentage", return_value=30)
+    @patch("app.get_playlist_size", return_value=10)
+    @patch("app.get_debug_mode", return_value=False)
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    @patch("app.is_profile_trained", return_value=True)
+    def test_perf_log_record_run_called_on_success(
+        self, _mock_trained, _mock_spotify, _mock_debug, _mock_size,
+        _mock_percentage, mock_load, mock_norm, mock_update,
+        _mock_save, mock_gpt, mock_filter, mock_search, mock_add,
+        _mock_save_run, mock_record, client,
+    ):
+        mock_load.return_value = {
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {},
+            "preferences": {},
+        }
+        mock_norm.return_value = mock_load.return_value
+        mock_gpt.return_value = (
+            {
+                "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 10,
+                "new_artists": ["a"],
+                "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
+            },
+            {"usage": None, "latency_s": 0.0},
+        )
+        mock_filter.return_value = {
+            "playlist": [{"artist": "a", "track": "b", "reason": "r"}] * 10,
+            "new_artists": ["a"],
+            "profile_updates": {"suggested_artists": ["a"], "suggested_tracks": ["a b"]},
+        }
+        mock_update.return_value = mock_load.return_value
+        mock_search.side_effect = lambda *_a, **_kw: iter(
+            [("found",
+              {"artist": "a", "track": "b", "uri": f"spotify:track:{i}",
+               "cover_url": None})
+             for i in range(10)]
+        )
+        mock_add.return_value = {"url": "https://open.spotify.com/playlist/test", "added": 10}
+
+        resp = client.post(
+            "/api/run",
+            data=json.dumps({"run_id": "test-run-001"}),
+            content_type="application/json",
+        )
+        # Consume the streaming response so the generator runs to
+        # completion (including the finally that calls perf_log).
+        resp.data.decode()
+
+        assert mock_record.called, "perf_log.record_run was never called"
+        kwargs = mock_record.call_args.kwargs
+        args = mock_record.call_args.args
+        assert args and args[0] == "test-run-001"
+        assert kwargs.get("tracks_target") == 10
+        assert kwargs.get("tracks_found") == 10
+        assert kwargs.get("exhausted") is False
+        assert kwargs.get("error") is None
+
+    @patch("core.src.perf_log.record_run")
+    @patch("app.load_profile", side_effect=RuntimeError("boom"))
+    @patch("app.get_playlist_size", return_value=10)
+    @patch("app.get_debug_mode", return_value=False)
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    @patch("app.is_profile_trained", return_value=True)
+    def test_perf_log_record_run_called_on_error(
+        self, _mock_trained, _mock_spotify, _mock_debug, _mock_size,
+        _mock_load, mock_record, client,
+    ):
+        resp = client.post(
+            "/api/run",
+            data=json.dumps({"run_id": "test-run-err"}),
+            content_type="application/json",
+        )
+        resp.data.decode()
+        # Even when the run blew up before producing tracks, the finally
+        # block should still record a perf-log row with the error
+        # message. That's the whole point of writing it pre-finalize.
+        assert mock_record.called
+        kwargs = mock_record.call_args.kwargs
+        assert kwargs.get("error") is not None
+        assert "boom" in kwargs.get("error")
+        assert kwargs.get("tracks_found") == 0
+
+
+class TestSseErrorClassification:
+    """U2 (2026-05-07): _sse_error tags transient upstream failures."""
+
+    def _parse(self, sse_line):
+        # SSE frame format: "data: {json}\n\n"
+        assert sse_line.startswith("data: ")
+        return json.loads(sse_line[len("data: "):].strip())
+
+    def test_translatable_error_propagates_class(self):
+        from app import _sse_error
+        from core.src.errors import TranslatableError
+
+        exc = TranslatableError(
+            "error.transient.x", "Slow.", error_class="transient",
+        )
+        payload = self._parse(_sse_error(exc))
+        assert payload["type"] == "error"
+        assert payload["error_class"] == "transient"
+        assert payload["error_key"] == "error.transient.x"
+
+    def test_openai_rate_limit_classified_transient(self):
+        from app import _sse_error
+        from core.src.openai_http import OpenAIRateLimitError
+
+        exc = OpenAIRateLimitError("429", status_code=429)
+        payload = self._parse(_sse_error(exc))
+        assert payload["error_class"] == "transient"
+        assert payload["error_key"] == "error.transient.openai_rate_limited"
+
+    def test_spotify_429_classified_transient(self):
+        from app import _sse_error
+        from spotipy.exceptions import SpotifyException
+
+        exc = SpotifyException(429, -1, "rate limited")
+        payload = self._parse(_sse_error(exc))
+        assert payload["error_class"] == "transient"
+        assert payload["error_key"] == "error.transient.spotify_rate_limited"
+
+    def test_spotify_503_classified_transient(self):
+        from app import _sse_error
+        from spotipy.exceptions import SpotifyException
+
+        exc = SpotifyException(503, -1, "unavailable")
+        payload = self._parse(_sse_error(exc))
+        assert payload["error_class"] == "transient"
+        assert payload["error_key"] == "error.transient.spotify_unavailable"
+
+    def test_spotify_4xx_not_classified_transient(self):
+        from app import _sse_error
+        from spotipy.exceptions import SpotifyException
+
+        exc = SpotifyException(400, -1, "bad request")
+        payload = self._parse(_sse_error(exc))
+        assert "error_class" not in payload
+
+    def test_plain_runtime_error_omits_class(self):
+        from app import _sse_error
+
+        payload = self._parse(_sse_error(RuntimeError("boom")))
+        assert "error_class" not in payload
+        assert payload["message"] == "boom"
+
+    def test_string_message_path_unchanged(self):
+        from app import _sse_error
+
+        payload = self._parse(_sse_error("plain string error"))
+        assert payload == {"type": "error", "message": "plain string error"}
+
+
+class TestNullUriDedupeRegression:
+    """N3d (2026-05-13) — Track-A verifier-swap regression test.
+
+    ``NullVerifier`` returns ``uri=None`` for every track. Before the
+    fix, ``app.py`` deduped by URI so every subsequent track was
+    silently dropped (cache-less evals reported playlist=1). The fix
+    falls back to (artist, track) when uri is falsy. This test pins
+    the behaviour: 10 distinct (artist, track) tuples with
+    ``uri=None`` must all be retained.
+    """
+
+    @patch("app.save_run")
+    @patch("app.add_to_playlist")
+    @patch("app.iter_search_tracks")
+    @patch("app.filter_duplicate_suggestions")
+    @patch("app.call_gpt")
+    @patch("app.save_profile")
+    @patch("app.update_profile")
+    @patch("app.normalize_history")
+    @patch("app.load_profile")
+    @patch("app.get_new_artist_percentage", return_value=30)
+    @patch("app.get_playlist_size", return_value=10)
+    @patch("app.get_debug_mode", return_value=False)
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    @patch("app.is_profile_trained", return_value=True)
+    def test_null_uri_does_not_dedupe_to_one_track(
+        self, _mock_trained, _mock_spotify, _mock_debug, _mock_size,
+        _mock_percentage, mock_load, mock_norm, mock_update,
+        _mock_save, mock_gpt, mock_filter, mock_search, mock_add,
+        _mock_save_run, client,
+    ):
+        mock_load.return_value = {
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {},
+            "preferences": {},
+        }
+        mock_norm.return_value = mock_load.return_value
+        picks = [
+            {"artist": f"artist-{i}", "track": f"track-{i}", "reason": "r"}
+            for i in range(10)
+        ]
+        mock_gpt.return_value = (
+            {
+                "playlist": list(picks),
+                "new_artists": [p["artist"] for p in picks],
+                "profile_updates": {"suggested_artists": [], "suggested_tracks": []},
+            },
+            {"usage": None, "latency_s": 0.0},
+        )
+        mock_filter.return_value = {
+            "playlist": list(picks),
+            "new_artists": [p["artist"] for p in picks],
+            "profile_updates": {"suggested_artists": [], "suggested_tracks": []},
+        }
+        mock_update.return_value = mock_load.return_value
+        # NullVerifier-shaped output: every track has uri=None.
+        mock_search.side_effect = lambda *_a, **_kw: iter(
+            [("found",
+              {"artist": p["artist"], "track": p["track"], "uri": None,
+               "cover_url": None})
+             for p in picks]
+        )
+        mock_add.return_value = {"url": "https://open.spotify.com/playlist/test", "added": 10}
+
+        resp = client.post(
+            "/api/run",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        data = resp.data.decode()
+        # Each of the 10 distinct artists must appear in the SSE
+        # stream. Pre-fix only artist-0 made it through.
+        for i in range(10):
+            assert f"artist-{i}" in data, (
+                f"artist-{i} missing — null-uri dedup regression "
+                "(only one track survives instead of all 10)"
+            )
+
+
+class TestQ2OverlayPruning:
+    """Q2 (2026-05-23) — per-batch overlay pruning.
+
+    Production post-mortem (run 435c7016, 2026-05-22 evening) showed
+    Spotify-found rate collapsing 26% → 7% → 0% across consecutive
+    runs because Stage 3 kept picking from a static `known:` overlay
+    where most tracks failed Spotify verify but were re-offered every
+    batch. ``_prune_dead_tracks_from_overlay`` strips already-verified
+    AND already-failed-this-run tracks so each batch sees a strictly
+    smaller overlay.
+    """
+
+    def test_passthrough_when_no_dead_tracks(self):
+        from app import _prune_dead_tracks_from_overlay
+        overlay = {"foo": ["one", "two"], "bar": ["three"]}
+        result = _prune_dead_tracks_from_overlay(overlay, [], [])
+        assert result == overlay
+
+    def test_passthrough_on_empty_overlay(self):
+        from app import _prune_dead_tracks_from_overlay
+        assert _prune_dead_tracks_from_overlay(None, [], []) is None
+        assert _prune_dead_tracks_from_overlay({}, [], []) == {}
+
+    def test_drops_verified_tracks_from_overlay(self):
+        from app import _prune_dead_tracks_from_overlay
+        overlay = {"foo": ["one", "two", "three"]}
+        verified = [{"artist": "Foo", "track": "Two"}]
+        out = _prune_dead_tracks_from_overlay(overlay, verified, [])
+        assert out == {"foo": ["one", "three"]}
+
+    def test_drops_unverified_tracks_from_overlay(self):
+        from app import _prune_dead_tracks_from_overlay
+        overlay = {"foo": ["one", "two", "three"]}
+        unverified = [{"artist": "Foo", "track": "Three"}]
+        out = _prune_dead_tracks_from_overlay(overlay, [], unverified)
+        assert out == {"foo": ["one", "two"]}
+
+    def test_artist_can_be_drained_to_empty_list(self):
+        from app import _prune_dead_tracks_from_overlay
+        overlay = {"foo": ["one", "two"]}
+        unverified = [{"artist": "FOO", "track": "ONE"},
+                      {"artist": "Foo", "track": "two"}]
+        out = _prune_dead_tracks_from_overlay(overlay, [], unverified)
+        assert out == {"foo": []}
+
+    def test_case_insensitive_matching(self):
+        from app import _prune_dead_tracks_from_overlay
+        overlay = {"foo": ["Mixed Case Track"]}
+        verified = [{"artist": "FOO", "track": "mixed case track"}]
+        out = _prune_dead_tracks_from_overlay(overlay, verified, [])
+        assert out == {"foo": []}
+
+    def test_does_not_affect_other_artists(self):
+        from app import _prune_dead_tracks_from_overlay
+        overlay = {"foo": ["one"], "bar": ["one"]}
+        verified = [{"artist": "Foo", "track": "One"}]
+        out = _prune_dead_tracks_from_overlay(overlay, verified, [])
+        assert out == {"foo": [], "bar": ["one"]}, (
+            "track 'one' under 'bar' must survive — different artist"
+        )
+
+    def test_missing_artist_or_track_in_dead_entries_is_safe(self):
+        from app import _prune_dead_tracks_from_overlay
+        overlay = {"foo": ["one"]}
+        verified = [{"artist": "", "track": "one"}, {"artist": "foo"}]
+        out = _prune_dead_tracks_from_overlay(overlay, verified, [])
+        assert out == overlay, "blank/missing keys must not match anything"
+
+
+class TestPerArtistCap:
+    """2026-05-30 — per-artist diversity cap with overflow backfill."""
+
+    def _tracks(self, *pairs):
+        return [{"artist": a, "track": t} for a, t in pairs]
+
+    def test_caps_and_frontloads_diversity(self):
+        from app import _enforce_per_artist_cap
+        tracks = self._tracks(
+            ("A", "1"), ("A", "2"), ("A", "3"),
+            ("B", "1"), ("B", "2"),
+            ("C", "1"),
+        )
+        out = _enforce_per_artist_cap(tracks, 2)
+        # No track is lost (stable reorder, not a filter).
+        assert len(out) == len(tracks)
+        # The leading window (first 4 = within-cap picks) has <=2 per artist.
+        leading = out[:4]
+        from collections import Counter
+        counts = Counter(t["artist"] for t in leading)
+        assert all(c <= 2 for c in counts.values())
+        # A's 3rd track is pushed to the overflow tail.
+        assert out[-1] == {"artist": "A", "track": "3"}
+
+    def test_thin_pool_still_fills_via_overflow(self):
+        # 3 artists, 5 tracks each — pool is "thin" in variety. With a
+        # target of 10 the playlist must still contain 10 tracks, but the
+        # first slots favour variety.
+        from app import _enforce_per_artist_cap
+        tracks = self._tracks(*[("A", str(i)) for i in range(5)],
+                              *[("B", str(i)) for i in range(5)],
+                              *[("C", str(i)) for i in range(5)])
+        out = _enforce_per_artist_cap(tracks, 2)
+        assert len(out) == 15  # nothing dropped
+        first6 = out[:6]
+        from collections import Counter
+        assert set(Counter(t["artist"] for t in first6)) == {"A", "B", "C"}
+        assert all(c == 2 for c in Counter(t["artist"] for t in first6).values())
+
+    def test_case_insensitive_artist_key(self):
+        from app import _enforce_per_artist_cap
+        tracks = self._tracks(("Foo", "1"), ("foo", "2"), ("FOO", "3"))
+        out = _enforce_per_artist_cap(tracks, 2)
+        assert out[-1]["track"] == "3"  # 3rd 'foo' overflows regardless of case
+
+    def test_cap_zero_is_noop(self):
+        from app import _enforce_per_artist_cap
+        tracks = self._tracks(("A", "1"), ("A", "2"))
+        assert _enforce_per_artist_cap(tracks, 0) == tracks
+
+
+class TestQ3LowFoundRateTrigger:
+    """Q3 (2026-05-23) — low-found-rate pool widening trigger.
+
+    Production trace 435c7016 verified 4/30 tracks across 7 batches at
+    a cumulative Spotify-found rate of 7% while never firing A6 (the
+    existing trigger required `consecutive_empty_batches`, which only
+    catches post-dedup-empty batches, not Spotify-cascade misses).
+    This trigger fires earlier on the Spotify-cascade failure mode.
+    """
+
+    def _f(self, **kw):
+        from app import _should_widen_pool_on_low_found_rate
+        defaults = dict(
+            batch_num=3,
+            cum_stage3_returned=30,
+            cum_spotify_found=2,  # 7% — the production failure rate
+            use_staged_pipeline=True,
+            reretrieve_done=False,
+            corpus_loaded=True,
+        )
+        defaults.update(kw)
+        return _should_widen_pool_on_low_found_rate(**defaults)
+
+    def test_fires_at_production_failure_rate(self):
+        # 2/30 = 6.7% — well under the 30% threshold.
+        assert self._f() is True
+
+    def test_does_not_fire_when_found_rate_is_healthy(self):
+        assert self._f(cum_spotify_found=15) is False  # 50% > 30%
+
+    def test_does_not_fire_before_min_batches(self):
+        assert self._f(batch_num=1) is False
+
+    def test_fires_on_exactly_min_batches(self):
+        assert self._f(batch_num=2) is True
+
+    def test_skipped_when_reretrieve_already_done(self):
+        assert self._f(reretrieve_done=True) is False
+
+    def test_skipped_when_corpus_not_loaded(self):
+        assert self._f(corpus_loaded=False) is False
+
+    def test_skipped_when_staged_pipeline_off(self):
+        assert self._f(use_staged_pipeline=False) is False
+
+    def test_safe_on_zero_stage3_returns(self):
+        # Division-by-zero guard: stage3 returned nothing yet.
+        assert self._f(cum_stage3_returned=0, cum_spotify_found=0) is False
+
+    def test_at_threshold_exactly_does_not_fire(self):
+        # 3/10 = 0.3 exactly — must be STRICTLY less than 0.3 to fire.
+        assert self._f(cum_stage3_returned=10, cum_spotify_found=3) is False
+
+    def test_just_below_threshold_fires(self):
+        # 2/10 = 0.2 — clearly below 0.3.
+        assert self._f(cum_stage3_returned=10, cum_spotify_found=2) is True

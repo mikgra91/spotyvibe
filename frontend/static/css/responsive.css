@@ -9,7 +9,7 @@
     .tab-bar { gap: 0; }
     .tab-bar-btn { padding: var(--sp-2) var(--sp-3); font-size: var(--fs-sm); }
 
-    /* Hide "Open data directory" — not functional on mobile / Android WebView */
+    /* Hide "Open data directory" — not functional on mobile browsers */
     #openDataDirBtn { display: none; }
 
     h1 { font-size: 2.2rem; }
@@ -230,17 +230,24 @@
 
     .form-actions .btn { width: 100%; text-align: center; justify-content: center; }
 
-    /* Audio filter grid — stack label above inputs on narrow screens */
-    .audio-filter-grid { grid-template-columns: 1fr 1fr; }
-
-    .audio-filter-grid-header { grid-template-columns: 1fr 1fr; }
-
+    /* Audio filter grid — stack label above min/max on narrow screens */
+    .audio-filter-grid-header {
+        grid-template-columns: 1fr 1fr;
+    }
     .audio-filter-grid-header span:first-child,
     .audio-filter-grid-header .audio-filter-clear-btn { grid-column: 1 / -1; }
 
-    .audio-filter-row label { grid-column: 1 / -1; }
-
-    .audio-filter-hint-text { grid-column: 1 / -1; }
+    .audio-filter-row {
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+            "label label"
+            "min   max"
+            "hint  hint"
+            "desc  desc"
+            "lm    lm";
+    }
+    .audio-filter-row .audio-filter-hint-text { justify-self: start; }
+    .audio-filter-row .learn-more { justify-self: start; }
 
     /* Song analysis — stack inputs vertically on narrow screens */
     .analysis-input-row { flex-direction: column; }
@@ -269,7 +276,7 @@
 
     .spotify-preview-nav { width: 32px; height: 32px; font-size: var(--fs-xl); }
 
-    /* ── Prevent input zoom (font-size < 16px triggers zoom on Android/iOS) ── */
+    /* ── Prevent input zoom (font-size < 16px triggers zoom on mobile) ── */
     input[type="text"],
     input[type="number"],
     input[type="email"],
@@ -385,7 +392,7 @@
 }
 
 /* =============================================
-   Onboarding Screen (Android)
+   Onboarding Screen
    ============================================= */
 .onboarding-body {
     background: var(--bg-main);

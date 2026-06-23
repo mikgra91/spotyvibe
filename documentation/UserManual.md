@@ -1,759 +1,372 @@
 # User Manual
 
-Welcome to **SpotyVibe** — your personal AI music discovery assistant.
-This guide walks you through setting up the app and using all of its features.
+Setup and usage guide for **SpotyVibe** — your AI-powered Spotify playlist generator.
 
 ---
 
 ## Prerequisites
 
-Before you start, make sure you have:
+- **Python 3.10+** — [python.org](https://www.python.org/downloads/)
+- **Spotify Premium account** — required; Spotify's Web API needs Premium to create playlists.
+- **Internet connection.**
+- API keys:
 
-- **Python 3.10 or newer** installed on your computer. You can download it from [python.org](https://www.python.org/downloads/).
-- A **Spotify Premium account** (required — Spotify's developer API requires Premium to create and modify playlists).
-- An **internet connection** (the app communicates with OpenAI and Spotify online).
-
-You will also need two sets of API keys (free to obtain):
-
-| Key | Where to get it |
+| Key | Get it from |
 |---|---|
-| **OpenAI API Key** | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) — sign up and create a new API key. |
-| **Spotify Client ID & Secret** | [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) — create a new app to get your Client ID and Client Secret. |
+| **OpenRouter API key** (recommended default) | [openrouter.ai/keys](https://openrouter.ai/keys) |
+| OpenAI API key (alternative) | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| Spotify Client ID + Secret | [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) |
 
-> **Important:** When creating your Spotify app in the Developer Dashboard, you must add the following **Redirect URIs** in the app settings:
-> - `http://127.0.0.1:5000/callback` — required for the **desktop** app
-> - `spotyvibe://callback` — required for the **Android APK**
->
-> Without the matching URI for your platform, Spotify authentication will fail with "redirect_uri: No matching configuration".
+> SpotyVibe ships with **OpenRouter + GPT-5.4-mini** (`openai/gpt-5.4-mini`) as the default provider/model. Switched 2026-05-20 after extensive eval — see [model-performance-result.md](../evaluation/model-performance-result.md). OpenAI is still supported — switch via Settings → Provider.
 
-> **💰 Cost note:** The OpenAI API is a **paid service**. Each playlist generation and profile training uses API credits. The default model (`gpt-5.4-mini`) is very affordable, but larger models cost significantly more. See [OpenAI Pricing](https://platform.openai.com/docs/pricing) for details.
+> When registering the Spotify app, add the redirect URI:
+> - `http://127.0.0.1:5000/callback`
 
----
-
-## Installation
-
-1. **Download** or clone the project to your computer.
-
-2. **Open a terminal** (Command Prompt, PowerShell, or Git Bash) and navigate to the `spotyvibe` folder:
-   ```
-   cd path/to/spotyvibe
-   ```
-
-3. **Install dependencies:**
-   ```
-   pip install -r requirements.txt
-   ```
-
-That's it — the app is ready to use.
+> **💰 Cost:**
+> - **GPT-5.4-mini via OpenRouter (default)** — ~$0.045 per playlist; a €5-10 deposit on [openrouter.ai/credits](https://openrouter.ai/credits) lasts ~120-240 playlists.
+> - **Gemini 3.1 Flash Lite via OpenRouter (cheap)** — ~$0.015 per playlist; the same deposit lasts ~330-660 playlists.
+> - **OpenAI gpt-5.4-mini** — ~$0.05/playlist. See [OpenAI Pricing](https://platform.openai.com/docs/pricing).
+> - **Free local runtimes** (Ollama, LM Studio) — zero cost; quality varies. See [Custom AI Provider](#custom-ai-provider).
 
 ---
 
-## Starting the App
+## Install & Run
 
 ### Windows
 
-Run the following command in the `spotyvibe` folder:
-
-```
+```bash
+pip install -r requirements.txt
 python app.py
 ```
 
-Then open your browser and go to: **http://127.0.0.1:5000**
-
-You should see the SpotyVibe interface — a premium dark cinematic layout with a vignette-edged stage, animated background visuals, floating frosted dark-glass panels, and luminous green accents.
-
-> **Accessibility note:** If you have reduced-motion preferences enabled in your operating system, all animations and transitions are automatically disabled.
+Then open <http://127.0.0.1:5000>.
 
 ### macOS / Linux
 
-1. **Install Python 3.10+** if you have not already:
-   - macOS (Homebrew): `brew install python@3.12`
-   - Debian/Ubuntu: `sudo apt install python3 python3-pip`
-   - Fedora: `sudo dnf install python3`
-   - Arch: `sudo pacman -S python`
-
-2. **Download the `.whl` file** from the latest [GitHub Release](https://github.com/mikgra91/spotyvibe/releases).
-
-3. **Install and run:**
-   ```
+1. Install Python 3.10+ (`brew install python@3.12` / `sudo apt install python3 python3-pip`).
+2. Download `spotyvibe-*.whl` from the latest [GitHub Release](https://github.com/mikgra91/spotyvibe/releases).
+3. Run:
+   ```bash
    pip install spotyvibe-*.whl
    spotyvibe
    ```
-   The server starts and your default browser opens to `http://127.0.0.1:5000`.
 
-4. **Press Ctrl+C** to stop the server.
+Press **Ctrl+C** to stop.
 
-> **macOS port 5000:** AirPlay Receiver uses port 5000 by default. If SpotyVibe reports a port conflict, disable AirPlay Receiver: **System Settings → General → AirDrop & Handoff → AirPlay Receiver → Off**.
+> **macOS port 5000:** AirPlay Receiver uses this port. If SpotyVibe fails to start, disable it: **System Settings → General → AirDrop & Handoff → AirPlay Receiver**.
 
----
-
-## Building a Windows executable (optional)
-
-If you want to run SpotyVibe without installing Python, you can build a Windows executable using PyInstaller.
+### Windows executable (optional)
 
 ```bash
-pip install -r requirements.txt
-python build_assets/make_ico.py
-
-
-# One-folder build (recommended)
-pyinstaller --noconfirm --clean spotyvibe.spec
-
-# (Optional) one-file build
-pyinstaller --noconfirm --clean spotyvibe_onefile.spec
-
-# Or use the helper script:
-#   ./build-tools/build_exe.sh --package
-#   ./build-tools/build_exe.sh --full
+bash build-tools/build_exe.sh --package    # dist/spotyvibe/spotyvibe.exe
+bash build-tools/build_exe.sh --full       # dist/spotyvibe_onefile.exe
 ```
 
-
-Then run either:
-- One-folder: `dist/spotyvibe/spotyvibe.exe`
-- One-file: `dist/spotyvibe_onefile.exe`
-
-
-The executable opens a native window with the SpotyVibe UI — no external browser needed. Closing the window cleanly terminates the process.
-
-> **One-file note:** The one-file build may start more slowly on first launch because it extracts bundled files to a temporary directory.
-
-
-> **Note:** Your credentials are stored in your operating system's keychain (e.g. Windows Credential Manager), not as plain text on disk. App settings (model, playlist size, etc.) are stored separately in `%LOCALAPPDATA%\spotyvibe\settings.conf`.
-
-
-
----
-
-## Quick Start Guide
-
-When you open SpotyVibe for the first time, a **Quick Start Guide** appears automatically for the currently active provider section. The guide is split into two provider-scoped variants:
-
-- **🤖 OpenAI Quick Start** — covers Setup, Build Your Profile, and Repeat & Improve (3 content steps).
-- **🎵 Spotify Quick Start** — covers Setup, Generate a Playlist, Review & Feedback, Refine Existing Playlists, and Repeat & Improve (5 content steps).
-
-Each variant shows only the steps relevant to its provider, and each has its own independent **"Don't show again"** preference.
-
-### What the guide includes
-
-Both guides share a **table of contents** landing page that only lists the relevant steps. The full six-step pool is:
-
-1. **Setup** — enter API keys, connect Spotify, choose theme and language. *(Both)*
-2. **Build Your Profile** — create a music taste profile using free-text or structured fields. *(OpenAI)*
-3. **Generate a Playlist** — pick a mode, set optional audio filters, and generate. *(Spotify)*
-4. **Review & Feedback** — preview tracks, like the gems, dislike the misses. *(Spotify)*
-5. **Refine Existing Playlists** — revisit any playlist and curate it further. *(Spotify)*
-6. **Repeat & Improve** — each run gets better as your profile learns. *(Both)*
-
-Each step includes a **Key Actions** checklist, an **Outcome** summary, and an **interactive demo** that animates through the relevant UI area so you can see exactly what to click.
-
-### Navigation
-
-- Use the **numbered dots** at the bottom to jump to any step (dots only reflect the visible steps for the active provider).
-- Use **‹ Back** and **Next ›** to page through.
-- Click any **workflow circle** at the top of the contents page to jump directly (hidden steps are not shown).
-- On the last page, **Next** becomes **Get Started** and closes the guide.
-
-### Dismissing and reopening
-
-- Check **"Don't show again"** on any page to prevent that provider's guide from appearing on future visits.
-- When you switch to the other provider section for the first time in a session, its guide auto-shows if you haven't dismissed it.
-- To reopen the guide at any time, click the **☰ menu** and select **🚀 Quick Start** — it opens the guide for whichever provider section is currently active.
+The executable opens a native window — no external browser. Credentials stay in the OS keychain.
 
 ---
 
 ## First-Time Setup
 
+When you open SpotyVibe, a **Getting Started** card appears on the home page with a 5-item checklist (enter keys → connect Spotify → build profile → generate a playlist → give feedback). Each item auto-checks as you complete it, and the **Jump** button scrolls to the relevant section.
 
-### 1. Enter Your API Keys
+### 1. Enter API keys
 
-Click the **☰ menu icon** (hamburger menu) in the top-right corner and select **🔑 Credentials**.
+☰ → **🔑 Credentials**. Paste your **OpenRouter API key** (or OpenAI key if you switched providers), Spotify Client ID, and Secret. Keys are stored in the OS keychain (Windows Credential Manager / macOS Keychain).
 
-Enter the three values:
+> The credential field is labelled `OPENAI_API_KEY` for historical reasons but accepts any provider's bearer token — what matters is the active `PROVIDER_PRESET` and `LLM_BASE_URL`.
 
-- **OpenAI API Key** — your key from OpenAI.
-- **Spotify Client ID** — from your Spotify Developer app.
-- **Spotify Client Secret** — from your Spotify Developer app.
+### 2. Pick a model
 
-Click **Save**. Your credentials are stored securely in your operating system's keychain (e.g. Windows Credential Manager). They are never saved as plain text and are never committed to version control. App preferences (model selection, playlist size, etc.) are stored separately in `settings.conf` at `%LOCALAPPDATA%\spotyvibe\`.
+☰ → **⚙️ Settings**. Default is `openai/gpt-5.4-mini` (OpenRouter); the cheaper recommended alternative is `google/gemini-3.1-flash-lite`. To switch to OpenAI, change **Provider** to `openai` — the dropdown then offers `gpt-5.4-mini`, `gpt-5.4`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`.
 
-> **💰 Cost note:** SpotyVibe uses the OpenAI API, which is a **paid service**. Each generation run and each profile training call costs money. Check [OpenAI Pricing](https://platform.openai.com/docs/pricing) for details.
+The mode-strategy switch (Fast / Best / Auto / Custom) was removed on 2026-05-14: the default model matches gpt-5.4's quality at a fraction of the cost, eliminating the trade-off the picker used to manage. Pick a model — that's it.
 
-### 2. Choose an AI Model
+The Settings modal also exposes:
 
-Open the **☰ menu** and select **⚙️ Settings**.
+- **Playlist Size** — 5–30 tracks (default: 10).
+- **New Artist %** — 1–100 (default: 30). Higher = more aggressive exploration.
+- **ChatGPT Language** — language the AI uses in its replies (independent of the UI language).
+- **Display size** — Small / Default / Large. Scales the whole UI.
+- **Debug mode** — desktop only; logs GPT requests to `%LOCALAPPDATA%\spotyvibe\debug.log`.
 
-The **Used Model** dropdown lists all available models. The default is `gpt-5.4-mini`. Available models are `gpt-5.4`, `gpt-5.4-mini`, `gpt-4.1`, `gpt-4.1-mini`, and `gpt-4.1-nano`.
+### 3. Choose UI language
 
-You can switch to a different model at any time. More capable models (e.g., `gpt-5.4`, `gpt-4.1`) may produce better recommendations but cost more per request.
+Language picker in the header: **English**, **Deutsch**, or **日本語**. Persists in your browser.
 
-> **⚠️ Cost warning:** Different models have very different prices — for example, `gpt-4.1` can cost 10× more per request than `gpt-4.1-mini`. Check [OpenAI Pricing](https://platform.openai.com/docs/pricing) to understand the costs before switching models.
+### 4. Choose a theme
 
-**Playlist Size** — controls how many tracks are generated per run (minimum 10, default 10).
+Below the title: **Equalizer** (default — frequency bars) or **Pulse** (concentric rings). Saved to browser localStorage.
 
-**New Artist %** — sets the minimum percentage of suggestions per batch that must come from artists *not yet in your history* (range: 1–100, default: 30). For example, with 30% and a batch size of 10, GPT is required to include at least 3 tracks from artists it has never suggested before.
+### 5. Connect Spotify
 
-- **Higher values** (e.g., 60–80%) push GPT to explore new territory aggressively. Useful early on when your history is small.
-- **Lower values** (e.g., 10–20%) let GPT revisit artists it knows you like more often. Useful once you have a rich history and want deeper cuts from proven artists.
+After saving credentials, click **Connect to Spotify** in the banner. A popup handles the OAuth handshake. Disconnect any time via ☰ → **🔌 Disconnect Spotify**.
 
-**ChatGPT Language** — a dropdown that sets the language the AI uses when communicating with you (English / Deutsch). This controls GPT's response language for suggestions, profile analysis, and feedback — for example, track recommendation reasons will appear in the chosen language. This setting is independent of the UI language selected in the page header.
+The header carries a small **Spotify status pill** with a coloured dot — green when connected, red when disconnected, grey while the status is still being checked. The pill refreshes automatically when you switch back to the tab and click-toggles connect/disconnect like the menu item.
 
-### 3. Choose Your Language
+> If you see `403 Forbidden` during generation, the app auto-disconnects. Just click **Connect to Spotify** to reconnect.
 
-At the top of the page header you will find a **language picker**. SpotyVibe currently supports:
+### 6. Build a music profile
 
-- **English**
-- **Deutsch** (German)
+The UI has two provider sections:
 
-Selecting a language changes all UI labels, buttons, and messages. Your choice is saved in the browser (localStorage) and persists across visits — you do not need to select it again.
+- **OpenAI** — profile editor, AI profile update, Band/Song Analysis.
+- **Spotify** — Discover Tracks, Discover Artists, Refine Playlist, History.
 
-> **Note:** This setting controls the **user-interface language only**. It is independent of the ChatGPT Language setting in the Settings panel (see step 2 above), which controls the language the AI uses in its responses.
+Each section header is clickable to expand/collapse.
 
-### 4. Choose a Visual Theme
+In **Music Profile**, pick or create a profile from the dropdown (`+ Create new Profile`). Profiles are independent JSON files — great for different moods or family members.
 
-At the top of the page, below the SpotyVibe title, you'll find a **Theme** switcher with two options:
+Click **Edit profile** to open four accordion sections:
 
-| Theme | Description |
-|---|---|
-| **Equalizer** | The default — animated frequency-spectrum bars that bounce with spring physics and simulated beats. |
-| **Pulse** | Expanding concentric rings with floating particles and occasional bass-drop bursts. |
+- **💬 Describe Your Vibe** — free-text; the AI routes statements to the correct section automatically.
+- **🎵 Core Description** — foundation: genre, mood, reference artists.
+- **✅ Must Have** — hard requirements (one per line).
+- **💡 Soft Preferences** — nice-to-haves.
+- **🚫 Avoid** — disqualifiers.
 
-Click any theme button to switch instantly. Your choice is saved in the browser (localStorage) and restored automatically on your next visit.
+Then either:
 
-### 5. Connect Your Spotify Account
+- **Save** — stores your input as-is. Works even with empty fields.
+- **AI Profile Update** — GPT analyses and refines your input. Requires Core Description or Vibe text.
 
-After saving your credentials, a banner will appear asking you to **Connect to Spotify**. Click the link — a small popup window will open where you log in to Spotify and grant permission. Once authorised, the popup closes automatically and the banner disappears.
+The **Profile Strength** meter (visible while editing) shows five dimensions plus a % score and highlights what to improve next. Green glow at ≥ 60%.
 
-> **Android note:** On the Android APK, the Spotify login opens as a direct page navigation instead of a popup (Android WebView does not support popups to external URLs). After you grant permission in the system browser, the app returns to the home page automatically.
+#### Import / Export / Reset
 
-#### Disconnecting / Reconnecting
+Appear under **Edit profile** mode:
 
-If your Spotify session expires or you need to re-authenticate, open the **☰ menu** and click **🔌 Disconnect Spotify**. This clears the cached token and the "Connect to Spotify" banner will reappear so you can log in again.
+- **⬆ Import** — replace active profile from a JSON file (10 MB cap; old profile auto-backed up).
+- **⬇ Export** — download active profile as `spotyvibe_profile.json`.
+- **↩ Reset to history** — one-step undo (swaps with the backup).
+- **🗑 Delete** — permanent removal of the profile + history.
 
-> **Tip:** If you see a `403 Forbidden` error during playlist generation, the app will automatically disconnect for you. Simply click **Connect to Spotify** in the warning banner to reconnect.
+---
 
-### 6. Set Up Your Music Profile
+## Quick Start Tour (optional)
 
-Before generating suggestions, you need to tell the AI what kind of music you like. The UI is divided into two clearly labelled **provider sections**:
-
-- **OpenAI** — Everything powered by AI: your taste profile editor, AI profile updates, and AI Band/Song Analysis.
-- **Spotify** — Everything powered by Spotify: playlist generation and run history.
-
-Status pills at the top of each section show at a glance whether your credentials are configured and connected.
-
-Each major component within a section is **collapsible/expandable**. Click anywhere on the section header (the title area with the description text) or the toggle button to expand or collapse it. A short description below each title explains what that component does. The **Spotify Playlist Creation** section starts collapsed by default to keep the page compact.
-
-To set up your profile:
-
-1. In the **OpenAI** section, look at the **Music Profile** header. A **profile dropdown** lets you select, create, or delete profiles.
-   - To create your first profile, click **+ Create new Profile**, type a name (e.g. "Workout", "Chill", "Discovery"), and press Enter or click ✓.
-   - Switch between profiles at any time using the dropdown.
-   - Delete the current profile with the 🗑 **Delete** button in the import/export row.
-2. Click **Edit profile** to open the editor with four collapsible accordion sections. Fill in the ones relevant to you:
-
-   - **💬 Describe Your Vibe** — Tell the AI what you're looking for in everyday language. The AI automatically classifies your input into the correct profile sections.
-   - **🎵 Core Description** — Describe your ideal sound in your own words: genre, mood, energy, reference artists. This is the foundation of your profile.
-   - **✅ Must Have** — Non-negotiable traits every suggestion must have (one per line). These are hard requirements — a track missing any one is rejected. Example: *"strong melodies"*, *"vocals/singing"*.
-   - **💡 Soft Preferences** — Nice-to-have traits that improve a suggestion but aren't required (one per line). Example: *"slight prog influence"*.
-   - **🚫 Avoid** — Traits that immediately disqualify a track (one per line). Example: *"electronic/synth-heavy production"*, *"slow or mid-tempo songs"*.
-
-3. Choose how to save your changes:
-   - Click **Save** to store your preferences directly as-is. Save always works, even with empty fields.
-   - Click **AI Profile Update** to send your input to GPT, which will analyse and refine it into a structured taste profile. AI Profile Update requires either a Core Description or a Vibe message. The "Describe your vibe" field is cleared automatically after AI Profile Update — your free-text input has been incorporated into the structured sections.
-
-If you already have a profile, the fields are **pre-filled** with your existing preferences so you can see and edit what the AI currently knows.
-
-### Import / Export / Reset your profile
-
-When you expand the **Music Profile** editor (via **Edit profile**), extra profile file actions appear under the **Last trained** label:
-
-- **⬆ Import** — Select a JSON profile file and import it into the active profile.
-  - On Android, this opens the system file picker.
-  - Import **replaces the current active profile**.
-  - Before replacing it, SpotyVibe automatically backs up your existing profile to the history file.
-  - **Size limit:** Imported files must be **10MB or smaller**.
-
-- **⬇ Export** — Downloads your current active profile as `spotyvibe_profile.json`.
-  - On Android, the file is saved to your device's **Downloads**.
-
-- **↩ Reset to history** — Reverts the active profile to the previous saved version (one-step undo).
-  - This **swaps** the current profile and the history file.
-  - If no history exists yet, SpotyVibe will show an error.
-
-- **🗑 Delete** — Permanently deletes the current profile and its history. This cannot be undone. If other profiles exist, the first one is auto-selected.
-
-> **Tip:** The exported file is always in the correct format to re-import later.
-
-
-The AI Profile Update merges with what the AI already knows — your feedback history and past suggestions are always preserved. The direct Save option is useful when you just want to make a quick edit without waiting for AI processing.
+☰ → **🚀 Quick Start** opens a 3-step storyboard walkthrough scoped to the active provider section (OpenAI or Spotify). Each step has a short description, a key-actions checklist, and an animated mockup. Dismiss preference is per-provider.
 
 ---
 
 ## Generating a Playlist
 
-Once your profile is trained and Spotify is connected, go to the **Spotify** section and expand the **Discover Music** area.
+Expand **Discover Tracks** in the Spotify section.
 
-### Quick vs Advanced Mode
+### Quick vs Advanced mode
 
-The Generate panel has two modes, selectable via the pill toggle at the top:
+- **Quick** (default) — playlist size slider, exploration slider, Generate button.
+- **Advanced** — all controls: playlist mode, emerging artists, audio filters, new artist %, preset picker.
 
-- **Quick mode** (default) — shows only the playlist size slider, the exploration slider, and the Generate button. Perfect for everyday use.
-- **Advanced mode** — shows all controls including playlist mode, emerging artists, audio filters, new artist %, and the preset picker.
+### Exploration slider
 
-Your mode choice is remembered across sessions.
+5 notches, each with a preset (playlist size, new-artist %, emerging toggle, temperature):
 
-### Exploration Slider
+| Notch | Label | New artist % | Emerging | Temp |
+|---|---|---|---|---|
+| 1 | Familiar | 10 | no | 0.5 |
+| 2 | Mostly known | 25 | no | 0.7 |
+| 3 | Balanced | 50 | no | 0.8 |
+| 4 | Mostly new | 70 | no | 0.9 |
+| 5 | Adventurous | 90 | yes | 1.0 |
 
-Both modes include the **Exploration vs Accuracy** slider — a 5-notch control that adjusts how adventurous your suggestions will be:
+Hand-editing a field in Advanced mode to an off-preset value shows a **Custom** state with a dashed thumb.
 
-| Notch | Label | New artist % | Emerging only | Temperature |
-|-------|-------|-------------|---------------|-------------|
-| 1 | Familiar | 10% | No | 0.5 |
-| 2 | Mostly known | 25% | No | 0.7 |
-| 3 | Balanced | 50% | No | 0.8 |
-| 4 | Mostly new | 70% | No | 0.9 |
-| 5 | Adventurous | 90% | Yes | 1.0 |
+### Presets
 
-In Advanced mode, if you hand-edit the "New Artist %" or "Emerging artists" checkbox to a value that doesn't match any notch, the slider shows a **Custom** state with a dashed thumb. Moving the slider back to any notch resets those fields.
+The preset dropdown ships with **Safe picks**, **Balanced**, and **Deep discovery**. Save your own via "💾 Save current as preset…". Manage (rename, delete, reorder, import, export) via ☰ → **🎛 Manage presets**.
 
-### Generation Presets
+When you hand-edit the **New Artist %** field to a value that no longer matches the active preset, a small **CUSTOM** badge appears next to the input. The active preset itself is untouched — save the deviation as a new preset (or update the existing one) to make it persistent.
 
-In Advanced mode, a **Preset** dropdown lets you save and recall complete generation configurations (size, exploration level, audio filters, etc.):
+### Artist coverage
 
-- **3 built-in presets** ship with the app: Safe picks, Balanced, and Deep discovery. These cannot be edited but can be cloned.
-- **User presets** appear above the built-ins. Create one via "💾 Save current as preset…".
-- Open **☰ Menu → 🎛 Manage presets** to rename, delete, reorder, import, or export presets.
-- Presets are stored locally on your device.
+SpotyVibe's offline artist corpus (the optional **Candidate pool (RAG)** in Settings) only includes acts that started in the **1960s or later**. Pre-1960s music is intentionally excluded — the share of typical SpotyVibe listening before 1960 is negligible and dropping it keeps the index lean. The same note appears as a tooltip (ⓘ) next to the toggle in Settings.
 
-### Profile Completeness Meter
+### Local LLMs and the candidate pool (RAG)
 
-When editing your Music Profile, a **Profile Strength** meter is visible inside the profile editor. It shows five dimensions (Core Description, Must Have, Soft Preferences, Avoid, Edited) with a percentage score, and suggests what to improve next. At 60% or above, the meter displays a green glow to indicate the profile is strong enough for good recommendations. The meter updates in real-time as you type or when fields are filled programmatically (e.g., from a playlist draft).
+If you point SpotyVibe at a **local LLM** (Ollama, LM Studio, …) with a small context window (4 k or 8 k tokens), keep these limits in mind:
 
-### Playlist Mode
+- The candidate pool adds ~700 tokens to every prompt. With a 60-slot pool, profile, history and JSON output the conversation typically lands at **4–6 k tokens**.
+- If your local model truncates the prompt, **disable RAG** (Settings → Candidate pool), lower `RAG_POOL_SIZE`, or switch to a 16 k+ context model. The RAG feature was designed for hosted GPT-4-class models; smaller open-weight models also tend to ignore the pool more often, so the quality uplift may not justify the extra tokens.
 
-Before generating, choose a **playlist mode** from the selector:
+### Playlist mode
 
 | Mode | Behaviour |
 |---|---|
-| **Default** | Uses the standard "SpotyVibe Playlist". If it already exists, new tracks are appended. |
-| **Create new** | Always creates a brand-new playlist. You can enter a custom name. |
-| **Append** | Adds tracks to an existing playlist you pick from a dropdown. |
-| **Replace** | Clears all tracks in the chosen existing playlist and adds the new tracks. |
+| Default | Reuses or creates the "SpotyVibe Playlist" |
+| Create new | Always creates a new playlist |
+| Append | Adds to an existing playlist |
+| Replace | Clears an existing playlist first |
 
-Custom playlist names support **tokens** that are replaced automatically:
+Custom names accept `{date}` and `{style}` tokens.
 
-- `{date}` — replaced with the current date (e.g. `2026-03-29`).
-- `{style}` — replaced with a short style tag derived from your profile.
+### Audio filters (Advanced)
 
-For example, a name template of `SpotyVibe {style} {date}` might produce `SpotyVibe Prog-Rock 2026-03-29`.
+Collapsible sub-panel. Set min/max for **energy**, **valence**, **tempo**, **danceability**, **acousticness**. A live hint renders as you type (e.g. "↳ Energetic to Intense"). Filters are injected into the GPT prompt, not post-filtered. **✕ Clear all** resets everything.
 
-### Audio Feature Filters
+The fastest way to set filters is from a **Band/Song Analysis** result — each feature row has a **⇒ Filter** button (±10 %, ±15 BPM for tempo), and **⇒ Use All as Filters** applies all at once.
 
-Below the playlist mode selector inside the **Discover Music** section, you will find a collapsible **🎚 Audio Filters (optional)** sub-panel. Click it to expand. These optional filters guide GPT to suggest tracks matching your desired mood and feel:
+### Emerging artists only
 
-- **Energy** — how intense / energetic the track feels (0–1)
-- **Valence** — how happy / positive the track sounds (0–1)
-- **Tempo** — beats per minute (BPM)
-- **Danceability** — how suitable the track is for dancing (0–1)
-- **Acousticness** — how acoustic (vs. electronic) the track is (0–1)
+Checkbox. When on:
 
-Each filter has a **min** and **max** input. As you type, a human-readable hint appears next to the inputs (e.g. "↳ Energetic to Intense, aggressive") so you can understand what the numbers represent without guessing.
+- GPT is told to only suggest artists that debuted in the last 6 months.
+- Tracks are also validated against Spotify release dates post-search.
+- The final playlist may contain **fewer** tracks than requested (only emerging artists survive).
 
-Leave a filter's inputs empty to skip that filter entirely. If all filters are empty, no filtering is applied. Click **✕ Clear all** to reset every filter at once.
+### Running the generation
 
-#### Using Band/Song Analysis to Set Filters
+Click **▶ Generate & Create Playlist**. A spinner appears in-section with live progress messages. When done, the tracks render below with album art, reason text, and Spotify links — and are added to the playlist.
 
-The quickest way to set audio filters is from a **Band/Song Analysis** result:
+### Stopping early
 
-1. Open **Band/Song Analysis** (in the OpenAI section) and analyse a reference artist or track.
-2. In the results, each audio feature row has a **⇒ Filter** button that sets a sensible min/max range (±10%, or ±15 BPM for tempo) directly in the Discover Music filter panel.
-3. Click **⇒ Use All as Filters** to apply all available features at once.
-4. The Discover Music section and filter panel expand automatically when a filter is applied.
-
-This bridges the gap between research and generation — analyse a song you love, then apply its characteristics as filters with one click.
-
-### Emerging Artists Only
-
-Between the playlist name/mode controls and the Audio Filters panel, you will find an **"Only new / emerging artists"** checkbox. When checked:
-
-- GPT is instructed to **only suggest tracks by artists who debuted in the last 6 months**.
-- After Spotify search, tracks are additionally filtered by their album **release date** — any track whose release predates the 6-month window is discarded.
-- Because many suggestions will be filtered out, the AI requests more tracks per batch than normal (+20 instead of +5).
-- The final playlist may contain **fewer tracks** than your configured playlist size. A status message explains how many tracks survived filtering (e.g., "Showing 14 of 30 checked tracks — only tracks by recently emerged artists are included.").
-
-Leave the checkbox unchecked for normal generation behaviour.
-
-### Running a Generation
-
-1. Click **▶ Generate & Create Playlist**.
-2. A loading spinner appears below the button inside the Discover Music section, with progress messages updating underneath it as the AI works:
-   - It asks GPT for track suggestions based on your taste until it reaches your configured **Playlist Size** (default: 10).
-   - It verifies each track exists on Spotify.
-   - If some tracks aren't found, it automatically retries with new suggestions.
-
-3. When finished, the suggested tracks appear inside the Discover Music section — below the button, separated by a divider — each shown with its **album cover artwork**. The tracks are added to a private Spotify playlist called **"SpotyVibe Playlist"**.
-4. A link to the playlist is shown above the track list — click it to open it in Spotify.
-
----
-
-## Stopping a Generation Early
-
-Sometimes GPT gets stuck suggesting the same songs over and over, or you simply have enough tracks and don't want to wait for the full playlist. Two buttons appear during generation to help with this:
-
-### ⛔ Cancel
-
-Click **⛔ Cancel** at any time to immediately stop the generation. No playlist changes are made — any tracks verified so far are discarded and the Spotify playlist is left unchanged.
-
-Use this when you want to start over with fresh settings or a refined profile.
-
-### ▶ Use X tracks now
-
-As each batch of tracks is verified, a **▶ Use X tracks now** button appears next to the Cancel button (where X is the current count of verified tracks). Clicking this button:
-
-1. Stops the generation immediately.
-2. Creates the Spotify playlist with however many tracks have been verified so far — even if the number is less than your configured playlist size.
-3. Displays the tracks in the list and shows a link to the finished playlist.
-
-Use this when the AI has found some good tracks but has started repeating suggestions — you can grab what's already good and skip waiting for the rest.
-
-> **Tip:** If you configured a playlist size of 30 but GPT starts looping after 12 tracks, click **▶ Use 12 tracks now** to instantly create a playlist with those 12 tracks.
-
----
-
-## Run History
-
-Below the Discover Music area — still inside the **Spotify** section — you will find a collapsible **History** panel. It records the **last 5** playlist generation runs, showing:
-
-- **Date and time** of the run
-- **Track count** — how many tracks were added
-- **Playlist link** — click to open the playlist in Spotify
-
-Each history entry is **expandable** — click it to reveal the full list of tracks (Artist — Track) that were added during that run. Click again to collapse.
-
-> **Tip:** If the history panel is open when a new generation completes, the list refreshes automatically — no need to close and reopen it.
+- **⛔ Cancel** — abort and discard. No playlist changes.
+- **▶ Use X tracks now** — stop now and create the playlist with whatever has been verified. Label updates live.
 
 ---
 
 ## Reviewing Suggestions
 
-After a generation completes, the suggested tracks appear **inside the Discover Music section**, below the Generate button, separated by a divider. A completion banner and playlist link are shown first, followed by a song counter (e.g. *10 / 100 songs*) and the track cards themselves. Each track shows the **artist**, **track name**, and a short **reason** explaining why the AI picked it. Track cards glow green on hover. Cards include:
+Each track card shows album art, artist, title, reason, quick links (🎵 track, 🎤 artist, 💿 album), and glows green on hover. Clicking the album art opens the preview overlay.
 
-- **Album artwork** — the album cover is shown on each track card.
-- **Preview** — clicking the album art opens a bottom-sheet preview overlay with the embedded Spotify player. The overlay uses a three-zone layout: the **Spotify player** (centered), a vertical column of **file-cabinet register-tab action buttons** (👍 👎 ✕) to its right, and a **sliding feedback form** that expands to fill the remaining space when you click like or dislike. Clicking the same tab again closes the form. Active tabs glow green (like) or red (dislike). The ✕ dismiss button removes the track immediately without a form. **Note:** The embedded player provides ~30-second previews only — full-length playback is not possible because the iframe cannot access your Spotify session (browser third-party cookie restrictions). Use the Spotify icon inside the player to open the full track.
-- **Quick links** — icon links open the track (🎵), artist (🎤), and album (💿) pages on Spotify so you can explore further.
+**Preview overlay** — three zones:
 
-### Persistent Song List
+1. **Player** (centered) — Web Playback SDK on Premium + Widevine/FairPlay-capable devices (full-track playback with 👍 / 👎 quick buttons next to the transport). Iframe fallback (~30 s clips) otherwise. An **autoplay** toggle remembers your choice.
+2. **Action buttons** — 💬 **Feedback** or 🗑 **Delete**.
+3. **Feedback panel** — artist, track, reason + dual submit (👍 Like / 👎 Dislike).
 
-The song list is **saved automatically** after each generation and restored when you reload the page — you never lose your track cards between sessions. A counter above the track list shows how many songs are currently in the list (max 100).
+### 💬 Feedback
 
-- When you **like, dislike, or remove** a track it is permanently deleted from the saved list.
-- If the list has too many songs to fit another batch, generation is **blocked** with a warning. Review and remove some songs first to make room.
+- **👍 Like** — adds the track to your liked list, marks the artist as confirmed. Track stays in the playlist.
+- **👎 Dislike** — records a negative signal **and** removes the track from the Spotify playlist.
 
-> **Tip:** The persistent list acts as a running record of everything SpotyVibe has generated for you, so the AI can continue building on it across multiple sessions without repeating suggestions.
+> **Tip:** Clear the *Track* field and leave only the artist to reject the entire artist.
 
-You have three options for each track:
+### 🗑 Delete
 
-### 👍 Like
+Removes from the Spotify playlist without touching your taste profile. Use for tracks you're neutral about.
 
-Click the **👍 Like** button to open the feedback form. The artist and track are pre-filled. You can optionally add a **reason** (e.g., *"perfect energy and melody"*). Click **Submit** to save.
+### Persistent song list
 
-- The track is recorded as a positive signal.
-- The artist is added to your confirmed favourites.
-- Future suggestions will lean towards similar music.
-
-### 👎 Dislike
-
-Click the **👎 Dislike** button. The feedback form opens with the same fields. Add a reason if you want (e.g., *"too slow"*, *"boring melody"*). Click **Submit** to save.
-
-- The track is recorded as a negative signal and removed from your Spotify playlist.
-- The AI will avoid suggesting similar tracks in the future.
-
-> **Tip:** Clear the *Track* field and only leave the artist name to dislike an **entire artist**. The artist will be fully excluded from future suggestions.
-
-### ✕ Remove
-
-Click the **✕** button to dismiss a track from the list and remove it from the Spotify playlist — without recording any feedback. Use this for tracks you're neutral about but don't want in the playlist.
+Tracks persist across page reloads (capped at 100). A counter shows the current total. Like/Dislike/Delete permanently remove from the saved list. If the list is full, generation is blocked until you make room.
 
 ---
 
+## Discover Artists
 
-## Running Again
+The **Discover Artists** section sits between Discover Tracks and Refine Playlist. It finds **new artists** matching your taste profile, each with a few representative tracks — artist-level discovery rather than a track playlist.
 
-Every time you click **Generate & Create Playlist**, the AI produces a fresh batch of suggestions sized to your configured **Playlist Size**. It never repeats tracks from previous runs — your history is remembered automatically.
+Two controls:
 
+- **Artists size** — how many new artists to discover (1–10).
+- **Exploration vs Accuracy** — *Familiar* favours close matches; *Adventurous* surfaces obscure, under-the-radar artists.
 
-The more feedback you give, the better the suggestions become.
+Every pick is **new**: artists already confirmed or previously suggested in your profile are excluded. SpotyVibe retrieves a wide candidate pool from the music corpus, then a single AI pass selects the final list — each artist shown with a one-line reason, genre tags, and a few tracks.
+
+Tracks are verified on Spotify; found tracks are linked, missing ones marked *not on Spotify*. **Apply to Playlist** adds the verified tracks to a playlist (create / append / replace — same modal as Discover Tracks); **Clear** discards the list.
 
 ---
 
 ## Refine Playlist
 
-The **Refine Playlist** section lets you load an existing Spotify playlist and review its tracks one by one. This is useful for going through playlists you created earlier and giving retroactive feedback to teach SpotyVibe more about your taste.
+Load any of your Spotify playlists and review tracks one by one.
 
-### Loading a Playlist
+1. Expand **🔄 Refine Playlist**.
+2. Pick a playlist and click **🔄 Load Playlist**.
+3. For each track: 💬 Feedback (Like keeps, Dislike removes + records), 🗑 Delete (removes without feedback), or click the album art for the same preview player.
 
-1. Expand the **🔄 Refine Playlist** section inside the Spotify provider area.
-2. Your Spotify playlists load automatically into the dropdown on first expand.
-3. Select a playlist and click **🔄 Load Playlist**.
-4. A loading spinner appears below the button while tracks are fetched. Once loaded, the tracks appear inside the section, separated by a divider.
-
-### Reviewing Tracks
-
-Each track card shows album artwork, artist/track name, Spotify links, and three action buttons:
-
-- **👍 Like** — opens a feedback form. After submitting, the track stays in the Spotify playlist and the like is recorded in your taste profile.
-- **👎 Dislike** — opens a feedback form. After submitting, the track is removed from the Spotify playlist and the dislike is recorded.
-- **✕ Dismiss** — removes the track from the Spotify playlist without recording any taste profile feedback. Use this for tracks you feel neutral about.
-
-Clicking the album art opens the preview player (same three-zone layout as Discover Music). Track cards animate out after feedback is submitted.
+Useful for cleaning up old playlists and teaching SpotyVibe retroactively.
 
 ---
 
-## Updating Your Music Profile
+## Run History
 
-Your taste may evolve over time. You can update your profile at any point:
-
-1. Click **Edit profile** in the Music Profile section.
-2. The accordion sections open pre-filled with your current profile data. Edit any section — for example, add new items to **Must Have**, remove entries from **Avoid**, or rewrite the **Core Description**.
-3. Choose how to save:
-   - Click **Save** to store your edits directly.
-   - Click **AI Profile Update** to have GPT analyse and merge your changes.
-
-Both options preserve your feedback history and past suggestions — nothing is lost.
-
-### Band/Song Analysis
-
-Inside the **OpenAI** section you will find a collapsible **AI Band/Song Analysis** panel. This tool lets you research any artist or track before adding it to your profile:
-
-1. Enter an **artist name** and, optionally, a **track name**.
-2. Click **Analyze**.
-3. The AI returns detailed information about the music: genre, style tags, and characteristics such as energy, instrumentation, vocals, production, and structure.
-4. Below the characteristics you will see **Audio Features** — GPT's estimated numeric values (energy, valence, danceability, acousticness, etc.) displayed as percentage bars. These show how GPT classifies the music and can guide you when setting audio filters for playlist generation.
-5. Below the audio features you will see **Profile Suggestions** — short phrases you can paste directly into your taste profile fields. Each suggestion has a **copy-to-clipboard** button so you can copy the text with one click and paste it into the Core Description, Must Have, Soft Preferences, or Avoid fields.
-
-This is useful when you want to describe a sound but aren't sure of the right terminology — let the AI analyse a reference track and borrow its vocabulary.
-
+Collapsible **History** panel below Discover Tracks. Records the last 5 runs with date, track count, and playlist link. Click a row to expand the full track list. Refreshes automatically when a new run completes while open.
 
 ---
 
-> **Tip — Profile consistency matters:** If you explicitly reject an artist (via 👎 Dislike), make sure the same artist is not still listed as a confirmed favourite. Contradictions in the profile confuse the AI and cause bad suggestions. If you notice the AI keeps repeating things you've rejected, open the Music Profile section and add a clear sentence like *"I strongly dislike [Artist] — never suggest them."*
+## Band/Song Analysis
+
+Inside the OpenAI section. Enter an artist (+ optional track) and click **Analyze**. Returns genre, style tags, characteristics, GPT-estimated audio features (energy, valence, danceability, etc.), and copy-paste profile suggestions. Use the **⇒ Filter** buttons to populate audio filters directly.
 
 ---
 
-## Debug Mode (Desktop only)
+## Explainable Recommendations
 
-If the AI's suggestions don't seem to match your preferences, you can enable **Debug Mode** (desktop only) to inspect the exact prompts being sent and the responses received:
+Each suggested track shows 1–2 rationale chips: `matches '<trait>'`, `similar to <Artist>`, `released YYYY`, `discovery pick`, `matches energy/tempo`.
 
+## Taste Dashboard
 
-1. Open **☰ menu → ⚙️ Settings**.
-2. Check **"Log GPT requests & responses to debug file"**.
-3. Click **Save**.
+Collapsible **Your taste at a glance** below the profile editor. Shows three charts once you have ≥ 10 unique tracks in history:
 
-Now every GPT interaction (profile training and playlist generation) is logged to a `debug.log` file. The exact path is shown in the Settings panel (e.g. `%LOCALAPPDATA%\spotyvibe\debug.log` on Windows). Each log entry includes a timestamp, the full messages sent to GPT, and the raw response.
+- **Top genres** — donut chart (Spotify artist data).
+- **Energy × valence** — scatter plot (GPT estimates — noted below the chart).
+- **Decades** — bar chart (Spotify album data).
 
-> **Android note:** Debug Mode is intentionally not available in the Android APK.
+## Seed Profile from Playlist
 
+Create a taste profile directly from an existing Spotify playlist: profile editor → **Seed from playlist** (also available during onboarding). SpotyVibe analyses artists, genres, and audio features to draft a profile; review and save.
 
-You can open this file with any text editor to review and optimise the prompts in the `prompts/` directory.
+## Cost Estimator
 
-> **Tip:** Disable debug mode when you're done — the log file can grow large over repeated runs.
+Live cost estimate in the Settings modal and under the Generate button. Approximates token counts and looks up pricing from the shipped price table. Models without pricing data show "estimate unavailable".
 
----
+## Voice Input (desktop only)
 
-## Using SpotyVibe on Mobile
+🎤 **Speak** button inside "Describe Your Vibe". Uses the browser's Web Speech API — no audio leaves your device.
 
-SpotyVibe works on phones and tablets — just open the same `http://127.0.0.1:5000` URL in your mobile browser. The interface automatically adapts to your screen size:
+## Custom AI Provider
 
-- **Tablets** — the layout narrows to fit the screen, with slightly smaller headings and buttons.
-- **Phones** — buttons and forms stack vertically for easy one-handed use. Modals slide up from the bottom of the screen as full-width sheets. All buttons and interactive elements have a minimum 44px touch target for comfortable tapping.
+Settings → **Provider**:
 
-No special action is needed — there is nothing to install or configure. If your desktop and mobile device are on the same network, open the app URL from your phone and it just works.
+| Provider | API key | Notes |
+|---|---|---|
+| OpenAI | yes | Default |
+| Ollama (local) | no | Runs on your machine; free |
+| LM Studio (local) | no | Runs on your machine; free |
+| Groq | yes | Cloud, fast inference |
+| OpenRouter | yes | Multi-model proxy |
+| Custom | depends | Any OpenAI-compatible `/v1` URL |
 
-> **Tip:** Toast notifications appear full-width on phones so they're easy to read. Tooltips reposition themselves to stay visible on small screens.
-
----
-
-## Building the Android APK
-
-SpotyVibe can be packaged as a standalone Android app. The `android/` directory contains the full build scaffolding.
-
-**Prerequisites:**
-
-- **Android Studio** with Android SDK API 34 installed
-- **JDK 17** (bundled with Android Studio or installed separately)
-- **Android SDK** — install via Android Studio's SDK Manager
-
-The Android project pins Android Gradle Plugin 8.2.2, Kotlin 1.9.22, and Chaquopy 15.0.1, so use a current Android Studio release that supports those versions.
-
-**Building:**
-
-```bash
-# Run from the repo root
-./build-tools/build_apk.sh debug
-```
-
-
-
-The build script copies the Python sources into the Android project and runs a Gradle build. The resulting APK bundles the complete SpotyVibe app — Flask server, Python runtime, and all pip dependencies — so no external Python installation is needed on the device.
-
-The APK targets `arm64-v8a` devices by default. For **emulator testing**, the build also includes `x86_64` support — remove it from `android/app/build.gradle` before creating a release build to reduce APK size. The app module pins Python 3.10, Flask 3.x, OpenAI 1.x, Spotipy 2.x, python-dotenv 1.x, and Markdown 3.x so APK builds stay consistent.
-
-After installing, the app starts Flask in the background and loads the UI in a WebView. All features work identically to the desktop version, with one difference: Spotify authentication uses direct navigation instead of a popup window (see the note in [Connect Your Spotify Account](#5-connect-your-spotify-account) above).
-
-### Onboarding Flow (Android)
-
-The first time you launch the Android APK, a **4-page swipeable onboarding** screen appears:
-
-1. **Page 1 — Welcome** — an introduction to SpotyVibe with feature highlights.
-2. **Page 2 — Language** — select your preferred interface language (English or German).
-3. **Page 3 — Credentials** — enter your OpenAI API key and Spotify Client ID / Secret directly during setup.
-4. **Page 4 — Connect & Import** — connect your Spotify account and import an existing taste profile if you have one.
-
-Page 1 has **Skip** and **Next** buttons. Pages 2–3 have **Back** and **Next** buttons. Page 4 has **Back** and **Close** buttons. Once completed (or skipped), the onboarding is remembered and will not appear again on subsequent launches.
+**🔁 Fetch models** populates the model dropdown from the provider's `/v1/models`. If that fails, click ✎ to type a model name manually.
 
 ---
 
-## Where Are My Data Files?
+## Mobile
 
-All your personal data is stored outside the project in your system's app data folder:
+Works in any mobile browser. Tablets get smaller headings and padding; phones stack controls vertically, open modals as bottom sheets, and enforce a 44 px minimum touch target.
+
+---
+
+## Data Files
+
+All persistent data lives outside the project:
 
 | File | Location | Purpose |
 |---|---|---|
-| Credentials | OS keychain (Windows Credential Manager) | Your API keys (OpenAI key, Spotify Client ID/Secret). Fallback: `%LOCALAPPDATA%\spotyvibe\.credentials`. |
-| Settings | `%LOCALAPPDATA%\spotyvibe\settings.conf` | App preferences (model, playlist size, language, debug mode, etc.). |
-| Taste profile | `%LOCALAPPDATA%\spotyvibe\personalized_music_profile.json` | Your trained taste profile + history. |
-| Spotify token | `%LOCALAPPDATA%\spotyvibe\.spotify-cache` | Cached Spotify authentication token. |
-| Debug log | `%LOCALAPPDATA%\spotyvibe\debug.log` | GPT request/response log (desktop only, only when debug mode is enabled). |
-| Run history | `%LOCALAPPDATA%\spotyvibe\run_history.json` | Past generation run metadata (last 5 runs). |
+| Credentials | OS keychain (fallback: `%LOCALAPPDATA%\spotyvibe\.credentials`) | API keys |
+| Settings | `%LOCALAPPDATA%\spotyvibe\settings.conf` | Prefs (model, size, language, debug, etc.) |
+| Profiles | `%LOCALAPPDATA%\spotyvibe\profiles\<uuid>.json` | Each profile + `.history.json` backup |
+| Spotify token | `%LOCALAPPDATA%\spotyvibe\.spotify-cache` | Cached OAuth token |
+| Run history | `%LOCALAPPDATA%\spotyvibe\run_history.json` | Last 5 runs |
+| Debug log | `%LOCALAPPDATA%\spotyvibe\debug.log` | Desktop only, when debug mode is on |
 
-This means you can safely update or reinstall the app without losing your profile or credentials.
-
----
-
-## Command-Line Usage
-
-While the web interface is the recommended way to use SpotyVibe, the app also supports command-line usage:
-
-### Generate a playlist (CLI)
-
-```bash
-python -m core.playlist
-```
-
-### Get suggestions only (no playlist)
-
-```bash
-python -m core.suggestions
-```
-
-### Record feedback from the command line
-
-```bash
-# Like a track
-python -m core.feedback like "Artist Name" --track "Song Name" --reason "why you like it"
-
-# Dislike a track
-python -m core.feedback dislike "Artist Name" --track "Song Name" --reason "why you dislike it"
-
-# Exclude an entire artist
-python -m core.feedback dislike "Artist Name" --reason "why"
-```
+Reinstall or update without losing anything.
 
 ---
-
-## Advanced Features
-
-### Playlist-Seeded Profiles (Wave 3)
-
-You can seed your taste profile directly from an existing Spotify playlist:
-1. Open the profile editor (⋯ menu → **Seed from playlist**) or use the option during onboarding.
-2. Pick one of your Spotify playlists from the picker.
-3. SpotyVibe analyses the playlist's artists, genres, and audio features, then drafts a profile.
-4. Review and edit the draft in the profile editor, then save.
-
-### Explainable Recommendations (Wave 3)
-
-Each suggested track now shows 1–2 rationale chips explaining why it was picked:
-- **matches 'genre/trait'** — aligns with your profile description
-- **similar to Artist** — related to an artist in your history
-- **released YYYY** — recent release
-- **discovery pick** — intentional variety pick
-- **matches energy/tempo** — falls within your active audio filter range
-
-### Taste Visualisation Dashboard (Wave 3)
-
-Below the profile editor, a collapsible section ("Your taste at a glance") shows three charts summarising your listening patterns. Click **Show** to expand.
-
-If you haven't generated enough playlists yet, the section displays "Not enough data yet" instead of empty charts. Once you have at least 10 unique tracks in your history, the charts appear:
-
-- **Top genres** — donut chart of your most common genres (sourced from Spotify artist data)
-- **Energy × valence** — scatter plot of your tracks' mood (energy and valence are GPT estimates, not exact measurements — a footnote below the chart notes this)
-- **Decades** — bar chart of release decades (sourced from Spotify album data)
-
-Data is aggregated from your run history. Each playlist generation enriches tracks with genre, release year, and estimated energy/valence metadata automatically.
-
-### Feature Discovery Tips (Wave 3)
-
-SpotyVibe shows contextual tips as you use the app (at most one per session):
-- After your first generation
-- After disliking 2+ tracks
-- When viewing history for the first time
-- When opening audio filters
-- After 5 generations
-
-Reset tips via ☰ → **Reset tips**.
-
-### Custom AI Provider (Wave 4)
-
-SpotyVibe can talk to any OpenAI-compatible API endpoint — not just OpenAI. Open ⚙️ Settings and pick a provider:
-
-| Provider | API Key required? | Notes |
-|---|---|---|
-| OpenAI | Yes | Default. |
-| Ollama (local) | No | Runs on your machine, free. |
-| LM Studio (local) | No | Runs on your machine, free. |
-| Groq | Yes | Cloud, fast inference. |
-| OpenRouter | Yes | Multi-model proxy. |
-| Custom | Depends | Paste any `/v1`-compatible URL. |
-
-Click **🔁 Fetch models** to populate the model dropdown from the provider's `/v1/models` endpoint. If that fails, click ✎ to type a model name manually.
-
-### Cost Estimator (Wave 4)
-
-A live cost estimate appears in the Settings modal and as a footnote under the Generate button. It approximates input/output tokens and looks up pricing from the shipped price table. Models not in the table show "estimate unavailable".
-
-### Voice Input (Wave 4)
-
-A 🎤 **Speak** button appears inside the "Describe Your Vibe" textarea (desktop browsers only). Click to start dictation; click again to stop. The transcript appends at the cursor position. No audio leaves your device — the Web Speech API handles recognition locally or via browser-managed cloud services.
-
-### Help Page Language Support (Wave 5)
-
-The in-app help page is now available in German. When the UI language is set to German and a translated help file exists, it is served automatically. If the translation is not yet available, English is shown with a subtle banner: "This page isn't translated yet. Showing English."
-
-### Setup Guides (Wave 5)
-
-Two new setup guides have been added:
-- **Install Python on macOS** — for macOS users running SpotyVibe via the Python wheel
-- **Install Python on Linux** — for Linux users with venv setup
-
-All four guides (OpenAI, Spotify, macOS, Linux) are now available in German translation.
 
 ## Troubleshooting
 
-| Problem | Solution |
+| Problem | Fix |
 |---|---|
-| **"Spotify credentials missing"** | Open ⚙️ → Credentials and enter your Spotify Client ID and Secret. |
-| **Spotify Metadata Analysis shows "Spotify credentials not configured"** | Your Spotify Client ID and Secret must be saved in ⚙️ → Credentials even if you are not using Spotify user login. The metadata lookup uses app credentials, not your personal Spotify account. |
-| **Metadata confidence badge is red** | Spotify couldn't find an exact match for your query. Try providing both artist and track name together, or adjust the spelling. The best available result is still returned. |
-| **"Please train your taste profile first"** | Use the **OpenAI** section to describe your music taste before generating. |
-| **Spotify auth fails with "INVALID_CLIENT"** | Double-check your Client ID and Secret. Make sure the correct Redirect URI is listed in your Spotify Developer Dashboard (see Prerequisites above). |
-| **Android: "redirect_uri: No matching configuration"** | Add `spotyvibe://callback` as a Redirect URI in your [Spotify Developer Dashboard](https://developer.spotify.com/dashboard). This URI is required for the Android APK — without it, Spotify rejects the login request. |
-| **"403 Forbidden" during generation** | Your Spotify session has expired or permissions were revoked. The app disconnects automatically — click **Connect to Spotify** in the warning banner to reconnect. You can also manually disconnect via ⚙️ → 🔌 Disconnect Spotify. |
-| **"OpenAI API key is not configured"** | Open ⚙️ → Credentials and enter your OpenAI API Key. |
-| **GPT kept suggesting the same songs and stopped early** | This is the automatic loop-protection kicking in. After 3 consecutive batches where every suggestion was already in your history, the app stops and creates the playlist with whatever tracks were found. Click **▶ Use X tracks now** before that point, or update your taste profile with new preferences and re-run. |
-| **"GPT could not generate any new tracks"** | Your history is very large and GPT can no longer find tracks outside it. Try describing new styles or genres in the Train Taste Profile section to expand the suggestion space. |
-| **Most tracks "not found on Spotify"** | This can happen if the AI suggests very obscure tracks. Run the generation again — each attempt produces different results. |
-| **"python-dotenv could not parse statement"** | Your credentials file is corrupted. Open ⚙️ → Credentials and re-save your keys. The app now prevents this from recurring. |
-| **Undo last run fails** | The run history may be empty (no previous runs recorded) or the target playlist was deleted on Spotify. Generate a new playlist first, or check that the playlist still exists in your Spotify account. |
-| **Audio filters remove all tracks** | Your filter ranges are too narrow and every suggested track falls outside them. Widen the min/max sliders or disable some filters entirely by resetting them to their default positions. |
-| **App won't start** | Make sure you ran `pip install -r requirements.txt` and are using Python 3.10+. |
-
+| "Spotify credentials missing" | ☰ → Credentials; enter Client ID and Secret. |
+| "Please train your taste profile first" | Use the OpenAI section to describe your taste before generating. |
+| Spotify auth fails with "INVALID_CLIENT" | Check Client ID/Secret and the redirect URIs in your Spotify Developer Dashboard. |
+| 403 Forbidden during generation | Session expired / permissions revoked. Click **Connect to Spotify** to reconnect. |
+| "OpenAI API key is not configured" | ☰ → Credentials; enter your OpenAI key. |
+| "Couldn't find more matching tracks" | Loop protection kicked in (3 all-filtered batches). Try a smaller playlist size, adjust the exploration slider, or add new styles to the profile. |
+| ⏳ Spotify rate-limited / Model slow | Transient upstream throttle — wait a moment, then retry. The pipeline already retried internally before surfacing this. |
+| Most tracks "not found on Spotify" | GPT suggested obscure tracks. Try again — each run is different. |
+| "python-dotenv could not parse statement" | Credentials file corrupt. Re-save via ☰ → Credentials. |
+| Audio filters remove all tracks | Ranges are too narrow. Widen or clear them. |
+| App won't start | Ensure `pip install -r requirements.txt` and Python 3.10+. |

@@ -1,0 +1,75 @@
+# Evaluation harness — local credentials. Copy this file to
+# `evaluation/settings.ini` (which is gitignored) and fill in real values.
+#
+# The harness reads this file at startup. It NEVER writes to it.
+
+[openai]
+# Your OpenAI API key. The harness will issue real billable requests
+# against this key for every model under test.
+api_key = sk-REPLACE_ME
+
+[spotify]
+# Spotify Web API client credentials. Same client_id / client_secret you
+# use for the app itself — the harness creates and deletes test playlists
+# on YOUR Spotify account.
+client_id = REPLACE_ME
+client_secret = REPLACE_ME
+# Redirect URI registered in your Spotify app dashboard. Must match the
+# value the app uses (default: http://127.0.0.1:5000/callback).
+redirect_uri = http://127.0.0.1:5000/callback
+
+[evaluation]
+# Comma-separated list of OpenAI model IDs to evaluate. Each model gets
+# its own profile + playlist + AI Profile Update cycle.
+# The 4 tracked models from documentation/ModelRecommendations.md.
+# gpt-5.5 was removed in Phase 2.6 (reasoning-tier — wrong tool for this
+# workload; raises OpenAIUnsupportedModelError if re-added).
+# gpt-4o was dropped 2026-05-02: deferred until enrichment Phase B/D land
+# and a fresh canonical eval baseline exists (next-steps.md P0 #2).
+# gpt-4.1-mini dropped 2026-05-08 (A2): E7 baseline showed Playlist A = 0
+# tracks for 3 of 4 scenarios (schema collapse / context overflow on the
+# Phase B corpus). Re-add only after a separate triage proves it salvageable.
+# gpt-4.1 dropped 2026-05-08: cost ≈ gpt-5.4-mini ($0.10-0.17 vs $0.07-0.09)
+# but must-have cite 57-81 % vs mini's 70-100 % vs gpt-5.4's 90-100 %; failed
+# Playlist B (= 0 tracks) on post_feedback_tag_regression — same fail mode as
+# gpt-4.1-mini. No coverage mini doesn't already provide. Re-add only if a
+# 5.x-family regression surfaces that needs cross-family confirmation.
+models = gpt-5.4,gpt-5.4-mini
+
+# Number of full cycles per model. The static default is 5 (N2,
+# 2026-05-13): below this and gpt-4.1's natural run-to-run variance
+# masks any prompt change you might make. For tighter signal on
+# gpt-5.4 use 19; gpt-5.4-mini's full variance floor is 85 (per the
+# B-6 self-consistency probe — gpt-4.1=5, gpt-5.4=19, mini=85). Use
+# --iterations <n> on run_evaluation.py to override per-run.
+iterations = 5
+
+# Tracks per generated playlist.
+playlist_size = 30
+
+# Stage 2 model — overrides STAGE2_MODEL from config.py for the duration
+# of the evaluation. Leave commented out to use config.py's default.
+# stage2_model = gpt-5.4-mini
+
+# Which canonical scenario from evaluation/scenario.py to run. F8.2
+# (2026-05-01) added a regression scenario that reproduces the
+# production failure: semantic avoid traits the legacy tokeniser
+# cannot enforce + a hard must-have phrase. Use it to verify
+# F1/F2/F5 close the leakage gap.
+#   default                          — broad theatrical-pop-rock taste
+#   regression_japanese_theatrical   — the failure-mode reproducer
+#   ambient_instrumental_focus / boom_bap_90s / brazilian_samba_funk /
+#   club_techno_strict / original_recordings_only / contradictory_profile
+#                                    — coverage scenarios (P1 #6)
+#   lastfm_tag_weighting / niche_only_strict / post_feedback_tag_regression
+#                                    — Last.fm-aware scenarios (E4/E5/E6, 2026-05-07)
+scenario = default
+
+# E7 (2026-05-07): comma-separated multi-scenario list. When set,
+# OVERRIDES ``scenario`` and the harness loops scenarios × models ×
+# iterations. The special value ``all`` expands to every scenario in
+# the registry (default first, then alphabetical). Used for the
+# canonical model-comparison runs feeding ``model-performance-result.md``.
+# scenarios = all
+# scenarios = default,regression_japanese_theatrical,niche_only_strict
+

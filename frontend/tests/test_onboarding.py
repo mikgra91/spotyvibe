@@ -72,6 +72,28 @@ class TestOnboardingFlow:
         en_btn = page.locator(".ob-lang-toggle .lang-toggle-btn[data-lang='en']")
         expect(en_btn).to_have_class(re.compile(r"active"))
 
+    def test_language_toggle_not_hidden_by_desktop_titlebar(self, page: Page, base_url):
+        """Regression guard: in the packaged Windows app, the custom titlebar
+        (64px, injected by desktop_launcher.py) must not overlap the onboarding
+        language selector. The selector must respect --titlebar-h and sit
+        below the titlebar. Simulates the titlebar by setting the CSS variable
+        that the desktop launcher sets at runtime."""
+        TITLEBAR_H = 64
+        navigate_onboarding_to_page(page, base_url, 0)
+        page.evaluate(
+            "h => document.documentElement.style.setProperty('--titlebar-h', h + 'px')",
+            TITLEBAR_H,
+        )
+        toggle = page.locator(".ob-lang-toggle")
+        expect(toggle).to_be_visible()
+        box = toggle.bounding_box()
+        assert box is not None, "lang toggle has no bounding box"
+        assert box["y"] >= TITLEBAR_H, (
+            f"Language selector top ({box['y']}px) overlaps the {TITLEBAR_H}px "
+            f"desktop titlebar. It must use calc(var(--titlebar-h, 0px) + N) "
+            f"for its top offset."
+        )
+
     def test_language_switch_to_german(self, page: Page, base_url):
         page.route("**/api/settings", lambda route: route.fulfill(
             status=200,
@@ -142,7 +164,12 @@ class TestOnboardingFlow:
         page.locator("#ob-input-wrap-openai:not(.hidden)").wait_for(timeout=5000)
         page.locator("#ob-openai-key").fill("sk-test-key")
         page.wait_for_timeout(100)
-        page.locator(".ob-page.active .ob-cta-next").click()
+        # The Next button can be off-screen on the default 1280x720 viewport
+        # because the wizard card is tall. Scroll it into view, then click via
+        # JS to avoid Playwright's "outside of viewport" retry loop.
+        next_btn = page.locator(".ob-page.active .ob-cta-next")
+        next_btn.scroll_into_view_if_needed()
+        next_btn.evaluate("el => el.click()")
         page.wait_for_timeout(250)
         assert len(save_requests) >= 1
 
@@ -240,8 +267,8 @@ class TestOnboardingWizardWave1:
 
     def test_wizard_howto_accordion_toggles(self, page: Page, base_url):
         navigate_onboarding_to_page(page, base_url, 1)
-        toggle = page.locator("#ob-guide-openai .ob-cred-guide-toggle")
-        body = page.locator("#ob-openai-guide-body")
+        toggle = page.locator("#ob-guide-openrouter .ob-cred-guide-toggle")
+        body = page.locator("#ob-openrouter-guide-body")
         expect(body).not_to_have_class(re.compile(r"open"))
         toggle.click()
         page.wait_for_timeout(100)
@@ -340,7 +367,9 @@ class TestWave2QuickWins:
         page.wait_for_timeout(150)
         page.locator(".gen-mode-btn[data-mode='advanced']").click()
         page.wait_for_timeout(100)
-        page.locator(".preset-save-btn").click()
+        # Two .preset-save-btn exist — one is hidden (#presetUpdateBtn), the
+        # other is the visible "+ New" button. Click the visible one.
+        page.locator(".preset-save-btn:not(.hidden)").click()
         page.wait_for_timeout(100)
         page.locator("#savePresetInput").fill("Test preset")
         page.locator("#savePresetModal .btn-save").click()

@@ -8,6 +8,14 @@
     height: calc(100vh - var(--titlebar-h, 0px));
     display: flex;
     flex-direction: column;
+
+    /* Viewport-aware scale — 1 on ≥880px tall, floors at 0.82 on short screens */
+    --ob-scale: clamp(0.82, calc(100vh / 880), 1);
+    --ob-icon-fs: calc(2.8rem * var(--ob-scale));
+    --ob-title-fs: calc(1.75rem * var(--ob-scale));
+    --ob-card-pad-y: calc(24px * var(--ob-scale));
+    --ob-gap: calc(var(--sp-3) * var(--ob-scale));
+    --ob-seed-min-h: calc(180px * var(--ob-scale));
 }
 
 .ob-pages {
@@ -33,7 +41,7 @@
 
 .ob-lang-toggle {
     position: fixed;
-    top: 16px;
+    top: calc(var(--titlebar-h, 0px) + 16px);
     right: 24px;
     z-index: 50;
 }
@@ -66,7 +74,7 @@
 .ob-card {
     max-width: var(--ob-card-max-width, 480px);
     width: 100%;
-    padding: var(--ob-card-padding, 24px 24px);
+    padding: var(--ob-card-pad-y, 24px) 24px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -87,10 +95,10 @@
 
 /* ============ Typography ============ */
 
-.ob-icon { font-size: 2.8rem; margin-top: var(--sp-2); }
+.ob-icon { font-size: var(--ob-icon-fs, 2.8rem); margin-top: var(--sp-2); }
 
 .ob-title {
-    font-size: 1.75rem;
+    font-size: var(--ob-title-fs, 1.75rem);
     font-weight: 800;
     color: var(--text-primary);
     margin-top: var(--sp-2);
@@ -142,23 +150,24 @@
 
 .ob-privacy-text { font-size: var(--fs-sm); color: var(--text-secondary); line-height: 1.35; }
 
-.ob-privacy-link {
-    display: inline-block;
+/* ============ Corpus scope note (Step 1) ============ */
+/* Same look-and-feel as the privacy panel but with a neutral accent so
+ * it reads as informational rather than security-related. */
+.ob-corpus-note {
+    background: rgba(180, 180, 200, 0.06);
+    border: 1px solid rgba(180, 180, 200, 0.2);
+    border-radius: var(--radius-md);
+    padding: var(--sp-3) var(--sp-4);
+    display: flex;
+    gap: var(--sp-3);
+    align-items: flex-start;
+    width: 100%;
+    max-width: 360px;
     margin-top: var(--sp-2);
-    color: var(--primary);
-    font-size: var(--fs-md);
-    font-weight: 500;
-    text-decoration: none;
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    font-family: inherit;
+    text-align: left;
 }
-
-@media (hover: hover) {
-    .ob-privacy-link:hover { text-decoration: underline; }
-}
+.ob-corpus-note-icon { font-size: var(--fs-xl); flex-shrink: 0; margin-top: 2px; }
+.ob-corpus-note-text { font-size: var(--fs-sm); color: var(--text-secondary); line-height: 1.35; }
 
 /* ============ Nav row ============ */
 
@@ -462,7 +471,7 @@
     padding: var(--sp-4);
     display: flex;
     flex-direction: column;
-    min-height: 180px;
+    min-height: var(--ob-seed-min-h, 180px);
     text-align: left;
 }
 
@@ -799,8 +808,20 @@
 
 /* ============ Responsive ============ */
 
+/* Short viewports — 13" laptops, packaged desktop chrome, split-screen.
+   Pair with the --ob-scale clamp above for items that don't scale via calc(). */
+@media (max-height: 680px) {
+    .ob-page { justify-content: flex-start; padding-top: 12px; }
+
+    .ob-seed-grid { grid-template-columns: repeat(2, 1fr); }
+
+    .ob-feature { margin-bottom: var(--sp-2); }
+
+    .ob-subtitle { margin-bottom: var(--sp-2); }
+}
+
 @media (max-width: 640px) {
-    .ob-lang-toggle { top: 12px; right: 16px; }
+    .ob-lang-toggle { top: calc(var(--titlebar-h, 0px) + 12px); right: 16px; }
 
     .ob-seed-grid { grid-template-columns: 1fr; }
 

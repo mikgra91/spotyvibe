@@ -108,7 +108,7 @@ export async function openSettings() {
         const resp = await fetch('/api/settings');
         const data = await resp.json();
 
-        State.setDebugControlsAvailable(!!(data.debug_controls_available ?? true) && !(data.is_android ?? false));
+        State.setDebugControlsAvailable(!!(data.debug_controls_available ?? true));
         const debugRow = el('debugModeRow');
         if (debugRow) debugRow.classList.toggle('hidden', !State.debugControlsAvailable);
 
@@ -126,10 +126,41 @@ export async function openSettings() {
             debugCheckbox.onchange = updateDebugStatus;
         }
 
+        const ragCheckbox = el('settings-rag-enabled');
+        if (ragCheckbox) {
+            ragCheckbox.checked = !!data.rag_enabled;
+            const ragStatus = el('status-settings-rag');
+            let corpusAvailable = !!data.rag_corpus_available;
+
+            // Replace the {count} placeholder in settings.rag.hint with the
+            // actual server-side RAG_POOL_SIZE so the hint never drifts from
+            // the constant in config.py.
+            const ragHint = document.querySelector('[data-i18n="settings.rag.hint"]');
+            if (ragHint && data.rag_pool_size != null) {
+                ragHint.textContent = ragHint.textContent.replace('{count}', String(data.rag_pool_size));
+            }
+            function updateRagStatus() {
+                if (!ragStatus) return;
+                if (!corpusAvailable) {
+                    ragStatus.textContent = i18n('settings.rag.missing', 'Corpus file not installed — toggle has no effect until artists.jsonl.gz is present.');
+                    ragStatus.className = 'cred-status unset';
+                } else if (ragCheckbox.checked) {
+                    ragStatus.textContent = i18n('settings.rag.enabled', '✓ Candidate pool active');
+                    ragStatus.className = 'cred-status set';
+                } else {
+                    ragStatus.textContent = i18n('settings.rag.disabled', 'Candidate pool disabled');
+                    ragStatus.className = 'cred-status unset';
+                }
+            }
+            updateRagStatus();
+            ragCheckbox.onchange = updateRagStatus;
+            if (!corpusAvailable) ragCheckbox.disabled = true;
+            renderRagUpdateBanner(data.rag_update || { status: 'unknown' });
+        }
+
         const modelStatus = el('status-settings-model');
         modelStatus.textContent = i18n('settings.model_status', '✓ Using: {model}').replace('{model}', data.model || 'gpt-5.4-mini');
         modelStatus.className = 'cred-status set';
-
 
     } catch (e) { /* ignore */ }
 
@@ -166,15 +197,48 @@ export async function saveSettings() {
     const payload = {};
 
     const modelSelect = el('settings-model');
-    if (modelSelect.value) {
+    const modelFreetext = el('settings-model-freetext');
+    // When the user toggled the dropdown into free-text mode, the
+    // authoritative value lives in the text input.
+    if (modelFreetext && !modelFreetext.classList.contains('hidden') && modelFreetext.value.trim()) {
+        payload.model = modelFreetext.value.trim();
+    } else if (modelSelect && modelSelect.value) {
         payload.model = modelSelect.value;
+    }
+
+    // Provider preset + base URL. Previously omitted from the payload,
+    // which meant the dropdown change was visible in the UI but the
+    // selection was never persisted.
+    const providerSel = el('settings-provider');
+    if (providerSel && providerSel.value) {
+        payload.provider_preset = providerSel.value;
+    }
+    const baseUrlInput = el('settings-base-url');
+    if (baseUrlInput && baseUrlInput.value.trim()) {
+        payload.llm_base_url = baseUrlInput.value.trim();
     }
 
     if (State.debugControlsAvailable) {
         payload.debug_mode = el('settings-debug').checked;
     }
 
+    const ragCheckbox = el('settings-rag-enabled');
+    if (ragCheckbox && !ragCheckbox.disabled) {
+        payload.rag_enabled = ragCheckbox.checked;
+    }
 
+    // CF-Bug-7: API-key validation + model fetch can take several seconds.
+    // Disable the Save button + swap to a "saving" label so users don't
+    // double-click and submit duplicate saves while the request is in flight.
+    const saveBtn = el('settingsModal').querySelector('.btn-save');
+    const prevHtml = saveBtn?.innerHTML;
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.setAttribute('aria-busy', 'true');
+        // Inline spinner instead of a dotted-clock label so the user has
+        // an unambiguous "still working" signal during long writes.
+        saveBtn.innerHTML = `<span class="btn-spinner" aria-hidden="true"></span><span class="visually-hidden">${i18n('btn.saving', 'Saving…')}</span>`;
+    }
 
     try {
         const resp = await fetch('/api/settings', {
@@ -199,6 +263,16 @@ export async function saveSettings() {
         }
     } catch (e) {
         showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.removeAttribute('aria-busy');
+            if (prevHtml != null) {
+                saveBtn.innerHTML = prevHtml;
+            } else {
+                saveBtn.textContent = i18n('btn.save', 'Save');
+            }
+        }
     }
 }
 
@@ -480,14 +554,11 @@ export function closeQuickstart() {
 }
 
 /**
- * Auto-show quickstart on page load (or first provider visit) if the user hasn't dismissed it.
- * @param {string} provider — "openai" or "spotify"
+ * Quickstart no longer auto-opens. Users invoke it from the menu (☰ → Quick Start).
+ * Kept as an exported no-op for backward compatibility with callers and tests.
  */
-export function maybeShowQuickstart(provider = 'openai') {
-    if (!_isQuickstartDismissed(provider)) {
-        // Defer so that the rest of init completes first
-        setTimeout(() => openQuickstart(false), 0);
-    }
+export function maybeShowQuickstart(_provider = 'openai') {
+    // intentionally empty — see help-summary.md §6A
 }
 
 function _isQuickstartDismissed(provider) {
@@ -536,4 +607,72 @@ document.addEventListener('keydown', (e) => {
         }
     }
 });
+
+
+function renderRagUpdateBanner(info) {
+    const banner = el('settings-rag-update');
+    const message = el('settings-rag-update-message');
+    const button = el('settings-rag-update-btn');
+    if (!banner || !message || !button) return;
+    const status = info && info.status;
+    const remoteVer = (info && info.remote && info.remote.corpus_version) || '';
+    const localVer = (info && info.local_version) || '';
+    if (status === 'missing_corpus') {
+        message.textContent = i18n('settings.rag.banner.missing',
+            'No corpus installed. Download the latest ({version}) to enable the candidate pool.')
+            .replace('{version}', remoteVer);
+        banner.hidden = false;
+        button.disabled = false;
+    } else if (status === 'update_available') {
+        message.textContent = i18n('settings.rag.banner.update',
+            'A newer corpus is available ({local} → {remote}).')
+            .replace('{local}', localVer || '—')
+            .replace('{remote}', remoteVer);
+        banner.hidden = false;
+        button.disabled = false;
+    } else {
+        banner.hidden = true;
+    }
+}
+
+export async function downloadRagCorpus() {
+    const button = el('settings-rag-update-btn');
+    const message = el('settings-rag-update-message');
+    if (button) button.disabled = true;
+    if (message) message.textContent = i18n('settings.rag.banner.downloading', 'Downloading corpus…');
+    try {
+        const resp = await fetch('/api/rag/download-corpus', { method: 'POST' });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+            const detail = data.detail || data.error || ('HTTP ' + resp.status);
+            if (message) message.textContent = i18n('settings.rag.banner.failed',
+                'Download failed: {error}').replace('{error}', detail);
+            if (button) button.disabled = false;
+            return;
+        }
+        if (typeof showToast === 'function') {
+            showToast(i18n('settings.rag.banner.success',
+                'Corpus installed ({version}).').replace('{version}', data.corpus_version || ''),
+                'success');
+        }
+        const ragCheckbox = el('settings-rag-enabled');
+        if (ragCheckbox) {
+            ragCheckbox.disabled = false;
+        }
+        // Refresh the RAG status text to reflect newly available corpus
+        const ragStatus = el('status-settings-rag');
+        if (ragStatus) {
+            ragStatus.textContent = ragCheckbox && ragCheckbox.checked
+                ? i18n('settings.rag.enabled', '✓ Candidate pool active')
+                : i18n('settings.rag.disabled', 'Candidate pool disabled');
+            ragStatus.className = 'cred-status ' + (ragCheckbox && ragCheckbox.checked ? 'set' : 'unset');
+        }
+        const banner = el('settings-rag-update');
+        if (banner) banner.hidden = true;
+    } catch (e) {
+        if (message) message.textContent = i18n('settings.rag.banner.failed',
+            'Download failed: {error}').replace('{error}', String(e));
+        if (button) button.disabled = false;
+    }
+}
 

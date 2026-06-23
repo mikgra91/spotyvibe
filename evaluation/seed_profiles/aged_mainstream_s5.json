@@ -1,0 +1,113 @@
+{
+  "name": "aged_mainstream_s5_BENCHMARK",
+  "last_updated": "2026-05-23T00:00:00+00:00",
+  "meta": {
+    "goal": "Benchmark fixture — mainstream western alt-rock after 4 prior sessions. 30 history entries, 3 disliked, 1 rejected. Control variant of aged_japanese_s5: if THIS one also fails, the dedup logic is broken across the board, not niche-specific.",
+    "primary_reference": "Foo Fighters"
+  },
+  "preferences": {
+    "core_description": "Mainstream alternative and classic rock from the 90s, 2000s, and 2010s. Guitar-driven, mid-to-uptempo, with strong melodic vocals. Western, mostly English-language.",
+    "must_have": [
+      "Guitar-driven rock instrumentation",
+      "Strong melodic vocals",
+      "Released 1990 or later"
+    ],
+    "must_have_tags": [
+      "rock",
+      "alternative rock",
+      "post-grunge"
+    ],
+    "corpus_tag_hints": [
+      "alternative rock",
+      "modern rock",
+      "post-grunge",
+      "indie rock",
+      "arena rock"
+    ],
+    "soft_preferences": [
+      "Anthemic choruses",
+      "Mid-tempo to uptempo"
+    ],
+    "avoid": [
+      "Death metal screaming vocals",
+      "Pure electronic / EDM",
+      "Country"
+    ],
+    "vibe_description": "Anthemic, melodic, guitar-forward mainstream rock."
+  },
+  "artists": {
+    "confirmed": [
+      "Foo Fighters",
+      "Red Hot Chili Peppers",
+      "Pearl Jam",
+      "Green Day",
+      "The Killers",
+      "Muse"
+    ],
+    "moderate": [],
+    "rejected": [
+      "Generic Country Crossover Act"
+    ]
+  },
+  "history": {
+    "suggested_artists": [
+      "foo fighters", "red hot chili peppers", "pearl jam", "green day",
+      "the killers", "muse", "weezer", "queens of the stone age",
+      "kings of leon", "interpol", "the strokes", "arctic monkeys",
+      "the white stripes", "audioslave", "soundgarden"
+    ],
+    "suggested_tracks": [
+      {"artist": "foo fighters", "track": "everlong"},
+      {"artist": "foo fighters", "track": "the pretender"},
+      {"artist": "red hot chili peppers", "track": "snow (hey oh)"},
+      {"artist": "red hot chili peppers", "track": "dani california"},
+      {"artist": "pearl jam", "track": "alive"},
+      {"artist": "pearl jam", "track": "even flow"},
+      {"artist": "green day", "track": "american idiot"},
+      {"artist": "green day", "track": "boulevard of broken dreams"},
+      {"artist": "the killers", "track": "mr. brightside"},
+      {"artist": "the killers", "track": "somebody told me"},
+      {"artist": "muse", "track": "uprising"},
+      {"artist": "muse", "track": "supermassive black hole"},
+      {"artist": "weezer", "track": "say it ain't so"},
+      {"artist": "weezer", "track": "buddy holly"},
+      {"artist": "queens of the stone age", "track": "no one knows"},
+      {"artist": "kings of leon", "track": "sex on fire"},
+      {"artist": "kings of leon", "track": "use somebody"},
+      {"artist": "interpol", "track": "evil"},
+      {"artist": "the strokes", "track": "reptilia"},
+      {"artist": "the strokes", "track": "last nite"},
+      {"artist": "arctic monkeys", "track": "do i wanna know?"},
+      {"artist": "arctic monkeys", "track": "r u mine?"},
+      {"artist": "the white stripes", "track": "seven nation army"},
+      {"artist": "the white stripes", "track": "fell in love with a girl"},
+      {"artist": "audioslave", "track": "like a stone"},
+      {"artist": "audioslave", "track": "cochise"},
+      {"artist": "soundgarden", "track": "black hole sun"},
+      {"artist": "soundgarden", "track": "spoonman"},
+      {"artist": "foo fighters", "track": "best of you"},
+      {"artist": "muse", "track": "hysteria"}
+    ]
+  },
+  "feedback": {
+    "liked_tracks": [
+      {"artist": "foo fighters", "track": "everlong"},
+      {"artist": "pearl jam", "track": "alive"},
+      {"artist": "muse", "track": "hysteria"}
+    ],
+    "disliked_tracks": [
+      {"artist": "weezer", "track": "buddy holly"},
+      {"artist": "the white stripes", "track": "fell in love with a girl"},
+      {"artist": "soundgarden", "track": "spoonman"}
+    ],
+    "liked_artists": ["foo fighters", "pearl jam", "muse"],
+    "disliked_artists": []
+  },
+  "taste_rules": {
+    "primary_driver": "Guitar-driven mainstream rock with melodic vocals",
+    "dealbreaker_priority": [
+      "Death metal vocals",
+      "Pure electronic"
+    ]
+  }
+}

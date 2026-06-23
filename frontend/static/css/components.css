@@ -108,6 +108,7 @@
 .lang-toggle-btn.active { background: var(--primary); color: var(--btn-cta-text); }
 .lang-toggle-sep { color: var(--text-muted); font-size: var(--fs-xs); user-select: none; opacity: 0.4; }
 
+
 /* ── Burger menu ── */
 .burger-wrapper { position: relative; }
 .burger-btn {
@@ -140,13 +141,19 @@
 }
 .settings-dropdown.open { display: block; }
 .settings-dropdown button {
-    display: block; width: 100%; text-align: left;
+    display: flex; align-items: center; gap: var(--sp-2);
+    width: 100%; text-align: left;
     background: none; border: none;
     color: var(--text-primary);
     padding: var(--sp-4) var(--sp-5);
     font-size: var(--fs-md);
     cursor: pointer; font-family: inherit;
     transition: background var(--transition);
+}
+.settings-dropdown button > span[aria-hidden="true"] {
+    display: inline-flex; justify-content: center; align-items: center;
+    width: 1.25em; flex-shrink: 0;
+    font-size: 1em; line-height: 1;
 }
 @media (hover: hover) {
     .settings-dropdown button:hover { background: rgba(255,255,255,.06); }

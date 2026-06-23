@@ -59,10 +59,30 @@
     --btn-cta-text: #041108;
     --error-hover: #DC2626;
     --ob-card-max-width: 480px;
+
+    /* Modal width scale — keep modal widths in sync across components. */
+    --modal-width-md: 500px;
+    --modal-width-lg: 750px;
+
+    /* Preview overlay sizing — player panel, album art, transport, navbar. */
+    --preview-panel-min-w: 560px;
+    --preview-panel-max-w: 920px;
+    --preview-art-size: 140px;
+    --preview-transport-gap: var(--sp-10);
+    --preview-navbar-item-w: 88px;
+    --preview-navbar-item-h: 72px;
+    --preview-navbar-bg: rgba(0, 0, 0, 0.35);
+    --preview-navbar-border: rgba(255, 255, 255, 0.06);
     --ob-card-padding: 32px 24px;
     --ob-step-gap: 16px;
     --slider-track-h: 4px;
     --slider-thumb-size: 18px;
+
+    /* Form-control sizing tokens — shared by playlist name/picker,
+       modal selects, and other large inputs so visual dimensions stay in sync. */
+    --ctrl-h: 50px;
+    --ctrl-px: 17px;
+
     --meter-bar-h: 8px;
     --meter-ok: var(--warning);
     --meter-strong: var(--success);
@@ -72,14 +92,20 @@
     --sp-1: 4px;   --sp-2: 8px;   --sp-3: 12px;  --sp-4: 16px;
     --sp-5: 20px;  --sp-6: 24px;  --sp-8: 32px;  --sp-10: 40px;
 
-    /* --- Font-size scale --- */
-    --fs-2xs: 0.68rem;  /* badges, fine print */
-    --fs-xs:  0.75rem;  /* hints, labels */
-    --fs-sm:  0.82rem;  /* secondary text, small UI */
-    --fs-md:  0.9rem;   /* body, default */
-    --fs-lg:  1.05rem;  /* subtitles, emphasis */
-    --fs-xl:  1.3rem;   /* section headings */
-    --fs-2xl: 1.5rem;   /* page headings */
+    /* Safe top offset — accounts for the desktop app titlebar (set to 64px
+       by desktop_launcher.py; unset in browser so it falls back to 0). */
+    --safe-top: calc(var(--titlebar-h, 0px) + 12px);
+
+    /* --- Font-size scale — multiplied by --ui-scale (user preference, §9 Phase 2).
+       Spacing tokens are intentionally NOT scaled (WCAG 1.4.4 text-only). --- */
+    --ui-scale: 1;
+    --fs-2xs: calc(0.68rem * var(--ui-scale));  /* badges, fine print */
+    --fs-xs:  calc(0.75rem * var(--ui-scale));  /* hints, labels */
+    --fs-sm:  calc(0.82rem * var(--ui-scale));  /* secondary text, small UI */
+    --fs-md:  calc(0.9rem  * var(--ui-scale));  /* body, default */
+    --fs-lg:  calc(1.05rem * var(--ui-scale));  /* subtitles, emphasis */
+    --fs-xl:  calc(1.3rem  * var(--ui-scale));  /* section headings */
+    --fs-2xl: calc(1.5rem  * var(--ui-scale));  /* page headings */
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -102,10 +128,10 @@ body {
     font-size: 16px;
     line-height: 1.5;
     overflow-x: hidden;
-    -webkit-tap-highlight-color: transparent;  /* remove Android blue tap flash */
+    -webkit-tap-highlight-color: transparent;  /* remove mobile tap flash */
 }
 
-/* Prevent double-tap zoom on interactive elements (Android) */
+/* Prevent double-tap zoom on interactive elements (mobile) */
 button, a, input, select, textarea, label, [role="button"], [tabindex] {
     touch-action: manipulation;
 }

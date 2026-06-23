@@ -110,12 +110,6 @@ export function init() {
         return;
     }
 
-    // Hide on WebView (Android)
-    if (/; wv\)/.test(navigator.userAgent)) {
-        btn.classList.add('hidden');
-        return;
-    }
-
     // Browser supports Speech API — show the button
     btn.classList.remove('hidden');
 }

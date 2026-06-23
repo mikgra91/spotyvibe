@@ -1,0 +1,24 @@
+<!--
+  RAG corpus update notification (Item C / 2026-04).
+  Shown once per session at startup when /api/settings.rag_update.status is
+  'update_available' or 'missing_corpus'. Cancel just dismisses; Download
+  triggers POST /api/rag/download-corpus.
+-->
+<div class="modal" id="ragUpdateModal" role="dialog" aria-modal="true"
+     aria-labelledby="ragUpdateTitle" hidden>
+    <div class="modal-content modal-content--small">
+        <h2 id="ragUpdateTitle" data-i18n="rag.update.title">New artist data available</h2>
+        <p id="ragUpdateBody" data-i18n="rag.update.body">
+            A newer version of the offline MusicBrainz corpus has been
+            published. Download it now to improve recommendations?
+        </p>
+        <p class="status-line" id="ragUpdateStatus" hidden></p>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="ragUpdateCancelBtn"
+                    data-i18n="rag.update.cancel">Cancel</button>
+            <button type="button" class="btn btn-primary" id="ragUpdateDownloadBtn"
+                    data-i18n="rag.update.download">Download</button>
+        </div>
+    </div>
+</div>
+

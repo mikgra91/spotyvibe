@@ -46,6 +46,7 @@ exclude = [
 "data"                               = "spotyvibe/data"
 "documentation/help.en.md"           = "spotyvibe/documentation/help.en.md"
 "documentation/help.de.md"           = "spotyvibe/documentation/help.de.md"
+"documentation/help.jp.md"           = "spotyvibe/documentation/help.jp.md"
 "documentation/guides"               = "spotyvibe/documentation/guides"
 "documentation/assets/guides"        = "spotyvibe/documentation/assets/guides"
 "documentation/assets/screenshots"   = "spotyvibe/documentation/assets/screenshots"
@@ -63,6 +64,7 @@ include = [
     "data/",
     "documentation/help.en.md",
     "documentation/help.de.md",
+    "documentation/help.jp.md",
     "documentation/guides/",
     "documentation/assets/guides/",
     "documentation/assets/screenshots/",

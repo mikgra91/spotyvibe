@@ -1,17 +1,19 @@
-import { checkCredentialStatus, checkSpotifyAuth, connectSpotify, toggleSpotifyConnection, fetchSettingsState } from './modules/auth.js';
+import { checkCredentialStatus, checkSpotifyAuth, connectSpotify, toggleSpotifyConnection, fetchSettingsState, onSpotifyAuthCompleted } from './modules/auth.js';
 import { renderComponentWarnings } from './modules/warnings.js';
 import { toggleAccordion, prefillTrainFields, updateTrainToggleLabel, toggleTrainBody, startImportProfile, exportProfile, submitProfile, sendTrainProfile, saveProfileDirect, resetProfileToHistory, bindProfileImportInput, checkProfileStatus, loadProfileList, switchProfile, toggleCreateProfile, createNewProfile, deleteCurrentProfile, initCustomProfileDropdown, toggleProfileMenu, initProfileMenu, updateSeedCardState } from './modules/profile.js';
 import { toggleHistoryBody, loadHistory } from './modules/history.js';
 import { toggleAnalysisBody, runAnalysis, renderAnalysisResult, copySuggestion, jumpToAnalysis } from './modules/analysis.js';
 import { toggleGenerateBody, runPipeline, setGenerating, updateUseTracksButton, generateUUID, handleStreamEvent, showSseDisconnectBanner, resumeRun, cancelGeneration, useCurrentTracks, canGenerate } from './modules/pipeline.js';
 import { toggleAudioFilters, getAudioFilters, clearAllFilters, updateFilterHint, applyAnalysisFilter, applyAllAnalysisFilters, updateAllFilterHints } from './modules/audio-filters.js';
-import { getPlaylistMode, onPlaylistModeChange, getPlaylistModePayload, refreshDiscoverPlaylistPicker } from './modules/playlist-mode.js';
+import { getPlaylistMode, onPlaylistModeChange, getPlaylistModePayload, refreshDiscoverPlaylistPicker, initPlaylistMode } from './modules/playlist-mode.js';
 import { renderTracks } from './modules/tracklist.js';
-import { openPreviewOverlay, closePreviewOverlay, prevPreview, nextPreview, previewLike, previewDislike, previewDismiss, submitPreviewFeedback, closePreviewFeedback } from './modules/preview.js';
+import { openPreviewOverlay, openPreviewByIndex, closePreviewOverlay, prevPreview, nextPreview, quickLike, quickDislike, previewDismiss, submitPreviewFeedback, closePreviewFeedback, openPreviewFeedbackPanel, togglePreviewAutoplay, sdkTogglePlay } from './modules/preview.js';
 import { toggleFeedback, closeFeedback, submitFeedback, removeTrack, animateRemove } from './modules/feedback.js';
+import { openApplyModal, closeApplyModal, submitApply, clearSuggestions, _onModeChange as applyModeChange } from './modules/apply-playlist.js';
+import * as DiscoverArtists from './modules/discover-artists.js';
 import { toggleReviewBody, loadPlaylistTracks, renderReviewTracks, toggleReviewFeedback, closeReviewFeedback, submitReviewFeedback, dismissReviewTrack, populateReviewPlaylistPicker, refreshReviewPlaylistPicker, deleteSelectedPlaylist } from './modules/review.js';
 import { showStatus, showStatusHtml, showPlaylistLink, hidePlaylistLink, esc, attr, sanitizeHtml, escHtml, toggleSettingsMenu, showToast } from './modules/ui.js';
-import { openCredentials, saveCredentials, clearCredential, saveSettings, openSettings, openHelp, openSectionHelp, closeSectionHelp, openDataDir, closeModal, dismissHelpBanner, dismissSectionHelpBanner, openQuickstart, closeQuickstart, maybeShowQuickstart } from './modules/modals.js';
+import { openCredentials, saveCredentials, clearCredential, saveSettings, openSettings, openHelp, openSectionHelp, closeSectionHelp, openDataDir, closeModal, dismissHelpBanner, dismissSectionHelpBanner, openQuickstart, closeQuickstart, maybeShowQuickstart, downloadRagCorpus } from './modules/modals.js';
 import { quickstartGoTo, quickstartNext, quickstartPrev } from './modules/quickstart-tour.js';
 import { qsDemoNext, qsDemoPrev, qsDemoToggle, qsDemoExpand, initAllDemos, destroyAllDemos } from './modules/quickstart-demo.js';
 import { switchTheme, THEME_BACKGROUNDS, THEME_RENDERERS } from './modules/theme-switcher.js';
@@ -28,6 +30,7 @@ import * as Exploration from './modules/exploration.js';
 import * as Presets from './modules/presets.js';
 import * as QuickAdvanced from './modules/quick_advanced.js';
 import * as Tips from './modules/tips.js';
+import * as RagUpdatePrompt from './modules/rag_update_prompt.js';
 import * as Rationale from './modules/rationale.js';
 import * as TasteDashboard from './modules/taste_dashboard.js';
 import { toggleDashboardBody } from './modules/taste_dashboard.js';
@@ -35,6 +38,8 @@ import * as PlaylistSeed from './modules/playlist_seed.js';
 import * as Provider from './modules/provider.js';
 import * as CostEstimate from './modules/cost_estimate.js';
 import * as Voice from './modules/voice.js';
+import { initGettingStarted, refreshGettingStarted } from './modules/getting-started.js';
+import { initUiScale, setUiScale } from './modules/ui-scale.js';
 import { el } from './modules/dom.js';
 
 // Expose globals for HTML onclick= attributes
@@ -85,25 +90,39 @@ window.clearAllFilters = clearAllFilters;
 window.updateFilterHint = updateFilterHint;
 window.applyAnalysisFilter = applyAnalysisFilter;
 window.applyAllAnalysisFilters = applyAllAnalysisFilters;
+window.updateAllFilterHints = updateAllFilterHints;
 window.getPlaylistMode = getPlaylistMode;
 window.onPlaylistModeChange = onPlaylistModeChange;
 window.getPlaylistModePayload = getPlaylistModePayload;
 window.refreshDiscoverPlaylistPicker = refreshDiscoverPlaylistPicker;
 window.renderTracks = renderTracks;
 window.openPreviewOverlay = openPreviewOverlay;
+window.openPreviewByIndex = openPreviewByIndex;
 window.closePreviewOverlay = closePreviewOverlay;
 window.prevPreview = prevPreview;
 window.nextPreview = nextPreview;
-window.previewLike = previewLike;
-window.previewDislike = previewDislike;
+window.quickLike = quickLike;
+window.quickDislike = quickDislike;
 window.previewDismiss = previewDismiss;
 window.submitPreviewFeedback = submitPreviewFeedback;
 window.closePreviewFeedback = closePreviewFeedback;
+window.openPreviewFeedbackPanel = openPreviewFeedbackPanel;
+window.togglePreviewAutoplay = togglePreviewAutoplay;
+window.sdkTogglePlay = sdkTogglePlay;
 window.toggleFeedback = toggleFeedback;
 window.closeFeedback = closeFeedback;
 window.submitFeedback = submitFeedback;
 window.removeTrack = removeTrack;
 window.animateRemove = animateRemove;
+window.openApplyModal = openApplyModal;
+window.closeApplyModal = closeApplyModal;
+window.submitApply = submitApply;
+window.clearSuggestions = clearSuggestions;
+window.applyModeChange = applyModeChange;
+window.toggleDiscoverArtistsBody = DiscoverArtists.toggleDiscoverArtistsBody;
+window.runDiscoverArtists = DiscoverArtists.runDiscoverArtists;
+window.clearDiscoveredArtists = DiscoverArtists.clearDiscoveredArtists;
+window.openArtistApplyModal = DiscoverArtists.openArtistApplyModal;
 window.toggleReviewBody = toggleReviewBody;
 window.loadPlaylistTracks = loadPlaylistTracks;
 window.renderReviewTracks = renderReviewTracks;
@@ -128,10 +147,12 @@ window.saveCredentials = saveCredentials;
 window.clearCredential = clearCredential;
 window.saveSettings = saveSettings;
 window.openSettings = openSettings;
+window.setUiScale = setUiScale;
 window.openHelp = openHelp;
 window.openSectionHelp = openSectionHelp;
 window.closeSectionHelp = closeSectionHelp;
 window.openDataDir = openDataDir;
+window.downloadRagCorpus = downloadRagCorpus;
 window.closeModal = closeModal;
 window.dismissHelpBanner = dismissHelpBanner;
 window.dismissSectionHelpBanner = dismissSectionHelpBanner;
@@ -172,11 +193,30 @@ window.toggleVoice = Voice.toggleVoice;
 // Listen for spotify auth popup callback
 window.addEventListener('message', async (e) => {
     if (e.data === 'spotify-auth-complete') {
-        await checkSpotifyAuth();
-        renderComponentWarnings();
+        await onSpotifyAuthCompleted();
         updateSeedCardState();
     }
 });
+
+// U1 (2026-05-06): re-verify auth state when the tab regains focus
+// or visibility, so a Spotify token that expired while the app was
+// in the background flips the Generate button to disabled BEFORE the
+// user clicks. Throttled at 30 s so a quickly toggled tab doesn't
+// hammer /api/spotify/status.
+let _lastAuthRecheckAt = 0;
+async function _recheckAuthIfStale() {
+    const now = Date.now();
+    if (now - _lastAuthRecheckAt < 30000) return;
+    _lastAuthRecheckAt = now;
+    try {
+        await Promise.all([checkSpotifyAuth(), checkCredentialStatus()]);
+        renderComponentWarnings();
+    } catch (_) { /* network blip — next focus tries again */ }
+}
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') _recheckAuthIfStale();
+});
+window.addEventListener('focus', _recheckAuthIfStale);
 
 // Close settings dropdown when clicking outside
 document.addEventListener('click', (e) => {
@@ -204,6 +244,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch(e) {}
     switchTheme(_pendingTheme || 'calm');
 
+    // Restore saved UI text-size preference (§9 Phase 2)
+    initUiScale();
+
     // Show refresh button when running inside pywebview desktop wrapper
     if (window.pywebview) {
         const rb = el('refreshBtn');
@@ -229,6 +272,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Playlist mode
     onPlaylistModeChange();
+    initPlaylistMode();
 
     // Tab navigation — wire click handlers before awaiting i18n so tests
     // (and fast users) don't click a tab before listeners are attached.
@@ -240,11 +284,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Wave 2: Quick/Advanced mode, exploration slider, presets, completeness
     QuickAdvanced.init();
     Exploration.init();
+    DiscoverArtists.init();
     Presets.init();
     Completeness.init();
 
     // Wave 3: Tips, rationale, taste dashboard, playlist seed
     Tips.init();
+    RagUpdatePrompt.init();
     Rationale.init();
     TasteDashboard.init();
     PlaylistSeed.init();
@@ -255,6 +301,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     CostEstimate.init();
     Voice.init();
 
-    // Quickstart guide (auto-show on first visit for the active provider)
-    maybeShowQuickstart(getActiveProvider());
+    // Wave 5: Getting Started checklist (replaces auto-tour)
+    initGettingStarted();
+
 });

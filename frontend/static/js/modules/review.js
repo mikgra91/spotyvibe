@@ -1,10 +1,12 @@
 import * as State from './state.js';
 import { buildTrackCardHtml } from './feedback.js';
-import { showToast, showAlert, showConfirm } from './ui.js';
-import { i18n } from './i18n.js';
+import { showToast, showAlert, showConfirm, esc, attr } from './ui.js';
+import { i18n, localizedError } from './i18n.js';
 import { refreshDiscoverPlaylistPicker } from './playlist-mode.js';
 import { resetDashboard } from './taste_dashboard.js';
 import { el } from './dom.js';
+import { postFeedback, postRemove } from './feedback-api.js';
+import { onExternalTrackRemoved } from './preview.js';
 
 export function toggleReviewBody() {
     const body = el('reviewBody');
@@ -22,6 +24,10 @@ export function toggleReviewBody() {
     if (!isHidden && !body.dataset.loaded) {
         body.dataset.loaded = '1';
         populateReviewPlaylistPicker();
+    }
+    if (!isHidden && !localStorage.getItem('sv.refine_opened') && window.Tips) {
+        localStorage.setItem('sv.refine_opened', '1');
+        window.Tips.maybeTrigger('first_refine_open');
     }
 }
 
@@ -49,7 +55,11 @@ export async function loadPlaylistTracks() {
         const resp = await fetch(`/api/playlist/${encodeURIComponent(playlistId)}/tracks`);
         const data = await resp.json();
         if (data.error) {
-            listEl.innerHTML = `<p style="color:var(--error)">${data.error}</p>`;
+            const errP = document.createElement('p');
+            errP.style.color = 'var(--error)';
+            errP.textContent = localizedError(data);
+            listEl.innerHTML = '';
+            listEl.appendChild(errP);
             return;
         }
         const tracks = data.tracks || [];
@@ -90,7 +100,7 @@ export function renderReviewTracks() {
 
 /* ── Review-specific feedback functions ── */
 
-export function toggleReviewFeedback(idx, action) {
+export function toggleReviewFeedback(idx) {
     const form = el(`review-form-${idx}`);
     if (!form) return;
     const isOpen = form.classList.contains('open');
@@ -100,22 +110,13 @@ export function toggleReviewFeedback(idx, action) {
         if (f.id !== `review-form-${idx}`) f.classList.remove('open');
     });
 
-    if (isOpen && form.dataset.action === action) {
+    if (isOpen) {
         form.classList.remove('open');
         return;
     }
 
     form.classList.add('open');
-    form.dataset.action = action;
-
-    const submitBtn = el(`review-submitBtn-${idx}`);
-    if (action === 'like') {
-        submitBtn.textContent = i18n('btn.submit_like', '👍 Submit');
-        submitBtn.className = 'btn btn-submit-like';
-    } else {
-        submitBtn.textContent = i18n('btn.submit_dislike', '👎 Submit');
-        submitBtn.className = 'btn btn-submit-dislike';
-    }
+    delete form.dataset.action;
 }
 
 export function closeReviewFeedback(idx) {
@@ -123,61 +124,64 @@ export function closeReviewFeedback(idx) {
     if (form) form.classList.remove('open');
 }
 
-export async function submitReviewFeedback(idx) {
+export async function submitReviewFeedback(idx, action) {
+    action = action || 'like';
     const artist = el(`review-artist-${idx}`).value.trim();
     const track  = el(`review-title-${idx}`).value.trim();
     const reason = el(`review-reason-${idx}`).value.trim();
-    const form = el(`review-form-${idx}`);
-    const action = form ? form.dataset.action : 'like';
 
     if (!artist) { showAlert(i18n('feedback.artist_required', 'Artist is required.')); return; }
 
-    const submitBtn = el(`review-submitBtn-${idx}`);
-    submitBtn.disabled = true;
-    submitBtn.textContent = '…';
+    const submitBtnLike = el(`review-submitBtn-${idx}-like`);
+    const submitBtnDislike = el(`review-submitBtn-${idx}-dislike`);
+    if (submitBtnLike) submitBtnLike.disabled = true;
+    if (submitBtnDislike) submitBtnDislike.disabled = true;
 
     try {
-        const resp = await fetch('/api/feedback', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action,
-                artist,
-                track: track || null,
-                reason: reason || null,
-            }),
+        const picker = el('reviewPlaylistPicker');
+        const reviewTrack = State.reviewTracks[idx];
+        const result = await postFeedback({
+            action,
+            artist,
+            track,
+            reason,
+            playlistId: picker && picker.value ? picker.value : null,
+            trackId: reviewTrack && reviewTrack.track_id,
+            source: 'review',
         });
 
-        if (!resp.ok) {
-            const data = await resp.json();
-            showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', data.error || 'unknown'));
+        if (!result.ok) {
+            showAlert(i18n('msg.error_prefix', 'Error: {detail}').replace('{detail}', result.error));
             return;
         }
 
+        const body = result.body;
         const trackLabel = track ? ` — ${track}` : '';
 
         if (action === 'dislike') {
-            // Dislike: record feedback + remove from Spotify playlist
-            const reviewTrack = State.reviewTracks[idx];
-            if (reviewTrack) {
-                await fetch('/api/remove', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ artist: reviewTrack.artist, track: reviewTrack.track }),
-                }).catch(() => {});
-            }
-            showToast(i18n('review.disliked_removed', '👎 Disliked & removed: {track}').replace('{track}', `${artist}${trackLabel}`));
+            const removed = body && body.removal && body.removal.removed;
+            const msg = removed
+                ? i18n('review.disliked_removed', '👎 Disliked & removed: {track}').replace('{track}', `${artist}${trackLabel}`)
+                : i18n('feedback.quick_disliked_not_removed_toast', '👎 Disliked: {track} (not removed from playlist: {reason})')
+                    .replace('{track}', `${artist}${trackLabel}`)
+                    .replace('{reason}', (body && body.removal && body.removal.reason) || i18n('feedback.remove_unknown_reason', 'unknown'));
+            showToast(msg);
         } else {
             showToast(i18n('review.liked', '👍 Liked: {track}').replace('{track}', `${artist}${trackLabel}`));
         }
 
         resetDashboard();
 
+        if (typeof window.refreshGettingStarted === 'function') {
+            window.refreshGettingStarted();
+        }
+
         animateReviewRemove(idx);
     } catch (e) {
         showAlert(i18n('msg.network_error', 'Network error: {detail}').replace('{detail}', e.message));
     } finally {
-        submitBtn.disabled = false;
+        if (submitBtnLike) submitBtnLike.disabled = false;
+        if (submitBtnDislike) submitBtnDislike.disabled = false;
     }
 }
 
@@ -189,15 +193,17 @@ export async function dismissReviewTrack(idx) {
     if (!track) { animateReviewRemove(idx); return; }
 
     try {
-        const resp = await fetch('/api/remove', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ artist: track.artist, track: track.track }),
+        const picker = el('reviewPlaylistPicker');
+        const { body: data } = await postRemove({
+            artist: track.artist,
+            track: track.track,
+            playlistId: picker && picker.value ? picker.value : null,
+            trackId: track.track_id,
+            source: 'review',
         });
-        const data = await resp.json();
         const msg = data.removed
             ? i18n('feedback.removed_from_playlist', 'Removed from playlist: {track}').replace('{track}', `${track.artist} — ${track.track}`)
-            : i18n('feedback.removed', 'Removed: {track}').replace('{track}', `${track.artist} — ${track.track}`);
+            : i18n('feedback.remove_failed', 'Could not remove from playlist: {reason}').replace('{reason}', data.reason || i18n('feedback.remove_unknown_reason', 'unknown'));
         showToast(msg);
     } catch (e) {
         /* Network error — still remove from UI */
@@ -209,6 +215,9 @@ export async function dismissReviewTrack(idx) {
 function animateReviewRemove(idx) {
     const node = el(`review-track-${idx}`);
     if (!node) return;
+    // CF-Bug-6: notify the preview module BEFORE the splice so it can stop
+    // playback / shift its index based on pre-splice positions.
+    onExternalTrackRemoved(idx, 'review');
     node.style.opacity = '0';
     node.style.transform = 'translateX(40px)';
     setTimeout(() => node.remove(), 300);
@@ -226,6 +235,8 @@ export async function populateReviewPlaylistPicker() {
     const picker = el('reviewPlaylistPicker');
     if (!picker) return;
 
+    const prevValue = picker.value;
+
     let playlists = State.cachedPlaylists;
     if (!playlists) {
         try {
@@ -241,8 +252,13 @@ export async function populateReviewPlaylistPicker() {
 
     picker.innerHTML = `<option value="">${i18n('review.select_placeholder', 'Select a playlist…')}</option>` +
         playlists.map(pl =>
-            `<option value="${esc(pl.id)}">${esc(pl.name)}</option>`
+            `<option value="${attr(pl.id)}">${esc(pl.name)}</option>`
         ).join('');
+
+    // Preserve prior selection so removing a track doesn't reset the dropdown
+    if (prevValue && playlists.some(pl => pl.id === prevValue)) {
+        picker.value = prevValue;
+    }
 }
 
 export async function refreshReviewPlaylistPicker() {
@@ -269,10 +285,13 @@ export async function deleteSelectedPlaylist(pickerId) {
         const resp = await fetch(`/api/playlist/${encodeURIComponent(playlistId)}`, { method: 'DELETE' });
         const data = await resp.json();
         if (!resp.ok || data.error) {
-            showToast(data.error || i18n('playlist.delete_failed', 'Failed to delete playlist.'), 'error');
+            showToast(localizedError(data, i18n('playlist.delete_failed', 'Failed to delete playlist.')), 'error');
             return;
         }
         showToast(i18n('playlist.deleted', 'Playlist deleted.'), 'success');
+        // Clear the review track list since the playlist no longer exists
+        State.setReviewTracks([]);
+        renderReviewTracks();
         // Refresh both pickers
         State.invalidateCachedPlaylists();
         await populateReviewPlaylistPicker();

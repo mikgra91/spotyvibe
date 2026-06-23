@@ -20,6 +20,10 @@ export let partialTrackCount = 0;
 export let helpLoaded = false;
 export let reviewTracks = [];
 export let cachedPlaylists = null;
+const _LAST_PID_KEY = 'sv.lastGeneratedPlaylistId';
+export let lastGeneratedPlaylistId = (() => {
+    try { return localStorage.getItem(_LAST_PID_KEY) || null; } catch { return null; }
+})();
 
 export function setSuggestions(val) { suggestions = val; }
 export function spliceSuggestion(idx) {
@@ -28,6 +32,18 @@ export function spliceSuggestion(idx) {
     const count = suggestions.filter(Boolean).length;
     const counterEl = el('songlistCounter');
     if (counterEl) counterEl.textContent = i18n('songlist.counter', '{count} / {max} songs').replace('{count}', count).replace('{max}', maxSize);
+}
+// Bug-1 fix (2026-05-30): liking a track must KEEP it in the discover
+// list (so it can still be applied to a playlist) and mark it liked,
+// rather than removing it like a dislike does. Mutates the live object
+// reference so a subsequent renderTracks() preserves the marker.
+export function markSuggestionLiked(idx, liked = true) {
+    const t = suggestions[idx];
+    if (t) t._liked = liked;
+}
+export function markReviewTrackLiked(idx, liked = true) {
+    const t = reviewTracks[idx];
+    if (t) t._liked = liked;
 }
 export function setOpenFormIndex(val) { openFormIndex = val; }
 export function setOpenFormAction(val) { openFormAction = val; }
@@ -54,6 +70,13 @@ export function spliceReviewTrack(idx) {
 }
 export function setCachedPlaylists(val) { cachedPlaylists = val; }
 export function invalidateCachedPlaylists() { cachedPlaylists = null; }
+export function setLastGeneratedPlaylistId(val) {
+    lastGeneratedPlaylistId = val || null;
+    try {
+        if (val) localStorage.setItem(_LAST_PID_KEY, val);
+        else localStorage.removeItem(_LAST_PID_KEY);
+    } catch { /* storage unavailable */ }
+}
 
 export function resetSessionState() {
     suggestions = [];

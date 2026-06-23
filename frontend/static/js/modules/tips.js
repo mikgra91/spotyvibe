@@ -7,6 +7,8 @@ import { el } from './dom.js';
 const STORAGE_KEY = 'sv.tips.seen';
 let sessionTipShown = false;
 
+const DEFAULT_AUTO_DISMISS_MS = 12000;
+
 const TIP_CATALOGUE = {
     first_generation_complete: {
         id: 'first_generation_complete',
@@ -57,6 +59,50 @@ const TIP_CATALOGUE = {
         link_i18n: 'tip.first_filter_link',
         linkAction: () => { /* no sub-action */ },
     },
+    first_refine_open: {
+        id: 'first_refine_open',
+        title_i18n: 'tip.first_refine',
+        body_i18n: 'tip.first_refine_body',
+        link_i18n: 'tip.first_refine_link',
+        linkAction: () => {
+            const picker = el('reviewPlaylistPicker');
+            if (picker) picker.focus();
+        },
+    },
+    first_analysis_open: {
+        id: 'first_analysis_open',
+        title_i18n: 'tip.first_analysis',
+        body_i18n: 'tip.first_analysis_body',
+        link_i18n: 'tip.first_analysis_link',
+        linkAction: () => {
+            const input = el('analysisArtist');
+            if (input) input.focus();
+        },
+    },
+    first_preview_open: {
+        id: 'first_preview_open',
+        title_i18n: 'preview.rate_hint',
+        body_i18n: 'preview.rate_hint_body',
+        link_i18n: 'tip.first_filter_link',
+        linkAction: () => { /* no sub-action — just dismiss */ },
+    },
+    sdk_brave_widevine: {
+        id: 'sdk_brave_widevine',
+        title_i18n: 'tip.sdk_brave_widevine',
+        body_i18n: 'tip.sdk_brave_widevine_body',
+        link_i18n: 'tip.sdk_brave_widevine_link',
+        linkAction: () => {
+            // brave://… cannot be opened by JS; copy to clipboard so user can paste.
+            try { navigator.clipboard?.writeText('brave://settings/extensions'); } catch { /* ignore */ }
+        },
+    },
+    sdk_no_drm: {
+        id: 'sdk_no_drm',
+        title_i18n: 'tip.sdk_no_drm',
+        body_i18n: 'tip.sdk_no_drm_body',
+        link_i18n: 'tip.sdk_no_drm_link',
+        linkAction: () => { /* informational only */ },
+    },
     five_generations: {
         id: 'five_generations',
         title_i18n: 'tip.five_generations',
@@ -67,6 +113,33 @@ const TIP_CATALOGUE = {
             if (tab) tab.click();
             const section = el('generateSection');
             if (section) section.scrollIntoView({ behavior: 'smooth' });
+        },
+    },
+    regenerate_profile_after_feedback: {
+        id: 'regenerate_profile_after_feedback',
+        title_i18n: 'tip.regen_profile',
+        body_i18n: 'tip.regen_profile_body',
+        link_i18n: 'tip.regen_profile_link',
+        autoDismissMs: 10000,
+        // Re-trigger every new app start AND every additional 30 ratings —
+        // do NOT add this id to the persisted "seen" list (handled in
+        // maybeTrigger below).
+        oncePerSessionOnly: true,
+        linkAction: () => {
+            const tab = el('tab-openai');
+            if (tab) tab.click();
+            const section = el('analysisSection');
+            if (section) {
+                section.scrollIntoView({ behavior: 'smooth' });
+                const header = section.querySelector('.train-header');
+                if (header) header.click();
+            }
+            // Pulse the AI Profile Update button if present.
+            const btn = document.querySelector('[data-action="profile-train"], #profileTrainBtn');
+            if (btn) {
+                btn.classList.add('pulse');
+                setTimeout(() => btn.classList.remove('pulse'), 4000);
+            }
         },
     },
 };
@@ -103,6 +176,8 @@ function _showTip(tip) {
     const existing = el('tipToast');
     if (existing) existing.remove();
 
+    const dismissMs = tip.autoDismissMs || DEFAULT_AUTO_DISMISS_MS;
+
     const toast = document.createElement('div');
     toast.id = 'tipToast';
     toast.className = 'toast--tip';
@@ -130,25 +205,31 @@ function _showTip(tip) {
         if (_autoDismissTimer) { clearTimeout(_autoDismissTimer); _autoDismissTimer = null; }
     });
     toast.addEventListener('mouseleave', () => {
-        _autoDismissTimer = setTimeout(_dismissTip, 12000);
+        _autoDismissTimer = setTimeout(_dismissTip, dismissMs);
     });
 
-    _autoDismissTimer = setTimeout(_dismissTip, 12000);
+    _autoDismissTimer = setTimeout(_dismissTip, dismissMs);
 }
 
 /**
  * Try to show a tip by event id.
  * Only one tip per session; seen tips are skipped.
+ *
+ * Tips with `oncePerSessionOnly: true` are NOT persisted to the seen
+ * list — they re-appear on the next app start (the in-memory
+ * `sessionTipShown` flag still prevents multiple within one session).
  */
 export function maybeTrigger(id) {
     if (sessionTipShown) return;
     const tip = TIP_CATALOGUE[id];
     if (!tip) return;
-    const seen = getSeenIds();
-    if (seen.includes(id)) return;
+    if (!tip.oncePerSessionOnly) {
+        const seen = getSeenIds();
+        if (seen.includes(id)) return;
+        markSeen(id);
+    }
 
     sessionTipShown = true;
-    markSeen(id);
     _showTip(tip);
 }
 

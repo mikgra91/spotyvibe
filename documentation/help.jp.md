@@ -5,67 +5,44 @@
 
 ---
 
-## 目次
+## トピックを選ぶ
 
-- [プライバシー — デバイス外に送信される情報](#privacy--what-leaves-your-device)
-- [はじめに](#getting-started)
-  - [概要](#overview)
-  - [始める前に](#before-you-start)
-  - [メイン画面を理解する](#understanding-the-main-screen)
-  - [クイックスタートガイド](#quick-start-guide)
-- [アカウント設定](#account-setup)
-  - [メニューを開く](#open-the-menu)
-  - [認証情報を入力する](#enter-your-credentials)
-  - [Spotify アカウントを接続する](#connect-your-spotify-account)
-- [ユーザー設定](#user-preferences)
-  - [設定](#settings)
-  - [言語](#language)
-  - [テーマ](#theme)
-- [音楽プロフィール](#music-profile)
-  - [音楽プロフィールを作成する](#create-your-music-profile)
-    - [プロフィールを選択または作成する](#select-or-create-a-profile)
-    - [プロフィールの状態](#profile-status)
-    - [あなたの vibe を説明する](#describe-your-vibe)
-    - [コア説明](#core-description)
-    - [必須条件](#must-have)
-    - [希望条件](#soft-preferences)
-    - [避けたい要素](#avoid)
-    - [保存 または AI Profile Update](#save-or-ai-profile-update)
-    - [AI が裏側で行っていること](#what-the-ai-does-behind-the-scenes)
-  - [プロフィールのインポート、エクスポート、リセット、削除](#import-export-reset-and-delete-your-profile)
-  - [時間とともに好みを更新する](#updating-your-taste-over-time)
-- [発見と分析](#discovery--analysis)
-  - [Band/Song Analysis](#bandsong-analysis)
-- [プレイリスト生成](#playlist-generation)
-  - [プレイリストモードを選ぶ](#choose-a-playlist-mode)
-  - [音声特徴フィルターを使う](#use-audio-filters)
-  - [新規 / 新進アーティストのみ](#emerging-artists-only)
-  - [生成を開始する](#start-generation)
-  - [途中で停止する / 現在の曲を使う](#stop-early-or-use-current-tracks)
-- [曲のレビューとフィードバック](#track-review--feedback)
-  - [曲をプレビューする](#preview-a-track)
-  - [Spotify リンクを開く](#open-spotify-links)
-  - [曲を Like する](#like-a-track)
-  - [曲を Dislike する](#dislike-a-track)
-  - [曲を削除する](#remove-a-track)
-- [プレイリストを洗練する](#refine-playlist)
-  - [プレイリストを選択して読み込む](#select-and-load-a-playlist)
-  - [曲をレビューする](#review-tracks)
-  - [曲を Like する（Refine）](#like-a-track-refine)
-  - [曲を Dislike する（Refine）](#dislike-a-track-refine)
-  - [曲を Dismiss する](#dismiss-a-track)
-- [Taste Dashboard](#taste-dashboard)
-  - [ダッシュボードを開く](#opening-the-dashboard)
-  - [チャート](#charts)
-  - [感情別セクション](#sentiment-sections)
-  - [プロフィールごとの分離](#profile-isolation)
-- [曲リストと実行履歴](#song-list--run-history)
-  - [永続化される曲リスト](#persistent-song-list)
-  - [実行履歴](#run-history)
-- [モバイル利用](#mobile-usage)
-- [トラブルシューティングとヒント](#troubleshooting--tips)
-  - [トラブルシューティング](#troubleshooting)
-  - [最後のヒント](#final-tips)
+<div class="help-tiles">
+  <a class="help-tile" href="#account-setup">
+    <span class="help-tile-title">1. キーを設定する</span>
+    <span class="help-tile-desc">OpenAI と Spotify の認証情報を保存し、Spotify と接続します。</span>
+  </a>
+  <a class="help-tile" href="#music-profile">
+    <span class="help-tile-title">2. 音楽プロフィールを作る</span>
+    <span class="help-tile-desc">あなたの好みを説明し、AI が好きそうな曲を提案できるようにします。</span>
+  </a>
+  <a class="help-tile" href="#playlist-generation">
+    <span class="help-tile-title">3. プレイリストを生成する</span>
+    <span class="help-tile-desc">モードを選び、フィルターを調整し、新しいプレイリストを作ります。</span>
+  </a>
+  <a class="help-tile" href="#refine-playlist">
+    <span class="help-tile-title">4. 洗練とレビュー</span>
+    <span class="help-tile-desc">Like・Dislike・Dismiss でプロフィールを磨きます。</span>
+  </a>
+  <a class="help-tile" href="#troubleshooting--tips">
+    <span class="help-tile-title">5. トラブルシューティング</span>
+    <span class="help-tile-desc">よくある問題と最後のヒント。</span>
+  </a>
+</div>
+
+**リファレンス**
+
+<ul class="help-reference-list">
+  <li><a href="#privacy--what-leaves-your-device">プライバシー</a></li>
+  <li><a href="#getting-started">はじめに</a></li>
+  <li><a href="#user-preferences">ユーザー設定</a></li>
+  <li><a href="#discovery--analysis">Band/Song Analysis</a></li>
+  <li><a href="#discover-artists">アーティストを見つける</a></li>
+  <li><a href="#track-review--feedback">曲のレビューとフィードバック</a></li>
+  <li><a href="#taste-dashboard">Taste Dashboard</a></li>
+  <li><a href="#song-list--run-history">曲リストと実行履歴</a></li>
+  <li><a href="#mobile-usage">モバイル利用</a></li>
+</ul>
 
 ---
 
@@ -127,7 +104,7 @@ SpotyVibe を開くと、2 つのプロバイダーセクションを持つメ�
 - **OpenAI** — 好みプロフィールの編集、AI によるプロフィール更新、AI Band/Song Analysis
 - **Spotify** — プレイリスト生成、プレイリスト改善、実行履歴
 
-各セクション上部のステータスピルには、認証情報の設定状況や接続状態が表示されます。
+各セクション上部のステータスピルには、認証情報の設定状況や接続状態が表示されます。ヘッダーには小さな **Spotify ステータスピル** もあり、「Spotify」という文字の隣にカラードット（緑 = 接続済み、赤 = 未接続、グレー = 不明）が表示されます。クリックで接続 / 切断が切り替わり、タブが再度フォーカスされるとステータスが更新されます。
 
 主要コンポーネントはすべて **折りたたみ / 展開可能** です。セクション見出し（タイトル部分のどこでも）または切り替えボタンをクリックすると、展開 / 折りたたみができます。各タイトルの下には、そのコンポーネントの役割を説明する短い説明文があります。
 
@@ -254,8 +231,11 @@ SpotyVibe を初めて開くと、アクティブなプロバイダーセクシ�
 
 設定できる項目には次のようなものがあります。
 
+- **提案モデル戦略**  
+  SpotyVibe がモデルをどう選ぶかを指定します。**高速**（常に低コストの mini）、**最高品質**（常にプレミアム）、**自動**（フィードバックを与えるまでは低コスト、その後プレミアムへ）、**カスタム**（下で選んだモデルを使用 — ローカル LLM 用途に必要）。
+
 - **Used Model**  
-  SpotyVibe が使用する AI モデルを選びます。
+  SpotyVibe が使用する AI モデルを選びます。上記の戦略が **カスタム** でない限りグレーアウトされます。
 
 - **Playlist Size**  
   生成したい曲数の目標を設定します。
@@ -551,7 +531,7 @@ SpotyVibe が良いおすすめを生成するには、まずあなたの好み�
 
 ここで SpotyVibe は、あなたの好みに基づいてプレイリスト候補を作成します。ページをコンパクトに保つため、このセクションはデフォルトで折りたたまれています。
 
-![Discover Music section expanded](/docs/screenshots/19_discover_section.png)
+![Discover Tracks section expanded](/docs/screenshots/19_discover_section.png)
 
 ---
 
@@ -613,6 +593,11 @@ Advanced モードでは、上部の **Preset** ドロップダウンから、�
 - **User presets:** 組み込みプリセットの上に表示されます。**"💾 Save current as preset…"** で保存します。
 - **Manage presets:** **☰ Menu → 🎛 Manage presets** から開きます。名前変更、削除、並べ替え、インポート、エクスポートができます。
 - プリセットはブラウザの localStorage にローカル保存されます。
+- **CUSTOM バッジ:** **新規アーティスト %** フィールドをアクティブなプリセットの値と異なる値に編集すると、入力欄の横に小さな **CUSTOM** バッジが表示されます。変更を恒久化するには、新しいプリセットとして保存するか、既存のプリセットを更新してください。
+
+> **アーティスト範囲のご注意:** SpotyVibe のオフラインアーティストコーパス（設定の任意機能 **Candidate pool (RAG)**）には、**1960 年代以降**に活動を始めたアクトのみが含まれます。1960 年代以前の音楽は意図的に除外されています — 一般的なリスニングに占める割合は小さく、インデックスを軽く保つためです。同じ注意書きは、設定のスイッチの横にツールチップ（ⓘ）としても表示されます。
+
+> **ローカル LLM のご注意:** RAG を有効にするとプロンプトは通常 ~4〜6 k トークンに膨らみます（60 スロットのプール + プロフィール + 履歴 + JSON 出力）。コンテキストが小さい（4 k または 8 k トークン）ローカルモデルを使用していて品質が低下する場合は、設定で RAG を無効化するか、`RAG_POOL_SIZE` を下げるか、16 k 以上のコンテキストを持つモデルへ切り替えてください。RAG はホスト型 GPT-4 クラスのモデルを前提に設計されています。
 
 ---
 
@@ -645,7 +630,7 @@ Advanced モードでは、上部の **Preset** ドロップダウンから、�
 
 これにより、分析と生成がスムーズにつながり、数値を覚えておく必要がなくなります。
 
-![Audio Filters sub-panel inside Discover Music](/docs/screenshots/21_audio_filters.png)
+![Audio Filters sub-panel inside Discover Tracks](/docs/screenshots/21_audio_filters.png)
 
 ![Band/Song Analysis with Filter buttons](/docs/screenshots/18_analysis_panel.png)
 
@@ -703,6 +688,24 @@ Advanced モードでは、上部の **Preset** ドロップダウンから、�
 
 ---
 
+<a id="discover-artists"></a>
+## アーティストを見つける
+
+**アーティストを見つける**は「トラックを見つける」と「プレイリストを調整」の間にあります。トラックのプレイリストを作る代わりに、探索する価値のある**新しいアーティスト**を、最初の数曲とともに提示します。
+
+**表示**でセクションを開き、2 つのコントロールを設定します：
+
+- **アーティスト数** — 発見する新しいアーティストの数（1〜10）。
+- **探索 vs 正確さ** — 「身近」はあなたの好みに近いアーティストを優先し、「冒険的」は無名の隠れた名手を掘り起こします。
+
+提案されるアーティストはすべて**新規**です — すでにプロフィールにいるアーティスト（確定済みまたは過去に提案済み）は除外されます。
+
+**アーティストを見つける**をクリックします。SpotyVibe は広い候補プールを取得し、1 回の AI パスで最終リストを選びます。各アーティストは短い理由、ジャンルタグ、代表的な数曲とともに表示されます。Spotify で見つかったトラックはリンクされ、見つからないものは*Spotify にありません*と表示されます。
+
+**プレイリストに適用**で、Spotify で確認済みのトラックをプレイリストに追加できます（作成・追加・置換、「トラックを見つける」と同じオプション）。**クリア**でリストを破棄します。
+
+---
+
 <a id="track-review--feedback"></a>
 ## 曲のレビューとフィードバック
 
@@ -729,15 +732,15 @@ Advanced モードでは、上部の **Preset** ドロップダウンから、�
 
 プレビューは 3 つの領域で構成されます。
 
-1. **Spotify player** — 埋め込みプレイヤー（中央・横長）
-2. **Action tabs** — プレイヤー右側にある縦並びのタブ風ボタン（👍 👎 ✕）
-3. **Feedback form** — 👍 または 👎 をクリックすると、残りの領域にスライド表示されるフォーム
+1. **プレーヤー** — 曲のプレーヤー（中央・横長）。Spotify Premium かつ対応ランタイムでは、SpotyVibe は Spotify Web Playback SDK でフル再生を行い、再生コントロールの隣に 👍 / 👎 のクイック評価ボタンを表示します。それ以外では、埋め込み Spotify iframe が約 30 秒のプレビューを提供します。
+2. **アクションボタン** — **フィードバック**ボタン（理由パネルを開く）と **削除**ボタン（フィードバックを記録せずに曲を Spotify プレイリストから削除）がプレーヤーの右側に並びます。
+3. **フィードバックパネル** — **フィードバック**をクリックするとスライドインします。曲の詳細と任意の理由欄に加え、下部に **👍 好き**（緑）と **👎 嫌い**（赤）の 2 つの送信ボタンが並びます。評価の向きはパネルを開くときではなく、送信時に選びます。
 
-同じタブをもう一度クリックすると、フィードバックフォームは閉じます。✕ ボタンはフォームを開かずにその曲を即座に取り除きます。アクティブなタブは Like で緑、Dislike で赤く光ります。
+プレーヤーのクイック 👍 / 👎 は理由なしで即送信されるので、再生中にそのまま評価できます。「嫌い」は Spotify プレイリストからも曲を削除し、次のプレビューへ進みます。
 
 ‹ と › の矢印で、オーバーレイを閉じずに曲間を移動できます。
 
-> **注:** 埋め込み Spotify プレイヤーでは **約 30 秒のプレビュー** が再生されます。完全再生はできません。埋め込みが独立した iframe 内で動作しており、ブラウザのサードパーティ Cookie 制限のため Spotify セッションにアクセスできないためです。フルで聴くには、プレイヤー内の Spotify アイコンをクリックするか、曲カード上の Spotify リンクを使用してください。
+> **初回プレビュー時：** プレーヤーの 👍 / 👎 が軽く点滅し、クイック評価のヒントが表示されます。ヒントはデバイスごとに初回のみ表示されます。
 
 ![Preview player open](/docs/screenshots/32_preview_player.png)
 
@@ -796,6 +799,10 @@ Like した曲は、SpotyVibe が「何がうまく機能しているか」を�
 
 ![Dislike feedback form](/docs/screenshots/35_dislike_feedback_form.png)
 
+#### アーティスト全体を Dislike する
+
+Dislike を送信するときに **Track** 欄を空のままにすると、SpotyVibe が確認ダイアログを表示します:「このプレイリストから '<アーティスト>' のすべての曲を削除し、今後提案しないようにしますか?」。OK を押すと、現在のプレイリストからそのアーティストのすべての曲が削除され(表示されている曲だけではありません)、アーティスト単位の Dislike として記録されます。Cancel を押すと何も起こりません。
+
 ---
 
 <a id="remove-a-track"></a>
@@ -847,7 +854,7 @@ SpotyVibe が曲を取得している間、ボタンの下にローディング�
 - アルバムアート（クリックでプレビュー）
 - アーティスト名と曲名
 - Spotify リンク（曲、アーティスト、アルバム）
-- アクションボタン: **👍 Like**、**👎 Dislike**、**✕ Dismiss**
+- アクションボタン: **💬 フィードバック**（理由パネルを開く）と **🗑 削除**（フィードバックを記録せずに曲を Spotify プレイリストから削除）
 
 アルバムアートをクリックすると、Spotify プレビュープレイヤーも開けます。Refine リストからプレビューしている場合、前 / 次の移動はそのレビューリスト内で行われます。
 
@@ -858,9 +865,7 @@ SpotyVibe が曲を取得している間、ボタンの下にローディング�
 <a id="like-a-track-refine"></a>
 ### 曲を Like する（Refine）
 
-**👍 Like** をクリックすると、その曲に対するポジティブなフィードバックを記録します。
-
-フィードバックフォームが開き、必要に応じてアーティスト名、曲名、理由を編集 / 追加できます。
+曲カードの **💬 フィードバック** をクリックし、パネル下部の **👍 好き** をクリックします。送信前に任意でアーティスト名、曲名、理由を編集 / 追加できます。
 
 送信後、その曲はレビューリストからアニメーションで消えます。曲自体は **Spotify プレイリストに残ったまま** で、更新されるのは好みプロフィールだけです。
 
@@ -871,9 +876,7 @@ SpotyVibe が曲を取得している間、ボタンの下にローディング�
 <a id="dislike-a-track-refine"></a>
 ### 曲を Dislike する（Refine）
 
-**👎 Dislike** をクリックすると、ネガティブなフィードバックを記録します。
-
-フィードバックフォームが開き、必要に応じてアーティスト名、曲名、理由を編集 / 追加できます。
+曲カードの **💬 フィードバック** をクリックし、パネル下部の **👎 嫌い** をクリックします。送信前に任意でアーティスト名、曲名、理由を編集 / 追加できます。
 
 送信後、その曲は次のように処理されます。
 
@@ -887,9 +890,9 @@ SpotyVibe が曲を取得している間、ボタンの下にローディング�
 ---
 
 <a id="dismiss-a-track"></a>
-### 曲を Dismiss する
+### 曲を削除する
 
-**✕ (Dismiss)** をクリックすると、好みプロフィールへのフィードバックを記録せずに、その曲を Spotify プレイリストから削除します。
+**🗑 削除** をクリックすると、好みプロフィールへのフィードバックを記録せずに、その曲を Spotify プレイリストから削除します。
 
 プレイリストからは消したいが、好みとしては中立的な曲に使ってください。
 

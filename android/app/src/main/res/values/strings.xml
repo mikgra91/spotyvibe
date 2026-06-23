@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="app_name">SpotyVibe</string>
-    <string name="splash_subtitle">Starting server…</string>
-    <string name="error_icon">⚠️</string>
-    <string name="error_title">Server failed to start</string>
-    <string name="error_message">The Python server could not be started. Please try again or restart the app.</string>
-    <string name="retry">Retry</string>
-</resources>

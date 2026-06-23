@@ -82,6 +82,7 @@ class TestBurgerMenu:
         expect(page.locator("#spotifyToggleBtn")).to_contain_text("Disconnect Spotify")
 
 
+
 class TestKeyboardNavigation:
     """Keyboard accessibility — tab bar, accordion, modals, skip link."""
 

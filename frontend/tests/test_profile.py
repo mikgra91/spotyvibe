@@ -28,11 +28,15 @@ class TestProfileEditor:
         page.goto(base_url)
         page.wait_for_load_state("domcontentloaded")
         close_profile_editor(page)
-        page.locator("#trainToggleBtn").click()
         body = page.locator("#trainBody")
+        # First click: open. Use a fresh locator each time and dispatch a real
+        # click event so JS-driven layout shifts (the editor injecting itself
+        # into the DOM) cannot leave us with a stale element reference.
+        page.evaluate("document.getElementById('trainToggleBtn').click()")
         expect(body).to_be_visible()
         expect(page.locator("#trainToggleBtn")).to_have_text("Hide")
-        page.locator("#trainToggleBtn").click()
+        # Second click: close.
+        page.evaluate("document.getElementById('trainToggleBtn').click()")
         expect(body).to_be_hidden()
         expect(page.locator("#trainToggleBtn")).to_have_text("Show")
 
@@ -200,7 +204,6 @@ class TestWarningsWithMissingCredentials:
                         "model": "llama3",
                         "debug_mode": False,
                         "debug_controls_available": True,
-                        "is_android": False,
                         "debug_log_path": "debug.log",
                         "playlist_size": 10,
                         "new_artist_percentage": 30,
@@ -273,8 +276,8 @@ class TestToastNotifications:
         expect(page.locator("#runBtn")).to_be_visible()
         page.locator("#runBtn").click()
         page.locator(".track-item").first.wait_for(timeout=2500)
-        page.locator("#track-0 .btn-like").click()
-        page.locator("#submitBtn-0").click()
+        page.locator("#track-0 .btn-feedback").click()
+        page.locator("#submitBtn-0-like").click()
         toast = page.locator("#toast")
         expect(toast).to_contain_text("Liked", timeout=1500)
 

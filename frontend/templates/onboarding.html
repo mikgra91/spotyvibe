@@ -69,6 +69,14 @@
                             <button class="ob-privacy-link" onclick="openPrivacyModal()" data-i18n="ob.privacy_details_link">What gets sent where? →</button>
                         </div>
                     </div>
+
+                    <!-- Item: scope of the artist corpus (only mentioned here so we
+                         don't repeat it everywhere). The same explanation lives as
+                         a tooltip next to the RAG toggle in Settings. -->
+                    <div class="ob-corpus-note" id="obCorpusScopeNote">
+                        <span class="ob-corpus-note-icon" aria-hidden="true">🎚️</span>
+                        <span class="ob-corpus-note-text" data-i18n="ob.corpus_scope_note">Note: SpotyVibe's artist corpus only covers acts that started in the 1960s or later. Pre-1960s music is intentionally excluded — it sits outside the listening habits we optimise for.</span>
+                    </div>
                 </div>
 
                 <div class="ob-nav">
@@ -93,37 +101,36 @@
                             <label class="ob-cred-label" data-i18n="provider.label">Provider</label>
                             <div class="ob-custom-select" id="ob-provider-dropdown">
                                 <button class="ob-custom-select-trigger" id="ob-provider-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
-                                    <span class="ob-custom-select-value" data-i18n="provider.openai">OpenAI</span>
+                                    <span class="ob-custom-select-value" data-i18n="provider.openrouter">OpenRouter</span>
                                     <span class="ob-custom-select-arrow" aria-hidden="true">▾</span>
                                 </button>
                                 <ul class="ob-custom-select-list" id="ob-provider-list" role="listbox" tabindex="-1">
-                                    <li role="option" data-value="openai" class="ob-custom-select-option selected" aria-selected="true" data-i18n="provider.openai">OpenAI</li>
-                                    <li role="option" data-value="ollama" class="ob-custom-select-option" data-i18n="provider.ollama">Ollama (local)</li>
-                                    <li role="option" data-value="lmstudio" class="ob-custom-select-option" data-i18n="provider.lmstudio">LM Studio (local)</li>
-                                    <li role="option" data-value="groq" class="ob-custom-select-option" data-i18n="provider.groq">Groq</li>
-                                    <li role="option" data-value="openrouter" class="ob-custom-select-option" data-i18n="provider.openrouter">OpenRouter</li>
+                                    <li role="option" data-value="openrouter" class="ob-custom-select-option selected" aria-selected="true" data-i18n="provider.openrouter">OpenRouter</li>
+                                    <li role="option" data-value="openai" class="ob-custom-select-option" data-i18n="provider.openai">OpenAI</li>
+                                    <li role="option" data-value="ollama" class="ob-custom-select-option" data-i18n="provider.ollama">Ollama</li>
+                                    <li role="option" data-value="lmstudio" class="ob-custom-select-option" data-i18n="provider.lmstudio">LM Studio</li>
                                 </ul>
                             </div>
-                            <div class="ob-cred-hint" data-i18n="provider.hint">Pick where SpotyVibe gets its AI from.</div>
+                            <div class="ob-cred-hint" data-i18n="ob.provider_hint">Pick where SpotyVibe gets its AI from. OpenRouter is the recommended default — one key unlocks ~300 models.</div>
                         </div>
 
                         <!-- API key -->
                         <div class="ob-cred-row" id="ob-row-openai">
-                            <label for="ob-openai-key" class="ob-cred-label" id="ob-api-key-label" data-i18n="ob.openai_key_label">OpenAI API Key</label>
+                            <label for="ob-openai-key" class="ob-cred-label" id="ob-api-key-label" data-i18n="provider.api_key_label_openrouter">OpenRouter API key</label>
                             <div class="ob-cred-set-row hidden" id="ob-set-openai">
                                 <span class="ob-cred-set-icon">✓</span>
                                 <span class="ob-cred-set-label" data-i18n="ob.key_ok">API Key — OK</span>
                                 <button class="ob-cred-edit-btn" onclick="editObCredential('openai')" data-i18n-title="ob.edit" title="Edit" aria-label="Edit API Key">✎</button>
                             </div>
                             <div class="ob-cred-input-wrap" id="ob-input-wrap-openai">
-                                <input class="ob-cred-input" id="ob-openai-key" type="password" placeholder="sk-…" autocomplete="off" oninput="onObCredentialInput()">
+                                <input class="ob-cred-input" id="ob-openai-key" type="password" placeholder="sk-or-…" autocomplete="off" oninput="onObCredentialInput()">
                             </div>
-                            <div class="ob-cred-hint" id="ob-api-key-hint" data-i18n="ob.openai_key_hint">Paste this from your OpenAI dashboard.</div>
+                            <div class="ob-cred-hint" id="ob-api-key-hint" data-i18n="provider.api_key_hint_openrouter">Paste your OpenRouter API key.</div>
                         </div>
                         <p class="provider-local-notice hidden" id="obLocalNotice" data-i18n="provider.local_notice">Local providers don't need an API key — any value or leave empty.</p>
 
                         <!-- Provider-specific "How do I get this?" guides -->
-                        <div class="ob-cred-guide" id="ob-guide-openai">
+                        <div class="ob-cred-guide hidden" id="ob-guide-openai">
                             <button class="ob-cred-guide-toggle" aria-expanded="false" aria-controls="ob-openai-guide-body" onclick="toggleObGuide(this, 'ob-openai-guide-body')">
                                 <span class="ob-cred-guide-chevron" aria-hidden="true">▸</span>
                                 <span data-i18n="ob.howto_openai">How do I get this?</span>
@@ -168,22 +175,7 @@
                             </div>
                         </div>
 
-                        <div class="ob-cred-guide hidden" id="ob-guide-groq">
-                            <button class="ob-cred-guide-toggle" aria-expanded="false" aria-controls="ob-groq-guide-body" onclick="toggleObGuide(this, 'ob-groq-guide-body')">
-                                <span class="ob-cred-guide-chevron" aria-hidden="true">▸</span>
-                                <span data-i18n="ob.howto_openai">How do I get this?</span>
-                            </button>
-                            <div class="ob-cred-guide-body" id="ob-groq-guide-body">
-                                <ol class="ob-cred-guide-bullets">
-                                    <li data-i18n="ob.groq_step1">Sign up at console.groq.com</li>
-                                    <li data-i18n="ob.groq_step2">Go to API Keys and create a new key</li>
-                                    <li data-i18n="ob.groq_step3">Copy the key (starts with gsk_)</li>
-                                </ol>
-                                <a class="ob-cred-guide-readmore" href="https://console.groq.com/keys" target="_blank" rel="noopener">🌐 <span data-i18n="ob.visit_groq">Visit console.groq.com</span></a>
-                            </div>
-                        </div>
-
-                        <div class="ob-cred-guide hidden" id="ob-guide-openrouter">
+                        <div class="ob-cred-guide" id="ob-guide-openrouter">
                             <button class="ob-cred-guide-toggle" aria-expanded="false" aria-controls="ob-openrouter-guide-body" onclick="toggleObGuide(this, 'ob-openrouter-guide-body')">
                                 <span class="ob-cred-guide-chevron" aria-hidden="true">▸</span>
                                 <span data-i18n="ob.howto_openai">How do I get this?</span>
@@ -193,8 +185,9 @@
                                     <li data-i18n="ob.openrouter_step1">Sign up at openrouter.ai</li>
                                     <li data-i18n="ob.openrouter_step2">Go to Keys and create a new API key</li>
                                     <li data-i18n="ob.openrouter_step3">Copy the key (starts with sk-or-)</li>
+                                    <li data-i18n="ob.openrouter_step4">Add €5–10 under Credits — the default model costs about $0.045 per playlist</li>
                                 </ol>
-                                <a class="ob-cred-guide-readmore" href="https://openrouter.ai/keys" target="_blank" rel="noopener">🌐 <span data-i18n="ob.visit_openrouter">Visit openrouter.ai</span></a>
+                                <button class="ob-cred-guide-readmore" onclick="openSetupGuide('openrouter_api_key')">📖 <span data-i18n="ob.read_full_guide">Read full guide</span></button>
                             </div>
                         </div>
                     </div>

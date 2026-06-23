@@ -38,13 +38,16 @@ from pathlib import Path
 from config import (
     BASE_DIR, PROFILES_DIR, MAX_PROFILE_NAME_LEN,
     MAX_CORE_DESCRIPTION_LEN, MAX_PROFILE_SECTION_LEN,
+    EVAL_LOG_FILE, get_debug_mode,
     get_model, get_gpt_language,
     get_active_profile_id, set_active_profile_id,
     get_active_profile_path, get_active_history_path,
     validate_profile_id,
 )
 from .utils import debug_log, strip_code_fences, sanitize_profile, sanitize_text
-from .openai_http import chat_completions_create, extract_chat_content, call_gpt_json
+from .openai_http import (chat_completions_create, extract_chat_content,
+                          call_gpt_json, call_gpt_json_with_meta)
+from .eval_log import log_profile_update_summary
 
 
 # Template and prompt paths are resolved from BASE_DIR (the project root)
@@ -52,6 +55,13 @@ from .openai_http import chat_completions_create, extract_chat_content, call_gpt
 # without breaking file resolution.
 TEMPLATE_FILE = BASE_DIR / "data" / "music_profile.json"
 TRAINING_PROMPT_FILE = BASE_DIR / "prompts" / "profile_training_prompt.txt"
+
+# F5 (2026-05-01): how many most-recent dislikes to surface to the
+# train_profile LLM. Older dislikes are skipped — recurring patterns
+# in the recent window are what should drive avoid promotion. Cap
+# keeps prompt cost bounded regardless of how long feedback has
+# accumulated.
+RECENT_DISLIKES_FOR_TRAIN_N = 20
 
 # Guards all read-modify-write cycles on profile files so concurrent
 # requests (e.g. feedback during generation) cannot silently overwrite
@@ -68,6 +78,12 @@ _logger = logging.getLogger(__name__)
 _UUID_DIR_RE = _re.compile(
     r'^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$'
 )
+
+# Set of resolved PROFILES_DIR paths whose flat→subdirectory migration has
+# already completed in this process. Path-keyed (not a single bool) so the
+# eval harness sandbox and pytest tmp_path fixtures — which swap PROFILES_DIR
+# — still trigger migration on first touch of a fresh directory.
+_MIGRATED_DIRS: set[str] = set()
 
 
 def _migrate_flat_profiles():
@@ -90,12 +106,20 @@ def _migrate_flat_profiles():
     if not PROFILES_DIR.exists():
         return
 
+    # Skip if we've already swept this directory in this process. ensure_profile()
+    # is called on every request; without this guard we glob PROFILES_DIR/*.json
+    # on every load_profile() / list_profiles() call.
+    dir_key = str(PROFILES_DIR.resolve())
+    if dir_key in _MIGRATED_DIRS:
+        return
+
     # Collect flat profile files (UUID.json, not inside a subdirectory)
     flat_profiles = [
         p for p in PROFILES_DIR.glob("*.json")
         if p.is_file() and _UUID_DIR_RE.match(p.stem)
     ]
     if not flat_profiles:
+        _MIGRATED_DIRS.add(dir_key)
         return
 
     migrated_ids = set()
@@ -141,6 +165,8 @@ def _migrate_flat_profiles():
 
     if migrated_ids:
         _logger.info("Migrated %d profile(s) to subdirectory layout", len(migrated_ids))
+
+    _MIGRATED_DIRS.add(dir_key)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -263,6 +289,56 @@ def profile_transaction():
         yield _load, _save
 
 
+def recover_orphaned_swap_tmps() -> int:
+    """Recover ``profile.json.swap.tmp`` files left behind by a crash mid-swap.
+
+    ``swap_profile_with_history`` does a 3-step rename
+    (profile→tmp, history→profile, tmp→history). A crash between any
+    pair leaves an orphan ``.swap.tmp`` file. Call once at app startup
+    to put each profile dir back into a consistent state.
+
+    Returns the number of profile dirs touched. Best-effort: per-dir
+    failures are logged and skipped so a corrupt profile never blocks
+    boot.
+    """
+    n_recovered = 0
+    if not PROFILES_DIR.exists():
+        return 0
+    for tmp in PROFILES_DIR.glob("*/profile.json.swap.tmp"):
+        try:
+            profile_path = tmp.with_suffix("")  # strips ".tmp"
+            profile_path = profile_path.with_suffix("")  # strips ".swap"
+            history_path = profile_path.parent / "profile.history.json"
+            if profile_path.exists() and history_path.exists():
+                # Ambiguous — keep both, set tmp aside for inspection.
+                tmp.replace(tmp.with_suffix(".bak"))
+                logging.getLogger(__name__).warning(
+                    "Orphan %s alongside both profile + history; preserved as .swap.tmp.bak",
+                    tmp,
+                )
+            elif profile_path.exists() and not history_path.exists():
+                # Crashed after step 2 (history→profile). Finish step 3.
+                tmp.rename(history_path)
+                logging.getLogger(__name__).info(
+                    "Recovered %s → %s (completed interrupted profile swap)",
+                    tmp.name, history_path.name,
+                )
+                n_recovered += 1
+            else:
+                # profile missing → restore tmp into the profile slot.
+                tmp.rename(profile_path)
+                logging.getLogger(__name__).info(
+                    "Recovered %s → %s (rolled back interrupted profile swap)",
+                    tmp.name, profile_path.name,
+                )
+                n_recovered += 1
+        except OSError as exc:
+            logging.getLogger(__name__).warning(
+                "Could not recover orphan swap tmp %s: %s", tmp, exc,
+            )
+    return n_recovered
+
+
 def swap_profile_with_history():
     """Swap the active profile with its one-level history backup.
 
@@ -321,6 +397,46 @@ def _deep_merge(dst, src):
         else:
             dst[key] = value
     return dst
+
+
+# P3.1 (2026-04-27): top-level keys that GPT is allowed to read AND write
+# during train_profile / draft_profile_from_playlist. Everything else is
+# preserved verbatim from disk and never sent to the model. The single
+# source of truth shared by _project_mutable_sections and _merge_mutable_back.
+_MUTABLE_TOP_LEVEL_KEYS = ("preferences", "meta")
+
+
+def _project_mutable_sections(profile: dict) -> dict:
+    """Return a shallow copy of *profile* containing only mutable sections.
+
+    Used by train_profile() to send GPT only the parts of the profile it
+    is supposed to evolve. history + feedback can be 10–20 KB on a real
+    user — sending them costs money, breaks the 8 K local-LLM context
+    floor, and risks the model silently mangling them.
+    """
+    if not isinstance(profile, dict):
+        return {}
+    return {k: profile[k] for k in _MUTABLE_TOP_LEVEL_KEYS if k in profile}
+
+
+def _merge_mutable_back(original: dict, mutable_update: dict) -> dict:
+    """Deep-merge GPT's mutable-section response onto the *original* profile.
+
+    Only keys in `_MUTABLE_TOP_LEVEL_KEYS` are merged from
+    *mutable_update*. All other top-level keys (history, feedback,
+    last_updated, audit_id, version, …) are preserved verbatim from
+    *original*. This guarantees GPT cannot silently overwrite or drop
+    immutable state even if it returns extra keys.
+    """
+    if not isinstance(original, dict):
+        original = {}
+    if not isinstance(mutable_update, dict):
+        return dict(original)
+    result = dict(original)
+    for key in _MUTABLE_TOP_LEVEL_KEYS:
+        if key in mutable_update:
+            result[key] = _deep_merge(result.get(key, {}) or {}, mutable_update[key])
+    return result
 
 
 def export_profile_dict():
@@ -385,7 +501,8 @@ def validate_profile_schema(data):
         prefs = data["preferences"]
         if not isinstance(prefs, dict):
             raise ValueError("'preferences' must be an object.")
-        for field in ("core_description", "must_have", "soft_preferences", "avoid"):
+        for field in ("core_description", "must_have", "must_have_tags",
+                      "corpus_tag_hints", "soft_preferences", "avoid"):
             if field in prefs:
                 if field == "core_description":
                     _validate_str_field(prefs[field], f"preferences.{field}")
@@ -415,7 +532,7 @@ def validate_profile_schema(data):
                 raise ValueError(f"'{section}' must be an object.")
             for key, val in sec.items():
                 if isinstance(val, list) and len(val) > _MAX_LIST_ITEMS * 10:
-                    sec[key] = val[-(  _MAX_LIST_ITEMS * 10):]
+                    sec[key] = val[-(_MAX_LIST_ITEMS * 10):]
 
     # taste_rules
     if "taste_rules" in data:
@@ -486,6 +603,60 @@ def get_profile_status():
 
 # ── Manual save ──────────────────────────────────────────────────────
 
+def _format_recent_dislikes(profile: dict, n: int | None = None) -> str:
+    """Format the ``RECENT DISLIKES`` block for the train_profile prompt.
+
+    F5 (2026-05-01): pulls the last *n* entries (default
+    :data:`RECENT_DISLIKES_FOR_TRAIN_N`) from
+    ``profile.feedback.disliked_tracks``, formats them as a bulleted
+    list with each dislike's reason, and returns the section as a
+    single string ready to append to the user message.
+
+    Returns an empty string when there are no dislikes — caller can
+    cheaply guard with ``if recent_dislikes_block:``.
+
+    Entries without a reason field are skipped: a dislike with no
+    reason carries no avoid signal the LLM could mine, and including
+    bare ``(artist - track)`` lines tempts the LLM to repeat them
+    (which is exactly what the prompt instructs against).
+    """
+    if n is None:
+        n = RECENT_DISLIKES_FOR_TRAIN_N
+    feedback = (profile or {}).get("feedback") or {}
+    disliked = feedback.get("disliked_tracks") or []
+    if not isinstance(disliked, list):
+        return ""
+
+    lines: list[str] = []
+    for entry in disliked[-n:]:
+        if not isinstance(entry, dict):
+            continue
+        reason = (entry.get("reason") or "").strip()
+        if not reason or reason == "user feedback":
+            # "user feedback" is the default placeholder when the user
+            # didn't supply a reason — no avoid signal there.
+            continue
+        artist = (entry.get("artist") or "").strip()
+        track = (entry.get("track") or "").strip()
+        if not artist:
+            continue
+        if track:
+            lines.append(f"- {artist} — {track}: \"{reason}\"")
+        else:
+            lines.append(f"- {artist}: \"{reason}\"")
+
+    if not lines:
+        return ""
+
+    return (
+        f"\n## RECENT DISLIKES (last {len(lines)} with user-supplied reasons "
+        "— mine recurring patterns and PROMOTE them into avoid; do not "
+        "echo these entries back in the response):\n"
+        + "\n".join(lines)
+        + "\n"
+    )
+
+
 def save_profile_sections(sections):
     """Update the profile preferences directly from user input (no AI).
 
@@ -542,16 +713,20 @@ def train_profile(sections):
 
     How it works:
     1. Loads the current profile and the training system prompt from disk.
-    2. Constructs a user message with the existing profile JSON and the
+    2. **Projects only the mutable sections** (preferences + meta) into the
+       prompt — history and feedback are NEVER sent to GPT (they can be
+       large, are immutable from GPT's perspective, and have always been a
+       source of accidental mangling that the post-call safety merge had
+       to compensate for). This is the P3.1 fix from 2026-04-27.
+    3. Constructs a user message with the projected profile JSON and the
        new user input, structured into labelled sections so GPT can parse
        each one with the correct semantics.
-    3. Calls GPT with `response_format={"type": "json_object"}` — this
+    4. Calls GPT with `response_format={"type": "json_object"}` — this
        enables OpenAI's **Structured Outputs** mode, which constrains the
-       model to return valid JSON. This prevents formatting issues that
-       would otherwise require complex parsing/retry logic.
-    4. Merges the AI-refined profile with the original's history/feedback
-       sections (safety net — GPT might accidentally modify them).
-    5. Stamps the update time and saves.
+       model to return valid JSON.
+    5. Deep-merges the AI-refined mutable sections back onto the original
+       profile (history + feedback retained verbatim from disk).
+    6. Stamps the update time and saves.
 
     Temperature 0.3 is used (low creativity) because profile training
     should faithfully represent user input, not hallucinate preferences.
@@ -563,10 +738,19 @@ def train_profile(sections):
     with open(TRAINING_PROMPT_FILE, "r", encoding="utf-8") as f:
         system_prompt = f.read().replace("{gpt_language}", get_gpt_language())
 
+    # P3.1 (2026-04-27): project ONLY the mutable sections of the profile
+    # into the prompt. history + feedback can be 10-20 KB each on a real
+    # user — sending them costs money, breaks the 8 K local-LLM context
+    # floor, and risks GPT silently mangling them. Mutable = preferences,
+    # meta. The reverse merge below restores history + feedback verbatim.
+    profile_for_prompt = _project_mutable_sections(profile)
+
     # Build a structured user message so GPT knows what each section means
     parts = [
-        "Here is my current music taste profile:\n\n"
-        f"{json.dumps(profile, indent=2)}\n\n"
+        "Here is my current music taste profile (mutable sections only — "
+        "history and feedback are managed elsewhere and should NOT be "
+        "returned in the response):\n\n"
+        f"{json.dumps(profile_for_prompt, indent=2)}\n\n"
         "Here is my updated taste input, broken into sections:\n"
     ]
 
@@ -604,6 +788,14 @@ def train_profile(sections):
             f"{sections['avoid']}\n"
         )
 
+    # F5 (2026-05-01): surface recent dislike reasons so the LLM can
+    # mine recurring avoid signals and promote them into avoid prose.
+    # Without this, ``feedback.disliked_tracks[*].reason`` is rich avoid
+    # signal that never reaches the profile schema (F5).
+    recent_dislikes_block = _format_recent_dislikes(profile)
+    if recent_dislikes_block:
+        parts.append(recent_dislikes_block)
+
     parts.append(
         "\nUpdate the profile based on my input. Merge with existing data — "
         "do not remove anything from the \"history\" or \"feedback\" sections.\n"
@@ -617,15 +809,47 @@ def train_profile(sections):
         {"role": "user", "content": user_message},
     ]
 
-    gpt_profile = call_gpt_json(train_messages, temperature=0.3, label="Profile Training")
+    prompt_chars = sum(len(m.get("content", "")) for m in train_messages)
+    run_id = str(_uuid.uuid4())
+    profile_before = profile
 
-    # Start from the template to guarantee all required keys survive,
-    # then deep-merge the GPT output on top (shallow .update() would lose
-    # nested template defaults if GPT omits sub-keys).
-    updated_profile = _load_template()
-    updated_profile = _deep_merge(updated_profile, gpt_profile)
+    try:
+        gpt_profile, _meta = call_gpt_json_with_meta(
+            train_messages, temperature=0.3, label="Profile Training",
+        )
+    except ValueError as exc:
+        try:
+            log_profile_update_summary(
+                run_id=run_id,
+                model=get_model(),
+                profile_id=get_active_profile_id(),
+                profile_before=profile_before,
+                profile_after=None,
+                eval_log_path=EVAL_LOG_FILE,
+                debug_mode=get_debug_mode(),
+                label="train_profile",
+                status="empty_response" if "empty" in str(exc).lower() else "invalid_json",
+                latency_s=None,
+                usage=None,
+                prompt_chars=prompt_chars,
+                response_chars=None,
+            )
+        except Exception as _exc:  # pragma: no cover
+            _logger.warning("log_profile_update_summary skipped: %s", _exc)
+        raise
 
-    # Safety: preserve history + feedback from the original (GPT might mangle them)
+    # P3.1 (2026-04-27): merge ONLY the mutable sections back. history +
+    # feedback are restored verbatim from the on-disk profile because they
+    # were never sent to GPT. Template defaults still hydrate any missing
+    # keys via _load_template + _deep_merge below.
+    template = _load_template()
+    updated_profile = _deep_merge(template, profile)            # template ← original
+    updated_profile = _merge_mutable_back(updated_profile, gpt_profile)
+
+    # Defensive: history + feedback come from the original on-disk profile.
+    # _merge_mutable_back already excludes these keys from the GPT update,
+    # so this is belt-and-braces in case a future schema adds new keys
+    # that should also be immutable.
     for key in ("history", "feedback"):
         if key in profile:
             updated_profile[key] = profile[key]
@@ -638,6 +862,26 @@ def train_profile(sections):
     updated_profile["last_updated"] = datetime.now(timezone.utc).isoformat()
 
     save_profile(updated_profile)
+
+    try:
+        log_profile_update_summary(
+            run_id=run_id,
+            model=_meta.get("model") or get_model(),
+            profile_id=get_active_profile_id(),
+            profile_before=profile_before,
+            profile_after=updated_profile,
+            eval_log_path=EVAL_LOG_FILE,
+            debug_mode=get_debug_mode(),
+            label="train_profile",
+            status="ok",
+            latency_s=_meta.get("latency_s"),
+            usage=_meta.get("usage"),
+            prompt_chars=prompt_chars,
+            response_chars=_meta.get("raw_response_chars"),
+        )
+    except Exception as _exc:  # pragma: no cover
+        _logger.warning("log_profile_update_summary skipped: %s", _exc)
+
     return updated_profile
 
 
@@ -787,14 +1031,56 @@ def draft_profile_from_playlist(summary: dict) -> dict:
         moods=moods,
     )
 
-    result = call_gpt_json(
-        [
-            {"role": "system", "content": "You draft music taste profiles from playlist data. Return strict JSON only."},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.7,
-        label="Playlist Seed Draft",
-    )
+    seed_messages = [
+        {"role": "system", "content": "You draft music taste profiles from playlist data. Return strict JSON only."},
+        {"role": "user", "content": prompt},
+    ]
+    prompt_chars = sum(len(m.get("content", "")) for m in seed_messages)
+    run_id = str(_uuid.uuid4())
+
+    try:
+        result, _meta = call_gpt_json_with_meta(
+            seed_messages,
+            temperature=0.7,
+            label="Playlist Seed Draft",
+        )
+    except ValueError as exc:
+        try:
+            log_profile_update_summary(
+                run_id=run_id,
+                model=get_model(),
+                profile_id=get_active_profile_id(),
+                profile_before={},
+                profile_after=None,
+                eval_log_path=EVAL_LOG_FILE,
+                debug_mode=get_debug_mode(),
+                label="playlist_seed_draft",
+                status="empty_response" if "empty" in str(exc).lower() else "invalid_json",
+                latency_s=None, usage=None,
+                prompt_chars=prompt_chars, response_chars=None,
+            )
+        except Exception as _exc:  # pragma: no cover
+            _logger.warning("log_profile_update_summary skipped: %s", _exc)
+        raise
+
+    try:
+        log_profile_update_summary(
+            run_id=run_id,
+            model=_meta.get("model") or get_model(),
+            profile_id=get_active_profile_id(),
+            profile_before={},
+            profile_after=result if isinstance(result, dict) else None,
+            eval_log_path=EVAL_LOG_FILE,
+            debug_mode=get_debug_mode(),
+            label="playlist_seed_draft",
+            status="ok",
+            latency_s=_meta.get("latency_s"),
+            usage=_meta.get("usage"),
+            prompt_chars=prompt_chars,
+            response_chars=_meta.get("raw_response_chars"),
+        )
+    except Exception as _exc:  # pragma: no cover
+        _logger.warning("log_profile_update_summary skipped: %s", _exc)
 
     # Enforce shape constraints
     draft = {

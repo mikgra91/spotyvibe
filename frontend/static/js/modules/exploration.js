@@ -97,6 +97,13 @@ function _applyNotchToFields(notch) {
 
     // Temperature (in-memory)
     _temperature = def.temperature;
+
+    // Item 7 — applying a notch may change the New Artist % field; refresh
+    // the "CUSTOM" badge so it disappears when the value matches the active
+    // preset again.
+    import('./presets.js').then(P => {
+        if (typeof P.refreshNewArtistPctBadge === 'function') P.refreshNewArtistPctBadge();
+    }).catch(() => { /* presets module not loaded — ignore */ });
 }
 
 // ── Custom detection ────────────────────────────────────────────────

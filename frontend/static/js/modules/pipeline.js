@@ -1,17 +1,14 @@
 import * as State from './state.js';
-import { showStatus, showStatusHtml, hidePlaylistLink, showPlaylistLink, showConfirm } from './ui.js';
+import { showStatus, showStatusHtml, hidePlaylistLink } from './ui.js';
 import { checkCredentialStatus, checkSpotifyAuth } from './auth.js';
 import { renderComponentWarnings } from './warnings.js';
-import { getPlaylistModePayload, getPlaylistMode, refreshDiscoverPlaylistPicker, ensurePlaylistsLoaded, switchToAppendMode } from './playlist-mode.js';
 import { getAudioFilters } from './audio-filters.js';
 import { renderTracks } from './tracklist.js';
 import { loadHistory } from './history.js';
-import { populateReviewPlaylistPicker } from './review.js';
 import { resetDashboard } from './taste_dashboard.js';
-import { i18n } from './i18n.js';
+import { i18n, localizedError } from './i18n.js';
 import { el } from './dom.js';
-
-let _runPlaylistMode = null;  // playlist mode at time of generation (for auto-switch)
+import { estimate as estimateCost, recordRunSpend } from './cost_estimate.js';
 
 export function toggleGenerateBody() {
     const body = el('generateBody');
@@ -37,6 +34,45 @@ export function generateUUID() {
     });
 }
 
+// U3 (2026-05-07): track per-event timestamps for an ETA-style "est. Xs"
+// progress label. Reset at the start of each generation.
+let _trackVerifySamples = [];
+
+function _resetVerifyEta() {
+    _trackVerifySamples = [];
+}
+
+function _pushVerifySample(count) {
+    const now = (typeof performance !== 'undefined' && performance.now)
+        ? performance.now() : Date.now();
+    _trackVerifySamples.push({ t: now, count });
+    // Keep only the last 12 samples — recent rate matters more than
+    // the long-tail average across all batches.
+    if (_trackVerifySamples.length > 12) _trackVerifySamples.shift();
+}
+
+function _estimateRemainingSeconds(currentCount, total) {
+    if (total <= currentCount) return null;
+    if (_trackVerifySamples.length < 2) return null;
+    const first = _trackVerifySamples[0];
+    const last = _trackVerifySamples[_trackVerifySamples.length - 1];
+    const dt = (last.t - first.t) / 1000.0;
+    const dn = last.count - first.count;
+    if (dt <= 0 || dn <= 0) return null;
+    const rate = dn / dt;             // tracks per second
+    const remaining = total - currentCount;
+    const eta = remaining / rate;
+    if (!isFinite(eta) || eta < 0) return null;
+    return eta;
+}
+
+function _formatEta(seconds) {
+    // Round to whole seconds; clamp to a useful display range.
+    if (seconds < 1) return '<1s';
+    if (seconds >= 60) return `${Math.round(seconds / 60)}m`;
+    return `${Math.round(seconds)}s`;
+}
+
 export function setGenerating(generating) {
     State.setIsGenerating(generating);
     const runBtn    = el('runBtn');
@@ -45,15 +81,26 @@ export function setGenerating(generating) {
     const loadArea  = el('generateLoadingArea');
 
     runBtn.disabled  = generating;
-    runBtn.textContent = generating ? i18n('msg.generating', '⏳ Generating…') : '▶ ' + i18n('btn.generate', 'Generate & Create Playlist');
+    runBtn.textContent = generating ? i18n('msg.generating', '⏳ Generating…') : '▶ ' + i18n('btn.generate', 'Generate Suggestions');
 
     cancelBtn.classList.toggle('hidden', !generating);
 
     useBtn.classList.toggle('hidden', !generating || State.partialTrackCount === 0);
+    if (!generating) {
+        // Clear any leftover busy/disabled state from a finalize-in-flight
+        // so a fresh generation starts the button clean.
+        useBtn.disabled = false;
+        useBtn.removeAttribute('aria-busy');
+    }
 
     if (loadArea) {
         loadArea.classList.toggle('hidden', !generating);
-        if (!generating) {
+        if (generating) {
+            // Scroll the loading area into view so the user gets a clear visual signal
+            // that the click was registered. Especially important on small screens
+            // where the spinner might otherwise be below the fold.
+            try { loadArea.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) { /* older browsers */ }
+        } else {
             const msg = el('generateLoadingMsg');
             if (msg) msg.textContent = '';
         }
@@ -91,56 +138,37 @@ export async function runPipeline() {
 
     if (!canGenerate()) return;
 
-    // Duplicate playlist name check (only for "create" mode)
-    const preMode = getPlaylistMode();
-    if (preMode === 'create') {
-        const nameInput = el('playlistNameInput');
-        const desiredName = (nameInput?.value || '').trim();
-        if (desiredName) {
-            const playlists = await ensurePlaylistsLoaded();
-            const duplicate = playlists.some(pl => pl.name.toLowerCase() === desiredName.toLowerCase());
-            if (duplicate) {
-                const msg = i18n('playlist_mode.duplicate_confirm', 'A playlist named "{name}" already exists.\n\nDo you want to create a duplicate?')
-                    .replace('{name}', desiredName);
-                const confirmed = await showConfirm(msg);
-                if (!confirmed) return;
-                const suffix = i18n('playlist_mode.duplicate_suffix', '_Duplicate');
-                nameInput.value = desiredName + suffix;
-            }
-        }
-    }
-
     State.setPartialTrackCount(0);
     State.setCurrentRunId(generateUUID());
     State.setCurrentAbortController(new AbortController());
+    _resetVerifyEta();
     setGenerating(true);
     showStatus(i18n('pipeline.starting', 'Starting pipeline…'), 'info');
     hidePlaylistLink();
 
-    const playlistPayload = getPlaylistModePayload();
-    _runPlaylistMode = playlistPayload.playlist_mode || 'default';
+    const payload = {};
     const audioFilters = getAudioFilters();
-    if (audioFilters) playlistPayload.audio_filters = audioFilters;
+    if (audioFilters) payload.audio_filters = audioFilters;
     const emergingOnly = el('emergingArtistsCheckbox')?.checked || false;
-    if (emergingOnly) playlistPayload.emerging_only = true;
+    if (emergingOnly) payload.emerging_only = true;
 
     // Wave 2: temperature from exploration slider
     try {
         const Exploration = window._explorationModule;
         if (Exploration) {
             const temp = Exploration.getTemperature();
-            if (temp != null) playlistPayload.temperature = temp;
+            if (temp != null) payload.temperature = temp;
         }
     } catch (_) { /* ignore */ }
 
     // Wave 2: playlist size from shared slider (overrides settings modal)
     const sizeSlider = document.querySelector('.gen-size-slider');
     if (sizeSlider) {
-        playlistPayload.playlist_size = parseInt(sizeSlider.value, 10);
+        payload.playlist_size = parseInt(sizeSlider.value, 10);
     }
 
     try {
-        await _startSseStream(State.currentRunId, State.currentAbortController.signal, playlistPayload);
+        await _startSseStream(State.currentRunId, State.currentAbortController.signal, payload);
     } catch (e) {
         if (e.name === 'AbortError') {
             // Expected — cancelGeneration() was called, status already set
@@ -276,10 +304,13 @@ export async function useCurrentTracks() {
     if (!State.isGenerating || !State.currentRunId || State.partialTrackCount === 0) return;
 
     const useBtn = el('useTracksBtn');
+    const prevLabel = useBtn.textContent;
+    const prevDisabled = useBtn.disabled;
     useBtn.disabled = true;
+    useBtn.setAttribute('aria-busy', 'true');
     useBtn.textContent = i18n('pipeline.finalising', '⏳ Finalising…');
 
-    showStatus(i18n('pipeline.creating_playlist', '⏳ Creating playlist with {count} track(s)…').replace('{count}', State.partialTrackCount), 'info');
+    showStatus(i18n('pipeline.creating_playlist', '⏳ Finalising with {count} track(s)…').replace('{count}', State.partialTrackCount), 'info');
 
     try {
         await fetch('/api/cancel', {
@@ -287,7 +318,15 @@ export async function useCurrentTracks() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ run_id: State.currentRunId, finalize: true }),
         });
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+        // Network failure before finalize was acknowledged: restore the
+        // button so the user can retry. On success the result SSE will
+        // hide the button via setGenerating(false), so no restore is
+        // needed in the happy path.
+        useBtn.disabled = prevDisabled;
+        useBtn.removeAttribute('aria-busy');
+        useBtn.textContent = prevLabel;
+    }
 }
 
 export function handleStreamEvent(event) {
@@ -303,34 +342,78 @@ export function handleStreamEvent(event) {
         case 'batch_verified':
             updateUseTracksButton(event.count);
             break;
+        case 'track_verified': {
+            // L3 (2026-05-06): per-track Spotify verify event. Updates
+            // the partial counter immediately so the user sees each
+            // track land instead of waiting for the whole batch. Falls
+            // through to the existing "Use X tracks now" path so the
+            // button label keeps in sync without a separate code path.
+            if (typeof event.count === 'number') {
+                updateUseTracksButton(event.count);
+            }
+            const total = (typeof event.total === 'number' && event.total > 0) ? event.total : null;
+            const cnt = (typeof event.count === 'number') ? event.count : null;
+            if (cnt !== null && total !== null) {
+                // U3 (2026-05-07): record sample + compute rate-based ETA.
+                _pushVerifySample(cnt);
+                const eta = _estimateRemainingSeconds(cnt, total);
+                let msg;
+                if (eta !== null) {
+                    const tmpl = i18n('pipeline.verifying_progress_eta',
+                                      '⏳ Verifying… {count} of {total} tracks confirmed — est. {eta} remaining');
+                    msg = tmpl
+                        .replace('{count}', cnt)
+                        .replace('{total}', total)
+                        .replace('{eta}', _formatEta(eta));
+                } else {
+                    const tmpl = i18n('pipeline.verifying_progress',
+                                       '⏳ Verifying… {count} of {total} tracks confirmed');
+                    msg = tmpl.replace('{count}', cnt).replace('{total}', total);
+                }
+                showStatus(msg, 'info');
+            }
+            break;
+        }
         case 'cancelled':
             showStatus('⛔ ' + event.message, 'info');
             break;
         case 'result': {
-            State.setSuggestions(event.playlist || []);
+            // Append new suggestions to existing list (cap at 100)
+            const newTracks = event.playlist || [];
+            const maxSize = window._maxSongListSize || 100;
+            const currentTracks = State.suggestions.filter(Boolean);
+            const combined = [...currentTracks, ...newTracks].slice(0, maxSize);
+            State.setSuggestions(combined);
             renderTracks();
-            const _batchCount = State.suggestions.length;
+            const _batchCount = newTracks.length;
             if (State.historyBodyOpen) loadHistory();
-            if (event.playlist_url) showPlaylistLink(event.playlist_url);
+
+            // P0.1: add this run's estimated cost to the session-cumulative
+            // spend display. Estimate is provider-side cost only; Spotify is free.
+            try {
+                const _modelEl = el('settings-model-freetext');
+                let _model = '';
+                if (_modelEl && !_modelEl.classList.contains('hidden')) _model = _modelEl.value.trim();
+                if (!_model) {
+                    const _sel = el('settings-model');
+                    if (_sel) _model = _sel.value;
+                }
+                if (_model && _batchCount > 0) {
+                    estimateCost({ model: _model, profileText: '', tracks: _batchCount }).then(r => {
+                        if (r && r.cost) recordRunSpend(r.cost);
+                    });
+                }
+            } catch (_) { /* ignore */ }
             const parts = [
                 event.was_cancelled
-                    ? i18n('pipeline.stopped_early', '⛔ Generation stopped early. Playlist created with {count} track(s).').replace('{count}', _batchCount)
-                    : i18n('pipeline.suggestions_generated', '✅ {count} suggestions generated.').replace('{count}', _batchCount)
+                    ? i18n('pipeline.stopped_early', '⛔ Generation stopped early. {count} track(s) added to list.').replace('{count}', _batchCount)
+                    : i18n('pipeline.suggestions_generated', '✅ {count} suggestions added to list.').replace('{count}', _batchCount)
             ];
-            if (event.added) parts.push(i18n('pipeline.tracks_added', '{count} new track(s) added to playlist.').replace('{count}', event.added));
             if (event.not_found && event.not_found.length)
                 parts.push(i18n('pipeline.tracks_not_found', '{count} track(s) not found on Spotify.').replace('{count}', event.not_found.length));
             if (event.emerging_shown != null && event.emerging_checked != null)
                 parts.push(i18n('pipeline.emerging_filter_result', 'Showing {shown} of {checked} checked tracks — only tracks by recently emerged artists are included.').replace('{shown}', event.emerging_shown).replace('{checked}', event.emerging_checked));
             showStatus(parts.join(' '), event.was_cancelled ? 'info' : 'success');
-            // Playlist was created or modified — refresh both pickers
-            refreshDiscoverPlaylistPicker().then(() => {
-                populateReviewPlaylistPicker();
-                // Auto-switch to "append" mode after a "create" run
-                if (_runPlaylistMode === 'create' && event.playlist_id) {
-                    switchToAppendMode(event.playlist_id);
-                }
-            });
 
             // Refresh taste dashboard and run history with the new data
             resetDashboard();
@@ -339,7 +422,6 @@ export function handleStreamEvent(event) {
             // Wave 3: Tip triggers after successful generation
             if (window.Tips) {
                 window.Tips.maybeTrigger('first_generation_complete');
-                // Track generation count for the "five generations" tip
                 try {
                     const genCount = parseInt(localStorage.getItem('sv.gen_count') || '0', 10) + 1;
                     localStorage.setItem('sv.gen_count', genCount.toString());
@@ -348,8 +430,21 @@ export function handleStreamEvent(event) {
             }
             break;
         }
-        case 'error':
-            showStatus('❌ ' + event.message, 'error');
+        case 'error': {
+            const localized = localizedError(
+                { error: event.message, error_key: event.error_key, error_params: event.error_params },
+                event.message
+            );
+            // U2 (2026-05-07): transient upstream failures (Spotify 429,
+            // OpenAI rate-limit / timeout) render with ⏳ and a softer
+            // status level so users perceive them as "wait and retry"
+            // rather than a permanent break. Permanent errors keep ❌.
+            if (event.error_class === 'transient') {
+                showStatus('⏳ ' + localized, 'info');
+            } else {
+                showStatus('❌ ' + localized, 'error');
+            }
             break;
+        }
     }
 }

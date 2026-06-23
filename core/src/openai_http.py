@@ -1,10 +1,6 @@
 """Direct HTTP client for the OpenAI REST API — no openai SDK required.
 
 Uses only Python stdlib: urllib.request, urllib.error, json, time.
-This allows the module to run on Android/Chaquopy without any native
-(Rust) extensions that newer SDK versions pull in transitively:
-  - openai>=1.35 depends on jiter (Rust)
-  - pydantic>=2 depends on pydantic-core (Rust)
 
 Endpoints used:
   POST /v1/chat/completions
@@ -12,6 +8,7 @@ Endpoints used:
 
 import json
 import os
+import socket
 import time
 import urllib.request
 import urllib.error
@@ -25,6 +22,8 @@ class OpenAIError(Exception):
 
 class OpenAIConfigError(OpenAIError):
     """API key or configuration is missing or invalid."""
+
+    key = "error.openai.config_missing"
 
 
 class OpenAIRequestError(OpenAIError):
@@ -43,9 +42,15 @@ class OpenAIAuthError(OpenAIRequestError):
 class OpenAIRateLimitError(OpenAIRequestError):
     """429 — rate limit exceeded."""
 
+    error_class = "transient"
+    key = "error.transient.openai_rate_limited"
+
 
 class OpenAITimeoutError(OpenAIError):
     """Request timed out before a response was received."""
+
+    error_class = "transient"
+    key = "error.transient.openai_slow"
 
 
 class OpenAIResponseError(OpenAIError):
@@ -54,6 +59,8 @@ class OpenAIResponseError(OpenAIError):
 
 class OpenAIUnsupportedModelError(OpenAIError):
     """Model is locally blocked or was rejected by the API (400)."""
+
+    key = "error.openai.unsupported_model"
 
 
 # ── Configuration ────────────────────────────────────────────────────
@@ -92,7 +99,8 @@ def _get_api_key() -> str:
             from config import llm_api_key_required
             if not llm_api_key_required():
                 return "not-needed"  # placeholder for Authorization header
-        except (ImportError, Exception):
+        except ImportError:
+            # Stand-alone test harness with no ``config`` module on the path.
             pass
         raise OpenAIConfigError(
             "OpenAI API key is not configured. "
@@ -210,12 +218,15 @@ def _request_json(method: str, path: str, body=None, retries: int = 1) -> dict:
             )
 
         except urllib.error.URLError as exc:
-            reason = str(exc.reason) if hasattr(exc, "reason") else str(exc)
-            if "timed out" in reason.lower() or "timeout" in reason.lower():
+            inner = getattr(exc, "reason", exc)
+            if isinstance(inner, (socket.timeout, TimeoutError)):
                 last_exc = OpenAITimeoutError(f"Request timed out: {exc}")
             else:
                 last_exc = OpenAIRequestError(f"Network error: {exc}")
             continue  # retry on network errors
+        except socket.timeout as exc:
+            last_exc = OpenAITimeoutError(f"Request timed out: {exc}")
+            continue
 
     # All attempts failed — raise the last recorded exception
     if last_exc is not None:
@@ -231,6 +242,7 @@ def chat_completions_create(
     messages: list,
     temperature: float = 0.7,
     response_format: dict | None = None,
+    prompt_cache_key: str | None = None,
 ) -> dict:
     """POST /v1/chat/completions — call the chat completions endpoint.
 
@@ -238,12 +250,21 @@ def chat_completions_create(
     raises OpenAIUnsupportedModelError immediately if the model is not
     in the list, avoiding a wasted API round-trip.
 
+    OPEN-3 (2026-04-28): when ``response_format`` is a strict json_schema
+    request and the model rejects it (HTTP 400 with "response_format" /
+    "json_schema" / "schema" in the error message), we auto-downgrade
+    once to ``{"type": "json_object"}`` and cache the result so future
+    calls with the same model skip straight to json_object. This lets
+    Stage 3 (the schema-collapse-prone path) opt into strict schemas
+    on supported models without breaking models that don't.
+
     Args:
         model:           OpenAI model ID string.
         messages:        List of {"role", "content"} message dicts.
         temperature:     Sampling temperature (0–2).
         response_format: Optional format constraint, e.g.
-                         {"type": "json_object"}.
+                         {"type": "json_object"} or
+                         {"type": "json_schema", "json_schema": {...}}.
 
     Returns:
         Parsed API response dict.
@@ -268,15 +289,95 @@ def chat_completions_create(
                 "Select a supported model in ⚙️ Settings."
             )
 
+    # Some reasoning-tier models only accept the default temperature and
+    # reject any explicit value. Configured in config.OPENAI_NO_TEMPERATURE_MODELS
+    # so the next reasoning-tier model can be onboarded without code changes here.
+    from config import OPENAI_NO_TEMPERATURE_MODELS
     payload: dict = {
         "model": model,
         "messages": messages,
-        "temperature": temperature,
     }
-    if response_format is not None:
-        payload["response_format"] = response_format
+    if model not in OPENAI_NO_TEMPERATURE_MODELS:
+        payload["temperature"] = temperature
 
-    return _request_json("POST", "/chat/completions", body=payload, retries=1)
+    # OPEN-1a (2026-05-14): OpenRouter free tier rejects requests that
+    # don't cap max_tokens — the model's default reservation (e.g. 64k)
+    # exceeds the free-tier credit budget (~8 k). Env-gated so paid
+    # routes / OpenAI native are unaffected.
+    mt = os.environ.get("SPOTYVIBE_MAX_OUTPUT_TOKENS")
+    if mt:
+        try:
+            payload["max_tokens"] = int(mt)
+        except ValueError:
+            pass
+
+    # OPEN-3: auto-downgrade strict json_schema for models that reject it.
+    effective_response_format = response_format
+    if (
+        response_format is not None
+        and isinstance(response_format, dict)
+        and response_format.get("type") == "json_schema"
+        and model in _JSON_SCHEMA_UNSUPPORTED
+    ):
+        effective_response_format = {"type": "json_object"}
+
+    if effective_response_format is not None:
+        payload["response_format"] = effective_response_format
+
+    # C4 (2026-05-10) — `prompt_cache_key` is a routing hint that pins
+    # the request to a host whose KV cache already holds the same prefix.
+    # OpenAI auto-caches eligible prompts (>= 1024 tokens) but the cache
+    # is per-host; without this hint the router load-balances across
+    # hosts and most calls miss. With a stable key the hit rate stabilises.
+    # Only sent on OpenAI provider — non-OpenAI compatibility-mode
+    # endpoints may 400 on unknown fields.
+    if prompt_cache_key and _is_openai_provider():
+        payload["prompt_cache_key"] = prompt_cache_key
+
+    try:
+        return _request_json("POST", "/chat/completions", body=payload, retries=1)
+    except OpenAIRequestError as exc:
+        # Auto-downgrade if the model rejected json_schema and we haven't
+        # already cached this fact. Single retry; never recurse.
+        if (
+            effective_response_format is not None
+            and isinstance(effective_response_format, dict)
+            and effective_response_format.get("type") == "json_schema"
+            and exc.status_code == 400
+            and _looks_like_schema_rejection(exc.response_body or str(exc))
+        ):
+            _JSON_SCHEMA_UNSUPPORTED.add(model)
+            payload["response_format"] = {"type": "json_object"}
+            import logging as _lg
+            _lg.getLogger(__name__).warning(
+                "Model %s rejected json_schema response_format — "
+                "auto-downgraded to json_object for this and future calls. "
+                "Reject body: %s", model, (exc.response_body or "")[:200],
+            )
+            return _request_json("POST", "/chat/completions", body=payload, retries=1)
+        raise
+
+
+# OPEN-3 (2026-04-28): per-process cache of models known to reject strict
+# json_schema response_format. Populated lazily on first 400 from the API
+# so subsequent calls for the same model skip the failed handshake.
+_JSON_SCHEMA_UNSUPPORTED: set[str] = set()
+
+
+def _looks_like_schema_rejection(body: str) -> bool:
+    """Heuristic — does this 400 body indicate the model can't do strict
+    json_schema? Conservative: only downgrade on clear signals so that
+    real bad-request errors (bad messages, bad model, etc.) keep raising.
+    """
+    if not body:
+        return False
+    b = body.lower()
+    return (
+        ("response_format" in b or "json_schema" in b or "json schema" in b)
+        and ("not supported" in b or "unsupported" in b
+             or "invalid" in b or "must be" in b
+             or "does not support" in b or "schema" in b)
+    )
 
 
 def extract_chat_content(response: dict) -> str:
@@ -320,25 +421,65 @@ def call_gpt_json(messages, temperature=0.7, label="GPT Call"):
     Raises:
         ValueError: If GPT returns empty or unparseable JSON.
     """
+    result, _meta = call_gpt_json_with_meta(messages, temperature=temperature, label=label)
+    return result
+
+
+def call_gpt_json_with_meta(messages, temperature=0.7, label="GPT Call"):
+    """Same as ``call_gpt_json`` but also returns telemetry meta.
+
+    Returns ``(result, meta)`` where ``meta = {"usage": …, "latency_s": …,
+    "model": "…", "raw_response_chars": int}``. Used by features that
+    write per-call rows to the eval log (Band/Song Analysis, AI Profile
+    Update, Stage 2 avoid-checker, etc.) so cost / latency / quality can be
+    compared across model A/B variants.
+
+    2026-05-14: retries once on empty 200-OK responses AND on invalid
+    JSON. Phase 3 large_profile_stress + test 5 spotify-verify run
+    showed DeepSeek occasionally returns 200 OK with empty content
+    OR with malformed JSON on big prompts — observed 40 % skip rate
+    pre-fix. ``chat_completions_create`` already retries 429/5xx; this
+    layer covers the success-but-unusable-content paths.
+    """
     from .utils import strip_code_fences, debug_log
     from config import get_model
 
-    response = chat_completions_create(
-        model=get_model(),
-        messages=messages,
-        temperature=temperature,
-        response_format={"type": "json_object"},
-    )
+    model = get_model()
+    attempts = 0
+    last_meta: dict | None = None
+    while True:
+        t0 = time.monotonic()
+        response = chat_completions_create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            response_format={"type": "json_object"},
+        )
+        latency_s = time.monotonic() - t0
 
-    raw = extract_chat_content(response)
-    debug_log(label, messages, raw)
-    content = strip_code_fences(raw)
+        raw = extract_chat_content(response)
+        debug_log(label, messages, raw)
+        content = strip_code_fences(raw)
 
-    if not content:
-        raise ValueError(f"AI returned an empty response ({label}). Please try again.")
+        usage = response.get("usage") if isinstance(response, dict) else None
+        last_meta = {
+            "usage": usage,
+            "latency_s": latency_s,
+            "model": model,
+            "raw_response_chars": len(raw or ""),
+        }
+        attempts += 1
 
-    try:
-        return json.loads(content)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"AI returned invalid JSON ({label}). Please try again.") from exc
+        if not content:
+            if attempts >= 2:
+                raise ValueError(f"AI returned an empty response ({label}). Please try again.")
+            continue
+
+        try:
+            return json.loads(content), last_meta
+        except json.JSONDecodeError as exc:
+            if attempts >= 2:
+                raise ValueError(f"AI returned invalid JSON ({label}). Please try again.") from exc
+            # Fall through to one more attempt.
+            continue
 

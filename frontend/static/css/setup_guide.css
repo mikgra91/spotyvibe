@@ -17,7 +17,7 @@
 
 .setup-guide-close {
     position: fixed;
-    top: 24px;
+    top: calc(var(--titlebar-h, 0px) + 24px);
     right: 24px;
     width: 40px;
     height: 40px;
