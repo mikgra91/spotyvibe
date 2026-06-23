@@ -384,14 +384,9 @@ class TestWave2QuickWins:
         page.wait_for_load_state("domcontentloaded")
         open_profile_editor(page)
         page.locator("#trainCoreDesc").fill("Upbeat melodic rock with strong hooks, theatrical vocals, and constant momentum — think Queen meets Bear Ghost.")
-        page.evaluate("""() => {
-            document.getElementById('trainMustHave').value = 'high energy\\nstrong memorable melodies\\nvocals';
-            document.getElementById('trainSoftPrefs').value = 'prog influence';
-            document.getElementById('trainAvoid').value = 'electronic/synth-heavy';
-        }""")
-        for sel in ["#trainCoreDesc", "#trainMustHave", "#trainSoftPrefs", "#trainAvoid"]:
-            page.evaluate(f"document.querySelector('{sel}').dispatchEvent(new Event('input'))")
-        page.wait_for_timeout(100)
+        page.locator("#trainMustHave").fill("high energy\nstrong memorable melodies\nvocals")
+        page.locator("#trainSoftPrefs").fill("prog influence")
+        page.locator("#trainAvoid").fill("electronic/synth-heavy")
         expect(page.locator("#profileCompletenessCard")).to_have_class(re.compile(r"is-complete"))
 
     def test_tooltip_removed_from_audio_filters(self, page: Page, base_url):
