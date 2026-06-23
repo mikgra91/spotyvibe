@@ -1,6 +1,6 @@
 import * as State from './state.js';
 import { buildTrackCardHtml } from './feedback.js';
-import { showToast, showAlert, showConfirm } from './ui.js';
+import { showToast, showAlert, showConfirm, esc, attr } from './ui.js';
 import { i18n, localizedError } from './i18n.js';
 import { refreshDiscoverPlaylistPicker } from './playlist-mode.js';
 import { resetDashboard } from './taste_dashboard.js';
@@ -252,7 +252,7 @@ export async function populateReviewPlaylistPicker() {
 
     picker.innerHTML = `<option value="">${i18n('review.select_placeholder', 'Select a playlist…')}</option>` +
         playlists.map(pl =>
-            `<option value="${esc(pl.id)}">${esc(pl.name)}</option>`
+            `<option value="${attr(pl.id)}">${esc(pl.name)}</option>`
         ).join('');
 
     // Preserve prior selection so removing a track doesn't reset the dropdown

@@ -7,7 +7,7 @@ import { toggleGenerateBody, runPipeline, setGenerating, updateUseTracksButton, 
 import { toggleAudioFilters, getAudioFilters, clearAllFilters, updateFilterHint, applyAnalysisFilter, applyAllAnalysisFilters, updateAllFilterHints } from './modules/audio-filters.js';
 import { getPlaylistMode, onPlaylistModeChange, getPlaylistModePayload, refreshDiscoverPlaylistPicker, initPlaylistMode } from './modules/playlist-mode.js';
 import { renderTracks } from './modules/tracklist.js';
-import { openPreviewOverlay, closePreviewOverlay, prevPreview, nextPreview, quickLike, quickDislike, previewDismiss, submitPreviewFeedback, closePreviewFeedback, openPreviewFeedbackPanel, togglePreviewAutoplay, sdkTogglePlay } from './modules/preview.js';
+import { openPreviewOverlay, openPreviewByIndex, closePreviewOverlay, prevPreview, nextPreview, quickLike, quickDislike, previewDismiss, submitPreviewFeedback, closePreviewFeedback, openPreviewFeedbackPanel, togglePreviewAutoplay, sdkTogglePlay } from './modules/preview.js';
 import { toggleFeedback, closeFeedback, submitFeedback, removeTrack, animateRemove } from './modules/feedback.js';
 import { openApplyModal, closeApplyModal, submitApply, clearSuggestions, _onModeChange as applyModeChange } from './modules/apply-playlist.js';
 import * as DiscoverArtists from './modules/discover-artists.js';
@@ -97,6 +97,7 @@ window.getPlaylistModePayload = getPlaylistModePayload;
 window.refreshDiscoverPlaylistPicker = refreshDiscoverPlaylistPicker;
 window.renderTracks = renderTracks;
 window.openPreviewOverlay = openPreviewOverlay;
+window.openPreviewByIndex = openPreviewByIndex;
 window.closePreviewOverlay = closePreviewOverlay;
 window.prevPreview = prevPreview;
 window.nextPreview = nextPreview;

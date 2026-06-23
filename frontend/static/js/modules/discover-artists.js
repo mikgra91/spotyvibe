@@ -7,7 +7,7 @@
  */
 import { el } from './dom.js';
 import { i18n } from './i18n.js';
-import { showToast, showAlert, esc } from './ui.js';
+import { showToast, showAlert, esc, attr } from './ui.js';
 import { openApplyModal } from './apply-playlist.js';
 
 // Last discovered artists (raw objects from /api/discover_artists).
@@ -112,7 +112,7 @@ export function renderDiscoveredArtists() {
                 ? 'artist-discovery-track'
                 : 'artist-discovery-track artist-discovery-track--missing';
             const label = (found && t.spotify_url)
-                ? `<a href="${esc(t.spotify_url)}" target="_blank" rel="noopener">${esc(t.track)}</a>`
+                ? `<a href="${attr(t.spotify_url)}" target="_blank" rel="noopener">${esc(t.track)}</a>`
                 : esc(t.track);
             const tail = found
                 ? ''

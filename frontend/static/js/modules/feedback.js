@@ -27,7 +27,13 @@ export function buildTrackCardHtml(track, idx, source = 'discover') {
 
     const coverHtml = track.cover_url
         ? (track.track_id
-            ? `<div class="track-cover-wrap" onclick="openPreviewOverlay('${attr(track.track_id)}','${attr(track.artist)} — ${attr(track.track)}','${source}')" title="${attr(i18n('feedback.preview_on_spotify', 'Preview on Spotify'))}">
+            // Pass only the numeric index + the controlled source literal into
+            // the inline handler. Embedding untrusted artist/track/track_id in
+            // an inline onclick is an XSS vector: attr() escapes quotes to HTML
+            // entities, but the HTML parser decodes them back before the JS
+            // string is evaluated, so a crafted name could break out of the JS
+            // literal. openPreviewByIndex re-resolves the track from State.
+            ? `<div class="track-cover-wrap" onclick="openPreviewByIndex(${idx},'${source}')" title="${attr(i18n('feedback.preview_on_spotify', 'Preview on Spotify'))}">
                    <img class="track-cover" src="${attr(track.cover_url)}" alt="${attr(i18n('feedback.album_cover', 'Album cover'))}" loading="lazy">
                    <span class="cover-play">▶</span>
                </div>`

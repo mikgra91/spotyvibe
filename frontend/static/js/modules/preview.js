@@ -195,6 +195,25 @@ function loadTrackByIndex(idx) {
     updateNavState();
 }
 
+/**
+ * Open the preview overlay for the track at `idx` in the given source list.
+ *
+ * This is the safe entry point for inline cover-click handlers: callers pass
+ * only the numeric index and the controlled source literal, never untrusted
+ * artist/track strings. The track (and its display title) are resolved from
+ * State here, so no user/Spotify/LLM text is ever interpolated into an inline
+ * event handler.
+ */
+export function openPreviewByIndex(idx, source = 'discover') {
+    const i = Number(idx);
+    if (!Number.isInteger(i)) return;
+    const tracks = source === 'review' ? State.reviewTracks : State.suggestions;
+    const t = Array.isArray(tracks) ? tracks[i] : null;
+    if (!t || !t.track_id) return;
+    const title = [t.artist, t.track].filter(Boolean).join(' — ');
+    openPreviewOverlay(t.track_id, title, source);
+}
+
 export function openPreviewOverlay(trackId, title, source = 'discover') {
     const overlay = el('spotifyPreviewOverlay');
     if (!overlay || !trackId) return;
