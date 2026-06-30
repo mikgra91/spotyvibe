@@ -297,6 +297,19 @@ The suggestion pipeline can inject a pre-ranked pool of ~20 artists retrieved fr
 >
 > Self-hosting a smaller open-weight model on Cloud Run **as a drop-in OpenAI replacement** was evaluated and rejected (April 2026): NVIDIA L4 GPU on Cloud Run runs a few dollars a month at current volume, but Gemma/Llama 4-bit ≪ GPT-4 for creative/nuanced music reasoning, and sporadic use triggers 15–30 s cold starts. Cost is comparable; quality is the disqualifier. Use OpenAI / a hosted GPT-4-class model for the suggestion engine and reserve local LLMs for users who explicitly accept the quality trade-off.
 
+### AI-generated music filter
+
+Opt-in feature that drops suggested tracks by artists flagged as AI-generated. Off by default (`DEFAULT_FILTER_AI_ARTISTS = False`) so existing behaviour and eval metrics are unchanged unless explicitly enabled.
+
+| Piece | Detail |
+|---|---|
+| Data | A deny set of **Spotify artist IDs**, sourced from the community CSV at [`CennoxX/spotify-ai-blocker`](https://github.com/CennoxX/spotify-ai-blocker) (MIT, columns `artist,id`). The Cloud Run publish job normalises it to `ai_artists.json` (`{version, source, count, artist_ids[]}`) and uploads it next to the corpus. |
+| Loader | [core/src/ai_filter.py](../core/src/ai_filter.py) — `load_ai_blocklist`, `is_ai_artist`, `filter_ai_tracks(tracks) -> (kept, dropped)` (same shape as `filter_emerging_artists`). The deny set is a module global, loaded once at startup by `app._load_ai_blocklist()` whenever the file is present (independent of the toggle, so flipping it needs no restart). |
+| Filter point | [app.py](../app.py) `run_pipeline` applies `filter_ai_tracks` to the per-batch `found` list immediately after Spotify verification (every verified track carries `artist_id` from `playlist.py`), right beside the `filter_emerging_artists` call — *before* tracks count toward the playlist, so the run refills the gap. Gated on `config.get_filter_ai_artists()`. |
+| Matching | Spotify artist ID only — collision-free, no false positives from name overlaps. |
+| Settings | `FILTER_AI_ARTISTS` in `settings.conf`; `config.get_filter_ai_artists()` gates on both the flag and `AI_BLOCKLIST_PATH.exists()`. Exposed via `/api/settings` (`filter_ai_artists`, `ai_blocklist_available`) and the Settings modal (toggle + **Download now** button → `POST /api/ai-blocklist/download`). |
+| Distribution | Reuses the RAG manifest plumbing: `RemoteManifest` carries optional `ai_blocklist_{url,sha256,version,count}` fields, and `distribution.download_blocklist` streams + sha256-verifies the artifact (same pattern as `download_corpus`). Older manifests without these fields are tolerated (filter stays inert). |
+
 ### RAG corpus — Cloud Run automated pipeline
 
 The corpus (`artists.jsonl.gz`, ~10 MB) is **not** bundled with the app. It is built and published automatically by a **Google Cloud Run Job** that runs weekly, independent of app releases.
@@ -317,7 +330,7 @@ The corpus (`artists.jsonl.gz`, ~10 MB) is **not** bundled with the app. It is b
 2. **(Optional, currently disabled)** Runs `run_spotify_enrichment.py` if `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` are set and `DISABLE_SPOTIFY_ENRICHMENT` is unset. Disabled since 2026-05-04: Spotify's `genres` field returns empty for all artists post-Feb-2026. Code retained for future re-enablement.
 3. **(Phase B — Last.fm enrichment)** Runs `run_lastfm_enrichment.py` if `LASTFM_API_KEY` is set — looks up each MB artist on Last.fm via MBID and attaches `lastfm_listeners`, `lastfm_playcount`, `lastfm_tags` (weighted community tags, min-weight cutoff ≥ 30), and `top_tracks`. Runs as a **self-chaining batched workflow** (`BATCH_SIZE` artists per execution, progress in `build-state.json`, results accumulated in `lastfm-checkpoint.jsonl`). **Incremental since 2026-05-30:** at the start of a new cycle the job no longer discards prior Last.fm work — `merge_corpus.py` carries the previously-published corpus's Last.fm layer forward onto the fresh MB build (matched by `mbid`) and seeds the checkpoint with it, so Phase B re-fetches **only new / never-enriched artists** instead of all ~175k. First-ever full pass: ~17 h. An incremental cycle fetches only artists still lacking Last.fm data — the first run after this change (2026-05-30) carried **146,493** rows forward and fetched a **30,067**-artist delta (~17 %, ~4–5 h); once coverage is complete, later cycles shrink to just genuinely-new artists (≈1 k/month → minutes). Distinct exit codes: 43 (rate-limit → `halt.flag`) / 44 (auth-error → loud fail). See `build-tools/rag/lastfm_enrichment/client.py`.
 4. Computes SHA-256 of the resulting `artists.jsonl.gz`.
-5. Uploads `artists.jsonl.gz` + `manifest.json` to the public GCS bucket.
+5. Uploads `artists.jsonl.gz` + `manifest.json` to the public GCS bucket. Best-effort: fetches the upstream AI-artist CSV, normalises it to `ai_artists.json`, uploads it, and adds `ai_blocklist_{url,sha256,version,count}` to the manifest (a failed fetch just omits those fields).
 6. Wipes the ephemeral working directory.
 
 **Layered merge/update architecture (2026-05-30)** — the corpus is composed of three independently-owned layers keyed by `mbid`, so rebuilding one layer never discards the others:
@@ -333,7 +346,8 @@ The corpus (`artists.jsonl.gz`, ~10 MB) is **not** bundled with the app. It is b
 | Asset | Purpose |
 |---|---|
 | `artists.jsonl.gz` | Published corpus: top artists by Option A popularity proxy (release count + tag total), filtered to acts with `begin_year >= 1960`. One NDJSON row per artist. |
-| `manifest.json` | `{corpus_version, built_at, sha256, size_bytes, corpus_url}`. Clients fetch this once per startup to decide whether to prompt for an update. |
+| `manifest.json` | `{corpus_version, built_at, sha256, size_bytes, corpus_url}` plus optional `ai_blocklist_{url,sha256,version,count}`. Clients fetch this once per startup to decide whether to prompt for an update. |
+| `ai_artists.json` | Published AI-artist blocklist: `{version, source, count, artist_ids[]}` (Spotify artist IDs). Consumed by the opt-in AI-music filter. See § AI-generated music filter. |
 | `artists.mb-only.jsonl.gz`, `lastfm-checkpoint.jsonl`, `build-state.json` | Private working artifacts of the in-flight cycle (MB-only base, accumulating/seeded Last.fm checkpoint, batch progress). Not consumed by clients. |
 | `halt.flag` | Present only when the circuit breaker is open (see § Circuit breaker in `cloud-run-rag-setup.md`). |
 

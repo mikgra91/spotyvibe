@@ -240,8 +240,14 @@ class TestGetOpenaiModels:
         # The shipped default must be a curated, supported entry in the
         # dropdown. Use the actual constant so this survives model-list
         # changes (was hard-coded to the retired "gpt-4.1-mini").
-        from config import DEFAULT_OPENAI_MODEL
-        models = get_openai_models()
+        # Pin the provider preset to the shipped default — get_openai_models()
+        # is provider-aware, so without this the result depends on the local
+        # settings.conf (a machine set to PROVIDER_PRESET=openai would not list
+        # the OpenRouter default model and fail spuriously).
+        from config import DEFAULT_OPENAI_MODEL, DEFAULT_PROVIDER_PRESET
+        with patch("config.get_llm_provider_preset",
+                   return_value=DEFAULT_PROVIDER_PRESET):
+            models = get_openai_models()
         ids = [m["id"] for m in models]
         assert DEFAULT_OPENAI_MODEL in ids
         default = next(m for m in models if m["id"] == DEFAULT_OPENAI_MODEL)

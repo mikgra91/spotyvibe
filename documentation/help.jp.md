@@ -246,6 +246,9 @@ SpotyVibe を初めて開くと、アクティブなプロバイダーセクシ�
 - **ChatGPT Language**  
   AI による説明やプロフィール更新で使う言語を選択します。
 
+- **AI生成音楽をフィルタ** *(任意)*  
+  有効にすると、SpotyVibe は提案された楽曲のうち、コミュニティが管理するAI生成アーティストのブロックリストに載っているアーティストの曲を除外します（Spotify のアーティスト ID で照合）。デフォルトは無効です。先にブロックリストをダウンロードする必要があります — このオプションの下に表示される **今すぐダウンロード** ボタンを使ってください。データはオープンソースの [spotify-ai-blocker](https://github.com/CennoxX/spotify-ai-blocker) プロジェクト（MIT）から取得しています。
+
 変更後は **Save** をクリックしてください。
 
 ![Settings panel](/docs/screenshots/05_settings_modal.png)

@@ -20,6 +20,7 @@ AI-powered music discovery. Describe what you like — SpotyVibe asks an LLM for
 - **Exploration slider** (5 notches) that adjusts playlist size, new-artist %, emerging-artists toggle, and temperature in one pull. Advanced mode exposes every knob individually.
 - **Audio feature filters** (energy, valence, tempo, danceability, acousticness) injected into the GPT prompt. Populate them in one click from a Band/Song Analysis result.
 - **Emerging artists only** — restrict suggestions to artists who debuted in the last 6 months.
+- **Filter AI-generated music** (opt-in) — drop tracks by artists on a community-maintained blocklist of AI-generated acts, matched on Spotify artist ID. Blocklist data from [`CennoxX/spotify-ai-blocker`](https://github.com/CennoxX/spotify-ai-blocker) (MIT).
 - **Preview player** — Spotify Web Playback SDK on Premium (full tracks, 👍 / 👎 quick buttons, autoplay toggle) with an iframe fallback (~30 s clips).
 - **Feedback-aware prompts** — recent like/dislike reasons are summarised and fed back to GPT.
 - **Rationale chips** on every suggestion: `matches '<trait>'`, `similar to <Artist>`, `released YYYY`, `discovery pick`, `matches energy/tempo`.

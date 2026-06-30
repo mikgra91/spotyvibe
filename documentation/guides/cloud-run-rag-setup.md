@@ -248,13 +248,21 @@ Reads its configuration from env vars set in the Job spec:
     GCS_BUCKET           — destination bucket (e.g. "spotyvibe-rag-corpus")
     CORPUS_TOP_N         — top-N artists to include (default 350000)
     KEEP_INTERMEDIATES   — "1" to retain MB dumps between runs (default off)
+    AI_BLOCKLIST_CSV_URL — upstream AI-artist CSV (default: spotify-ai-blocker raw)
 
 Pipeline:
     1. Run refresh_rag_corpus.py (downloads MB dump + invokes build_rag_corpus.py).
     2. Compute sha256 of the resulting artists.jsonl.gz.
     3. Upload artists.jsonl.gz to gs://$GCS_BUCKET/artists.jsonl.gz.
-    4. Write + upload manifest.json with corpus_url, sha256, size, build timestamp.
-    5. Wipe the working directory (corpus build leaves ~33 GB extracted).
+    4. Build the AI-artist blocklist (best-effort): fetch AI_BLOCKLIST_CSV_URL,
+       normalise the `id` column to ai_artists.json, upload it to the bucket.
+    5. Write + upload manifest.json with corpus_url, sha256, size, build
+       timestamp, and (when the blocklist built) ai_blocklist_{url,sha256,version,count}.
+    6. Wipe the working directory (corpus build leaves ~33 GB extracted).
+
+> The AI blocklist step is best-effort and isolated: a transient failure
+> fetching the upstream CSV omits the `ai_blocklist_*` manifest fields but
+> never blocks the corpus release. Data: CennoxX/spotify-ai-blocker (MIT).
 
 Exit non-zero on any failure so Cloud Run logs the run as failed.
 """

@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from core.src.rag.distribution import (
-    RemoteManifest, check_for_update, download_corpus,
+    RemoteManifest, check_for_update, download_blocklist, download_corpus,
     fetch_remote_manifest, read_local_meta, write_local_meta,
 )
 
@@ -182,3 +182,76 @@ def test_local_meta_roundtrip(tmp_path):
 
 def test_read_local_meta_missing_returns_none(tmp_path):
     assert read_local_meta(tmp_path / "nope.json") is None
+
+
+# ── AI blocklist manifest fields + download ────────────────────────
+
+def test_manifest_parses_ai_blocklist_fields():
+    m = RemoteManifest.from_json({
+        "corpus_version": "v", "built_at": "t", "sha256": "a" * 64,
+        "size_bytes": 1, "corpus_url": "http://ex/a",
+        "ai_blocklist_url": "http://ex/ai_artists.json",
+        "ai_blocklist_sha256": "B" * 64,  # uppercased on purpose
+        "ai_blocklist_version": "2026-06-30",
+        "ai_blocklist_count": 4321,
+    })
+    assert m.has_ai_blocklist()
+    assert m.ai_blocklist_sha256 == "b" * 64  # normalised to lowercase
+    assert m.ai_blocklist_version == "2026-06-30"
+    assert m.ai_blocklist_count == 4321
+
+
+def test_manifest_without_ai_blocklist_is_backward_compatible():
+    # Older manifests lack the blocklist fields entirely.
+    m = RemoteManifest.from_json({
+        "corpus_version": "v", "built_at": "t", "sha256": "a" * 64,
+        "size_bytes": 1, "corpus_url": "http://ex/a",
+    })
+    assert m.is_valid()
+    assert not m.has_ai_blocklist()
+    assert m.ai_blocklist_url == ""
+    assert m.ai_blocklist_count == 0
+
+
+def test_download_blocklist_streams_and_verifies(http_root, tmp_path):
+    root, base = http_root
+    payload = json.dumps({"artist_ids": ["a1", "a2", "a3"]}).encode("utf-8")
+    (root / "remote_ai_artists.json").write_bytes(payload)
+    sha = hashlib.sha256(payload).hexdigest()
+    manifest = RemoteManifest(
+        corpus_version="v", built_at="t", sha256="0" * 64, size_bytes=1,
+        corpus_url="http://ex/a",
+        ai_blocklist_url=f"{base}/remote_ai_artists.json",
+        ai_blocklist_sha256=sha, ai_blocklist_version="2026-06-30",
+        ai_blocklist_count=3,
+    )
+    dest = tmp_path / "installed" / "ai_artists.json"
+    count = download_blocklist(manifest, dest)
+    assert count == 3
+    assert dest.read_bytes() == payload
+    assert not dest.with_name("ai_artists.json.part").exists()
+
+
+def test_download_blocklist_sha_mismatch_raises(http_root, tmp_path):
+    root, base = http_root
+    (root / "remote_ai_artists.json").write_bytes(b'["x"]')
+    manifest = RemoteManifest(
+        corpus_version="v", built_at="t", sha256="0" * 64, size_bytes=1,
+        corpus_url="http://ex/a",
+        ai_blocklist_url=f"{base}/remote_ai_artists.json",
+        ai_blocklist_sha256="f" * 64,
+    )
+    dest = tmp_path / "installed" / "ai_artists.json"
+    with pytest.raises(ValueError, match="sha256"):
+        download_blocklist(manifest, dest)
+    assert not dest.with_name("ai_artists.json.part").exists()
+    assert not dest.exists()
+
+
+def test_download_blocklist_without_manifest_field_raises(tmp_path):
+    manifest = RemoteManifest(
+        corpus_version="v", built_at="t", sha256="0" * 64, size_bytes=1,
+        corpus_url="http://ex/a",
+    )
+    with pytest.raises(RuntimeError, match="no AI blocklist"):
+        download_blocklist(manifest, tmp_path / "ai_artists.json")
