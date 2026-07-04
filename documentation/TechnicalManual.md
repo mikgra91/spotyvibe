@@ -252,6 +252,15 @@ All artifacts attach to each [GitHub Release](../../releases). CI workflow: `.gi
 
 `desktop_launcher.py` opens a native window via **pywebview** (WebView2 runtime on Windows 10/11 — a patched Windows is required; Legacy Edge/MSHTML falls back to a broken render). Closing the window terminates the process. Credentials live in the OS keychain; settings in `%LOCALAPPDATA%\spotyvibe\settings.conf`.
 
+**Startup UX (one-file build).** The one-file EXE extracts its whole bundle to a temp dir on every launch — a multi-second, feedback-free wait. Three guards make this bearable:
+
+- **Splash screen.** `spotyvibe_onefile.spec` bundles a `Splash` (`build_assets/splash.png`, regenerate with `python build-tools/make_splash.py`). The bootloader paints it *before* Python starts, so the user sees feedback immediately. `desktop_launcher.py` updates its status line via `pyi_splash` (`Starting server…` → `Loading interface…`) and closes it once the WebView UI has loaded.
+- **Single-instance guard.** `_acquire_single_instance()` holds a named mutex (`SpotyVibe-SingleInstance-Mutex`). A duplicate double-click detects it, brings the existing window to the foreground via `_focus_existing_window()`, and exits instead of opening a second window. (Without this, a second process can't bind port 5000 but `_wait_for_server` connects to the first instance's server and opens another window.)
+- **Installed corpus (SQLite) — the real startup fix.** Loading the ~180k-artist corpus in memory at `import app` is the single biggest startup cost (~6–9s: gzip+JSON parse of 179k lines + building the tag inverted index over ~2M tag tokens). Packaged installs (frozen EXE + macOS/Linux wheel; see `config.use_sqlite_corpus`) instead build a **SQLite database once** (`corpus.sqlite`, ~125 MB, built on first launch / after a corpus update, behind the `Loading music database…` splash) and then **open it in ~5–20 ms** every launch. See `core/src/rag/sqlite_corpus.py`. Any failure (corrupt/locked DB, disk full) falls back to the in-memory load, so boot never breaks. Retrieval is **byte-identical** to the in-memory backend (verified in `test_sqlite_corpus.py` + real-corpus integration): the enabler is precomputing each posting's weight (`corpus.postings(tag)` → `(idf, idxs, weights)`), so the scoring hot loop reads only ints and materialises `ArtistRow`s solely for the ~200-candidate rerank pool (lazy, zlib-compressed blobs; +~1.3 ms per pool).
+  - **Backgrounding the in-memory load was tried and reverted** before the SQLite approach: in the pywebview desktop build the GUI/CLR main loop starves a background loader thread of the GIL — the corpus took >40s to finish and a repeat user hitting Generate early would stall.
+  - Also landed: `rag/corpus.py::normalise_tag` is `functools.lru_cache`d (index build calls it ~2M times, only ~59k unique → ~70% faster index build, identical output) and posting weights are precomputed (also ~5× faster scoring). A plain pickled snapshot cache was evaluated and **rejected** — a 79 MB `pickle.load` is no faster than rebuilding, because the cost is creating Python objects, not parsing text; SQLite wins by materialising only what's queried.
+  - **Dev / tests / eval harness keep the in-memory `RagCorpus`** (no startup problem, and determinism). `SPOTYVIBE_SQLITE_CORPUS=1|0` overrides the frozen-based default.
+
 ### Python wheel (macOS / Linux)
 
 - `hatchling` force-includes `app.py`, `config.py`, `core/src/`, `frontend/`, `prompts/`, `data/`, `documentation/`.
@@ -297,6 +306,19 @@ The suggestion pipeline can inject a pre-ranked pool of ~20 artists retrieved fr
 >
 > Self-hosting a smaller open-weight model on Cloud Run **as a drop-in OpenAI replacement** was evaluated and rejected (April 2026): NVIDIA L4 GPU on Cloud Run runs a few dollars a month at current volume, but Gemma/Llama 4-bit ≪ GPT-4 for creative/nuanced music reasoning, and sporadic use triggers 15–30 s cold starts. Cost is comparable; quality is the disqualifier. Use OpenAI / a hosted GPT-4-class model for the suggestion engine and reserve local LLMs for users who explicitly accept the quality trade-off.
 
+### AI-generated music filter
+
+Opt-in feature that drops suggested tracks by artists flagged as AI-generated. Off by default (`DEFAULT_FILTER_AI_ARTISTS = False`) so existing behaviour and eval metrics are unchanged unless explicitly enabled.
+
+| Piece | Detail |
+|---|---|
+| Data | A deny set of **Spotify artist IDs**, sourced from the community CSV at [`CennoxX/spotify-ai-blocker`](https://github.com/CennoxX/spotify-ai-blocker) (MIT, columns `artist,id`). The Cloud Run publish job normalises it to `ai_artists.json` (`{version, source, count, artist_ids[]}`) and uploads it next to the corpus. |
+| Loader | [core/src/ai_filter.py](../core/src/ai_filter.py) — `load_ai_blocklist`, `is_ai_artist`, `filter_ai_tracks(tracks) -> (kept, dropped)` (same shape as `filter_emerging_artists`). The deny set is a module global, loaded once at startup by `app._load_ai_blocklist()` whenever the file is present (independent of the toggle, so flipping it needs no restart). |
+| Filter point | [app.py](../app.py) `run_pipeline` applies `filter_ai_tracks` to the per-batch `found` list immediately after Spotify verification (every verified track carries `artist_id` from `playlist.py`), right beside the `filter_emerging_artists` call — *before* tracks count toward the playlist, so the run refills the gap. Gated on `config.get_filter_ai_artists()`. |
+| Matching | Spotify artist ID only — collision-free, no false positives from name overlaps. |
+| Settings | `FILTER_AI_ARTISTS` in `settings.conf`; `config.get_filter_ai_artists()` gates on both the flag and `AI_BLOCKLIST_PATH.exists()`. Exposed via `/api/settings` (`filter_ai_artists`, `ai_blocklist_available`) and the Settings modal (toggle + **Download now** button → `POST /api/ai-blocklist/download`). |
+| Distribution | Reuses the RAG manifest plumbing: `RemoteManifest` carries optional `ai_blocklist_{url,sha256,version,count}` fields, and `distribution.download_blocklist` streams + sha256-verifies the artifact (same pattern as `download_corpus`). Older manifests without these fields are tolerated (filter stays inert). |
+
 ### RAG corpus — Cloud Run automated pipeline
 
 The corpus (`artists.jsonl.gz`, ~10 MB) is **not** bundled with the app. It is built and published automatically by a **Google Cloud Run Job** that runs weekly, independent of app releases.
@@ -317,7 +339,7 @@ The corpus (`artists.jsonl.gz`, ~10 MB) is **not** bundled with the app. It is b
 2. **(Optional, currently disabled)** Runs `run_spotify_enrichment.py` if `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` are set and `DISABLE_SPOTIFY_ENRICHMENT` is unset. Disabled since 2026-05-04: Spotify's `genres` field returns empty for all artists post-Feb-2026. Code retained for future re-enablement.
 3. **(Phase B — Last.fm enrichment)** Runs `run_lastfm_enrichment.py` if `LASTFM_API_KEY` is set — looks up each MB artist on Last.fm via MBID and attaches `lastfm_listeners`, `lastfm_playcount`, `lastfm_tags` (weighted community tags, min-weight cutoff ≥ 30), and `top_tracks`. Runs as a **self-chaining batched workflow** (`BATCH_SIZE` artists per execution, progress in `build-state.json`, results accumulated in `lastfm-checkpoint.jsonl`). **Incremental since 2026-05-30:** at the start of a new cycle the job no longer discards prior Last.fm work — `merge_corpus.py` carries the previously-published corpus's Last.fm layer forward onto the fresh MB build (matched by `mbid`) and seeds the checkpoint with it, so Phase B re-fetches **only new / never-enriched artists** instead of all ~175k. First-ever full pass: ~17 h. An incremental cycle fetches only artists still lacking Last.fm data — the first run after this change (2026-05-30) carried **146,493** rows forward and fetched a **30,067**-artist delta (~17 %, ~4–5 h); once coverage is complete, later cycles shrink to just genuinely-new artists (≈1 k/month → minutes). Distinct exit codes: 43 (rate-limit → `halt.flag`) / 44 (auth-error → loud fail). See `build-tools/rag/lastfm_enrichment/client.py`.
 4. Computes SHA-256 of the resulting `artists.jsonl.gz`.
-5. Uploads `artists.jsonl.gz` + `manifest.json` to the public GCS bucket.
+5. Uploads `artists.jsonl.gz` + `manifest.json` to the public GCS bucket. Best-effort: fetches the upstream AI-artist CSV, normalises it to `ai_artists.json`, uploads it, and adds `ai_blocklist_{url,sha256,version,count}` to the manifest (a failed fetch just omits those fields).
 6. Wipes the ephemeral working directory.
 
 **Layered merge/update architecture (2026-05-30)** — the corpus is composed of three independently-owned layers keyed by `mbid`, so rebuilding one layer never discards the others:
@@ -333,7 +355,8 @@ The corpus (`artists.jsonl.gz`, ~10 MB) is **not** bundled with the app. It is b
 | Asset | Purpose |
 |---|---|
 | `artists.jsonl.gz` | Published corpus: top artists by Option A popularity proxy (release count + tag total), filtered to acts with `begin_year >= 1960`. One NDJSON row per artist. |
-| `manifest.json` | `{corpus_version, built_at, sha256, size_bytes, corpus_url}`. Clients fetch this once per startup to decide whether to prompt for an update. |
+| `manifest.json` | `{corpus_version, built_at, sha256, size_bytes, corpus_url}` plus optional `ai_blocklist_{url,sha256,version,count}`. Clients fetch this once per startup to decide whether to prompt for an update. |
+| `ai_artists.json` | Published AI-artist blocklist: `{version, source, count, artist_ids[]}` (Spotify artist IDs). Consumed by the opt-in AI-music filter. See § AI-generated music filter. |
 | `artists.mb-only.jsonl.gz`, `lastfm-checkpoint.jsonl`, `build-state.json` | Private working artifacts of the in-flight cycle (MB-only base, accumulating/seeded Last.fm checkpoint, batch progress). Not consumed by clients. |
 | `halt.flag` | Present only when the circuit breaker is open (see § Circuit breaker in `cloud-run-rag-setup.md`). |
 

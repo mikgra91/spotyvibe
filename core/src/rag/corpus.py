@@ -7,6 +7,7 @@ as a ``RagCorpus`` object. Pure Python — no numpy dependency.
 
 from __future__ import annotations
 
+import functools
 import gzip
 import json
 import logging
@@ -71,6 +72,12 @@ class ArtistRow:
     ai_tags: list[str] = field(default_factory=list)
 
 
+# Memoised: index build calls this ~2M times but only ~59k tag strings are
+# unique (97% duplicates), so caching cuts index-build time ~70% at startup.
+# Pure function → cache values are byte-identical to recomputation. The key
+# space is bounded (corpus tags + runtime query tags), so an unbounded cache
+# is fine and stays small.
+@functools.lru_cache(maxsize=None)
 def normalise_tag(tag: str) -> str:
     """Lowercase, strip diacritics, collapse whitespace — match the index key."""
     if not tag:
@@ -94,6 +101,52 @@ def normalise_name(name: str) -> str:
     return s
 
 
+def artist_tag_weight(artist: "ArtistRow", qtag: str) -> int:
+    """Resolve the per-artist weight for *qtag* across all tag sources.
+
+    MB community tags carry their explicit ``tag_weights`` count.
+    Spotify genres don't have per-artist weights so we treat them as
+    constant weight 2 (slightly above an average MB tag, reflecting
+    that Spotify-curated genres are higher signal than raw community
+    tags). Last.fm tags carry a 0-100 community-popularity weight
+    which we pass through directly — empirically it lines up well
+    with MB tag-count magnitudes. Falls back to 1 if no match —
+    defensive, should be unreachable since the index only points us
+    at artists that have the tag somewhere.
+
+    Lives here (not in retrieval) so the corpus can precompute a weight
+    for every posting entry — see :meth:`RagCorpus.postings` and the
+    SQLite corpus builder. ``retrieval`` re-exports it as
+    ``_artist_tag_weight`` for backwards compatibility.
+    """
+    try:
+        pos = artist.tags.index(qtag)
+        return artist.tag_weights[pos] if pos < len(artist.tag_weights) else 1
+    except ValueError:
+        pass
+    # Last.fm tags are stored normalised already (driver lowercases),
+    # so a direct equality is enough — and faster than a per-tag
+    # normalise call for the spotify_genres branch below.
+    try:
+        pos = artist.lastfm_tags.index(qtag)
+        return (artist.lastfm_tag_weights[pos]
+                if pos < len(artist.lastfm_tag_weights) else 1)
+    except ValueError:
+        pass
+    # Check Spotify genres (normalised match — corpus stores them raw).
+    for g in artist.spotify_genres:
+        if normalise_tag(g) == qtag:
+            return 2
+    # AI controlled-vocab tags (only the discriminative subset is indexed,
+    # so reaching here means the artist was surfaced via its AI tag — common
+    # for sparse tail artists with no usable MB/Last.fm tags). Curated
+    # controlled vocabulary → solid constant signal, on par with Spotify.
+    for at in artist.ai_tags:
+        if normalise_tag(at) == qtag:
+            return 2
+    return 1
+
+
 class RagCorpus:
     """In-memory artist corpus with tag inverted index + TF-IDF weights.
 
@@ -109,6 +162,10 @@ class RagCorpus:
         self.tag_idf: dict[str, float] = {}
         self.aliases: dict[str, str] = {normalise_tag(k): normalise_tag(v)
                                         for k, v in (aliases or {}).items()}
+        # Lazy per-tag posting weights (idx-aligned to tag_index[tag]).
+        # Computed on first postings() access and cached — keeps startup fast
+        # while letting the scoring loop avoid re-deriving weights per query.
+        self._posting_weights: dict[str, list[int]] = {}
         self._build_indices()
 
     # ── construction ────────────────────────────────────────────────
@@ -344,6 +401,28 @@ class RagCorpus:
                     lastfm_tag_weights=lastfm_weights,
                     ai_tags=[str(t) for t in (raw.get("ai_tags") or []) if t],
                 )
+
+    # ── retrieval-scoring access ────────────────────────────────────
+
+    def postings(self, tag: str) -> tuple[float, list[int], list[int]]:
+        """Return ``(idf, artist_indices, weights)`` for *tag*.
+
+        ``weights`` are aligned to ``artist_indices`` and equal
+        ``artist_tag_weight(artists[idx], tag)`` for each posting — computed
+        once and cached. This lets the scoring loop accumulate scores from
+        pure ints without materialising ArtistRow objects, and is the exact
+        shape the SQLite corpus serves from disk. Returns empties for an
+        unknown tag (idf defaults to 1.0, matching the old
+        ``tag_idf.get(tag, 1.0)``).
+        """
+        idxs = self.tag_index.get(tag)
+        if not idxs:
+            return 1.0, [], []
+        weights = self._posting_weights.get(tag)
+        if weights is None:
+            weights = [artist_tag_weight(self.artists[i], tag) for i in idxs]
+            self._posting_weights[tag] = weights
+        return self.tag_idf.get(tag, 1.0), idxs, weights
 
     # ── lookup helpers ──────────────────────────────────────────────
 

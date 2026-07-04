@@ -246,6 +246,9 @@ Available settings include:
 - **ChatGPT Language**  
   Select the language used in AI-generated explanations and profile updates.
 
+- **Filter AI-generated music** *(optional)*  
+  When enabled, SpotyVibe drops any suggested track whose artist appears on a community-maintained blocklist of AI-generated acts (matched on Spotify artist ID). Off by default. The blocklist must be downloaded first — use the **Download now** button shown under this option. Data comes from the open-source [spotify-ai-blocker](https://github.com/CennoxX/spotify-ai-blocker) project (MIT).
+
 Click **Save** after making changes.
 
 ![Settings panel](/docs/screenshots/05_settings_modal.png)

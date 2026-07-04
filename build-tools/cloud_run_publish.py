@@ -93,6 +93,14 @@ STATE_BLOB = "build-state.json"
 # and uploaded once; merged into every published corpus so the AI layer
 # survives weekly MB/Last.fm rebuilds (carry-forward by mbid).
 AI_OVERLAY_BLOB = "ai_tags_overlay.json"
+# AI-generated-artist blocklist (Spotify artist IDs). Built from the
+# community-maintained CSV at CennoxX/spotify-ai-blocker (MIT) and published
+# alongside the corpus so clients can filter AI music via the same manifest.
+AI_BLOCKLIST_BLOB = "ai_artists.json"
+AI_BLOCKLIST_CSV_URL = os.environ.get(
+    "AI_BLOCKLIST_CSV_URL",
+    "https://raw.githubusercontent.com/CennoxX/spotify-ai-blocker/main/SpotifyAiArtists.csv",
+)
 
 DEFAULT_BATCH_SIZE = 5000
 
@@ -121,6 +129,45 @@ def _sha256(path: Path) -> str:
 
 def _now_iso() -> str:
     return datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z"
+
+
+def _build_ai_blocklist(dest: Path, version: str):
+    """Fetch the upstream AI-artist CSV and write a deduped JSON ID set.
+
+    Best-effort: returns ``None`` (caller skips blocklist publishing) when the
+    upstream CSV is unreachable or empty, so a transient GitHub outage never
+    blocks the weekly corpus release. Source: CennoxX/spotify-ai-blocker (MIT).
+
+    Returns ``(count, sha256)`` on success.
+    """
+    import csv as _csv
+    import io as _io
+    import urllib.request as _urlreq
+    try:
+        with _urlreq.urlopen(AI_BLOCKLIST_CSV_URL, timeout=30) as resp:
+            text = resp.read().decode("utf-8")
+    except Exception as exc:
+        print(f"⚠ AI blocklist fetch skipped ({AI_BLOCKLIST_CSV_URL}): {exc}",
+              flush=True)
+        return None
+    ids, seen = [], set()
+    for row in _csv.DictReader(_io.StringIO(text)):
+        aid = (row.get("id") or "").strip()
+        if aid and aid not in seen:
+            seen.add(aid)
+            ids.append(aid)
+    if not ids:
+        print("⚠ AI blocklist CSV had no usable ids — skipping.", flush=True)
+        return None
+    payload = {
+        "version": version,
+        "source": "https://github.com/CennoxX/spotify-ai-blocker (MIT)",
+        "count": len(ids),
+        "artist_ids": ids,
+    }
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text(json.dumps(payload), encoding="utf-8")
+    return len(ids), _sha256(dest)
 
 
 def _parse_iso_utc(s: str) -> datetime.datetime | None:
@@ -582,6 +629,22 @@ def _finalise_cycle(bucket, bucket_name: str, state: dict) -> int:
     print(f"Uploading {gzipped_corpus} ({size:,} bytes gzipped, "
           f"{final_rows} rows) → gs://{bucket_name}/{CORPUS_BLOB}", flush=True)
     _upload(bucket, gzipped_corpus, CORPUS_BLOB, "public, max-age=86400")
+
+    # AI-artist blocklist (sibling artifact). Best-effort — a failed fetch
+    # leaves the manifest without blocklist fields, which older/newer clients
+    # both tolerate (the filter stays inert until a blocklist is present).
+    ai_blocklist_path = DATA_DIR / AI_BLOCKLIST_BLOB
+    ai_result = _build_ai_blocklist(ai_blocklist_path, version)
+    if ai_result is not None:
+        ai_count, ai_sha = ai_result
+        print(f"Uploading AI blocklist ({ai_count} ids) → "
+              f"gs://{bucket_name}/{AI_BLOCKLIST_BLOB}", flush=True)
+        _upload(bucket, ai_blocklist_path, AI_BLOCKLIST_BLOB, "public, max-age=86400")
+        manifest["ai_blocklist_url"] = (
+            f"https://storage.googleapis.com/{bucket_name}/{AI_BLOCKLIST_BLOB}")
+        manifest["ai_blocklist_sha256"] = ai_sha
+        manifest["ai_blocklist_version"] = version
+        manifest["ai_blocklist_count"] = ai_count
 
     print(f"Uploading manifest → gs://{bucket_name}/{MANIFEST_BLOB}", flush=True)
     MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)

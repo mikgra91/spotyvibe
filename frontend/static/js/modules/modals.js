@@ -158,6 +158,33 @@ export async function openSettings() {
             renderRagUpdateBanner(data.rag_update || { status: 'unknown' });
         }
 
+        const aiFilterCheckbox = el('settings-filter-ai-artists');
+        if (aiFilterCheckbox) {
+            aiFilterCheckbox.checked = !!data.filter_ai_artists;
+            const aiStatus = el('status-settings-aifilter');
+            const blocklistAvailable = !!data.ai_blocklist_available;
+            function updateAiFilterStatus() {
+                if (!aiStatus) return;
+                if (!blocklistAvailable) {
+                    aiStatus.textContent = i18n('settings.aiFilter.missing', 'Blocklist not installed — download it to enable the filter.');
+                    aiStatus.className = 'cred-status unset';
+                } else if (aiFilterCheckbox.checked) {
+                    aiStatus.textContent = i18n('settings.aiFilter.enabled', '✓ AI-music filter active');
+                    aiStatus.className = 'cred-status set';
+                } else {
+                    aiStatus.textContent = i18n('settings.aiFilter.disabled', 'AI-music filter disabled');
+                    aiStatus.className = 'cred-status unset';
+                }
+            }
+            updateAiFilterStatus();
+            aiFilterCheckbox.onchange = updateAiFilterStatus;
+            if (!blocklistAvailable) {
+                aiFilterCheckbox.disabled = true;
+                const dl = el('settings-aifilter-download');
+                if (dl) dl.hidden = false;
+            }
+        }
+
         const modelStatus = el('status-settings-model');
         modelStatus.textContent = i18n('settings.model_status', '✓ Using: {model}').replace('{model}', data.model || 'gpt-5.4-mini');
         modelStatus.className = 'cred-status set';
@@ -225,6 +252,11 @@ export async function saveSettings() {
     const ragCheckbox = el('settings-rag-enabled');
     if (ragCheckbox && !ragCheckbox.disabled) {
         payload.rag_enabled = ragCheckbox.checked;
+    }
+
+    const aiFilterCheckbox = el('settings-filter-ai-artists');
+    if (aiFilterCheckbox && !aiFilterCheckbox.disabled) {
+        payload.filter_ai_artists = aiFilterCheckbox.checked;
     }
 
     // CF-Bug-7: API-key validation + model fetch can take several seconds.
@@ -672,6 +704,48 @@ export async function downloadRagCorpus() {
     } catch (e) {
         if (message) message.textContent = i18n('settings.rag.banner.failed',
             'Download failed: {error}').replace('{error}', String(e));
+        if (button) button.disabled = false;
+    }
+}
+
+
+export async function downloadAiBlocklist() {
+    const button = el('settings-aifilter-download-btn');
+    if (button) button.disabled = true;
+    try {
+        const resp = await fetch('/api/ai-blocklist/download', { method: 'POST' });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+            const detail = data.detail || data.error || ('HTTP ' + resp.status);
+            if (typeof showToast === 'function') {
+                showToast(i18n('settings.aiFilter.download_failed',
+                    'Download failed: {error}').replace('{error}', detail), 'error');
+            }
+            if (button) button.disabled = false;
+            return;
+        }
+        if (typeof showToast === 'function') {
+            showToast(i18n('settings.aiFilter.download_success',
+                'AI blocklist installed ({count} artists).')
+                .replace('{count}', data.count != null ? data.count : ''), 'success');
+        }
+        const aiFilterCheckbox = el('settings-filter-ai-artists');
+        if (aiFilterCheckbox) aiFilterCheckbox.disabled = false;
+        const aiStatus = el('status-settings-aifilter');
+        if (aiStatus) {
+            const on = aiFilterCheckbox && aiFilterCheckbox.checked;
+            aiStatus.textContent = on
+                ? i18n('settings.aiFilter.enabled', '✓ AI-music filter active')
+                : i18n('settings.aiFilter.disabled', 'AI-music filter disabled');
+            aiStatus.className = 'cred-status ' + (on ? 'set' : 'unset');
+        }
+        const banner = el('settings-aifilter-download');
+        if (banner) banner.hidden = true;
+    } catch (e) {
+        if (typeof showToast === 'function') {
+            showToast(i18n('settings.aiFilter.download_failed',
+                'Download failed: {error}').replace('{error}', String(e)), 'error');
+        }
         if (button) button.disabled = false;
     }
 }

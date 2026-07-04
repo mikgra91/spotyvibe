@@ -22,7 +22,31 @@ import threading
 import time
 from pathlib import Path
 
+# PyInstaller injects `pyi_splash` only in one-file builds that bundle a Splash
+# (see spotyvibe_onefile.spec). Absent in dev runs and the one-folder build, so
+# the import is best-effort. Imported BEFORE `app` so the splash can report the
+# corpus load, which happens synchronously (~6-9s) during `import app`.
+# (Backgrounding that load was tried and reverted — the pywebview GUI/CLR main
+# loop starves a background loader thread of the GIL. The splash covers it.)
+try:
+    import pyi_splash  # type: ignore
+except Exception:  # pragma: no cover - only present in frozen splash builds
+    pyi_splash = None
+
+if pyi_splash is not None:
+    try:
+        pyi_splash.update_text("Loading music database…")
+    except Exception:
+        pass
+
 from app import app
+
+# Single-instance guard: a named mutex shared by every SpotyVibe process.
+# Duplicate double-clicks detect it and surface the existing window instead
+# of opening another one.
+_INSTANCE_MUTEX_NAME = "SpotyVibe-SingleInstance-Mutex"
+_ERROR_ALREADY_EXISTS = 183
+_instance_mutex_handle = None  # kept alive for the whole process lifetime
 
 # Windows DWM attribute constants (dwmapi.h)
 _DWMWA_USE_IMMERSIVE_DARK_MODE = 20
@@ -434,10 +458,72 @@ def _wait_for_server(host: str, port: int, timeout_s: float = 15.0) -> bool:
     return False
 
 
+def _splash(text: str | None = None, *, close: bool = False) -> None:
+    """Update the startup splash's status line, or close it. No-op if the
+    build has no splash (dev run, one-folder build) or it is already closed."""
+    if pyi_splash is None:
+        return
+    try:
+        if close:
+            pyi_splash.close()
+        elif text is not None:
+            pyi_splash.update_text(text)
+    except Exception:
+        pass
+
+
+def _acquire_single_instance() -> bool:
+    """Return True if this is the only running instance.
+
+    Creates a process-shared named mutex on Windows. If another instance
+    already holds it, returns False. The handle is stashed in a module global
+    (intentionally never closed) so the OS holds the mutex for this process's
+    lifetime and releases it automatically on exit. Always True off Windows.
+    """
+    global _instance_mutex_handle
+    if sys.platform != "win32":
+        return True
+    # use_last_error=True lets us read GetLastError reliably right after the
+    # call without ctypes clobbering it.
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateMutexW.restype = ctypes.c_void_p
+    kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_wchar_p]
+    _instance_mutex_handle = kernel32.CreateMutexW(None, False, _INSTANCE_MUTEX_NAME)
+    return ctypes.get_last_error() != _ERROR_ALREADY_EXISTS
+
+
+def _focus_existing_window(attempts: int = 20, delay_s: float = 0.25) -> None:
+    """Bring an already-running SpotyVibe window to the foreground.
+
+    The first instance may still be extracting/booting when a duplicate launch
+    is detected, so retry for a few seconds until its window exists.
+    """
+    if sys.platform != "win32":
+        return
+    user32 = ctypes.windll.user32
+    for _ in range(attempts):
+        hwnd = _find_hwnd()
+        if hwnd:
+            user32.ShowWindow(hwnd, _SW_RESTORE)
+            user32.SetForegroundWindow(ctypes.c_void_p(hwnd))
+            return
+        time.sleep(delay_s)
+
+
 def main():
+    # Refuse to open a second window when the user double-clicks repeatedly
+    # while the (slow) one-file build is still starting up. Surface the
+    # existing instance instead.
+    if not _acquire_single_instance():
+        _splash(close=True)
+        _focus_existing_window()
+        return
+
     host = "127.0.0.1"
     port = 5000
     url = f"http://{host}:{port}"
+
+    _splash("Starting server…")
 
     flask_thread = threading.Thread(
         target=lambda: app.run(host=host, port=port, debug=False, use_reloader=False),
@@ -446,8 +532,11 @@ def main():
     flask_thread.start()
 
     if not _wait_for_server(host, port):
+        _splash(close=True)
         print("ERROR: Flask server did not start within timeout.")
         return
+
+    _splash("Loading interface…")
 
     import webview  # noqa: WPS433 — imported late so Flask starts first
 
@@ -481,13 +570,20 @@ def main():
     )
     api._parent = window
 
-    # Inject custom title bar + side frames after the page loads.
-    window.events.loaded += lambda: window.evaluate_js(_CHROME_JS)
+    # Inject custom title bar + side frames after the page loads, and close
+    # the startup splash now that real UI is on screen.
+    def _on_loaded():
+        window.evaluate_js(_CHROME_JS)
+        _splash(close=True)
+
+    window.events.loaded += _on_loaded
 
     # Apply DWM dark-mode styling, install resize hook, maximize, and sync
     # icon.  The `shown` event can fire before `loaded` (which injects the
     # title bar), so the JS must guard against dt-max-btn not existing yet.
     def _on_shown():
+        # Backstop: ensure the splash is gone even if `loaded` never fires.
+        _splash(close=True)
         _apply_dark_chrome()
         hwnd = _find_hwnd()
         if hwnd:
