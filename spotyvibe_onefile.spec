@@ -62,9 +62,27 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
+# One-file builds extract the whole bundle to a temp dir on every launch,
+# which is a multi-second, feedback-free wait. The bootloader renders this
+# splash BEFORE Python starts, so the user sees something immediately.
+# desktop_launcher.py updates the status line via pyi_splash and closes it
+# once the WebView UI has loaded.
+splash = Splash(
+    os.path.join(project_root, "build_assets", "splash.png"),
+    binaries=a.binaries,
+    datas=a.datas,
+    text_pos=(150, 214),
+    text_size=11,
+    text_color="#b3b3b3",
+    text_default="Starting…",
+    always_on_top=True,
+)
+
 exe = EXE(
     pyz,
     a.scripts,
+    splash,
+    splash.binaries,
     a.binaries,
     a.datas,
     [],

@@ -281,6 +281,7 @@ RAG_FACET_WEIGHTS = {
 RAG_CORPUS_DIR: Path  # type: ignore[assignment]
 RAG_CORPUS_PATH: Path  # type: ignore[assignment]
 RAG_META_PATH: Path  # type: ignore[assignment]
+RAG_CORPUS_DB_PATH: Path  # type: ignore[assignment]
 
 
 def get_rag_enabled() -> bool:
@@ -301,6 +302,23 @@ def get_rag_enabled() -> bool:
 def set_rag_enabled(enabled: bool) -> None:
     """Persist the user-facing RAG toggle."""
     _persist_setting("RAG_ENABLED", "true" if enabled else "false")
+
+
+def use_sqlite_corpus() -> bool:
+    """Whether this runtime should use the on-disk SQLite corpus.
+
+    Enabled for packaged installs — frozen PyInstaller builds (Windows EXE) and
+    any runtime that opts in via ``SPOTYVIBE_SQLITE_CORPUS=1`` (the macOS/Linux
+    wheel launcher sets this). Dev runs, tests, and the eval harness keep the
+    in-memory corpus for simplicity and determinism. ``SPOTYVIBE_SQLITE_CORPUS=0``
+    forces the in-memory path even when frozen (escape hatch).
+    """
+    flag = os.environ.get("SPOTYVIBE_SQLITE_CORPUS")
+    if flag == "1":
+        return True
+    if flag == "0":
+        return False
+    return bool(getattr(sys, "frozen", False))
 
 
 def _get_app_dir() -> Path:
@@ -384,10 +402,15 @@ def _init_rag_paths() -> None:
     moves any legacy file from ``BASE_DIR/data/rag_corpus/`` (older dev
     installs) into the new location.
     """
-    global RAG_CORPUS_DIR, RAG_CORPUS_PATH, RAG_META_PATH
+    global RAG_CORPUS_DIR, RAG_CORPUS_PATH, RAG_META_PATH, RAG_CORPUS_DB_PATH
     RAG_CORPUS_DIR = _APP_DIR / "rag_corpus"
     RAG_CORPUS_PATH = RAG_CORPUS_DIR / "artists.jsonl.gz"
     RAG_META_PATH = RAG_CORPUS_DIR / "artists.meta.json"
+    # "Installed" corpus: a SQLite DB built once from artists.jsonl.gz so
+    # packaged runtimes open the corpus in ~20ms instead of re-parsing it
+    # (~6-9s) each launch. Rebuilt automatically when the corpus/overlays
+    # change (signature check). See core/src/rag/sqlite_corpus.py.
+    RAG_CORPUS_DB_PATH = RAG_CORPUS_DIR / "corpus.sqlite"
 
     # One-time migration from the legacy in-repo location.
     legacy_dir = BASE_DIR / "data" / "rag_corpus"

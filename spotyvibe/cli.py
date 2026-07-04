@@ -43,6 +43,12 @@ def main():
     if pkg_dir not in sys.path:
         sys.path.insert(0, pkg_dir)
 
+    # Packaged installs use the on-disk SQLite corpus (built once, then opened
+    # in ~20ms per launch instead of re-parsing the ~180k-artist corpus). Must
+    # be set before importing app, whose module-level code reads it. First run
+    # builds the DB (~30s) — a one-time cost.
+    os.environ.setdefault("SPOTYVIBE_SQLITE_CORPUS", "1")
+
     # Import *after* path setup — app.py runs load_config() at import time.
     from app import app  # noqa: E402
 

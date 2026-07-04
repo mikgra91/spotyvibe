@@ -134,20 +134,44 @@ def _load_rag_corpus_if_enabled():
     Failures are logged and swallowed — a missing or broken corpus
     falls back to the legacy (non-RAG) prompt, never crashes boot.
     """
+    log = logging.getLogger(__name__)
     try:
-        from config import get_rag_enabled, RAG_CORPUS_PATH, RAG_TAG_ALIASES_PATH
+        from config import (get_rag_enabled, use_sqlite_corpus,
+                            RAG_CORPUS_PATH, RAG_TAG_ALIASES_PATH)
         if not get_rag_enabled():
             return
         from core.src.rag import RagCorpus
+
+        # Packaged installs use the on-disk SQLite corpus: built once (~30s the
+        # first time / after a corpus update) then opened in ~20ms every launch.
+        # Any failure falls through to the in-memory path so boot never breaks.
+        if use_sqlite_corpus():
+            try:
+                from config import RAG_CORPUS_DB_PATH
+                from core.src.rag.sqlite_corpus import (
+                    SqliteCorpus, build_sqlite_corpus, corpus_signature,
+                    is_sqlite_corpus_valid)
+                sig = corpus_signature(RAG_CORPUS_PATH, RAG_TAG_ALIASES_PATH)
+                if not is_sqlite_corpus_valid(RAG_CORPUS_DB_PATH, sig):
+                    log.info("Building SQLite corpus (first run / corpus changed)…")
+                    ram = RagCorpus.load(RAG_CORPUS_PATH, RAG_TAG_ALIASES_PATH)
+                    build_sqlite_corpus(ram, RAG_CORPUS_DB_PATH, sig)
+                    del ram
+                corpus = SqliteCorpus.open(RAG_CORPUS_DB_PATH)
+                set_rag_corpus(corpus)
+                log.info("RAG corpus active (SQLite): %d artists from %s",
+                         len(corpus), RAG_CORPUS_DB_PATH)
+                return
+            except Exception as exc:  # pragma: no cover — defensive
+                log.warning("SQLite corpus unavailable (%s) — falling back to in-memory.", exc)
+
         corpus = RagCorpus.load(RAG_CORPUS_PATH, RAG_TAG_ALIASES_PATH)
         set_rag_corpus(corpus)
-        logging.getLogger(__name__).info(
-            "RAG corpus active: %d artists from %s", len(corpus), RAG_CORPUS_PATH)
+        log.info("RAG corpus active: %d artists from %s", len(corpus), RAG_CORPUS_PATH)
     except FileNotFoundError:
-        logging.getLogger(__name__).info(
-            "RAG enabled but corpus file missing — running without candidate pool.")
+        log.info("RAG enabled but corpus file missing — running without candidate pool.")
     except Exception as exc:  # pragma: no cover — defensive
-        logging.getLogger(__name__).warning("RAG corpus load failed: %s", exc)
+        log.warning("RAG corpus load failed: %s", exc)
 
 
 # Populated once at startup by _check_rag_corpus_update(); exposed to the
@@ -186,6 +210,11 @@ try:
 except Exception as exc:  # pragma: no cover — defensive
     logger.warning("Profile swap-tmp recovery failed: %s", exc)
 
+# Loaded synchronously at import so the corpus is guaranteed present before the
+# server accepts requests. (Backgrounding this was tried and reverted: in the
+# pywebview desktop build the GUI/CLR main loop starves a background loader
+# thread of the GIL — the corpus took >40s and generation would stall. The
+# desktop splash covers the load instead; see desktop_launcher.py.)
 _load_rag_corpus_if_enabled()
 _check_rag_corpus_update()
 
