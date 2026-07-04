@@ -381,13 +381,23 @@ class TestWave2QuickWins:
 
     def test_completeness_hides_at_high_score(self, page: Page, base_url):
         page.goto(base_url)
-        page.wait_for_load_state("domcontentloaded")
+        # Wait for the (large) ES module bundle to finish booting so the
+        # completeness input listeners are wired before we type.
+        page.wait_for_load_state("load")
+        page.wait_for_function("typeof window.switchTab === 'function'")
         open_profile_editor(page)
+        # The app prefills the train fields from /api/profile/data asynchronously
+        # on load and on editor-open (profile.js:prefillTrainFields), then fires
+        # 'profile-loaded' to recompute the score. If that fetch resolves AFTER
+        # we type, it overwrites our values and resets the meter — the historical
+        # flake (score stuck at the saved profile's ~34%). Wait for the network
+        # to settle so no pending prefill can clobber the fields we fill below.
+        page.wait_for_load_state("networkidle")
         page.locator("#trainCoreDesc").fill("Upbeat melodic rock with strong hooks, theatrical vocals, and constant momentum — think Queen meets Bear Ghost.")
         page.locator("#trainMustHave").fill("high energy\nstrong memorable melodies\nvocals")
         page.locator("#trainSoftPrefs").fill("prog influence")
         page.locator("#trainAvoid").fill("electronic/synth-heavy")
-        expect(page.locator("#profileCompletenessCard")).to_have_class(re.compile(r"is-complete"))
+        expect(page.locator("#profileCompletenessCard")).to_have_class(re.compile(r"is-complete"), timeout=10_000)
 
     def test_tooltip_removed_from_audio_filters(self, page: Page, base_url):
         page.goto(base_url)
