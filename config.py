@@ -277,11 +277,19 @@ RAG_FACET_WEIGHTS = {
     "tags": 0.10,  # genres + moods + eras combined
 }
 
+# ── AI-artist filter (deny AI-generated music) ───────────────────
+# Off by default — opt-in so existing behaviour and eval metrics are
+# unchanged unless the user enables it. The blocklist (a set of Spotify
+# artist IDs) is distributed via the same manifest/download path as the RAG
+# corpus; the toggle is a silent no-op until AI_BLOCKLIST_PATH is present.
+DEFAULT_FILTER_AI_ARTISTS = False
+
 # Populated by _init_rag_paths() once _APP_DIR exists.
 RAG_CORPUS_DIR: Path  # type: ignore[assignment]
 RAG_CORPUS_PATH: Path  # type: ignore[assignment]
 RAG_META_PATH: Path  # type: ignore[assignment]
 RAG_CORPUS_DB_PATH: Path  # type: ignore[assignment]
+AI_BLOCKLIST_PATH: Path  # type: ignore[assignment]
 
 
 def get_rag_enabled() -> bool:
@@ -297,6 +305,21 @@ def get_rag_enabled() -> bool:
     if raw in ("0", "false", "off", "no"):
         return False
     return DEFAULT_RAG_ENABLED and RAG_CORPUS_PATH.exists()
+
+
+def get_filter_ai_artists() -> bool:
+    """Return True if AI-generated artists should be filtered from suggestions.
+
+    Gated on both the user setting and the presence of the blocklist file —
+    if the blocklist isn't downloaded the toggle is a silent no-op rather than
+    a hard error. Defaults to off (opt-in).
+    """
+    raw = os.getenv("FILTER_AI_ARTISTS", "").lower()
+    if raw in ("1", "true", "on", "yes"):
+        return AI_BLOCKLIST_PATH.exists()
+    if raw in ("0", "false", "off", "no"):
+        return False
+    return DEFAULT_FILTER_AI_ARTISTS and AI_BLOCKLIST_PATH.exists()
 
 
 def set_rag_enabled(enabled: bool) -> None:
@@ -402,7 +425,7 @@ def _init_rag_paths() -> None:
     moves any legacy file from ``BASE_DIR/data/rag_corpus/`` (older dev
     installs) into the new location.
     """
-    global RAG_CORPUS_DIR, RAG_CORPUS_PATH, RAG_META_PATH, RAG_CORPUS_DB_PATH
+    global RAG_CORPUS_DIR, RAG_CORPUS_PATH, RAG_META_PATH, RAG_CORPUS_DB_PATH, AI_BLOCKLIST_PATH
     RAG_CORPUS_DIR = _APP_DIR / "rag_corpus"
     RAG_CORPUS_PATH = RAG_CORPUS_DIR / "artists.jsonl.gz"
     RAG_META_PATH = RAG_CORPUS_DIR / "artists.meta.json"
@@ -411,6 +434,8 @@ def _init_rag_paths() -> None:
     # (~6-9s) each launch. Rebuilt automatically when the corpus/overlays
     # change (signature check). See core/src/rag/sqlite_corpus.py.
     RAG_CORPUS_DB_PATH = RAG_CORPUS_DIR / "corpus.sqlite"
+    # AI-artist blocklist — co-located with the corpus download artifacts.
+    AI_BLOCKLIST_PATH = RAG_CORPUS_DIR / "ai_artists.json"
 
     # One-time migration from the legacy in-repo location.
     legacy_dir = BASE_DIR / "data" / "rag_corpus"
@@ -715,6 +740,8 @@ def get_settings():
         "rag_enabled": get_rag_enabled(),
         "rag_corpus_available": RAG_CORPUS_PATH.exists(),
         "rag_pool_size": RAG_POOL_SIZE,
+        "filter_ai_artists": get_filter_ai_artists(),
+        "ai_blocklist_available": AI_BLOCKLIST_PATH.exists(),
     }
 
 

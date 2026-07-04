@@ -36,8 +36,9 @@ from config import (
     get_ui_language,
     EVAL_LOG_FILE, RAG_META_PATH, get_rag_enabled,
     RETRIEVE_CANDIDATES_SIZE, RAG_POPULARITY_PENALTY, RAG_RERETRIEVE_SIZE,
-    get_or_create_secret_key,
+    get_or_create_secret_key, get_filter_ai_artists,
 )
+from core.src.ai_filter import filter_ai_tracks
 import markdown
 
 load_config()
@@ -174,6 +175,22 @@ def _load_rag_corpus_if_enabled():
         log.warning("RAG corpus load failed: %s", exc)
 
 
+def _load_ai_blocklist():
+    """Load the AI-artist blocklist at startup if the file is present.
+
+    Best-effort and independent of the FILTER_AI_ARTISTS toggle — we keep the
+    deny set in memory whenever the file exists so flipping the toggle takes
+    effect without a restart. A missing file leaves the filter inert.
+    """
+    try:
+        from config import AI_BLOCKLIST_PATH
+        from core.src.ai_filter import load_ai_blocklist
+        if AI_BLOCKLIST_PATH.exists():
+            load_ai_blocklist(AI_BLOCKLIST_PATH)
+    except Exception as exc:  # pragma: no cover — defensive
+        logging.getLogger(__name__).warning("AI blocklist load failed: %s", exc)
+
+
 # Populated once at startup by _check_rag_corpus_update(); exposed to the
 # frontend via /api/config. Schema matches distribution.check_for_update().
 _rag_update_status: dict = {"status": "unknown"}
@@ -216,6 +233,7 @@ except Exception as exc:  # pragma: no cover — defensive
 # thread of the GIL — the corpus took >40s and generation would stall. The
 # desktop splash covers the load instead; see desktop_launcher.py.)
 _load_rag_corpus_if_enabled()
+_load_ai_blocklist()
 _check_rag_corpus_update()
 
 
@@ -2004,6 +2022,18 @@ def run_pipeline():
                             emerging_filtered=len(_rejected),
                         )
 
+                # Drop tracks by AI-generated artists (matched on Spotify
+                # artist_id) before they count toward the playlist — the run
+                # then refills the gap on the next batch.
+                if get_filter_ai_artists() and found:
+                    found, _ai_rejected = filter_ai_tracks(found)
+                    if _ai_rejected:
+                        yield _sse(
+                            "progress",
+                            message=f"Batch {batch_num}: {len(_ai_rejected)} AI-generated track(s) filtered out.",
+                            ai_filtered=len(_ai_rejected),
+                        )
+
 
                 # N3d (2026-05-13) — Track-A verifier-swap bug-fix.
                 # Production (SpotifyVerifier) returns a unique URI per
@@ -2754,6 +2784,39 @@ def download_rag_corpus():
         return jsonify({"error": "download_failed", "detail": str(exc)}), 500
 
 
+@app.route("/api/ai-blocklist/download", methods=["POST"])
+def download_ai_blocklist():
+    """Download (or update) the AI-artist blocklist from the manifest URL.
+
+    Streams the artifact to a ``.part`` sibling, sha256-verifies, atomically
+    renames, then reloads the in-memory deny set so the filter takes effect
+    without a restart.
+    """
+    try:
+        from config import AI_BLOCKLIST_PATH, RAG_MANIFEST_URL
+        from core.src.ai_filter import load_ai_blocklist
+        from core.src.rag.distribution import (
+            download_blocklist, fetch_remote_manifest,
+        )
+        manifest = fetch_remote_manifest(RAG_MANIFEST_URL)
+        if manifest is None:
+            return jsonify({"error": "remote_unavailable"}), 503
+        if not manifest.has_ai_blocklist():
+            return jsonify({"error": "blocklist_unavailable"}), 404
+        download_blocklist(manifest, AI_BLOCKLIST_PATH)
+        count = load_ai_blocklist(AI_BLOCKLIST_PATH)
+        return jsonify({
+            "status": "ok",
+            "version": manifest.ai_blocklist_version,
+            "count": count,
+        })
+    except ValueError as exc:  # sha mismatch
+        return jsonify({"error": "checksum_failed", "detail": str(exc)}), 502
+    except Exception as exc:  # pragma: no cover — defensive
+        app_log(f"AI blocklist download failed: {exc}")
+        return jsonify({"error": "download_failed", "detail": str(exc)}), 500
+
+
 @app.route("/api/settings", methods=["POST"])
 def write_settings():
     """Update non-secret settings (model, debug mode, playlist size)."""
@@ -2803,6 +2866,11 @@ def write_settings():
     _rag_was = _get_rag_enabled_now() if "rag_enabled" in data else None
     if "rag_enabled" in data:
         payload["RAG_ENABLED"] = "true" if data["rag_enabled"] else "false"
+
+    # AI-artist filter toggle. The deny set is loaded in-process at startup
+    # (when present), so flipping this only persists the gate — no reload.
+    if "filter_ai_artists" in data:
+        payload["FILTER_AI_ARTISTS"] = "true" if data["filter_ai_artists"] else "false"
 
     save_settings(payload)
     app_log(f"Settings changed: {list(payload.keys())}")

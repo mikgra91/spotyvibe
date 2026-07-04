@@ -87,6 +87,7 @@ The Settings modal also exposes:
 - **Playlist Size** — 5–30 tracks (default: 10).
 - **New Artist %** — 1–100 (default: 30). Higher = more aggressive exploration.
 - **ChatGPT Language** — language the AI uses in its replies (independent of the UI language).
+- **Filter AI-generated music** — opt-in (default off). Drops suggested tracks by artists on a community-maintained AI-music blocklist (matched on Spotify artist ID). Download the blocklist first via the **Download now** button under the toggle. See *AI-generated music filter* below.
 - **Display size** — Small / Default / Large. Scales the whole UI.
 - **Debug mode** — desktop only; logs GPT requests to `%LOCALAPPDATA%\spotyvibe\debug.log`.
 
@@ -213,6 +214,17 @@ Checkbox. When on:
 - GPT is told to only suggest artists that debuted in the last 6 months.
 - Tracks are also validated against Spotify release dates post-search.
 - The final playlist may contain **fewer** tracks than requested (only emerging artists survive).
+
+### AI-generated music filter
+
+Opt-in setting (Settings → **Filter AI-generated music**, off by default). When on:
+
+- After each track is verified on Spotify, SpotyVibe checks the primary artist's Spotify ID against a blocklist of artists flagged as AI-generated.
+- Matching tracks are dropped before they count toward the playlist, so the run automatically requests more to fill the gap.
+- The blocklist must be downloaded first (a **Download now** button appears under the toggle when it's missing). It is distributed alongside the RAG corpus and refreshed on the same cadence.
+- Matching is by Spotify artist ID only — collision-free, no false positives from name overlaps.
+
+Blocklist data comes from the open-source [spotify-ai-blocker](https://github.com/CennoxX/spotify-ai-blocker) project (MIT) and is community-maintained.
 
 ### Running the generation
 

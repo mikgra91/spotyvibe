@@ -1,7 +1,7 @@
 """Tests for app.py — Flask endpoints."""
 
 import json
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from pathlib import Path
 
 import pytest
@@ -200,6 +200,129 @@ class TestWriteSettings:
         assert resp.status_code == 200
         call_args = mock_save.call_args[0][0]
         assert call_args["NEW_ARTIST_PERCENTAGE"] == "100"
+
+    @patch("app.save_settings")
+    def test_persists_filter_ai_artists(self, mock_save, client):
+        resp = client.post(
+            "/api/settings",
+            data=json.dumps({"filter_ai_artists": True}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        assert mock_save.call_args[0][0]["FILTER_AI_ARTISTS"] == "true"
+
+    @patch("app.save_settings")
+    def test_persists_filter_ai_artists_off(self, mock_save, client):
+        resp = client.post(
+            "/api/settings",
+            data=json.dumps({"filter_ai_artists": False}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        assert mock_save.call_args[0][0]["FILTER_AI_ARTISTS"] == "false"
+
+
+class TestDownloadAiBlocklist:
+    @patch("core.src.ai_filter.load_ai_blocklist", return_value=42)
+    @patch("core.src.rag.distribution.download_blocklist", return_value=42)
+    @patch("core.src.rag.distribution.fetch_remote_manifest")
+    def test_success(self, mock_fetch, mock_dl, mock_load, client):
+        manifest = MagicMock()
+        manifest.has_ai_blocklist.return_value = True
+        manifest.ai_blocklist_version = "2026-06-30"
+        mock_fetch.return_value = manifest
+        resp = client.post("/api/ai-blocklist/download")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "ok"
+        assert data["count"] == 42
+        assert data["version"] == "2026-06-30"
+
+    @patch("core.src.rag.distribution.fetch_remote_manifest", return_value=None)
+    def test_remote_unavailable(self, mock_fetch, client):
+        resp = client.post("/api/ai-blocklist/download")
+        assert resp.status_code == 503
+
+    @patch("core.src.rag.distribution.fetch_remote_manifest")
+    def test_no_blocklist_in_manifest(self, mock_fetch, client):
+        manifest = MagicMock()
+        manifest.has_ai_blocklist.return_value = False
+        mock_fetch.return_value = manifest
+        resp = client.post("/api/ai-blocklist/download")
+        assert resp.status_code == 404
+
+
+class TestAiFilterPipeline:
+    """The AI filter drops blocklisted artists from /api/run output."""
+
+    @patch("app.get_filter_ai_artists", return_value=True)
+    @patch("app.save_run")
+    @patch("app.add_to_playlist")
+    @patch("app.iter_search_tracks")
+    @patch("app.filter_duplicate_suggestions")
+    @patch("app.call_gpt")
+    @patch("app.save_profile")
+    @patch("app.update_profile")
+    @patch("app.normalize_history")
+    @patch("app.load_profile")
+    @patch("app.get_new_artist_percentage", return_value=30)
+    @patch("app.get_playlist_size", return_value=2)
+    @patch("app.get_debug_mode", return_value=False)
+    @patch("app.get_spotify_auth_status", return_value="authenticated")
+    @patch("app.is_profile_trained", return_value=True)
+    def test_blocklisted_artist_excluded(
+        self, mock_trained, mock_spotify, mock_debug, mock_size,
+        mock_percentage, mock_load, mock_norm, mock_update, mock_save,
+        mock_gpt, mock_filter, mock_search, mock_add, mock_save_run,
+        mock_ai_on, client,
+    ):
+        from core.src import ai_filter
+
+        profile = {
+            "history": {"suggested_artists": [], "suggested_tracks": []},
+            "feedback": {}, "preferences": {},
+        }
+        mock_load.return_value = profile
+        mock_norm.return_value = profile
+        mock_update.return_value = profile
+        playlist = [
+            {"artist": "Clean One", "track": "t1", "reason": "r"},
+            {"artist": "Clean Two", "track": "t2", "reason": "r"},
+            {"artist": "Bot Act", "track": "t3", "reason": "r"},
+        ]
+        gpt_result = {
+            "playlist": playlist, "new_artists": [],
+            "profile_updates": {"suggested_artists": [], "suggested_tracks": []},
+        }
+        mock_gpt.return_value = (gpt_result, {"usage": None, "latency_s": 0.0})
+        mock_filter.return_value = dict(gpt_result)
+        # Spotify search enriches each track with a primary artist_id; "Bot
+        # Act" resolves to a blocklisted id.
+        mock_search.side_effect = lambda *_a, **_kw: iter([
+            ("found", {"artist": "Clean One", "track": "t1",
+                       "uri": "spotify:track:1", "artist_id": "h1", "cover_url": None}),
+            ("found", {"artist": "Clean Two", "track": "t2",
+                       "uri": "spotify:track:2", "artist_id": "h2", "cover_url": None}),
+            ("found", {"artist": "Bot Act", "track": "t3",
+                       "uri": "spotify:track:3", "artist_id": "ai1", "cover_url": None}),
+        ])
+        mock_add.return_value = {"url": "https://open.spotify.com/playlist/x", "added": 2}
+
+        with patch.object(ai_filter, "_AI_ARTIST_IDS", {"ai1"}):
+            resp = client.post(
+                "/api/run", data=json.dumps({"playlist_size": 2}),
+                content_type="application/json",
+            )
+            # Read the streaming body *inside* the patch — the SSE generator
+            # runs lazily when the body is consumed.
+            data = resp.data.decode()
+        # The filter fires in the pipeline (SSE progress event) and the clean
+        # artists are kept. (Found tracks are streamed individually *before*
+        # filtering, so the blocklisted name still appears in the raw stream —
+        # the meaningful signal is the ai_filtered event.)
+        assert "Clean One" in data
+        assert "ai_filtered" in data
+        assert "AI-generated track(s) filtered out" in data
 
     def test_rejects_non_numeric_playlist_size(self, client):
         resp = client.post(

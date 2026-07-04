@@ -135,6 +135,26 @@
             <div class="cred-status" id="status-settings-rag"></div>
         </div>
 
+        <!-- AI-generated-music filter (advanced) -->
+        <div class="form-row" id="aiFilterRow">
+            <label data-i18n="settings.aiFilter.label">Filter AI-generated music <span class="optional-badge" data-i18n="common.optional">(optional)</span></label>
+            <div class="modal-checkbox-row">
+                <label class="modal-checkbox-label">
+                    <input type="checkbox" id="settings-filter-ai-artists"
+                        {% if settings.filter_ai_artists %}checked{% endif %}>
+                    <span data-i18n="settings.aiFilter.toggle">Exclude artists flagged as AI-generated</span>
+                </label>
+            </div>
+            <p class="inline-hint" data-i18n="settings.aiFilter.hint">Drops tracks by artists on a community-maintained AI-music blocklist. Requires the blocklist to be downloaded.</p>
+            <div class="rag-update-banner" id="settings-aifilter-download" hidden>
+                <span data-i18n="settings.aiFilter.missing">Blocklist not installed — download it to enable the filter.</span>
+                <button type="button" class="btn btn-secondary" id="settings-aifilter-download-btn"
+                        onclick="downloadAiBlocklist()"
+                        data-i18n="settings.aiFilter.download_now">Download now</button>
+            </div>
+            <div class="cred-status" id="status-settings-aifilter"></div>
+        </div>
+
         <div class="modal-actions">
             <button class="btn btn-save" onclick="saveSettings()" data-i18n="btn.save">Save</button>
             <button class="btn btn-cancel" onclick="closeModal('settingsModal')" data-i18n="btn.cancel">Cancel</button>

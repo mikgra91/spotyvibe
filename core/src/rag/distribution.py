@@ -45,6 +45,12 @@ class RemoteManifest:
     sha256: str
     size_bytes: int
     corpus_url: str
+    # AI-artist blocklist (optional sibling artifact). Absent in older
+    # manifests — the fields default empty and has_ai_blocklist() stays False.
+    ai_blocklist_url: str = ""
+    ai_blocklist_sha256: str = ""
+    ai_blocklist_version: str = ""
+    ai_blocklist_count: int = 0
 
     @classmethod
     def from_json(cls, payload: dict) -> "RemoteManifest":
@@ -54,10 +60,17 @@ class RemoteManifest:
             sha256=str(payload.get("sha256") or "").lower(),
             size_bytes=int(payload.get("size_bytes") or 0),
             corpus_url=str(payload.get("corpus_url") or ""),
+            ai_blocklist_url=str(payload.get("ai_blocklist_url") or ""),
+            ai_blocklist_sha256=str(payload.get("ai_blocklist_sha256") or "").lower(),
+            ai_blocklist_version=str(payload.get("ai_blocklist_version") or ""),
+            ai_blocklist_count=int(payload.get("ai_blocklist_count") or 0),
         )
 
     def is_valid(self) -> bool:
         return bool(self.corpus_version and self.sha256 and self.corpus_url)
+
+    def has_ai_blocklist(self) -> bool:
+        return bool(self.ai_blocklist_url and self.ai_blocklist_sha256)
 
 
 def fetch_remote_manifest(url: str = DEFAULT_MANIFEST_URL,
@@ -187,3 +200,43 @@ def download_corpus(manifest: RemoteManifest,
     write_local_meta(meta_path, manifest)
     logger.info("RAG corpus installed (%d bytes, version %s)",
                 size, manifest.corpus_version)
+
+
+def download_blocklist(manifest: RemoteManifest,
+                       dest_path: Path,
+                       timeout: float = 60.0) -> int:
+    """Download the AI-artist blocklist named in *manifest* into *dest_path*.
+
+    Streams ``ai_blocklist_url`` into a ``.part`` temp, verifies sha256,
+    raises ``ValueError`` on mismatch, otherwise atomically renames into
+    place. Raises ``RuntimeError`` when the manifest carries no blocklist.
+    Returns ``ai_blocklist_count`` from the manifest.
+    """
+    if not manifest.has_ai_blocklist():
+        raise RuntimeError("manifest has no AI blocklist")
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    part = dest_path.with_name(dest_path.name + ".part")
+    if part.exists():
+        part.unlink()
+
+    hasher = hashlib.sha256()
+    logger.info("Downloading AI blocklist from %s", manifest.ai_blocklist_url)
+    with urllib.request.urlopen(manifest.ai_blocklist_url, timeout=timeout) as resp, \
+         open(part, "wb") as fh:
+        while True:
+            chunk = resp.read(1 << 20)  # 1 MiB
+            if not chunk:
+                break
+            fh.write(chunk)
+            hasher.update(chunk)
+
+    if hasher.hexdigest().lower() != manifest.ai_blocklist_sha256.lower():
+        part.unlink(missing_ok=True)
+        raise ValueError(
+            f"sha256 mismatch: expected {manifest.ai_blocklist_sha256}, "
+            f"got {hasher.hexdigest()}")
+
+    os.replace(part, dest_path)
+    logger.info("AI blocklist installed (version %s, %d artists)",
+                manifest.ai_blocklist_version, manifest.ai_blocklist_count)
+    return manifest.ai_blocklist_count

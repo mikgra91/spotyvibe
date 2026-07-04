@@ -246,6 +246,9 @@ Verfügbare Einstellungen:
 - **ChatGPT-Sprache**
   Wähle die Sprache für KI-generierte Erklärungen und Profil-Updates.
 
+- **KI-generierte Musik filtern** *(optional)*  
+  Wenn aktiviert, entfernt SpotyVibe jeden vorgeschlagenen Titel, dessen Künstler auf einer von der Community gepflegten Sperrliste KI-generierter Acts steht (Abgleich über die Spotify-Künstler-ID). Standardmäßig deaktiviert. Die Sperrliste muss zuerst heruntergeladen werden — nutze die Schaltfläche **Jetzt herunterladen** unter dieser Option. Die Daten stammen aus dem Open-Source-Projekt [spotify-ai-blocker](https://github.com/CennoxX/spotify-ai-blocker) (MIT).
+
 Klicke nach Änderungen auf **Speichern**.
 
 ![Einstellungen-Panel](/docs/screenshots/05_settings_modal.png)

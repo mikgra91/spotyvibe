@@ -335,6 +335,8 @@ export function handleStreamEvent(event) {
             let msg = event.message;
             if (event.emerging_filtered != null) {
                 msg = i18n('pipeline.emerging_batch_filtered', 'Batch: {count} track(s) filtered out (emerging artists only).').replace('{count}', event.emerging_filtered);
+            } else if (event.ai_filtered != null) {
+                msg = i18n('pipeline.ai_batch_filtered', 'Batch: {count} AI-generated track(s) filtered out.').replace('{count}', event.ai_filtered);
             }
             showStatus('⏳ ' + msg, 'info');
             break;
