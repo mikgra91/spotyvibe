@@ -282,6 +282,15 @@ The suggestion pipeline can inject a pre-ranked pool of ~20 artists retrieved fr
 
 **Runtime wiring** — [app.py](../app.py) loads the corpus once at startup when `RAG_ENABLED` is true *and* the file exists (missing corpus is a silent no-op); [core/src/suggestions.py](../core/src/suggestions.py) appends the candidate-pool block to the user prompt per batch, with the user's confirmed anchors + the batch deny-list feeding the retriever's filter. Toggling the setting in the UI hot-swaps the corpus handle without a restart.
 
+#### Taste re-ranker — "Ground then Judge" (2026-07-05, default on)
+
+The 2026-07-05 diagnosis (`.dev-notes/corpus-diag-2026-07-05/`) showed that TF-IDF tag overlap — and even dense embeddings over the corpus's `name + tags` text — rank a user's real taste at **~chance** (ROC-AUC 0.41–0.51 separating their liked from disliked artists on a cross-validated benchmark): the corpus has no signal for melodic/harmonic craft, and rare/noise tags dominate the prose query. An **LLM re-ranker** of the *same real candidates* reaches AUC 0.78–0.91 (mean rank of loved artists ~3 vs ~26–49 for tags). So Stage 1 became two steps:
+
+1. **Ground** — [`retrieve_anchor_candidates`](../core/src/rag/retrieval.py) seeds the query from the tags of the user's **confirmed artists** (not prose), applies the must-have/avoid gates, and returns a wide pool (`RAG_RERETRIEVE_SIZE`) with **no popularity band** (the 0.3–0.7 band deleted the well-crafted popular artists this user likes). Falls back to prose `retrieve_candidates` when no anchor resolves.
+2. **Judge** — [`rerank_pool`](../core/src/rerank.py) sends the pool as `Name [tags]` lines plus the profile's love/reject exemplars-with-reasons and `must_have`/`avoid` directives to `get_model()`, gets a 0–100 taste score per candidate, and reorders + trims to `RETRIEVE_CANDIDATES_SIZE`. It only *scores real corpus artists* — never invents any, so there is no hallucination and no extra verification. Passing the tags disambiguates corpus homonyms (a `Wings [death metal]` is not McCartney's Wings). On any LLM failure it returns the pool unchanged (strictly additive).
+
+Gated by `SPOTYVIBE_TASTE_RERANK` (default on; set `=0` for the legacy prose path). Cost: one extra names-only LLM call per generation. The A6 empty-batch re-retrieve still uses the legacy prose `retrieve_candidates`. Metric to guard against regression: `evaluation/taste_bench.py` (k-fold taste-AUC against real labels).
+
 **RAG bypass on `emerging_only=True`** — when the user picks the "Brand new bands" exploration notch, RAG is **skipped**. The MusicBrainz dump is republished quarterly at most and cannot contain artists who debuted in the last 6 months, so injecting the pool would contradict the system constraint. The post-Spotify `filter_emerging_artists` (album `release_date` check) remains the factual verification step. See `core/src/suggestions.py::build_messages` and `documentation/spotyvibe_with_rag/` vs `_without_rag/` eval logs for the data behind the decision.
 
 **Configuration** ([config.py](../config.py)):

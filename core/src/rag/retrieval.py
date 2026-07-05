@@ -746,6 +746,7 @@ def retrieve_candidates(
     target_size: int = 50,
     popularity_penalty: float = 0.4,
     primary_reference: dict | None = None,
+    popularity_band: tuple[float, float] | None = (0.3, 0.7),
 ) -> list[ArtistRow]:
     """Stage 1 code-side retrieval for the three-stage pipeline (P1.1).
 
@@ -833,15 +834,20 @@ def retrieve_candidates(
                 len(broad), len(filtered),
             )
 
-    # Hard filter 2: popularity band — prefer 0.3–0.7 discovery sweet-spot.
-    in_band = [a for a in broad if 0.3 <= _artist_popularity(a) <= 0.7]
-    if len(in_band) >= target_size // 2:
-        broad = in_band
-    else:
-        logger.debug(
-            "retrieve_candidates: popularity band too narrow (%d of %d in-band), using full pool",
-            len(in_band), len(broad),
-        )
+    # Hard filter 2: popularity band — prefer the discovery sweet-spot.
+    # ``popularity_band`` is (lo, hi); pass None to disable (used by the
+    # taste-rerank path, which surfaces well-crafted popular artists the
+    # 0.3–0.7 band would otherwise delete — see .dev-notes/corpus-diag-2026-07-05).
+    if popularity_band is not None:
+        lo, hi = popularity_band
+        in_band = [a for a in broad if lo <= _artist_popularity(a) <= hi]
+        if len(in_band) >= target_size // 2:
+            broad = in_band
+        else:
+            logger.debug(
+                "retrieve_candidates: popularity band too narrow (%d of %d in-band), using full pool",
+                len(in_band), len(broad),
+            )
 
     result = broad[:target_size]
     # L1 (2026-04-29): post-hoc sanity check — count surviving candidates
@@ -927,3 +933,108 @@ def retrieve_candidates(
 
     return result
 
+
+# ── Anchor-seeded retrieval (taste-rerank path) ──────────────────────
+#
+# The prose-derived query (build_query_tags) is dominated by rare noise tokens
+# and cannot rank on the user's real taste axis (see the 2026-07-05 diagnosis in
+# .dev-notes/corpus-diag-2026-07-05/). Seeding the query from the tags of the
+# user's CONFIRMED artists instead produces a pool that is genuinely adjacent to
+# their taste (e.g. Queen/Jellyfish → power pop / glam / art rock neighbours),
+# which the LLM re-ranker (core/src/rerank.py) then orders precisely. This is the
+# "Ground" half of "Ground then Judge".
+
+def build_anchor_query_tags(corpus: RagCorpus, profile: dict) -> dict[str, float]:
+    """Build a ``{tag: weight}`` query from the CONFIRMED artists' own tags.
+
+    Each confirmed artist that resolves in the corpus contributes weight 1.0 to
+    every distinct tag it carries (MB tags + Spotify genres + Last.fm tags). Tags
+    shared by many anchors accumulate weight, so the query centres on the taste
+    the anchors have in common. Returns ``{}`` when no confirmed artist resolves —
+    callers should fall back to the prose query.
+    """
+    q: dict[str, float] = defaultdict(float)
+    confirmed = ((profile or {}).get("artists", {}) or {}).get("confirmed", []) or []
+    for nm in confirmed:
+        if not isinstance(nm, str) or not nm.strip():
+            continue
+        idx = corpus.by_name_normalised.get(normalise_name(nm))
+        if idx is None:
+            continue
+        a = corpus.artists[idx]
+        seen: set[str] = set()
+        for t in list(a.tags) + list(a.spotify_genres) + list(a.lastfm_tags):
+            nt = normalise_tag(t)
+            if nt and nt not in seen:
+                seen.add(nt)
+                q[nt] += 1.0
+    return dict(q)
+
+
+def retrieve_anchor_candidates(
+    corpus: RagCorpus,
+    profile: dict,
+    deny_keys: Iterable[str] = (),
+    target_size: int = 120,
+) -> list[ArtistRow]:
+    """Anchor-seeded Stage-1 pool for the taste-rerank pipeline.
+
+    Scores the whole corpus by tag overlap with :func:`build_anchor_query_tags`,
+    applies the same hard must-have and avoid gates as :func:`retrieve_candidates`,
+    excludes denied + confirmed + rejected artists, and returns up to
+    *target_size* candidates ranked by anchor-tag overlap. No popularity band —
+    the re-ranker handles ordering, and the band would delete the well-crafted
+    popular artists this user likes.
+
+    Falls back to :func:`retrieve_candidates` (prose path, popularity band off)
+    when the profile has no confirmed artist that resolves in the corpus.
+    """
+    if not corpus.artists or target_size <= 0:
+        return []
+
+    query = build_anchor_query_tags(corpus, profile)
+    if not query:
+        return retrieve_candidates(
+            corpus, profile, deny_keys=deny_keys,
+            target_size=target_size, popularity_band=None,
+        )
+
+    scores: dict[int, float] = defaultdict(float)
+    for tag, w in query.items():
+        idf, idxs, weights = corpus.postings(tag)
+        for k, row_idx in enumerate(idxs):
+            scores[row_idx] += idf * float(weights[k]) * w
+    if not scores:
+        return []
+
+    # Never surface an artist the user already knows or rejected, or a denied one.
+    deny_set = {normalise_name(k) for k in deny_keys if k}
+    arts = (profile or {}).get("artists", {}) or {}
+    for nm in (arts.get("confirmed") or []):
+        if isinstance(nm, str):
+            deny_set.add(normalise_name(nm))
+    for r in (arts.get("rejected") or []):
+        nm = r.get("name") if isinstance(r, dict) else (r if isinstance(r, str) else None)
+        if nm:
+            deny_set.add(normalise_name(nm))
+
+    must_have_tags, _, _ = _resolve_must_have_tags(corpus, profile)
+    avoid_tags, _, _ = _avoid_traits_coverage(corpus, profile)
+
+    ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+    out: list[ArtistRow] = []
+    for idx, _ in ranked:
+        a = corpus.artists[idx]
+        if normalise_name(a.name) in deny_set:
+            continue
+        if must_have_tags and not _artist_has_any_tag(a, must_have_tags):
+            continue
+        if avoid_tags and _artist_has_any_tag(a, avoid_tags):
+            continue
+        out.append(a)
+        if len(out) >= target_size:
+            break
+
+    logger.debug("retrieve_anchor_candidates: %d anchors-tags → %d candidates",
+                 len(query), len(out))
+    return out
