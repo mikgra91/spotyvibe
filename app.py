@@ -114,7 +114,8 @@ from core.src.history import save_run, load_runs, update_track_sentiment
 from core.src.utils import get_openai_models, clear_debug_log, sanitize_text, safe_text, app_log
 from core.src.eval_log import (log_batch_outcome, log_batch_summary,
                                 compute_config_signature, log_stage2_summary)
-from core.src.rag import retrieve_candidates
+from core.src.rag import retrieve_candidates, retrieve_anchor_candidates
+from core.src import rerank as _taste_rerank
 from core.src.openai_http import OpenAIConfigError, OpenAIError
 from core.src.errors import TranslatableError, as_response_payload
 from core.src.playlist import (
@@ -407,6 +408,17 @@ _DEFAULT_AUDIO_FILTERS = {
     k: {"min": None, "max": None}
     for k in ("energy", "valence", "tempo", "danceability", "acousticness")
 }
+
+
+def _taste_rerank_enabled() -> bool:
+    """Whether the taste re-ranker ("Ground then Judge") Stage-1 path is active.
+
+    Default ON; set ``SPOTYVIBE_TASTE_RERANK=0`` to fall back to the legacy prose
+    retrieval. The path builds an anchor-seeded candidate pool and orders it with
+    an LLM taste re-rank — validated in .dev-notes/corpus-diag-2026-07-05/
+    (tag/vector retrieval ranks this taste at chance; the re-ranker does not).
+    """
+    return os.environ.get("SPOTYVIBE_TASTE_RERANK", "1") != "0"
 
 
 def _sanitize_audio_filters(raw):
@@ -1344,13 +1356,32 @@ def run_pipeline():
                     # + popularity band). No-op when DEBUG_MODE off.
                     from core.src import trace as _e1_trace
                     with _e1_trace.time_stage(_e1_trace.STAGE_RAG_RETRIEVE):
-                        _stage1_candidates = retrieve_candidates(
-                            _corpus, profile,
-                            deny_keys=_deny_keys,
-                            target_size=RETRIEVE_CANDIDATES_SIZE,
-                            popularity_penalty=RAG_POPULARITY_PENALTY,
-                            primary_reference=_primary_ref,
-                        )
+                        if _taste_rerank_enabled():
+                            # "Ground then Judge": anchor-seeded wide pool (real
+                            # taste-adjacent artists) → LLM taste re-rank → trim.
+                            # Tag/prose retrieval alone ranks the user's taste at
+                            # ~chance; the re-ranker lifts it decisively (see
+                            # .dev-notes/corpus-diag-2026-07-05/).
+                            _wide = retrieve_anchor_candidates(
+                                _corpus, profile,
+                                deny_keys=_deny_keys,
+                                target_size=RAG_RERETRIEVE_SIZE,
+                            )
+                            _reranked = _taste_rerank.rerank_pool(
+                                profile, _wide, model=get_model(),
+                            )
+                            _stage1_candidates = _reranked[:RETRIEVE_CANDIDATES_SIZE]
+                            yield _sse("progress",
+                                       message=f"Taste re-rank: ordered {len(_wide)} "
+                                               f"candidates, kept top {len(_stage1_candidates)}.")
+                        else:
+                            _stage1_candidates = retrieve_candidates(
+                                _corpus, profile,
+                                deny_keys=_deny_keys,
+                                target_size=RETRIEVE_CANDIDATES_SIZE,
+                                popularity_penalty=RAG_POPULARITY_PENALTY,
+                                primary_reference=_primary_ref,
+                            )
                     set_last_rag_pool_names([a.name for a in _stage1_candidates])
                     if _primary_ref:
                         logger.info(
@@ -1591,7 +1622,7 @@ def run_pipeline():
                 yield _sse(
                     "progress",
                     message=f"Batch {batch_num}: "
-                            f"Asking GPT for {request_count} suggestions… "
+                            f"Asking the AI for {request_count} suggestions… "
                             f"(have {len(verified_tracks)}/{playlist_size})",
                 )
 
@@ -1608,7 +1639,7 @@ def run_pipeline():
                 if gpt_call_count >= effective_max_calls:
                     yield _sse(
                         "progress",
-                        message=f"Reached GPT call limit ({effective_max_calls}). "
+                        message=f"Reached the AI call limit ({effective_max_calls}). "
                                 f"Stopping with {len(verified_tracks)} verified track(s).",
                     )
                     break
@@ -1860,7 +1891,7 @@ def run_pipeline():
                         _run_state["exhausted"] = True
                         yield _sse(
                             "progress",
-                            message=f"Batch {batch_num}: GPT suggested only already-known tracks "
+                            message=f"Batch {batch_num}: The AI suggested only already-known tracks "
                                     f"for {consecutive_empty_batches} consecutive batches. "
                                     f"Stopping with {len(verified_tracks)} verified track(s).",
                         )
@@ -1870,7 +1901,7 @@ def run_pipeline():
                         "progress",
                         message=f"Batch {batch_num}: All {len(filtered_out)} suggestion(s) already known "
                                 f"(retry {consecutive_empty_batches}/{MAX_CONSECUTIVE_EMPTY_BATCHES}). "
-                                f"Sending explicit reminder to GPT…",
+                                f"Sending explicit reminder to the AI…",
                     )
                     # Diagnostic: empty-after-filter batch (Stage 3 picked
                     # but every pick was a duplicate / disliked). Records

@@ -562,7 +562,9 @@ class TestAddToPlaylist:
             add_to_playlist([{"artist": "a", "track": "b", "uri": "spotify:track:1"}])
         assert exc.value.key == "error.spotify.reconnect_required"
         assert exc.value.status_code == 403
-        mock_disconnect.assert_called_once()
+        # A 403 on a playlist write must NOT nuke the whole Spotify session —
+        # it usually means the target playlist isn't the user's to modify.
+        mock_disconnect.assert_not_called()
 
 
 class TestRedirectUri:
@@ -772,6 +774,8 @@ class TestStreamingScope:
             assert "streaming" in kwargs["scope"].split()
             # Existing scopes must still be present.
             assert "playlist-modify-private" in kwargs["scope"]
+            # Required to append to / replace existing *public* playlists.
+            assert "playlist-modify-public" in kwargs["scope"]
             assert "playlist-read-private" in kwargs["scope"]
             assert "user-read-private" in kwargs["scope"]
 

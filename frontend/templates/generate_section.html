@@ -56,7 +56,7 @@
                 <span class="audio-filter-chevron" id="audioFilterToggleBtn" aria-hidden="true">▼</span>
             </div>
             <div class="audio-filter-body hidden" id="audioFiltersBody">
-                <p class="audio-filter-hint" data-i18n-html="af.hint_text">Filters are applied per generation — they constrain GPT to suggest only tracks matching these ranges. They are <strong>not</strong> saved in your profile. Use <a href="#analysisSection" class="audio-filter-jump" onclick="event.preventDefault(); jumpToAnalysis()">🔍 Band/Song Analysis</a> to find reference values for any artist or track.</p>
+                <p class="audio-filter-hint" data-i18n-html="af.hint_text">Filters are applied per generation — they constrain the AI to suggest only tracks matching these ranges. They are <strong>not</strong> saved in your profile. Use <a href="#analysisSection" class="audio-filter-jump" onclick="event.preventDefault(); jumpToAnalysis()">🔍 Band/Song Analysis</a> to find reference values for any artist or track.</p>
                 <div class="audio-filter-grid-header">
                     <span></span>
                     <span class="audio-filter-col-label" data-i18n="af.col_min">Min</span>
@@ -70,7 +70,7 @@
                         <input type="number" id="af-energy-max" placeholder="max" min="0" max="100" step="5" oninput="updateFilterHint('energy')" value="{{ (audio_filters.energy.max * 100)|round|int if audio_filters.energy.max is not none }}">
                         <span class="audio-filter-hint-text" id="af-energy-hint"></span>
                         <p class="inline-hint" data-i18n="af.energy_hint">How intense and active the track feels.</p>
-                        {{ learn_more('af.energy_learn_more', 'Higher values push GPT toward loud, fast, driving tracks. Lower values favour calm, ambient music. Leave empty to let any value through.') }}
+                        {{ learn_more('af.energy_learn_more', 'Higher values push the AI toward loud, fast, driving tracks. Lower values favour calm, ambient music. Leave empty to let any value through.') }}
                     </div>
                     <div class="audio-filter-row">
                         <label for="af-valence-min" data-i18n="af.label_valence">Valence (%)</label>
@@ -131,7 +131,7 @@
             </div>
             <input type="range" id="genSize" class="gen-size-slider" min="5" max="30" step="5" value="{{ settings.playlist_size if settings.playlist_size else 10 }}">
             <p class="inline-hint" data-i18n="settings.playlist_size_hint">How many tracks to generate (max 30).</p>
-            {{ learn_more('settings.playlist_size_learn_more', 'Max capped at 30 — beyond that GPT starts repeating itself across 10-track fetch blocks, and review fatigue sets in. If you want a longer session, run twice with different presets.') }}
+            {{ learn_more('settings.playlist_size_learn_more', 'Max capped at 30 — beyond that the AI starts repeating itself across 10-track fetch blocks, and review fatigue sets in. If you want a longer session, run twice with different presets.') }}
         </div>
 
         <!-- ═══ SHARED: Exploration slider (visible in both modes) ═══ -->

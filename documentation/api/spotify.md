@@ -85,8 +85,12 @@ SpotyVibe uses the Authorization Code Flow (not Client Credentials).
 
 **Required scopes:**
 ```
-playlist-modify-private playlist-read-private
+playlist-modify-private playlist-modify-public playlist-read-private user-read-private streaming
 ```
+
+- `playlist-modify-public` is required to **append to / replace an existing *public* playlist**. Without it, writes to public playlists (a user's own "Rock", "Hochzeitsfeier", …) return **403 Forbidden** even though reads succeed. Creating a new playlist works either way because SpotyVibe creates them private (`public=False`).
+- Changing this scope string invalidates existing cached tokens (spotipy's `validate_token` requires the cached scope to be a superset), so users are cleanly re-prompted to reconnect and grant the new permission.
+- A 403 on a playlist write must **not** trigger `disconnect_spotify()` — it usually means the target playlist isn't the user's to modify; dropping the whole session over one playlist is wrong.
 
 **Redirect URI:** `http://127.0.0.1:5000/callback` — must be registered in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
 

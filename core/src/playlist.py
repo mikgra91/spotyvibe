@@ -437,7 +437,7 @@ def get_spotify_oauth():
         client_id=os.getenv("SPOTIPY_CLIENT_ID"),
         client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
         redirect_uri=REDIRECT_URI,
-        scope="playlist-modify-private playlist-read-private user-read-private streaming",
+        scope="playlist-modify-private playlist-modify-public playlist-read-private user-read-private streaming",
         cache_handler=cache_handler,
         open_browser=False,
     )
@@ -1346,11 +1346,17 @@ def add_to_playlist(verified_tracks, mode="default", playlist_id=None,
 
     except SpotifyException as e:
         if e.http_status == 403:
-            disconnect_spotify()
+            # A 403 on a playlist write means the app isn't allowed to modify
+            # THIS playlist — either it belongs to someone else, or the cached
+            # token predates the playlist-modify-public scope. Do NOT disconnect
+            # the account: dropping the whole Spotify session over a single
+            # per-playlist permission issue is what surprised users. Surface a
+            # clear, actionable error and let them choose to reconnect.
             raise TranslatableError(
                 "error.spotify.reconnect_required",
-                "Spotify returned 403 Forbidden. Your session has expired or "
-                "permissions were revoked. Please reconnect via "
+                "Spotify returned 403 Forbidden — the app couldn't modify this "
+                "playlist. It may belong to someone else, or your connection "
+                "needs to be refreshed to grant playlist-editing permission: "
                 "⚙️ Settings → 🔌 Disconnect Spotify, then Connect to Spotify.",
                 status_code=403,
             ) from e

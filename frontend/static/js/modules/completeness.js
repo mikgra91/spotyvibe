@@ -89,7 +89,7 @@ function _getSuggestion(dims) {
     if (must.state === 'empty')   return i18n('profile.suggest_must_empty', 'List 2–3 non-negotiable traits — things every suggestion must have.');
     if (soft.state === 'empty')   return i18n('profile.suggest_soft_empty', 'Add a soft preference for variety.');
     if (avoid.state === 'empty')  return i18n('profile.suggest_avoid_empty', 'Add at least one thing to avoid — it sharpens the profile.');
-    if (core.state === 'partial') return i18n('profile.suggest_core_partial', 'Expand your core description — a sentence or two more helps GPT.');
+    if (core.state === 'partial') return i18n('profile.suggest_core_partial', 'Expand your core description — a sentence or two more helps the AI.');
     return '';
 }
 

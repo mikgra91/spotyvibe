@@ -236,7 +236,7 @@ def build_sse_stream(tracks, playlist_url="https://open.spotify.com/playlist/tes
     """Build an SSE body string for a successful generation run."""
     playlist_json = json.dumps(tracks)
     return (
-        'data: {"type":"progress","message":"Batch 1: Asking GPT for suggestions…"}\n\n'
+        'data: {"type":"progress","message":"Batch 1: Asking the AI for suggestions…"}\n\n'
         f'data: {{"type":"batch_verified","count":{len(tracks)},"total":{len(tracks)}}}\n\n'
         f'data: {{"type":"result","playlist":{playlist_json},'
         f'"playlist_url":"{playlist_url}",'

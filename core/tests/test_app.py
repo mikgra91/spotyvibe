@@ -949,11 +949,17 @@ class TestA6PoolReRetrieve:
         mock_add.return_value = {"url": "https://open.spotify.com/playlist/x",
                                  "added": 10}
 
+        # This test exercises the legacy prose-retrieval re-retrieve path; the
+        # taste re-ranker (default on) replaces the INITIAL retrieval with the
+        # anchor path, so disable it here to test the A6 mechanism in isolation.
         with patch("core.src.rag.retrieval.get_last_retrieval_meta",
-                   return_value={}):
+                   return_value={}), \
+             patch("app._taste_rerank_enabled", return_value=False):
             resp = client.post("/api/run", data=json.dumps({}),
                                content_type="application/json")
-        body = resp.data.decode()
+            # Read the streamed body INSIDE the patch context so the flag
+            # override is active while the SSE generator actually runs.
+            body = resp.data.decode()
 
         # A6 must have re-retrieved exactly once — two retrieve_candidates calls.
         assert mock_retrieve.call_count == 2, (

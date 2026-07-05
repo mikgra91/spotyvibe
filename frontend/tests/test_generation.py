@@ -55,7 +55,7 @@ class TestGenerationPipeline:
 
         def handle_run(route):
             sse_body = (
-                'data: {"type":"progress","message":"Batch 1: Asking GPT for 10 suggestions…"}\n\n'
+                'data: {"type":"progress","message":"Batch 1: Asking the AI for 10 suggestions…"}\n\n'
                 'data: {"type":"progress","message":"Batch 1: Verifying 3 tracks on Spotify…"}\n\n'
                 'data: {"type":"batch_verified","count":3,"total":10}\n\n'
                 'data: {"type":"result","playlist":['
@@ -102,7 +102,7 @@ class TestGenerationPipeline:
 
         def handle_run_partial(route):
             sse_body = (
-                'data: {"type":"progress","message":"Batch 1: Asking GPT…"}\n\n'
+                'data: {"type":"progress","message":"Batch 1: Asking the AI…"}\n\n'
                 'data: {"type":"result","playlist":['
                 '{"artist":"Partial Artist","track":"Partial Track","reason":"Arrived before cancel"}],'
                 '"playlist_url":"https://open.spotify.com/playlist/partial",'
