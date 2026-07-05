@@ -143,7 +143,7 @@ export function renderAnalysisResult(d) {
         <div class="analysis-row"><strong>${escHtml(i18n('analysis.genre', 'Genre:'))}</strong> ${escHtml(genres)}</div>
         <div class="analysis-row">${tags}</div>
         ${charRows ? `<table class="analysis-ch-table">${charRows}</table>` : ''}
-        ${afRows ? `<div class="analysis-suggestions-header">${escHtml(i18n('analysis.audio_features_header', 'Audio Features (GPT estimate)'))} ${useAllBtn}</div><div class="af-grid">${afRows}</div>` : ''}
+        ${afRows ? `<div class="analysis-suggestions-header">${escHtml(i18n('analysis.audio_features_header', 'Audio Features (AI estimate)'))} ${useAllBtn}</div><div class="af-grid">${afRows}</div>` : ''}
         ${suggestions ? `<div class="analysis-suggestions-header">${escHtml(i18n('analysis.profile_suggestions', 'Profile Suggestions (click 📋 to copy)'))}</div>${suggestions}` : ''}
     </div>`;
 }

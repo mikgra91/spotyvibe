@@ -683,7 +683,7 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(300)
         page.evaluate("""() => {
             document.getElementById('generateLoadingArea').classList.remove('hidden');
-            document.getElementById('generateLoadingMsg').textContent = 'Getting suggestions from GPT… (12 / 30)';
+            document.getElementById('generateLoadingMsg').textContent = 'Getting suggestions from the AI… (12 / 30)';
             const btn = document.getElementById('runBtn');
             btn.disabled = true;
             btn.textContent = '⏳ Generating…';
@@ -701,7 +701,7 @@ class TestDocumentationScreenshotAcquire:
         page.wait_for_timeout(300)
         page.evaluate("""() => {
             document.getElementById('generateLoadingArea').classList.remove('hidden');
-            document.getElementById('generateLoadingMsg').textContent = 'Getting suggestions from GPT… (18 / 30)';
+            document.getElementById('generateLoadingMsg').textContent = 'Getting suggestions from the AI… (18 / 30)';
             const btn = document.getElementById('runBtn');
             btn.disabled = true;
             btn.textContent = '⏳ Generating…';

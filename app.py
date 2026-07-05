@@ -1591,7 +1591,7 @@ def run_pipeline():
                 yield _sse(
                     "progress",
                     message=f"Batch {batch_num}: "
-                            f"Asking GPT for {request_count} suggestions… "
+                            f"Asking the AI for {request_count} suggestions… "
                             f"(have {len(verified_tracks)}/{playlist_size})",
                 )
 
@@ -1608,7 +1608,7 @@ def run_pipeline():
                 if gpt_call_count >= effective_max_calls:
                     yield _sse(
                         "progress",
-                        message=f"Reached GPT call limit ({effective_max_calls}). "
+                        message=f"Reached the AI call limit ({effective_max_calls}). "
                                 f"Stopping with {len(verified_tracks)} verified track(s).",
                     )
                     break
@@ -1860,7 +1860,7 @@ def run_pipeline():
                         _run_state["exhausted"] = True
                         yield _sse(
                             "progress",
-                            message=f"Batch {batch_num}: GPT suggested only already-known tracks "
+                            message=f"Batch {batch_num}: The AI suggested only already-known tracks "
                                     f"for {consecutive_empty_batches} consecutive batches. "
                                     f"Stopping with {len(verified_tracks)} verified track(s).",
                         )
@@ -1870,7 +1870,7 @@ def run_pipeline():
                         "progress",
                         message=f"Batch {batch_num}: All {len(filtered_out)} suggestion(s) already known "
                                 f"(retry {consecutive_empty_batches}/{MAX_CONSECUTIVE_EMPTY_BATCHES}). "
-                                f"Sending explicit reminder to GPT…",
+                                f"Sending explicit reminder to the AI…",
                     )
                     # Diagnostic: empty-after-filter batch (Stage 3 picked
                     # but every pick was a duplicate / disliked). Records

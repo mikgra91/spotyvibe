@@ -50,7 +50,7 @@
             </div>
             <p class="inline-hint" data-i18n="settings.model_hint">Which model produces your suggestions.</p>
             <p class="provider-fetch-error hidden" id="providerFetchError"></p>
-            {{ learn_more('settings.model_learn_more', 'Higher-tier models cost more per run. For music suggestions the difference is noticeable but not dramatic; gpt-4o-mini is a sensible default.') }}
+            {{ learn_more('settings.model_learn_more', 'Higher-tier models cost more per run. For music suggestions the difference is noticeable but not dramatic; a small, inexpensive model is a sensible default.') }}
             <div class="cred-status" id="status-settings-model"></div>
         </div>
 
@@ -103,10 +103,10 @@
                 <label class="modal-checkbox-label">
                     <input type="checkbox" id="settings-debug"
                         {% if settings.debug_mode %}checked{% endif %}>
-                    Log GPT requests &amp; responses to debug file
+                    Log AI requests &amp; responses to debug file
                 </label>
             </div>
-            <p class="inline-hint" data-i18n="settings.debug_hint">Log every GPT request and response to a local file.</p>
+            <p class="inline-hint" data-i18n="settings.debug_hint">Log every AI request and response to a local file.</p>
             {{ learn_more('settings.debug_learn_more', 'For developers and bug reports. Never affects behaviour. The log file stays on your device — see the Privacy modal.') }}
             <div class="cred-status" id="status-settings-debug"></div>
         </div>
