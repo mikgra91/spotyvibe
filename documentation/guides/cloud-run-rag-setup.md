@@ -224,6 +224,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY build-tools/rag/build_rag_corpus.py        build-tools/
 COPY build-tools/rag/refresh_rag_corpus.py      build-tools/
 COPY build-tools/cloud_run_publish.py       build-tools/
+# Second entrypoint, selected by the spotivibe-ai-blocklist job (§ 6b) via
+# --command/--args. Files are copied individually here, so a new script that
+# is not listed will silently be absent from the image.
+COPY build-tools/publish_ai_blocklist.py    build-tools/
 COPY data/rag_corpus/tag_aliases.json       data/rag_corpus/
 
 ENTRYPOINT ["python", "build-tools/cloud_run_publish.py"]
@@ -248,21 +252,18 @@ Reads its configuration from env vars set in the Job spec:
     GCS_BUCKET           — destination bucket (e.g. "spotyvibe-rag-corpus")
     CORPUS_TOP_N         — top-N artists to include (default 350000)
     KEEP_INTERMEDIATES   — "1" to retain MB dumps between runs (default off)
-    AI_BLOCKLIST_CSV_URL — upstream AI-artist CSV (default: spotify-ai-blocker raw)
 
 Pipeline:
     1. Run refresh_rag_corpus.py (downloads MB dump + invokes build_rag_corpus.py).
     2. Compute sha256 of the resulting artists.jsonl.gz.
     3. Upload artists.jsonl.gz to gs://$GCS_BUCKET/artists.jsonl.gz.
-    4. Build the AI-artist blocklist (best-effort): fetch AI_BLOCKLIST_CSV_URL,
-       normalise the `id` column to ai_artists.json, upload it to the bucket.
-    5. Write + upload manifest.json with corpus_url, sha256, size, build
-       timestamp, and (when the blocklist built) ai_blocklist_{url,sha256,version,count}.
-    6. Wipe the working directory (corpus build leaves ~33 GB extracted).
+    4. Write + upload manifest.json with corpus_url, sha256, size and build
+       timestamp.
+    5. Wipe the working directory (corpus build leaves ~33 GB extracted).
 
-> The AI blocklist step is best-effort and isolated: a transient failure
-> fetching the upstream CSV omits the `ai_blocklist_*` manifest fields but
-> never blocks the corpus release. Data: CennoxX/spotify-ai-blocker (MIT).
+> The AI-artist blocklist is NOT published here — see § 6b and
+> build-tools/publish_ai_blocklist.py. It has its own manifest, job and
+> schedule so either artifact can be republished without the other.
 
 Exit non-zero on any failure so Cloud Run logs the run as failed.
 """
@@ -469,6 +470,198 @@ gcloud run jobs execute spotivibe-rag-builder --region=$REGION
 
 ---
 
+## 6b. AI-artist blocklist job (independent of the corpus)
+
+The blocklist is published by its own job so it can refresh without a corpus
+rebuild — and so a corpus cycle can never clobber it. Same container image,
+different entrypoint.
+
+> **Why separate.** Until Aug-2026 the blocklist shipped from inside the corpus
+> job's finalize step. It therefore could not update between corpus rebuilds, a
+> transient CSV fetch failure silently stripped the blocklist fields from the
+> published manifest, and a stale job image meant the step never ran at all
+> while the corpus published normally.
+
+First, sanity-check upstream with no GCS access needed:
+
+```bash
+DRY_RUN=1 python build-tools/publish_ai_blocklist.py
+# → parsed 7,487 unique artist ids
+#   artifact ai_artists.77c783ef8fd5.json (194,783 bytes, sha 77c783ef8fd5…)
+#   DRY_RUN: wrote …/ai_artists.77c783ef8fd5.json — no GCS access. (exit 0)
+```
+
+Create the job:
+
+```bash
+PROJECT=$(gcloud config get-value project)
+REGION=us-central1
+SA=spotivibe-rag-builder@${PROJECT}.iam.gserviceaccount.com
+BUCKET=spotivibe-rag-corpus
+IMAGE=${REGION}-docker.pkg.dev/${PROJECT}/cloud-run-source-deploy/spotyvibe-rag-builder:latest
+
+gcloud run jobs create spotivibe-ai-blocklist \
+  --image=$IMAGE \
+  --region=$REGION \
+  --service-account=$SA \
+  --command=python \
+  --args=build-tools/publish_ai_blocklist.py \
+  --set-env-vars=GCS_BUCKET=${BUCKET} \
+  --max-retries=1 \
+  --task-timeout=5m \
+  --cpu=1 \
+  --memory=512Mi
+
+gcloud run jobs execute spotivibe-ai-blocklist --region=$REGION --wait
+gcloud storage ls gs://$BUCKET   # ai_blocklist_manifest.json + ai_artists.<sha12>.json
+```
+
+Schedule it weekly. A run costs seconds, and the unchanged-content check makes a
+no-op tick free, so the cadence is a judgement call rather than a cost question —
+users can always pull an update on demand from Settings:
+
+```bash
+gcloud run jobs add-iam-policy-binding spotivibe-ai-blocklist \
+  --region=$REGION \
+  --member=serviceAccount:$SA \
+  --role=roles/run.invoker
+
+gcloud scheduler jobs create http spotivibe-ai-blocklist-weekly \
+  --location=$REGION \
+  --schedule="0 4 * * 1" \
+  --time-zone="Europe/Vienna" \
+  --uri="https://${REGION}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${PROJECT}/jobs/spotivibe-ai-blocklist:run" \
+  --http-method=POST \
+  --oauth-service-account-email=$SA
+```
+
+Verify what clients will see:
+
+```bash
+curl -s https://storage.googleapis.com/$BUCKET/ai_blocklist_manifest.json | jq
+# {blocklist_version, built_at, sha256, size_bytes, count, blocklist_url, source, source_url}
+```
+
+**Env vars** (all on the job spec):
+
+| Var | Default | Purpose |
+|---|---|---|
+| `GCS_BUCKET` | — | Required destination bucket. |
+| `AI_BLOCKLIST_CSV_URL` | CennoxX/spotify-ai-blocker raw | Upstream CSV override. |
+| `MIN_COUNT` | `1000` | Absolute floor on usable ids; below it the job fails rather than publishes. |
+| `MIN_COUNT_RATIO` | `0.5` | Refuse to shrink the published list below this fraction. Stops an upstream format break from silently disabling the filter. |
+| `FORCE_PUBLISH` | unset | Re-upload despite unchanged content; bypasses the shrink guard. |
+| `KEEP_VERSIONS` | `5` | Content-addressed artifacts retained; `0` disables pruning. |
+| `DRY_RUN` | unset | Do everything except touch GCS. |
+
+**Exit codes:** `0` published / unchanged / dry run · `1` upstream unreachable or failed a guard · `2` GCS failure. Unlike the old in-corpus step, there is no silent skip.
+
+**If a run reports nothing published**, check the logs — the reason is always printed:
+
+```bash
+gcloud logging read \
+  'resource.type=cloud_run_job AND resource.labels.job_name=spotivibe-ai-blocklist' \
+  --limit=20 --freshness=7d --format='value(timestamp,textPayload)'
+```
+
+---
+
+## 6c. Keep the image current (CI)
+
+**The failure this prevents.** The Cloud Run jobs run a container image, not the
+repo. A `build-tools/` change has no effect in production until the image is
+rebuilt *and* the jobs are pointed at it. Between 2026-05-30 (last image build)
+and 2026-08-27 that gap silently disabled the AI-blocklist publisher: the code
+was merged on 2026-06-30, the corpus job kept publishing from a pre-feature
+image, and **nothing failed** — the 2026-08-02 corpus release looked completely
+healthy while shipping no blocklist at all.
+
+Two guards now close it:
+
+| Guard | Where |
+|---|---|
+| A change under `build-tools/` rebuilds and pushes the image | [`.github/workflows/publish-job-image.yml`](../../.github/workflows/publish-job-image.yml) |
+| A missing entrypoint fails the **build** instead of vanishing at runtime | `verify-entrypoints` step in [`cloudbuild.yaml`](../../build-tools/cloud-run-job/cloudbuild.yaml) — compiles both entrypoints inside the built image |
+
+> The workflow's `paths:` filter must mirror the `COPY` lines in the Dockerfile.
+> If the Dockerfile starts copying something new, add it to `paths:` too, or
+> changes to it will not trigger a rebuild.
+
+Pushing the tag is the whole deployment. Both jobs are configured with the
+mutable `:latest` tag — no digest is pinned in either job spec — so the next
+execution resolves the new image on its own. `gcloud run jobs update --image`
+is **not** required; verify with:
+
+```bash
+gcloud run jobs describe spotivibe-ai-blocklist --region=us-central1 \
+  --format='value(spec.template.spec.template.spec.containers[0].image)'
+# → …/spotyvibe-rag-builder:latest   (a tag, not a sha256 digest)
+```
+
+The workflow never *executes* a job. Corpus rebuilds stay on their own cron,
+and a blocklist publish stays a deliberate act.
+
+### One-time GCP setup (keyless, via Workload Identity Federation)
+
+No service-account JSON key is created — nothing long-lived to leak or rotate.
+
+```bash
+PROJECT=$(gcloud config get-value project)
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')
+REPO=mikgra91/spotyvibe
+DEPLOY_SA=gh-image-publisher@${PROJECT}.iam.gserviceaccount.com
+
+# 1. The identity CI impersonates. Separate from the job's runtime SA, and it
+#    needs no Cloud Run permission at all — CI only builds and pushes.
+gcloud iam service-accounts create gh-image-publisher \
+  --display-name="GitHub Actions image publisher"
+
+# 2. Least privilege: submit builds, push/read images. Nothing else.
+for ROLE in roles/cloudbuild.builds.editor \
+            roles/artifactregistry.writer; do
+  gcloud projects add-iam-policy-binding "$PROJECT" \
+    --member="serviceAccount:${DEPLOY_SA}" --role="$ROLE"
+done
+
+# `gcloud builds submit` stages the source tarball in the Cloud Build bucket.
+gcloud storage buckets add-iam-policy-binding "gs://${PROJECT}_cloudbuild" \
+  --member="serviceAccount:${DEPLOY_SA}" --role=roles/storage.objectAdmin
+
+# 3. Trust GitHub's OIDC issuer — pinned to this repo only. The
+#    attribute-condition is the security control: without it, any GitHub
+#    repository could mint a token for this service account.
+gcloud iam workload-identity-pools create github \
+  --location=global --display-name="GitHub Actions"
+
+gcloud iam workload-identity-pools providers create-oidc github \
+  --location=global --workload-identity-pool=github \
+  --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+  --attribute-condition="assertion.repository=='${REPO}'"
+
+gcloud iam service-accounts add-iam-policy-binding "$DEPLOY_SA" \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github/attribute.repository/${REPO}"
+
+# 4. Print the two values to paste into GitHub → Settings → Secrets → Actions.
+echo "GCP_WIF_PROVIDER = projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/github/providers/github"
+echo "GCP_DEPLOY_SA    = ${DEPLOY_SA}"
+```
+
+Then verify without waiting for a merge — the workflow has
+`workflow_dispatch`, so run it from the Actions tab. Its final step prints the
+digest `:latest` now resolves to.
+
+### Manual fallback
+
+If CI is unavailable, this is the whole deployment:
+
+```bash
+gcloud builds submit --config=build-tools/cloud-run-job/cloudbuild.yaml .
+```
+
+---
+
 ## 7. Point SpotyVibe at the new endpoint
 
 Two changes needed in the desktop client — both are environment-variable
@@ -490,6 +683,12 @@ RAG_MANIFEST_URL = os.environ.get(
 
 ```bash
 export RAG_MANIFEST_URL=https://storage.googleapis.com/spotyvibe-rag-corpus/manifest.json
+```
+
+The AI blocklist has its own, separately overridable pointer (`config.AI_BLOCKLIST_MANIFEST_URL`) — point it at a staging bucket without moving the corpus:
+
+```bash
+export AI_BLOCKLIST_MANIFEST_URL=https://storage.googleapis.com/spotyvibe-rag-corpus/ai_blocklist_manifest.json
 ```
 
 (For Windows desktop installs, this can be set in the user's environment or
@@ -811,6 +1010,14 @@ Always upload the corpus **before** the manifest (the manifest must never point 
 | **Re-enable Last.fm enrichment** | `gcloud run jobs update spotivibe-rag-builder --region=us-central1 --remove-env-vars=DISABLE_LASTFM_ENRICHMENT` |
 | **Pause scheduler entirely** | `gcloud scheduler jobs pause spotivibe-rag-weekly --location=us-central1` |
 | **Resume scheduler** | `gcloud scheduler jobs resume spotivibe-rag-weekly --location=us-central1` |
+| **Republish the AI blocklist now** (§ 6b) | `gcloud run jobs execute spotivibe-ai-blocklist --region=us-central1 --wait` |
+| **Force a blocklist republish** (bypasses unchanged/shrink guards) | `gcloud run jobs execute spotivibe-ai-blocklist --region=us-central1 --update-env-vars=FORCE_PUBLISH=1 --wait` |
+| **Check upstream blocklist health locally** | `DRY_RUN=1 python build-tools/publish_ai_blocklist.py` |
+| **Pause / resume the blocklist cron** | `gcloud scheduler jobs pause spotivibe-ai-blocklist-weekly --location=us-central1` (`resume` to undo) |
+| **Rebuild + push the job image** (§ 6c) | GitHub → Actions → *Publish Cloud Run job image* → Run workflow |
+| **Which image is a job configured with?** | `gcloud run jobs describe <job> --region=us-central1 --format='value(spec.template.spec.template.spec.containers[0].image)'` |
+| **What digest does `:latest` point at now?** | `gcloud artifacts docker images describe us-central1-docker.pkg.dev/spotivibe-rag/cloud-run-source-deploy/spotyvibe-rag-builder:latest --format='value(image_summary.digest)'` |
+| **See why a blocklist run published nothing** | `gcloud logging read 'resource.labels.job_name=spotivibe-ai-blocklist' --limit=20 --freshness=7d --format='value(timestamp,textPayload)'` |
 
 #### 10.3.1 Seeding a soft (auto-expiring) halt
 

@@ -247,7 +247,7 @@ Available settings include:
   Select the language used in AI-generated explanations and profile updates.
 
 - **Filter AI-generated music** *(optional)*  
-  When enabled, SpotyVibe drops any suggested track whose artist appears on a community-maintained blocklist of AI-generated acts (matched on Spotify artist ID). Off by default. The blocklist must be downloaded first — use the **Download now** button shown under this option. Data comes from the open-source [spotify-ai-blocker](https://github.com/CennoxX/spotify-ai-blocker) project (MIT).
+  When enabled, SpotyVibe drops any suggested track whose artist appears on a community-maintained blocklist of AI-generated acts (matched on Spotify artist ID). Off by default. The blocklist must be downloaded first — use the **Download now** button shown under this option. Once installed, that row shows the installed version and the button becomes **Check for update**; the blocklist refreshes independently of the candidate-pool corpus, so you never have to wait for a corpus rebuild. Data comes from the open-source [spotify-ai-blocker](https://github.com/CennoxX/spotify-ai-blocker) project (MIT).
 
 Click **Save** after making changes.
 

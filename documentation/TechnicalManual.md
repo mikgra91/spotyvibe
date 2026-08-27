@@ -321,12 +321,14 @@ Opt-in feature that drops suggested tracks by artists flagged as AI-generated. O
 
 | Piece | Detail |
 |---|---|
-| Data | A deny set of **Spotify artist IDs**, sourced from the community CSV at [`CennoxX/spotify-ai-blocker`](https://github.com/CennoxX/spotify-ai-blocker) (MIT, columns `artist,id`). The Cloud Run publish job normalises it to `ai_artists.json` (`{version, source, count, artist_ids[]}`) and uploads it next to the corpus. |
+| Data | A deny set of **Spotify artist IDs**, sourced from the community CSV at [`CennoxX/spotify-ai-blocker`](https://github.com/CennoxX/spotify-ai-blocker) (MIT, columns `artist,id`). [build-tools/publish_ai_blocklist.py](../build-tools/publish_ai_blocklist.py) normalises it to `{version, source, count, artist_ids[]}` and publishes it to the corpus bucket. ~7.5 k ids as of Aug-2026. |
 | Loader | [core/src/ai_filter.py](../core/src/ai_filter.py) — `load_ai_blocklist`, `is_ai_artist`, `filter_ai_tracks(tracks) -> (kept, dropped)` (same shape as `filter_emerging_artists`). The deny set is a module global, loaded once at startup by `app._load_ai_blocklist()` whenever the file is present (independent of the toggle, so flipping it needs no restart). |
 | Filter point | [app.py](../app.py) `run_pipeline` applies `filter_ai_tracks` to the per-batch `found` list immediately after Spotify verification (every verified track carries `artist_id` from `playlist.py`), right beside the `filter_emerging_artists` call — *before* tracks count toward the playlist, so the run refills the gap. Gated on `config.get_filter_ai_artists()`. |
 | Matching | Spotify artist ID only — collision-free, no false positives from name overlaps. |
-| Settings | `FILTER_AI_ARTISTS` in `settings.conf`; `config.get_filter_ai_artists()` gates on both the flag and `AI_BLOCKLIST_PATH.exists()`. Exposed via `/api/settings` (`filter_ai_artists`, `ai_blocklist_available`) and the Settings modal (toggle + **Download now** button → `POST /api/ai-blocklist/download`). |
-| Distribution | Reuses the RAG manifest plumbing: `RemoteManifest` carries optional `ai_blocklist_{url,sha256,version,count}` fields, and `distribution.download_blocklist` streams + sha256-verifies the artifact (same pattern as `download_corpus`). Older manifests without these fields are tolerated (filter stays inert). |
+| Settings | `FILTER_AI_ARTISTS` in `settings.conf`; `config.get_filter_ai_artists()` gates on both the flag and `AI_BLOCKLIST_PATH.exists()`. Exposed via `/api/settings` (`filter_ai_artists`, `ai_blocklist_available`, and `ai_blocklist: {installed, version, count}` — filesystem/in-memory only, no manifest fetch on the modal-open path). The Settings modal shows the installed version and keeps the download button visible as the **Check for update** control. |
+| Distribution | **Independent of the corpus (Aug-2026).** Own artifact, own manifest (`ai_blocklist_manifest.json`), own publisher, own schedule — either can be republished without the other. `distribution.resolve_blocklist_manifest()` returns `(manifest, reason)` where reason is `ok` / `unpublished` / `offline`, so the route can answer 404 vs 503 honestly; `download_blocklist` streams + sha256-verifies and writes the `ai_artists.meta.json` sidecar. Artifact URLs are **content-addressed** (`ai_artists.<sha12>.json`, immutable cache) so a fresh manifest can never pair with a CDN-cached stale body. |
+| Back-compat | `RemoteManifest` still parses the legacy `ai_blocklist_*` fields, and `BlocklistManifest.from_corpus()` adapts them, so a client pointed at a bucket published before the split still finds a blocklist. |
+| Why split | Before Aug-2026 the blocklist shipped only as a side effect of the finalize step of a 37-batch corpus cycle. Consequences: it could not update between corpus rebuilds; a transient CSV fetch failure was a silent `print` that stripped the fields from the published manifest; and `RemoteManifest.is_valid()` required corpus fields, so no corpus manifest meant no blocklist download at all. |
 
 ### RAG corpus — Cloud Run automated pipeline
 
@@ -348,7 +350,7 @@ The corpus (`artists.jsonl.gz`, ~10 MB) is **not** bundled with the app. It is b
 2. **(Optional, currently disabled)** Runs `run_spotify_enrichment.py` if `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET` are set and `DISABLE_SPOTIFY_ENRICHMENT` is unset. Disabled since 2026-05-04: Spotify's `genres` field returns empty for all artists post-Feb-2026. Code retained for future re-enablement.
 3. **(Phase B — Last.fm enrichment)** Runs `run_lastfm_enrichment.py` if `LASTFM_API_KEY` is set — looks up each MB artist on Last.fm via MBID and attaches `lastfm_listeners`, `lastfm_playcount`, `lastfm_tags` (weighted community tags, min-weight cutoff ≥ 30), and `top_tracks`. Runs as a **self-chaining batched workflow** (`BATCH_SIZE` artists per execution, progress in `build-state.json`, results accumulated in `lastfm-checkpoint.jsonl`). **Incremental since 2026-05-30:** at the start of a new cycle the job no longer discards prior Last.fm work — `merge_corpus.py` carries the previously-published corpus's Last.fm layer forward onto the fresh MB build (matched by `mbid`) and seeds the checkpoint with it, so Phase B re-fetches **only new / never-enriched artists** instead of all ~175k. First-ever full pass: ~17 h. An incremental cycle fetches only artists still lacking Last.fm data — the first run after this change (2026-05-30) carried **146,493** rows forward and fetched a **30,067**-artist delta (~17 %, ~4–5 h); once coverage is complete, later cycles shrink to just genuinely-new artists (≈1 k/month → minutes). Distinct exit codes: 43 (rate-limit → `halt.flag`) / 44 (auth-error → loud fail). See `build-tools/rag/lastfm_enrichment/client.py`.
 4. Computes SHA-256 of the resulting `artists.jsonl.gz`.
-5. Uploads `artists.jsonl.gz` + `manifest.json` to the public GCS bucket. Best-effort: fetches the upstream AI-artist CSV, normalises it to `ai_artists.json`, uploads it, and adds `ai_blocklist_{url,sha256,version,count}` to the manifest (a failed fetch just omits those fields).
+5. Uploads `artists.jsonl.gz` + `manifest.json` to the public GCS bucket. The AI blocklist is **not** part of this job — see § AI-artist blocklist — Cloud Run publisher.
 6. Wipes the ephemeral working directory.
 
 **Layered merge/update architecture (2026-05-30)** — the corpus is composed of three independently-owned layers keyed by `mbid`, so rebuilding one layer never discards the others:
@@ -364,8 +366,9 @@ The corpus (`artists.jsonl.gz`, ~10 MB) is **not** bundled with the app. It is b
 | Asset | Purpose |
 |---|---|
 | `artists.jsonl.gz` | Published corpus: top artists by Option A popularity proxy (release count + tag total), filtered to acts with `begin_year >= 1960`. One NDJSON row per artist. |
-| `manifest.json` | `{corpus_version, built_at, sha256, size_bytes, corpus_url}` plus optional `ai_blocklist_{url,sha256,version,count}`. Clients fetch this once per startup to decide whether to prompt for an update. |
-| `ai_artists.json` | Published AI-artist blocklist: `{version, source, count, artist_ids[]}` (Spotify artist IDs). Consumed by the opt-in AI-music filter. See § AI-generated music filter. |
+| `manifest.json` | `{corpus_version, built_at, sha256, size_bytes, corpus_url}`. Clients fetch this once per startup to decide whether to prompt for an update. Legacy `ai_blocklist_*` fields are still *read* by clients but no longer written. |
+| `ai_blocklist_manifest.json` | `{blocklist_version, built_at, sha256, size_bytes, count, blocklist_url, source, source_url}`. Short cache (`max-age=300`); the pointer to the current blocklist artifact. |
+| `ai_artists.<sha12>.json` | Published AI-artist blocklist: `{version, source, count, artist_ids[]}` (Spotify artist IDs). Content-addressed and immutably cached; the last few are retained (`KEEP_VERSIONS`) so in-flight clients holding an older manifest still resolve. See § AI-generated music filter. |
 | `artists.mb-only.jsonl.gz`, `lastfm-checkpoint.jsonl`, `build-state.json` | Private working artifacts of the in-flight cycle (MB-only base, accumulating/seeded Last.fm checkpoint, batch progress). Not consumed by clients. |
 | `halt.flag` | Present only when the circuit breaker is open (see § Circuit breaker in `cloud-run-rag-setup.md`). |
 
@@ -391,6 +394,56 @@ gcloud storage cp data/rag_corpus/artists.jsonl.gz gs://spotivibe-rag-corpus/
 4. `RAG_MANIFEST_URL` is overridable via env var for testing against a staging URL.
 
 **Cadence** — the Cloud Run Job runs monthly (1st of each month at 23:00 Vienna time) via Cloud Scheduler. `MIN_REBUILD_DAYS=25` prevents premature rebuilds. The corpus refreshes automatically from the latest MusicBrainz dump. No manual intervention is needed unless the pipeline fails (check Cloud Run console → Jobs → Executions).
+
+### AI-artist blocklist — Cloud Run publisher
+
+Separate job, separate schedule, same bucket. [`build-tools/publish_ai_blocklist.py`](../build-tools/publish_ai_blocklist.py) shares the corpus builder's container image but has its own entrypoint, so nothing about a corpus cycle (halt flag, `MIN_REBUILD_DAYS`, batch state) can block or clobber a blocklist release.
+
+| Component | Details |
+|---|---|
+| **Cloud Run Job** | `spotivibe-ai-blocklist` — same image, `--command` override. Seconds per run, ~200 KB of I/O. |
+| **Cloud Scheduler** | `spotivibe-ai-blocklist-weekly` — Monday 04:00 Europe/Vienna (`0 4 * * 1`). Independent of the corpus cron; users can also pull an update any time from Settings. |
+| **Publishes** | `ai_artists.<sha12>.json` (immutable) + `ai_blocklist_manifest.json` (`max-age=300`). |
+
+**Flow:** fetch CSV → validate + dedupe ids → serialise (byte-stable, so unchanged upstream data hashes identically) → compare sha against the published manifest → upload artifact, then manifest → prune superseded artifacts beyond `KEEP_VERSIONS`.
+
+**Guards** — all of them exist because the pre-split code failed silently:
+
+| Guard | Behaviour |
+|---|---|
+| Loud failure | Any upstream or GCS failure exits non-zero (`1` upstream, `2` GCS) so Cloud Run marks the execution failed. |
+| `MIN_COUNT` (1000) | Refuses to publish a suspiciously small list. |
+| `MIN_COUNT_RATIO` (0.5) | Refuses to shrink the published list below half its current size — an upstream format break must not silently disable the filter for every client. `FORCE_PUBLISH=1` overrides. |
+| Id validation | Only 22-char base62 Spotify IDs enter the deny set; malformed rows are counted and skipped. |
+| Unchanged no-op | Identical content skips both uploads, so `built_at` reflects the last real change. |
+| `DRY_RUN=1` | Full run without touching GCS (needs no SDK or credentials) — use it to verify upstream health locally. |
+
+**Client flow** — `POST /api/ai-blocklist/download` resolves the blocklist manifest (falling back to a pre-split corpus manifest), downloads, sha-verifies, writes `ai_artists.meta.json`, and reloads the in-memory deny set so the filter takes effect without a restart. `distribution.check_blocklist_update()` mirrors `check_for_update()` for the corpus. `AI_BLOCKLIST_MANIFEST_URL` is env-overridable for staging.
+
+**Manual run:**
+
+```bash
+# Verify upstream health with no GCS access at all.
+DRY_RUN=1 python build-tools/publish_ai_blocklist.py
+
+# Trigger the job.
+gcloud run jobs execute spotivibe-ai-blocklist --region=us-central1 --wait
+
+# Force a re-publish (bypasses the unchanged no-op and the shrink guard).
+gcloud run jobs execute spotivibe-ai-blocklist --region=us-central1 \
+  --update-env-vars=FORCE_PUBLISH=1 --wait
+```
+
+### Keeping the job image current
+
+Both Cloud Run jobs run a **container image, not the repo**, so a `build-tools/` change is inert in production until the image is rebuilt *and* the jobs are re-pointed at it. That gap is what disabled the blocklist publisher for two months: merged 2026-06-30, image last built 2026-05-30, corpus published normally from the pre-feature image on 2026-08-02 with no error anywhere.
+
+| Guard | Where |
+|---|---|
+| A `build-tools/` change on `main` rebuilds and pushes the image | [.github/workflows/publish-job-image.yml](../.github/workflows/publish-job-image.yml) — keyless auth via Workload Identity Federation; builds and pushes only, never executes a job |
+| A missing entrypoint fails the build rather than vanishing at runtime | `verify-entrypoints` step in [cloudbuild.yaml](../build-tools/cloud-run-job/cloudbuild.yaml) — `py_compile`s both entrypoints *inside* the built image, no network |
+
+Both jobs are configured with the mutable `:latest` tag (no digest is pinned in either job spec), so pushing the tag *is* the deployment — the next execution resolves it, and no `gcloud run jobs update` is needed. The one coupling rule to remember: the workflow's `paths:` filter must mirror the Dockerfile's `COPY` lines, because the Dockerfile copies files individually and anything unlisted is silently absent from the image. Setup guide: [cloud-run-rag-setup.md § 6c](guides/cloud-run-rag-setup.md).
 
 ### Maintaining the RAG feature
 

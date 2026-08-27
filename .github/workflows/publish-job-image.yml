@@ -1,0 +1,63 @@
+name: Publish Cloud Run job image
+
+# The Cloud Run jobs run a container image, not the repo. A change to
+# build-tools/ therefore has no effect in production until the image is
+# rebuilt. Between 2026-05-30 and 2026-08-27 that gap silently disabled the
+# AI-blocklist publisher: the code was merged on 2026-06-30, the corpus job
+# kept publishing from a pre-feature image, and nothing failed.
+#
+# Both jobs are configured with the mutable :latest tag (verified: no digest is
+# pinned in either job spec), so pushing the tag is the whole deployment —
+# the next execution resolves it. No `gcloud run jobs update` needed.
+#
+# `paths` below must mirror the COPY lines in
+# build-tools/cloud-run-job/Dockerfile — if the Dockerfile starts copying
+# something new, add it here or that change will not trigger a rebuild.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build-tools/cloud_run_publish.py'
+      - 'build-tools/publish_ai_blocklist.py'
+      - 'build-tools/rag/**'
+      - 'build-tools/cloud-run-job/**'
+      - 'data/rag_corpus/tag_aliases.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write  # required by google-github-actions/auth for keyless WIF
+
+env:
+  PROJECT_ID: spotivibe-rag
+  REGION: us-central1
+  IMAGE_PATH: cloud-run-source-deploy/spotyvibe-rag-builder
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # cloudbuild.yaml also compiles both entrypoints inside the built image,
+      # so a script missing from the Dockerfile fails here rather than months
+      # later in production.
+      - name: Build and push image
+        run: |
+          gcloud builds submit \
+            --config=build-tools/cloud-run-job/cloudbuild.yaml .
+
+      - name: Show the digest :latest now resolves to
+        run: |
+          gcloud artifacts docker images describe \
+            "${REGION}-docker.pkg.dev/${PROJECT_ID}/${IMAGE_PATH}:latest" \
+            --format='value(image_summary.digest)'

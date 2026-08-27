@@ -11,8 +11,10 @@ from pathlib import Path
 import pytest
 
 from core.src.rag.distribution import (
-    RemoteManifest, check_for_update, download_blocklist, download_corpus,
-    fetch_remote_manifest, read_local_meta, write_local_meta,
+    BlocklistManifest, RemoteManifest, check_blocklist_update, check_for_update,
+    download_blocklist, download_corpus, fetch_remote_manifest,
+    installed_blocklist_version, read_local_meta, resolve_blocklist_manifest,
+    write_local_meta,
 )
 
 
@@ -213,45 +215,184 @@ def test_manifest_without_ai_blocklist_is_backward_compatible():
     assert m.ai_blocklist_count == 0
 
 
+def _blocklist_manifest(url, sha, **kw):
+    return BlocklistManifest(
+        blocklist_version=kw.get("version", "2026-08-27"),
+        built_at="t", sha256=sha, size_bytes=kw.get("size_bytes", 1),
+        count=kw.get("count", 3), blocklist_url=url,
+    )
+
+
+def test_blocklist_manifest_parses_its_own_document():
+    m = BlocklistManifest.from_json({
+        "blocklist_version": "2026-08-27", "built_at": "t",
+        "sha256": "B" * 64,  # uppercased on purpose
+        "size_bytes": 194783, "count": 7487,
+        "blocklist_url": "http://ex/ai_artists.abc123.json",
+        "source": "upstream (MIT)",
+    })
+    assert m.is_valid()
+    assert m.sha256 == "b" * 64  # normalised to lowercase
+    assert m.blocklist_version == "2026-08-27"
+    assert m.count == 7487
+
+
+def test_blocklist_manifest_validity_ignores_corpus_fields():
+    """The old coupling — a blocklist was unreachable without a valid corpus."""
+    m = BlocklistManifest.from_json({
+        "sha256": "a" * 64, "blocklist_url": "http://ex/ai.json",
+    })
+    assert m.is_valid()
+    assert BlocklistManifest.from_json({"sha256": "a" * 64}).is_valid() is False
+
+
+def test_blocklist_manifest_from_pre_split_corpus_manifest():
+    corpus = RemoteManifest.from_json({
+        "corpus_version": "v", "built_at": "t", "sha256": "a" * 64,
+        "size_bytes": 1, "corpus_url": "http://ex/a",
+        "ai_blocklist_url": "http://ex/ai_artists.json",
+        "ai_blocklist_sha256": "b" * 64,
+        "ai_blocklist_version": "2026-06-30",
+        "ai_blocklist_count": 4321,
+    })
+    m = BlocklistManifest.from_corpus(corpus)
+    assert m is not None
+    assert m.blocklist_url == "http://ex/ai_artists.json"
+    assert m.count == 4321
+    assert m.blocklist_version == "2026-06-30"
+    # A corpus manifest with no blocklist fields yields nothing to adapt.
+    plain = RemoteManifest.from_json({
+        "corpus_version": "v", "built_at": "t", "sha256": "a" * 64,
+        "size_bytes": 1, "corpus_url": "http://ex/a",
+    })
+    assert BlocklistManifest.from_corpus(plain) is None
+
+
 def test_download_blocklist_streams_and_verifies(http_root, tmp_path):
     root, base = http_root
     payload = json.dumps({"artist_ids": ["a1", "a2", "a3"]}).encode("utf-8")
     (root / "remote_ai_artists.json").write_bytes(payload)
     sha = hashlib.sha256(payload).hexdigest()
-    manifest = RemoteManifest(
-        corpus_version="v", built_at="t", sha256="0" * 64, size_bytes=1,
-        corpus_url="http://ex/a",
-        ai_blocklist_url=f"{base}/remote_ai_artists.json",
-        ai_blocklist_sha256=sha, ai_blocklist_version="2026-06-30",
-        ai_blocklist_count=3,
-    )
+    manifest = _blocklist_manifest(f"{base}/remote_ai_artists.json", sha, count=3)
     dest = tmp_path / "installed" / "ai_artists.json"
-    count = download_blocklist(manifest, dest)
+    meta = tmp_path / "installed" / "ai_artists.meta.json"
+    count = download_blocklist(manifest, dest, meta)
     assert count == 3
     assert dest.read_bytes() == payload
     assert not dest.with_name("ai_artists.json.part").exists()
+    assert json.loads(meta.read_text())["blocklist_version"] == "2026-08-27"
 
 
 def test_download_blocklist_sha_mismatch_raises(http_root, tmp_path):
     root, base = http_root
     (root / "remote_ai_artists.json").write_bytes(b'["x"]')
-    manifest = RemoteManifest(
-        corpus_version="v", built_at="t", sha256="0" * 64, size_bytes=1,
-        corpus_url="http://ex/a",
-        ai_blocklist_url=f"{base}/remote_ai_artists.json",
-        ai_blocklist_sha256="f" * 64,
-    )
+    manifest = _blocklist_manifest(f"{base}/remote_ai_artists.json", "f" * 64)
     dest = tmp_path / "installed" / "ai_artists.json"
+    meta = tmp_path / "installed" / "ai_artists.meta.json"
     with pytest.raises(ValueError, match="sha256"):
-        download_blocklist(manifest, dest)
+        download_blocklist(manifest, dest, meta)
     assert not dest.with_name("ai_artists.json.part").exists()
     assert not dest.exists()
+    assert not meta.exists()  # a rejected download must not claim an install
 
 
-def test_download_blocklist_without_manifest_field_raises(tmp_path):
-    manifest = RemoteManifest(
-        corpus_version="v", built_at="t", sha256="0" * 64, size_bytes=1,
-        corpus_url="http://ex/a",
+def test_download_blocklist_without_url_raises(tmp_path):
+    manifest = BlocklistManifest(
+        blocklist_version="v", built_at="t", sha256="0" * 64,
+        size_bytes=1, count=0, blocklist_url="",
     )
-    with pytest.raises(RuntimeError, match="no AI blocklist"):
+    with pytest.raises(RuntimeError, match="incomplete"):
         download_blocklist(manifest, tmp_path / "ai_artists.json")
+
+
+def test_resolve_blocklist_manifest_prefers_own_manifest(http_root, tmp_path):
+    root, base = http_root
+    (root / "ai_blocklist_manifest.json").write_text(json.dumps({
+        "blocklist_version": "2026-08-27", "built_at": "t",
+        "sha256": "a" * 64, "size_bytes": 10, "count": 7487,
+        "blocklist_url": f"{base}/ai_artists.abc.json",
+    }))
+    manifest, reason = resolve_blocklist_manifest(
+        f"{base}/ai_blocklist_manifest.json",
+        corpus_manifest_url=f"{base}/manifest.json")
+    assert reason == "ok"
+    assert manifest.count == 7487
+    assert manifest.blocklist_version == "2026-08-27"
+
+
+def test_resolve_blocklist_manifest_falls_back_to_corpus(http_root):
+    """A bucket published before the split still serves a blocklist."""
+    root, base = http_root
+    (root / "manifest.json").write_text(json.dumps({
+        "corpus_version": "v", "built_at": "t", "sha256": "a" * 64,
+        "size_bytes": 1, "corpus_url": f"{base}/artists.jsonl.gz",
+        "ai_blocklist_url": f"{base}/ai_artists.json",
+        "ai_blocklist_sha256": "b" * 64,
+        "ai_blocklist_version": "2026-06-30",
+        "ai_blocklist_count": 4321,
+    }))
+    manifest, reason = resolve_blocklist_manifest(
+        f"{base}/absent_blocklist_manifest.json",
+        corpus_manifest_url=f"{base}/manifest.json")
+    assert reason == "ok"
+    assert manifest.count == 4321
+    assert manifest.source == "legacy corpus manifest"
+
+
+def test_resolve_blocklist_manifest_reports_unpublished(http_root):
+    """Reachable manifest that names no blocklist is not the same as offline."""
+    root, base = http_root
+    (root / "manifest.json").write_text(json.dumps({
+        "corpus_version": "v", "built_at": "t", "sha256": "a" * 64,
+        "size_bytes": 1, "corpus_url": f"{base}/artists.jsonl.gz",
+    }))
+    manifest, reason = resolve_blocklist_manifest(
+        f"{base}/absent_blocklist_manifest.json",
+        corpus_manifest_url=f"{base}/manifest.json")
+    assert manifest is None
+    assert reason == "unpublished"
+
+
+def test_resolve_blocklist_manifest_reports_offline(http_root):
+    _root, base = http_root
+    manifest, reason = resolve_blocklist_manifest(
+        f"{base}/nope.json", corpus_manifest_url=f"{base}/also-nope.json")
+    assert manifest is None
+    assert reason == "offline"
+
+
+def test_check_blocklist_update_statuses(http_root, tmp_path):
+    root, base = http_root
+    (root / "ai_blocklist_manifest.json").write_text(json.dumps({
+        "blocklist_version": "2026-08-27", "built_at": "t",
+        "sha256": "a" * 64, "size_bytes": 10, "count": 7487,
+        "blocklist_url": f"{base}/ai_artists.abc.json",
+    }))
+    url = f"{base}/ai_blocklist_manifest.json"
+    blocklist = tmp_path / "ai_artists.json"
+    meta = tmp_path / "ai_artists.meta.json"
+
+    assert check_blocklist_update(blocklist, meta, url)["status"] == "missing_blocklist"
+
+    blocklist.write_text(json.dumps({"version": "2026-07-01", "artist_ids": []}))
+    result = check_blocklist_update(blocklist, meta, url)
+    assert result["status"] == "update_available"
+    # Version came from inside the artifact — no sidecar was ever written.
+    assert result["local_version"] == "2026-07-01"
+
+    meta.write_text(json.dumps({"blocklist_version": "2026-08-27"}))
+    assert check_blocklist_update(blocklist, meta, url)["status"] == "current"
+
+
+def test_installed_blocklist_version_prefers_sidecar(tmp_path):
+    blocklist = tmp_path / "ai_artists.json"
+    meta = tmp_path / "ai_artists.meta.json"
+    blocklist.write_text(json.dumps({"version": "from-artifact", "artist_ids": []}))
+    assert installed_blocklist_version(blocklist, meta) == "from-artifact"
+    meta.write_text(json.dumps({"blocklist_version": "from-sidecar"}))
+    assert installed_blocklist_version(blocklist, meta) == "from-sidecar"
+
+
+def test_installed_blocklist_version_unknown_is_empty(tmp_path):
+    assert installed_blocklist_version(
+        tmp_path / "absent.json", tmp_path / "absent.meta.json") == ""
