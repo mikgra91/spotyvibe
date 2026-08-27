@@ -161,28 +161,10 @@ export async function openSettings() {
         const aiFilterCheckbox = el('settings-filter-ai-artists');
         if (aiFilterCheckbox) {
             aiFilterCheckbox.checked = !!data.filter_ai_artists;
-            const aiStatus = el('status-settings-aifilter');
-            const blocklistAvailable = !!data.ai_blocklist_available;
-            function updateAiFilterStatus() {
-                if (!aiStatus) return;
-                if (!blocklistAvailable) {
-                    aiStatus.textContent = i18n('settings.aiFilter.missing', 'Blocklist not installed — download it to enable the filter.');
-                    aiStatus.className = 'cred-status unset';
-                } else if (aiFilterCheckbox.checked) {
-                    aiStatus.textContent = i18n('settings.aiFilter.enabled', '✓ AI-music filter active');
-                    aiStatus.className = 'cred-status set';
-                } else {
-                    aiStatus.textContent = i18n('settings.aiFilter.disabled', 'AI-music filter disabled');
-                    aiStatus.className = 'cred-status unset';
-                }
-            }
-            updateAiFilterStatus();
-            aiFilterCheckbox.onchange = updateAiFilterStatus;
-            if (!blocklistAvailable) {
-                aiFilterCheckbox.disabled = true;
-                const dl = el('settings-aifilter-download');
-                if (dl) dl.hidden = false;
-            }
+            const blocklist = data.ai_blocklist || {};
+            const installed = !!(blocklist.installed || data.ai_blocklist_available);
+            renderAiBlocklistState(installed, blocklist);
+            aiFilterCheckbox.onchange = () => renderAiBlocklistState(installed, blocklist);
         }
 
         const modelStatus = el('status-settings-model');
@@ -709,6 +691,85 @@ export async function downloadRagCorpus() {
 }
 
 
+// Server error codes → actionable messages. Echoing the raw code (the old
+// behaviour) told the user "Download failed: blocklist_unavailable", which is
+// not something they can act on.
+const AI_BLOCKLIST_ERRORS = {
+    remote_unavailable: ['settings.aiFilter.error.offline',
+        'Could not reach the blocklist server — check your connection and try again.'],
+    blocklist_unavailable: ['settings.aiFilter.error.unpublished',
+        'No blocklist has been published yet — nothing to download.'],
+    checksum_failed: ['settings.aiFilter.error.checksum',
+        'The download failed its integrity check — nothing was installed.'],
+    download_failed: ['settings.aiFilter.error.failed',
+        'Download failed — check your connection and try again.'],
+};
+
+
+function aiBlocklistErrorMessage(data, httpStatus) {
+    const mapped = AI_BLOCKLIST_ERRORS[data && data.error];
+    if (mapped) return i18n(mapped[0], mapped[1]);
+    const detail = (data && (data.detail || data.error)) || ('HTTP ' + httpStatus);
+    return i18n('settings.aiFilter.download_failed', 'Download failed: {error}')
+        .replace('{error}', detail);
+}
+
+
+/**
+ * Render the AI-filter row for a given install state.
+ *
+ * The download control stays visible after install — the blocklist updates on
+ * its own cadence, independent of the RAG corpus, so it doubles as the update
+ * button. `data-i18n` is dropped from the parametrised line so a later
+ * translate pass cannot overwrite the interpolated version/count.
+ */
+function renderAiBlocklistState(installed, info) {
+    info = info || {};
+    const checkbox = el('settings-filter-ai-artists');
+    const status = el('status-settings-aifilter');
+    if (status) {
+        if (!installed) {
+            status.textContent = i18n('settings.aiFilter.missing',
+                'Blocklist not installed — download it to enable the filter.');
+            status.className = 'cred-status unset';
+        } else if (checkbox && checkbox.checked) {
+            status.textContent = i18n('settings.aiFilter.enabled', '✓ AI-music filter active');
+            status.className = 'cred-status set';
+        } else {
+            status.textContent = i18n('settings.aiFilter.disabled', 'AI-music filter disabled');
+            status.className = 'cred-status unset';
+        }
+    }
+    if (checkbox) checkbox.disabled = !installed;
+
+    const banner = el('settings-aifilter-download');
+    const text = el('settings-aifilter-download-text');
+    const button = el('settings-aifilter-download-btn');
+    if (banner) banner.hidden = false;
+    if (text) {
+        if (installed) {
+            text.removeAttribute('data-i18n');
+            text.textContent = i18n('settings.aiFilter.installed',
+                'Blocklist {version} installed ({count} artists).')
+                .replace('{version}', info.version || '—')
+                .replace('{count}', info.count != null ? info.count : '—');
+        } else {
+            text.setAttribute('data-i18n', 'settings.aiFilter.missing');
+            text.textContent = i18n('settings.aiFilter.missing',
+                'Blocklist not installed — download it to enable the filter.');
+        }
+    }
+    if (button) {
+        const key = installed ? 'settings.aiFilter.update_now' : 'settings.aiFilter.download_now';
+        button.setAttribute('data-i18n', key);
+        button.textContent = installed
+            ? i18n(key, 'Check for update')
+            : i18n(key, 'Download now');
+        button.disabled = false;
+    }
+}
+
+
 export async function downloadAiBlocklist() {
     const button = el('settings-aifilter-download-btn');
     if (button) button.disabled = true;
@@ -716,31 +777,19 @@ export async function downloadAiBlocklist() {
         const resp = await fetch('/api/ai-blocklist/download', { method: 'POST' });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok) {
-            const detail = data.detail || data.error || ('HTTP ' + resp.status);
             if (typeof showToast === 'function') {
-                showToast(i18n('settings.aiFilter.download_failed',
-                    'Download failed: {error}').replace('{error}', detail), 'error');
+                showToast(aiBlocklistErrorMessage(data, resp.status), 'error');
             }
             if (button) button.disabled = false;
             return;
         }
         if (typeof showToast === 'function') {
             showToast(i18n('settings.aiFilter.download_success',
-                'AI blocklist installed ({count} artists).')
-                .replace('{count}', data.count != null ? data.count : ''), 'success');
+                'AI blocklist {version} installed ({count} artists).')
+                .replace('{version}', data.version || '—')
+                .replace('{count}', data.count != null ? data.count : '—'), 'success');
         }
-        const aiFilterCheckbox = el('settings-filter-ai-artists');
-        if (aiFilterCheckbox) aiFilterCheckbox.disabled = false;
-        const aiStatus = el('status-settings-aifilter');
-        if (aiStatus) {
-            const on = aiFilterCheckbox && aiFilterCheckbox.checked;
-            aiStatus.textContent = on
-                ? i18n('settings.aiFilter.enabled', '✓ AI-music filter active')
-                : i18n('settings.aiFilter.disabled', 'AI-music filter disabled');
-            aiStatus.className = 'cred-status ' + (on ? 'set' : 'unset');
-        }
-        const banner = el('settings-aifilter-download');
-        if (banner) banner.hidden = true;
+        renderAiBlocklistState(true, { version: data.version, count: data.count });
     } catch (e) {
         if (typeof showToast === 'function') {
             showToast(i18n('settings.aiFilter.download_failed',

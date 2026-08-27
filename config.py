@@ -283,6 +283,13 @@ RAG_FACET_WEIGHTS = {
 # artist IDs) is distributed via the same manifest/download path as the RAG
 # corpus; the toggle is a silent no-op until AI_BLOCKLIST_PATH is present.
 DEFAULT_FILTER_AI_ARTISTS = False
+# Own manifest, own publisher job (build-tools/publish_ai_blocklist.py), own
+# cadence: upstream curates AI artists continuously, while a corpus rebuild is a
+# multi-day batch cycle. Either artifact can be republished without the other.
+AI_BLOCKLIST_MANIFEST_URL = os.environ.get(
+    "AI_BLOCKLIST_MANIFEST_URL",
+    "https://storage.googleapis.com/spotivibe-rag-corpus/ai_blocklist_manifest.json",
+)
 
 # Populated by _init_rag_paths() once _APP_DIR exists.
 RAG_CORPUS_DIR: Path  # type: ignore[assignment]
@@ -290,6 +297,7 @@ RAG_CORPUS_PATH: Path  # type: ignore[assignment]
 RAG_META_PATH: Path  # type: ignore[assignment]
 RAG_CORPUS_DB_PATH: Path  # type: ignore[assignment]
 AI_BLOCKLIST_PATH: Path  # type: ignore[assignment]
+AI_BLOCKLIST_META_PATH: Path  # type: ignore[assignment]
 
 
 def get_rag_enabled() -> bool:
@@ -425,7 +433,8 @@ def _init_rag_paths() -> None:
     moves any legacy file from ``BASE_DIR/data/rag_corpus/`` (older dev
     installs) into the new location.
     """
-    global RAG_CORPUS_DIR, RAG_CORPUS_PATH, RAG_META_PATH, RAG_CORPUS_DB_PATH, AI_BLOCKLIST_PATH
+    global RAG_CORPUS_DIR, RAG_CORPUS_PATH, RAG_META_PATH, RAG_CORPUS_DB_PATH
+    global AI_BLOCKLIST_PATH, AI_BLOCKLIST_META_PATH
     RAG_CORPUS_DIR = _APP_DIR / "rag_corpus"
     RAG_CORPUS_PATH = RAG_CORPUS_DIR / "artists.jsonl.gz"
     RAG_META_PATH = RAG_CORPUS_DIR / "artists.meta.json"
@@ -434,8 +443,10 @@ def _init_rag_paths() -> None:
     # (~6-9s) each launch. Rebuilt automatically when the corpus/overlays
     # change (signature check). See core/src/rag/sqlite_corpus.py.
     RAG_CORPUS_DB_PATH = RAG_CORPUS_DIR / "corpus.sqlite"
-    # AI-artist blocklist — co-located with the corpus download artifacts.
+    # AI-artist blocklist — co-located with the corpus download artifacts, but
+    # versioned by its own sidecar so its update state is tracked separately.
     AI_BLOCKLIST_PATH = RAG_CORPUS_DIR / "ai_artists.json"
+    AI_BLOCKLIST_META_PATH = RAG_CORPUS_DIR / "ai_artists.meta.json"
 
     # One-time migration from the legacy in-repo location.
     legacy_dir = BASE_DIR / "data" / "rag_corpus"

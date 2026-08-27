@@ -1,5 +1,6 @@
 steps:
   - name: 'gcr.io/cloud-builders/docker'
+    id: build
     args:
       - 'build'
       - '-t'
@@ -7,5 +8,24 @@ steps:
       - '-f'
       - 'build-tools/cloud-run-job/Dockerfile'
       - '.'
+
+  # The Dockerfile COPYs entrypoints one by one, so a new script that nobody
+  # added to it is simply absent at runtime — which is how the AI blocklist
+  # shipped in git on 2026-06-30 but never ran in production. Compiling both
+  # entrypoints inside the built image turns that into a build failure.
+  # No network: presence + syntax only, so an upstream outage can't fail a build.
+  - name: 'gcr.io/cloud-builders/docker'
+    id: verify-entrypoints
+    args:
+      - 'run'
+      - '--rm'
+      - '--entrypoint'
+      - 'python'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/spotyvibe-rag-builder:latest'
+      - '-m'
+      - 'py_compile'
+      - 'build-tools/cloud_run_publish.py'
+      - 'build-tools/publish_ai_blocklist.py'
+
 images:
   - 'us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/spotyvibe-rag-builder:latest'

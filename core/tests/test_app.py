@@ -223,33 +223,62 @@ class TestWriteSettings:
 
 
 class TestDownloadAiBlocklist:
+    """The blocklist resolves via its own manifest — no corpus involvement."""
+
     @patch("core.src.ai_filter.load_ai_blocklist", return_value=42)
     @patch("core.src.rag.distribution.download_blocklist", return_value=42)
-    @patch("core.src.rag.distribution.fetch_remote_manifest")
-    def test_success(self, mock_fetch, mock_dl, mock_load, client):
+    @patch("core.src.rag.distribution.resolve_blocklist_manifest")
+    def test_success(self, mock_resolve, mock_dl, mock_load, client):
         manifest = MagicMock()
-        manifest.has_ai_blocklist.return_value = True
-        manifest.ai_blocklist_version = "2026-06-30"
-        mock_fetch.return_value = manifest
+        manifest.blocklist_version = "2026-08-27"
+        mock_resolve.return_value = (manifest, "ok")
         resp = client.post("/api/ai-blocklist/download")
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["status"] == "ok"
         assert data["count"] == 42
-        assert data["version"] == "2026-06-30"
+        assert data["version"] == "2026-08-27"
+        # The meta sidecar path is passed so the installed version is tracked.
+        assert mock_dl.call_args[0][2] is not None
 
-    @patch("core.src.rag.distribution.fetch_remote_manifest", return_value=None)
-    def test_remote_unavailable(self, mock_fetch, client):
+    @patch("core.src.rag.distribution.resolve_blocklist_manifest",
+           return_value=(None, "offline"))
+    def test_remote_unavailable(self, mock_resolve, client):
         resp = client.post("/api/ai-blocklist/download")
         assert resp.status_code == 503
+        assert resp.get_json()["error"] == "remote_unavailable"
 
-    @patch("core.src.rag.distribution.fetch_remote_manifest")
-    def test_no_blocklist_in_manifest(self, mock_fetch, client):
-        manifest = MagicMock()
-        manifest.has_ai_blocklist.return_value = False
-        mock_fetch.return_value = manifest
+    @patch("core.src.rag.distribution.resolve_blocklist_manifest",
+           return_value=(None, "unpublished"))
+    def test_nothing_published(self, mock_resolve, client):
         resp = client.post("/api/ai-blocklist/download")
         assert resp.status_code == 404
+        assert resp.get_json()["error"] == "blocklist_unavailable"
+
+    @patch("core.src.rag.distribution.download_blocklist",
+           side_effect=ValueError("sha256 mismatch: expected a, got b"))
+    @patch("core.src.rag.distribution.resolve_blocklist_manifest")
+    def test_checksum_failure(self, mock_resolve, mock_dl, client):
+        mock_resolve.return_value = (MagicMock(), "ok")
+        resp = client.post("/api/ai-blocklist/download")
+        assert resp.status_code == 502
+        assert resp.get_json()["error"] == "checksum_failed"
+
+
+class TestAiBlocklistStatus:
+    def test_settings_reports_installed_blocklist(self, client):
+        with patch("app.get_ai_blocklist_status",
+                   return_value={"installed": True, "version": "2026-08-27",
+                                 "count": 7487}):
+            data = client.get("/api/settings").get_json()
+        assert data["ai_blocklist"] == {
+            "installed": True, "version": "2026-08-27", "count": 7487}
+
+    def test_status_is_absent_when_file_missing(self, tmp_path):
+        import app as app_module
+        with patch("config.AI_BLOCKLIST_PATH", tmp_path / "nope.json"):
+            status = app_module.get_ai_blocklist_status()
+        assert status == {"installed": False, "version": "", "count": 0}
 
 
 class TestAiFilterPipeline:

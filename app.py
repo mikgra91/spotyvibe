@@ -221,6 +221,30 @@ def get_rag_update_status() -> dict:
     return dict(_rag_update_status)
 
 
+def get_ai_blocklist_status() -> dict:
+    """Locally-known blocklist state — installed flag, version, id count.
+
+    Filesystem + in-memory only. Deliberately no manifest fetch: /api/settings
+    is on the settings-modal open path, and the blocklist's remote state is only
+    needed when the user actually clicks download.
+    """
+    try:
+        from config import AI_BLOCKLIST_META_PATH, AI_BLOCKLIST_PATH
+        from core.src.ai_filter import ai_blocklist_size
+        from core.src.rag.distribution import installed_blocklist_version
+        if not AI_BLOCKLIST_PATH.exists():
+            return {"installed": False, "version": "", "count": 0}
+        return {
+            "installed": True,
+            "version": installed_blocklist_version(
+                AI_BLOCKLIST_PATH, AI_BLOCKLIST_META_PATH),
+            "count": ai_blocklist_size(),
+        }
+    except Exception as exc:  # pragma: no cover — defensive
+        logging.getLogger(__name__).warning("AI blocklist status failed: %s", exc)
+        return {"installed": False, "version": "", "count": 0}
+
+
 try:
     _n_recovered = recover_orphaned_swap_tmps()
     if _n_recovered:
@@ -2778,6 +2802,7 @@ def read_settings():
     """Return non-secret settings (model, debug mode)."""
     payload = get_settings()
     payload["rag_update"] = get_rag_update_status()
+    payload["ai_blocklist"] = get_ai_blocklist_status()
     return jsonify(payload)
 
 
@@ -2819,26 +2844,28 @@ def download_rag_corpus():
 def download_ai_blocklist():
     """Download (or update) the AI-artist blocklist from the manifest URL.
 
-    Streams the artifact to a ``.part`` sibling, sha256-verifies, atomically
-    renames, then reloads the in-memory deny set so the filter takes effect
-    without a restart.
+    Reads the blocklist's own manifest, so it updates independently of the RAG
+    corpus. Streams the artifact to a ``.part`` sibling, sha256-verifies,
+    atomically renames, then reloads the in-memory deny set so the filter takes
+    effect without a restart.
     """
     try:
-        from config import AI_BLOCKLIST_PATH, RAG_MANIFEST_URL
+        from config import (AI_BLOCKLIST_MANIFEST_URL, AI_BLOCKLIST_META_PATH,
+                            AI_BLOCKLIST_PATH)
         from core.src.ai_filter import load_ai_blocklist
         from core.src.rag.distribution import (
-            download_blocklist, fetch_remote_manifest,
+            download_blocklist, resolve_blocklist_manifest,
         )
-        manifest = fetch_remote_manifest(RAG_MANIFEST_URL)
+        manifest, reason = resolve_blocklist_manifest(AI_BLOCKLIST_MANIFEST_URL)
         if manifest is None:
-            return jsonify({"error": "remote_unavailable"}), 503
-        if not manifest.has_ai_blocklist():
+            if reason == "offline":
+                return jsonify({"error": "remote_unavailable"}), 503
             return jsonify({"error": "blocklist_unavailable"}), 404
-        download_blocklist(manifest, AI_BLOCKLIST_PATH)
+        download_blocklist(manifest, AI_BLOCKLIST_PATH, AI_BLOCKLIST_META_PATH)
         count = load_ai_blocklist(AI_BLOCKLIST_PATH)
         return jsonify({
             "status": "ok",
-            "version": manifest.ai_blocklist_version,
+            "version": manifest.blocklist_version,
             "count": count,
         })
     except ValueError as exc:  # sha mismatch

@@ -10,6 +10,9 @@ COPY build-tools/cloud-run-job/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY build-tools/cloud_run_publish.py       build-tools/
+# Second entrypoint, selected by the spotivibe-ai-blocklist job via --command
+# /--args. Shares the image; publishes on its own schedule.
+COPY build-tools/publish_ai_blocklist.py    build-tools/
 COPY build-tools/rag/                       build-tools/rag/
 COPY data/rag_corpus/tag_aliases.json       data/rag_corpus/
 

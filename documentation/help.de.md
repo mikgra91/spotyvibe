@@ -247,7 +247,7 @@ Verfügbare Einstellungen:
   Wähle die Sprache für KI-generierte Erklärungen und Profil-Updates.
 
 - **KI-generierte Musik filtern** *(optional)*  
-  Wenn aktiviert, entfernt SpotyVibe jeden vorgeschlagenen Titel, dessen Künstler auf einer von der Community gepflegten Sperrliste KI-generierter Acts steht (Abgleich über die Spotify-Künstler-ID). Standardmäßig deaktiviert. Die Sperrliste muss zuerst heruntergeladen werden — nutze die Schaltfläche **Jetzt herunterladen** unter dieser Option. Die Daten stammen aus dem Open-Source-Projekt [spotify-ai-blocker](https://github.com/CennoxX/spotify-ai-blocker) (MIT).
+  Wenn aktiviert, entfernt SpotyVibe jeden vorgeschlagenen Titel, dessen Künstler auf einer von der Community gepflegten Sperrliste KI-generierter Acts steht (Abgleich über die Spotify-Künstler-ID). Standardmäßig deaktiviert. Die Sperrliste muss zuerst heruntergeladen werden — nutze die Schaltfläche **Jetzt herunterladen** unter dieser Option. Nach der Installation zeigt die Zeile die installierte Version, und die Schaltfläche wird zu **Nach Update suchen**; die Sperrliste wird unabhängig vom Kandidaten-Korpus aktualisiert, du musst also nie auf einen Korpus-Neubau warten. Die Daten stammen aus dem Open-Source-Projekt [spotify-ai-blocker](https://github.com/CennoxX/spotify-ai-blocker) (MIT).
 
 Klicke nach Änderungen auf **Speichern**.
 
