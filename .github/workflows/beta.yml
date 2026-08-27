@@ -131,11 +131,13 @@ jobs:
     permissions:
       contents: write
     steps:
+      # No token override — see the note in release.yml. The job's
+      # `contents: write` is enough for the default GITHUB_TOKEN to tag and
+      # release, and it cannot expire.
       - uses: actions/checkout@v5
         with:
           ref: main
           fetch-depth: 0
-          token: ${{ secrets.PAT_TOKEN }}
       - uses: actions/download-artifact@v4
         with:
           name: windows

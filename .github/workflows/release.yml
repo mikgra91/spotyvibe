@@ -131,11 +131,15 @@ jobs:
     permissions:
       contents: write
     steps:
+      # No token override: the job's `contents: write` lets the default
+      # GITHUB_TOKEN push the tag and cut the release. A PAT here was a
+      # long-lived credential that silently lapsed and broke the v1.3.0
+      # release at this exact step. Nothing in this repo triggers on tags, so
+      # GITHUB_TOKEN not firing tag-triggered workflows costs nothing.
       - uses: actions/checkout@v5
         with:
           ref: main
           fetch-depth: 0
-          token: ${{ secrets.PAT_TOKEN }}
       - uses: actions/download-artifact@v4
         with:
           name: windows
