@@ -2,6 +2,8 @@
 
 Architecture and developer reference for SpotyVibe — a Flask app that combines OpenAI (or any OpenAI-compatible LLM) with the Spotify Web API.
 
+> **⚠️ Project discontinued (November 2026).** Last.fm moved its API to a paid service with new licensing terms, and MusicBrainz alone cannot sustain corpus quality, so development has stopped. The GCP pipeline (Cloud Run Job `spotivibe-rag-builder`, Cloud Scheduler trigger, public bucket `spotivibe-rag-corpus`) is shut down. `RAG_MANIFEST_URL` now defaults to empty, so the startup update check reports `offline` without any network call and installs keep using whatever corpus / AI blocklist is already on disk. Set the `RAG_MANIFEST_URL` env var to point at a self-hosted manifest. The pipeline sections below are kept for reference only.
+
 ---
 
 ## Architecture
@@ -392,6 +394,7 @@ gcloud storage cp data/rag_corpus/artists.jsonl.gz gs://spotivibe-rag-corpus/
 2. Result is cached in-process and exposed via `/api/settings` as `rag_update` (`{status: current | update_available | missing_corpus | offline, remote: {...}, local_version: "…"}`).
 3. The Settings modal renders a banner when status is `update_available` or `missing_corpus`. Clicking **Download now** POSTs to `/api/rag/download-corpus`, which streams to `artists.jsonl.gz.part`, sha256-verifies against the manifest, atomically renames into place, writes the `artists.meta.json` sidecar, and hot-swaps the in-memory `RagCorpus` handle.
 4. `RAG_MANIFEST_URL` is overridable via env var for testing against a staging URL.
+5. **Since the Nov-2026 shutdown** `RAG_MANIFEST_URL` defaults to `""`: `fetch_remote_manifest("")` returns `None` immediately, so the status is always `offline`, no banner is shown, and both download endpoints answer `503 remote_unavailable`. `AI_BLOCKLIST_MANIFEST_URL` likewise defaults to `""` (the empty-URL guard lives in `_fetch_manifest_json`, shared by both manifests), so `resolve_blocklist_manifest()` reports `offline`. The `publish-job-image.yml` workflow is reduced to `workflow_dispatch` only.
 
 **Cadence** — the Cloud Run Job runs monthly (1st of each month at 23:00 Vienna time) via Cloud Scheduler. `MIN_REBUILD_DAYS=25` prevents premature rebuilds. The corpus refreshes automatically from the latest MusicBrainz dump. No manual intervention is needed unless the pipeline fails (check Cloud Run console → Jobs → Executions).
 

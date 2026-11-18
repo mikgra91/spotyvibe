@@ -1,10 +1,13 @@
 """Corpus distribution & update-check for the RAG candidate pool.
 
-The corpus file itself (``artists.jsonl.gz``) is hosted in a public
-Google Cloud Storage bucket (``spotivibe-rag-corpus``), together with a
-``manifest.json`` sidecar that names the version, size, and sha256. A
-weekly Cloud Run Job rebuilds the corpus from the latest MusicBrainz
-dump and uploads it automatically. The helpers in this module:
+The corpus file itself (``artists.jsonl.gz``) is published next to a
+``manifest.json`` sidecar that names the version, size, and sha256. Until
+the project was discontinued (Nov-2026) both lived in a public Google
+Cloud Storage bucket (``spotivibe-rag-corpus``) refreshed by a monthly
+Cloud Run Job; that mirror is shut down, so there is no default manifest
+URL any more and every check reports ``offline`` unless
+``RAG_MANIFEST_URL`` points at a self-hosted manifest. The helpers in
+this module:
 
 - :func:`fetch_remote_manifest` — best-effort GET of the manifest URL,
   short timeout, returns ``None`` on any network failure so the app
@@ -32,14 +35,10 @@ from pathlib import Path
 
 logger = logging.getLogger("rag.distribution")
 
-DEFAULT_MANIFEST_URL = (
-    "https://storage.googleapis.com/spotivibe-rag-corpus/manifest.json"
-)
+DEFAULT_MANIFEST_URL = ""  # hosted mirror shut down — see module docstring
 # The AI blocklist has its own manifest so either artifact can be republished
-# without the other. Same bucket, separate object, separate publisher job.
-DEFAULT_BLOCKLIST_MANIFEST_URL = (
-    "https://storage.googleapis.com/spotivibe-rag-corpus/ai_blocklist_manifest.json"
-)
+# without the other. Its hosted copy was shut down together with the corpus.
+DEFAULT_BLOCKLIST_MANIFEST_URL = ""
 _NETWORK_TIMEOUT = 5.0  # seconds; short so startup is never blocked for long
 
 
@@ -128,6 +127,8 @@ class BlocklistManifest:
 
 def _fetch_manifest_json(url: str, timeout: float) -> dict | None:
     """Best-effort fetch of a tiny JSON document. ``None`` on any failure."""
+    if not url:  # no manifest configured — skip the network entirely
+        return None
     try:
         with urllib.request.urlopen(url, timeout=timeout) as resp:
             body = resp.read(64 * 1024)  # manifests are tiny; cap defensively

@@ -2,6 +2,14 @@
 
 Setup and usage guide for **SpotyVibe** — your AI-powered Spotify playlist generator.
 
+> ## ⚠️ Project discontinued (November 2026)
+>
+> Last.fm is turning its API into a paid service with new licensing terms. Last.fm tag data was the main source behind SpotyVibe's artist database; MusicBrainz on its own is not enough to keep recommendations at the required quality. **Because of these licensing and paid-service requirements, SpotyVibe will no longer be developed or maintained.**
+>
+> - **Your local install keeps working.** SpotyVibe runs entirely on your machine with your own Spotify and AI-provider keys. Your profiles, history, settings, and any artist database or AI-artist blocklist you already downloaded stay on your computer and continue to be used.
+> - **The hosted artist-database service is shut down.** The cloud service that built and published the artist database and the AI-artist blocklist has been turned off. Fresh installs can no longer download them. Playlist generation still works without the database; **Discover Artists** and the **AI-generated music filter** need a copy that was downloaded before the shutdown.
+> - **No further releases, fixes, or support.** The source code stays available.
+
 ---
 
 ## Prerequisites

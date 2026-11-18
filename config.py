@@ -256,10 +256,11 @@ MAX_FEEDBACK_TRACK_LEN = 200
 #     known.
 #   - The tag-alias map is bundled with the app and stays under BASE_DIR.
 RAG_TAG_ALIASES_PATH = BASE_DIR / "data" / "rag_corpus" / "tag_aliases.json"
-RAG_MANIFEST_URL = os.environ.get(
-    "RAG_MANIFEST_URL",
-    "https://storage.googleapis.com/spotivibe-rag-corpus/manifest.json",
-)
+# The hosted corpus mirror (GCS bucket ``spotivibe-rag-corpus``) was shut
+# down in Nov-2026 when the project was discontinued, so there is no default
+# URL: the update check reports "offline" and an already-installed corpus
+# keeps working. Set RAG_MANIFEST_URL to point at a self-hosted manifest.
+RAG_MANIFEST_URL = os.environ.get("RAG_MANIFEST_URL", "")
 RAG_POOL_SIZE = 60
 RAG_POPULARITY_PENALTY = 0.4
 DEFAULT_RAG_ENABLED = True
@@ -286,10 +287,9 @@ DEFAULT_FILTER_AI_ARTISTS = False
 # Own manifest, own publisher job (build-tools/publish_ai_blocklist.py), own
 # cadence: upstream curates AI artists continuously, while a corpus rebuild is a
 # multi-day batch cycle. Either artifact can be republished without the other.
-AI_BLOCKLIST_MANIFEST_URL = os.environ.get(
-    "AI_BLOCKLIST_MANIFEST_URL",
-    "https://storage.googleapis.com/spotivibe-rag-corpus/ai_blocklist_manifest.json",
-)
+# Hosted copy shut down in Nov-2026 together with the corpus mirror (see
+# RAG_MANIFEST_URL above) — an installed blocklist keeps working.
+AI_BLOCKLIST_MANIFEST_URL = os.environ.get("AI_BLOCKLIST_MANIFEST_URL", "")
 
 # Populated by _init_rag_paths() once _APP_DIR exists.
 RAG_CORPUS_DIR: Path  # type: ignore[assignment]

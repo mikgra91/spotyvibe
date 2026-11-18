@@ -9,6 +9,9 @@ description = "AI-powered music discovery: personalised Spotify playlists powere
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 7 - Inactive",
+]
 dependencies = [
     "spotipy>=2.23,<3.0",
     "python-dotenv>=1.0,<2.0",
