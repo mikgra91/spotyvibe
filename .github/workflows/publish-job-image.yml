@@ -14,15 +14,10 @@ name: Publish Cloud Run job image
 # build-tools/cloud-run-job/Dockerfile — if the Dockerfile starts copying
 # something new, add it here or that change will not trigger a rebuild.
 
+# DISABLED (Nov-2026): the project is discontinued and the GCP project's jobs,
+# image repository and scheduler were deleted. Automatic runs are switched off;
+# a manual dispatch would fail because the target repository no longer exists.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'build-tools/cloud_run_publish.py'
-      - 'build-tools/publish_ai_blocklist.py'
-      - 'build-tools/rag/**'
-      - 'build-tools/cloud-run-job/**'
-      - 'data/rag_corpus/tag_aliases.json'
   workflow_dispatch:
 
 permissions:

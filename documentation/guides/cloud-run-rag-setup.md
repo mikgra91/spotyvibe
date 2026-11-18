@@ -1,5 +1,7 @@
 # Cloud Run setup — public read-only RAG corpus mirror
 
+> **⚠️ Decommissioned (November 2026).** SpotyVibe is discontinued (Last.fm API moved to a paid service with new licensing terms). Everything this guide sets up has been turned off. The guide is kept for reference only. Don't re-deploy it from here.
+
 > **Purpose**: stand up a Google Cloud Run service that hosts the MusicBrainz-derived
 > RAG corpus, refreshes it automatically once a week, and exposes it as a
 > public *read-only* download endpoint that the SpotyVibe desktop client can
@@ -753,7 +755,8 @@ gcloud run jobs execute spotivibe-rag-builder --region=$REGION
 | Cloud Run Jobs vCPU | 240,000 vCPU-sec | 2 vCPU × 15 min × 4 runs = **1,800 vCPU-sec** (0.75 % of free) |
 | Cloud Run Jobs memory | 450,000 GiB-sec | 4 GiB × 15 min × 4 runs = **14,400 GiB-sec** (3.2 % of free) |
 | Cloud Scheduler | 3 jobs free | 1 job |
-| Artifact Registry | 0.5 GiB free | ~150 MB image |
+| Artifact Registry | 0.5 GiB free | ~440 MB image layers (prune old images if this grows) |
+| Secret Manager | **6 active secret versions** free | 1 (`lastfm-api-key`). ⚠ **Every enabled historical version counts, not just the latest** — destroy superseded versions. 7 lingering versions caused the first-ever charge (€0.04, 07/2026); the 2 retired Spotify secrets were deleted 2026-08-01. |
 
 ### 9.2 Cloud Storage (where the corpus lives)
 
@@ -761,10 +764,10 @@ GCS has its own always-free tier, **separate from Cloud Run's**:
 
 | GCS resource | Always-free quota | Our usage | Cost outside free tier |
 |---|---|---|---|
-| Standard storage | 5 GB-months | **0.007 GB** (7 MB corpus + 1 KB manifest) — 0.14 % of free | $0.020/GB-month → ~$0.00014 / mo |
+| Standard storage | 5 GB-months | **0.026 GB** (25 MB corpus incl. Last.fm + AI layers, + 1 KB manifest) — 0.5 % of free | $0.020/GB-month → ~$0.0005 / mo |
 | Class A operations (writes / lists) | 5,000 / month | **4** (weekly Job × 2 objects) — 0.08 % of free | $0.005 / 1k ops → fractions of a cent |
 | Class B operations (reads / gets) | 50,000 / month | ~16,000 / mo at **1,000 active users, 1 manifest fetch + 0.25 corpus refresh per week** — 32 % of free | $0.0004 / 1k ops |
-| Egress to internet | 100 GB / month (most destinations) | ~1.75 GB / mo at the same scale — 1.75 % of free | $0.12 / GB beyond free |
+| Egress to internet | **1 GB / month** (⚠ corrected 2026-08-01 — this table previously claimed 100 GB, which was wrong) | ~1.75 GB / mo at the same scale — **exceeds free**, ≈ $0.09 / mo | $0.12 / GB beyond free |
 
 > **Why us-central1 matters here.** GCS's 5 GB-months free tier only
 > applies to the three US single-region buckets (`us-central1`,
@@ -779,9 +782,9 @@ GCS has its own always-free tier, **separate from Cloud Run's**:
 | Free Cloud Run vCPU exhausted | The Job would need to run >24 h/mo, which it physically cannot (60-min task timeout × 4 runs = 4 h max). |
 | Free GCS storage exhausted | We'd need to keep ~700 historical corpus versions (5 GB / 7 MB). |
 | Free GCS reads exhausted | ~3,100 active users *all* refreshing the manifest *daily*. |
-| Free GCS egress exhausted | ~57,000 corpus refresh downloads/mo (e.g. ~14,000 active users refreshing weekly). |
+| Free GCS egress exhausted | **~40 corpus downloads/mo** (25 MB corpus vs 1 GB free) — the first quota a real user base hits; $0.12/GB after. |
 
-**At 1,000 active users worldwide refreshing weekly the bill rounds to $0.** **Structurally bounded** — there is no realistic SpotyVibe usage pattern that escapes the free tier from this Cloud Run setup.
+**At today's scale the bill rounds to $0.** Compute, storage, and operations are structurally bounded — but **egress is not**: beyond ~40 corpus downloads/month it costs ~$0.003 per download ($0.12/GB). 1,000 weekly-refreshing users would be ~$12/mo. A €1/mo budget alert ("zero-spend-tripwire") on the billing account catches any drift.
 
 ---
 

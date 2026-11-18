@@ -180,6 +180,12 @@ jobs:
           if [ ! -s changes.txt ]; then
             echo "No changes found for $TAG" > changes.txt
           fi
+          # Optional hand-written statement shown above the commit list.
+          NOTES=".github/release-notes/${TAG}.md"
+          if [ -f "$NOTES" ]; then
+            { cat "$NOTES"; printf '\n\n## Changes\n\n'; cat changes.txt; } > body.txt
+            mv body.txt changes.txt
+          fi
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.create_tag.outputs.tag }}

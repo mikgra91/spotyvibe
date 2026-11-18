@@ -3,6 +3,14 @@
 Willkommen bei **SpotyVibe** — deinem KI-gestützten Musikentdeckungs-Assistenten.
 Diese Anleitung erklärt, wie du die **SpotyVibe-Oberfläche** nutzt, um deine Vorlieben einzurichten, Spotify zu verbinden, Playlists zu generieren und Empfehlungen im Laufe der Zeit zu verfeinern.
 
+> ## ⚠️ Projekt eingestellt (November 2026)
+>
+> Last.fm stellt seine API auf einen kostenpflichtigen Dienst mit neuen Lizenzbedingungen um. Last.fm-Tag-Daten waren die wichtigste Quelle der SpotyVibe-Künstlerdatenbank; MusicBrainz allein reicht nicht aus, um die nötige Empfehlungsqualität zu halten. **Aufgrund dieser Lizenz- und Kostenanforderungen wird SpotyVibe nicht mehr weiterentwickelt oder gepflegt.**
+>
+> - **Deine lokale Installation funktioniert weiter.** SpotyVibe läuft vollständig auf deinem Gerät mit deinen eigenen Spotify- und KI-Anbieter-Schlüsseln. Profile, Verlauf, Einstellungen sowie eine bereits heruntergeladene Künstlerdatenbank oder KI-Künstler-Sperrliste bleiben auf deinem Computer und werden weiter verwendet.
+> - **Der gehostete Datenbank-Dienst ist abgeschaltet.** Der Cloud-Dienst, der die Künstlerdatenbank und die KI-Künstler-Sperrliste erstellt und veröffentlicht hat, wurde abgeschaltet. Neuinstallationen können sie nicht mehr herunterladen. Das Generieren von Playlists funktioniert auch ohne Datenbank; **Künstler entdecken** und der **Filter für KI-generierte Musik** benötigen eine vor der Abschaltung heruntergeladene Kopie.
+> - **Keine weiteren Releases, Fehlerbehebungen oder Support.** Der Quellcode bleibt verfügbar.
+
 ---
 
 ## Wähle ein Thema
